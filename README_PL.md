@@ -14,11 +14,11 @@ ani przetłumaczonej zawartości Morrowinda.
 Dokumentacja
 ------------
 
-- [Architektura](docs/runtime-localization/ARCHITECTURE.md)
-- [Runtime Localization Lua API](docs/runtime-localization/API.md)
-- [Budowanie w systemie Linux](docs/runtime-localization/BUILD_LINUX.md)
-- [Budowanie w systemie Windows](docs/runtime-localization/BUILD_WINDOWS.md)
-- [Tworzenie zewnętrznej warstwy lokalizacji](docs/runtime-localization/LOCALIZATION_LAYER.md)
+- [Architektura](docs/runtime-localization/ARCHITECTURE_PL.md)
+- [Runtime Localization Lua API](docs/runtime-localization/API_PL.md)
+- [Budowanie w systemie Linux](docs/runtime-localization/BUILD_LINUX_PL.md)
+- [Budowanie w systemie Windows](docs/runtime-localization/BUILD_WINDOWS_PL.md)
+- [Tworzenie zewnętrznej warstwy lokalizacji](docs/runtime-localization/LOCALIZATION_LAYER_PL.md)
 
 Baza
 ----
