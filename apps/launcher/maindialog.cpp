@@ -55,14 +55,17 @@ Launcher::MainDialog::MainDialog(const Files::ConfigurationManager& configuratio
         &MainDialog::wizardFinished);
 
     buttonBox->button(QDialogButtonBox::Close)->setText(tr("Close"));
-    buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Launch OpenMW"));
     buttonBox->button(QDialogButtonBox::Help)->setText(tr("Help"));
 
-    buttonBox->button(QDialogButtonBox::Ok)->setMinimumWidth(160);
+    auto* launchButton = buttonBox->button(QDialogButtonBox::Ok);
+    buttonBox->removeButton(launchButton);
+    launchButton->setText(tr("Launch OpenMW"));
+    launchButton->setMinimumWidth(160);
+    buttonBox->addButton(launchButton, QDialogButtonBox::AcceptRole);
 
     // Order of buttons can be different on different setups,
     // so make sure that the Play button has a focus by default.
-    buttonBox->button(QDialogButtonBox::Ok)->setFocus();
+    launchButton->setFocus();
 
     connect(buttonBox, &QDialogButtonBox::rejected, this, &MainDialog::close);
     connect(buttonBox, &QDialogButtonBox::accepted, this, &MainDialog::play);
