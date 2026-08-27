@@ -160,6 +160,28 @@ jobs:
       if: ${{ ! inputs.package }}
       run: cmake --install ${{ github.workspace }}/build --prefix ${{ github.workspace }}/install
 
+    - name: Copy MSVC runtime DLLs to portable install
+      if: ${{ ! inputs.package }}
+      shell: pwsh
+      run: |
+        $crtRoot = Join-Path $env:VCToolsRedistDir 'x64'
+        $crtDir = Get-ChildItem -Path $crtRoot -Directory |
+          Where-Object { $_.Name -like 'Microsoft.VC*.CRT' } |
+          Select-Object -First 1
+
+        if (-not $crtDir) {
+          throw "Could not find MSVC CRT redistributable directory under $crtRoot"
+        }
+
+        Write-Host "Using MSVC CRT: $($crtDir.FullName)"
+
+        Copy-Item `
+          -Path (Join-Path $crtDir.FullName '*.dll') `
+          -Destination '${{ github.workspace }}/install'
+
+        Get-ChildItem $crtDir.FullName -Filter '*.dll' |
+          Select-Object -ExpandProperty Name
+
     - name: Package OpenMW
       if: ${{ inputs.package }}
       run: |
