@@ -1,4 +1,4 @@
-OpenMW 0.51.0 — Runtime Localization Fork
+OpenMW — Runtime Localization Fork
 ==========================================
 
 [English](README.md) | **Polski**

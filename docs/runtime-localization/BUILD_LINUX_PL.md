@@ -3,7 +3,7 @@
 [English](BUILD_LINUX.md) | **Polski**
 
 Ten dokument opisuje przetestowaną ścieżkę budowania
-**OpenMW 0.51.0 — Runtime Localization Fork** w systemie Linux.
+**OpenMW — Runtime Localization Fork** w systemie Linux.
 
 Fork bazuje na OpenMW 0.51.0 i nie dodaje żadnych nowych zależności zewnętrznych
 poza tymi, które są wymagane przez oryginalne OpenMW.
@@ -36,8 +36,8 @@ https://wiki.openmw.org/index.php?title=Development_Environment_Setup
 ## Klonowanie
 
 ```bash
-git clone https://github.com/homoklikus/OpenMW-0.51.0-Runtime-Localization-Fork.git
-cd OpenMW-0.51.0-Runtime-Localization-Fork
+git clone https://github.com/homoklikus/OpenMW-Runtime-Localization-Fork.git
+cd OpenMW-Runtime-Localization-Fork
 ```
 
 Publiczną gałęzią rozwojową jest `main`.

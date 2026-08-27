@@ -3,7 +3,7 @@
 [English](ARCHITECTURE.md) | **Polski**
 
 Ten dokument opisuje architekturę lokalizacji w czasie działania dodaną przez
-**OpenMW 0.51.0 — Runtime Localization Fork**.
+**OpenMW — Runtime Localization Fork**.
 
 Fork bazuje na OpenMW 0.51.0. Dodaje po stronie silnika mechanizmy pozwalające
 zewnętrznej warstwie zawartości dostarczać zlokalizowane teksty wyświetlane

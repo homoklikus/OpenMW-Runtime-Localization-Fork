@@ -1,7 +1,7 @@
 # Runtime Localization Lua API
 
 This document describes the localization-specific Lua API provided by the
-**OpenMW 0.51.0 — Runtime Localization Fork**.
+**OpenMW — Runtime Localization Fork**.
 
 The API is available through:
 

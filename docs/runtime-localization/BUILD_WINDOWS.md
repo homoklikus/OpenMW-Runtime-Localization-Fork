@@ -1,7 +1,7 @@
 # Building on Windows
 
 This document describes the intended Windows build path for the
-**OpenMW 0.51.0 — Runtime Localization Fork**.
+**OpenMW — Runtime Localization Fork**.
 
 The fork is based on OpenMW 0.51.0 and adds no Windows-specific third-party
 dependencies. The runtime-localization changes are C++/Lua engine changes and
@@ -45,8 +45,8 @@ base.
 From PowerShell:
 
 ```powershell
-git clone https://github.com/homoklikus/OpenMW-0.51.0-Runtime-Localization-Fork.git
-Set-Location OpenMW-0.51.0-Runtime-Localization-Fork
+git clone https://github.com/homoklikus/OpenMW-Runtime-Localization-Fork.git
+Set-Location OpenMW-Runtime-Localization-Fork
 ```
 
 ## Configure

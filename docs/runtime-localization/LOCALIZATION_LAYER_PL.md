@@ -2,7 +2,7 @@
 
 [English](LOCALIZATION_LAYER.md) | **Polski**
 
-**OpenMW 0.51.0 — Runtime Localization Fork** udostępnia mechanizmy silnika
+**OpenMW — Runtime Localization Fork** udostępnia mechanizmy silnika
 pozwalające lokalizować zawartość w czasie działania. Nie definiuje ani nie
 dostarcza obowiązkowego formatu bazy tłumaczeń.
 

@@ -1,7 +1,7 @@
 # Building on Linux
 
 This document describes a tested Linux build path for the
-**OpenMW 0.51.0 — Runtime Localization Fork**.
+**OpenMW — Runtime Localization Fork**.
 
 The fork is based on OpenMW 0.51.0 and does not add any new third-party
 dependencies beyond those required by upstream OpenMW.
@@ -33,8 +33,8 @@ https://wiki.openmw.org/index.php?title=Development_Environment_Setup
 ## Clone
 
 ```bash
-git clone https://github.com/homoklikus/OpenMW-0.51.0-Runtime-Localization-Fork.git
-cd OpenMW-0.51.0-Runtime-Localization-Fork
+git clone https://github.com/homoklikus/OpenMW-Runtime-Localization-Fork.git
+cd OpenMW-Runtime-Localization-Fork
 ```
 
 The public development branch is `main`.

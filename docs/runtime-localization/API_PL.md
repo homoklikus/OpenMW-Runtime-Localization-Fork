@@ -3,7 +3,7 @@
 [English](API.md) | **Polski**
 
 Ten dokument opisuje API Lua przeznaczone dla lokalizacji, udostępniane przez
-**OpenMW 0.51.0 — Runtime Localization Fork**.
+**OpenMW — Runtime Localization Fork**.
 
 API jest dostępne przez:
 

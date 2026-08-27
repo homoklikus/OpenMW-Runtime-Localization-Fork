@@ -1,7 +1,7 @@
 # Runtime Localization Architecture
 
 This document describes the runtime localization architecture added by the
-**OpenMW 0.51.0 — Runtime Localization Fork**.
+**OpenMW — Runtime Localization Fork**.
 
 The fork is based on OpenMW 0.51.0. It adds engine-side hooks that allow an
 external content layer to provide localized display strings at runtime without

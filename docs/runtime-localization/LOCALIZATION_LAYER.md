@@ -1,6 +1,6 @@
 # External Localization Layer
 
-The **OpenMW 0.51.0 — Runtime Localization Fork** provides engine hooks for
+The **OpenMW — Runtime Localization Fork** provides engine hooks for
 runtime localization. It does not define or ship a mandatory translation
 database format.
 

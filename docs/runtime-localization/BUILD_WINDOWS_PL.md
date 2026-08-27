@@ -3,7 +3,7 @@
 [English](BUILD_WINDOWS.md) | **Polski**
 
 Ten dokument opisuje planowaną ścieżkę budowania
-**OpenMW 0.51.0 — Runtime Localization Fork** w systemie Windows.
+**OpenMW — Runtime Localization Fork** w systemie Windows.
 
 Fork bazuje na OpenMW 0.51.0 i nie dodaje żadnych zależności zewnętrznych
 specyficznych dla Windows. Zmiany lokalizacji w czasie działania są zmianami
@@ -47,8 +47,8 @@ OpenMW 0.51.0.
 W PowerShell:
 
 ```powershell
-git clone https://github.com/homoklikus/OpenMW-0.51.0-Runtime-Localization-Fork.git
-Set-Location OpenMW-0.51.0-Runtime-Localization-Fork
+git clone https://github.com/homoklikus/OpenMW-Runtime-Localization-Fork.git
+Set-Location OpenMW-Runtime-Localization-Fork
 ```
 
 ## Konfiguracja
