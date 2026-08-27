@@ -1,3 +1,22 @@
+OpenMW 0.51.0 — Runtime Localization Fork
+==========================================
+
+This is an unofficial fork of OpenMW 0.51.0 adding runtime localization
+support for TES3 content while preserving canonical source records and
+technical identifiers.
+
+The localization data is supplied by an external localization layer.
+This repository does not contain game localization data, Bethesda assets,
+or translated Morrowind content.
+
+Base: OpenMW 0.51.0
+License: GNU General Public License v3 (GPLv3)
+
+For the original OpenMW project, documentation and community resources,
+see the information below.
+
+---
+
 OpenMW
 ======
 
