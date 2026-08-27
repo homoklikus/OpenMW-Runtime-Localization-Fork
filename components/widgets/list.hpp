@@ -20,7 +20,7 @@ namespace Gui
 
         /**
          * Event: Item selected with the mouse.
-         * signature: void method(std::string itemName, int index)
+         * signature: void method(std::string eventName, int index)
          */
         EventHandle_StringInt eventItemSelected;
 
@@ -37,6 +37,8 @@ namespace Gui
 
         void sort();
         void addItem(std::string_view name, int verticalPadding = 0);
+        // Adds an item with a display label separated from the value emitted on selection.
+        void addItem(std::string_view name, std::string_view eventName, int verticalPadding = 0);
         void addSeparator(); ///< add a seperator between the current and the next item.
         void removeItem(const std::string& name);
         size_t getItemCount();
@@ -45,7 +47,9 @@ namespace Gui
         void clear();
 
         MyGUI::Button* getItemWidget(std::string_view name);
-        ///< get widget for an item name, useful to set up tooltip
+        ///< get widget for an item display name, useful to set up tooltip
+        MyGUI::Button* getItemWidgetByEventName(std::string_view eventName);
+        ///< get widget by the value emitted on selection
 
         void scrollToTop();
         void setViewOffset(int offset);
@@ -61,6 +65,8 @@ namespace Gui
         void onItemSelected(MyGUI::Widget* sender);
 
     private:
+        MyGUI::Button* getItemWidgetAt(size_t index);
+
         MyGUI::ScrollView* mScrollView;
         MyGUI::Widget* mClient;
         std::string mListItemSkin;
@@ -68,10 +74,12 @@ namespace Gui
         struct ListItemData
         {
             std::string mName;
+            std::string mEventName;
             int mVPadding;
 
-            ListItemData(std::string_view name, int verticalPadding)
+            ListItemData(std::string_view name, std::string_view eventName, int verticalPadding)
                 : mName(name)
+                , mEventName(eventName)
                 , mVPadding(verticalPadding)
             {
             }

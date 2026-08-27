@@ -54,6 +54,18 @@
 
 namespace MWDialogue
 {
+    namespace
+    {
+        // Display-only INFO response translation.
+        // The canonical source ESM record is intentionally left untouched.
+        std::string translatedInfoResponse(const Translation::Storage& storage, const ESM::Dialogue& dialogue,
+            const ESM::DialInfo& info)
+        {
+            return std::string(
+                storage.translateInfoResponse(dialogue.mStringId, info.mId.serializeText(), info.mResponse));
+        }
+    }
+
     DialogueManager::DialogueManager(
         const Compiler::Extensions& extensions, Translation::Storage& translationDataStorage)
         : mTranslationDataStorage(translationDataStorage)
@@ -93,8 +105,11 @@ namespace MWDialogue
         {
             mKeywordSearch.clear();
 
+            // Keep gameplay topic discovery on canonical source topic IDs.
+            // GUI has its own KeywordSearch and may use translated topicKeyword().
+            // Internal topic discovery must keep scanning the original source INFO text.
             for (const ESM::Dialogue& topic : dialogue)
-                mKeywordSearch.seed(mTranslationDataStorage.topicKeyword(topic.mStringId), topic.mStringId);
+                mKeywordSearch.seed(topic.mStringId, topic.mStringId);
 
             mKeywordSearchInitialized = true;
         }
@@ -182,7 +197,9 @@ namespace MWDialogue
                     }
 
                     MWScript::InterpreterContext interpreterContext(&mActor.getRefData().getLocals(), mActor);
-                    callback->addResponse({}, Interpreter::fixDefinesDialog(info->mResponse, interpreterContext));
+                    const std::string displayResponse
+                        = translatedInfoResponse(mTranslationDataStorage, dialogue, *info);
+                    callback->addResponse({}, Interpreter::fixDefinesDialog(displayResponse, interpreterContext));
                     MWBase::Environment::get().getLuaManager()->onDialogueResponse(mActor, *info, dialogue);
                     executeScript(info->mResultScript, mActor);
                     mLastTopic = dialogue.mId;
@@ -309,10 +326,13 @@ namespace MWDialogue
                 title = gmsts.find(modifiedTopic)->mValue.getString();
             }
             else
-                title = dialogue.mStringId;
+                title = mTranslationDataStorage.translateTopicName(dialogue.mStringId);
 
             MWScript::InterpreterContext interpreterContext(&mActor.getRefData().getLocals(), mActor);
-            callback->addResponse(title, Interpreter::fixDefinesDialog(info->mResponse, interpreterContext));
+            const ESM::Dialogue& infoDialogue = responseTopic != nullptr ? *responseTopic : dialogue;
+            const std::string displayResponse
+                = translatedInfoResponse(mTranslationDataStorage, infoDialogue, *info);
+            callback->addResponse(title, Interpreter::fixDefinesDialog(displayResponse, interpreterContext));
             MWBase::Environment::get().getLuaManager()->onDialogueResponse(mActor, *info, dialogue);
 
             if (dialogue.mType == ESM::Dialogue::Topic)
@@ -476,6 +496,10 @@ namespace MWDialogue
                 if (info)
                 {
                     const std::string& text = info->mResponse;
+                    const ESM::Dialogue& infoDialogue = responseTopic != nullptr ? *responseTopic : *dialogue;
+                    const std::string displayText
+                        = translatedInfoResponse(mTranslationDataStorage, infoDialogue, *info);
+                    // Keep topic discovery on the canonical source response.
                     addTopicsFromText(text);
 
                     mChoice = -1;
@@ -483,7 +507,7 @@ namespace MWDialogue
                     mChoices.clear();
 
                     MWScript::InterpreterContext interpreterContext(&mActor.getRefData().getLocals(), mActor);
-                    callback->addResponse({}, Interpreter::fixDefinesDialog(text, interpreterContext));
+                    callback->addResponse({}, Interpreter::fixDefinesDialog(displayText, interpreterContext));
                     MWBase::Environment::get().getLuaManager()->onDialogueResponse(mActor, *info, *dialogue);
 
                     if (dialogue->mType == ESM::Dialogue::Topic)
@@ -511,7 +535,8 @@ namespace MWDialogue
     void DialogueManager::addChoice(std::string_view text, int choice)
     {
         mIsInChoice = true;
-        mChoices.emplace_back(text, choice);
+        // Translate the Choice label only. Numeric choice value stays canonical.
+        mChoices.emplace_back(mTranslationDataStorage.translateChoice(text), choice);
     }
 
     const std::vector<std::pair<std::string, int>>& DialogueManager::getChoices() const
@@ -604,7 +629,10 @@ namespace MWDialogue
         if (!infos.empty())
         {
             const ESM::DialInfo* info = infos[0].second;
+            const std::string displayResponse
+                = translatedInfoResponse(mTranslationDataStorage, dialogue, *info);
 
+            // Keep topic discovery on the canonical source response.
             addTopicsFromText(info->mResponse);
 
             const MWWorld::Store<ESM::GameSetting>& gmsts
@@ -613,7 +641,7 @@ namespace MWDialogue
             MWScript::InterpreterContext interpreterContext(&mActor.getRefData().getLocals(), mActor);
 
             callback->addResponse(gmsts.find("sServiceRefusal")->mValue.getString(),
-                Interpreter::fixDefinesDialog(info->mResponse, interpreterContext));
+                Interpreter::fixDefinesDialog(displayResponse, interpreterContext));
             MWBase::Environment::get().getLuaManager()->onDialogueResponse(mActor, *info, dialogue);
 
             executeScript(info->mResultScript, mActor);
@@ -652,8 +680,9 @@ namespace MWDialogue
         if (info != nullptr)
         {
             MWBase::WindowManager* winMgr = MWBase::Environment::get().getWindowManager();
+            const std::string displayResponse = translatedInfoResponse(mTranslationDataStorage, *dial, *info);
             if (Settings::gui().mSubtitles)
-                winMgr->messageBox(info->mResponse);
+                winMgr->messageBox(displayResponse);
             if (!info->mSound.empty())
                 sndMgr->say(actor, Misc::ResourceHelpers::correctSoundPath(VFS::Path::Normalized(info->mSound)));
             if (!info->mResultScript.empty())

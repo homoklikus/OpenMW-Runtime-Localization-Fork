@@ -6,6 +6,19 @@
 
 namespace Translation
 {
+    namespace
+    {
+        std::string makeInfoKey(std::string_view topicId, std::string_view infoId)
+        {
+            std::string key;
+            key.reserve(topicId.size() + infoId.size() + 1);
+            key.append(topicId);
+            key.push_back('\0');
+            key.append(infoId);
+            return key;
+        }
+    }
+
     Storage::Storage()
         : mEncoder(nullptr)
     {
@@ -75,6 +88,39 @@ namespace Translation
         return entry->second;
     }
 
+    std::string_view Storage::translateTopicName(std::string_view topicId) const
+    {
+        auto entry = mTopicNames.find(topicId);
+        if (entry == mTopicNames.end())
+            return topicId;
+        return entry->second;
+    }
+
+    std::string_view Storage::translateInfoResponse(
+        std::string_view topicId, std::string_view infoId, std::string_view sourceText) const
+    {
+        auto entry = mInfoResponses.find(makeInfoKey(topicId, infoId));
+        if (entry == mInfoResponses.end())
+            return sourceText;
+        return entry->second;
+    }
+
+    std::string_view Storage::translateChoice(std::string_view sourceText) const
+    {
+        auto entry = mChoiceTranslations.find(sourceText);
+        if (entry == mChoiceTranslations.end())
+            return sourceText;
+        return entry->second;
+    }
+
+    std::string_view Storage::translateScriptString(std::string_view sourceText) const
+    {
+        auto entry = mScriptStrings.find(sourceText);
+        if (entry == mScriptStrings.end())
+            return sourceText;
+        return entry->second;
+    }
+
     std::string_view Storage::topicStandardForm(std::string_view phrase) const
     {
         auto phraseFormsIterator = mPhraseForms.find(phrase);
@@ -95,9 +141,45 @@ namespace Translation
         return entry->second;
     }
 
+    void Storage::addCellNameTranslation(std::string_view cellName, std::string_view displayName)
+    {
+        mCellNamesTranslations.insert_or_assign(std::string(cellName), std::string(displayName));
+    }
+
+    void Storage::addTopicNameTranslation(std::string_view topicId, std::string_view displayName)
+    {
+        mTopicNames.insert_or_assign(std::string(topicId), std::string(displayName));
+    }
+
     void Storage::addPhraseForm(std::string_view phrase, std::string_view topicId)
     {
         mPhraseForms.emplace(phrase, topicId);
+    }
+
+    void Storage::setPhraseForm(std::string_view phrase, std::string_view topicId)
+    {
+        mPhraseForms.insert_or_assign(std::string(phrase), std::string(topicId));
+    }
+
+    void Storage::addTopicKeyword(std::string_view topicId, std::string_view keyword)
+    {
+        mKeywords.insert_or_assign(std::string(topicId), std::string(keyword));
+    }
+
+    void Storage::addInfoResponseTranslation(
+        std::string_view topicId, std::string_view infoId, std::string_view response)
+    {
+        mInfoResponses.insert_or_assign(makeInfoKey(topicId, infoId), std::string(response));
+    }
+
+    void Storage::addChoiceTranslation(std::string_view sourceText, std::string_view displayText)
+    {
+        mChoiceTranslations.insert_or_assign(std::string(sourceText), std::string(displayText));
+    }
+
+    void Storage::addScriptStringTranslation(std::string_view sourceText, std::string_view displayText)
+    {
+        mScriptStrings.insert_or_assign(std::string(sourceText), std::string(displayText));
     }
 
     void Storage::setEncoder(ToUTF8::Utf8Encoder* encoder)

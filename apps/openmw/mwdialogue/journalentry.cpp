@@ -5,8 +5,10 @@
 #include <components/esm3/journalentry.hpp>
 
 #include <components/interpreter/defines.hpp>
+#include <components/translation/translation.hpp>
 
 #include "../mwbase/environment.hpp"
+#include "../mwbase/windowmanager.hpp"
 #include "../mwbase/world.hpp"
 
 #include "../mwworld/esmstore.hpp"
@@ -25,15 +27,21 @@ namespace MWDialogue
              ++iter)
             if (iter->mId == mInfoId)
             {
+                // Translate INFO before journal define expansion.
+                const auto& translations
+                    = MWBase::Environment::get().getWindowManager()->getTranslationDataStorage();
+                const std::string_view response = translations.translateInfoResponse(
+                    dialogue->mStringId, iter->mId.serializeText(), iter->mResponse);
+
                 if (actor.isEmpty())
                 {
                     MWScript::InterpreterContext interpreterContext(nullptr, MWWorld::Ptr());
-                    mText = Interpreter::fixDefinesDialog(iter->mResponse, interpreterContext);
+                    mText = Interpreter::fixDefinesDialog(response, interpreterContext);
                 }
                 else
                 {
                     MWScript::InterpreterContext interpreterContext(&actor.getRefData().getLocals(), actor);
-                    mText = Interpreter::fixDefinesDialog(iter->mResponse, interpreterContext);
+                    mText = Interpreter::fixDefinesDialog(response, interpreterContext);
                 }
 
                 return;

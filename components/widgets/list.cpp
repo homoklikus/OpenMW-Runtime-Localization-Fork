@@ -31,7 +31,12 @@ namespace Gui
 
     void MWList::addItem(std::string_view name, int verticalPadding)
     {
-        mItems.emplace_back(name, verticalPadding);
+        mItems.emplace_back(name, name, verticalPadding);
+    }
+
+    void MWList::addItem(std::string_view name, std::string_view eventName, int verticalPadding)
+    {
+        mItems.emplace_back(name, eventName, verticalPadding);
     }
 
     void MWList::addSeparator()
@@ -66,7 +71,7 @@ namespace Gui
                     return;
                 MyGUI::Button* button = mScrollView->createWidget<MyGUI::Button>(mListItemSkin,
                     MyGUI::IntCoord(0, mItemHeight, mScrollView->getSize().width - scrollBarWidth - 2, 24),
-                    MyGUI::Align::Left | MyGUI::Align::Top, getName() + "_item_" + item.mName);
+                    MyGUI::Align::Left | MyGUI::Align::Top, getName() + "_item_" + std::to_string(i));
                 button->setCaption(item.mName);
                 button->getSubWidgetText()->setWordWrap(true);
                 button->getSubWidgetText()->setTextAlign(MyGUI::Align::Left);
@@ -159,17 +164,35 @@ namespace Gui
 
     void MWList::onItemSelected(MyGUI::Widget* sender)
     {
-        std::string name = sender->castType<MyGUI::Button>()->getCaption();
         int id = *sender->getUserData<int>();
-        eventItemSelected(name, id);
+        eventItemSelected(mItems.at(id).mEventName, id);
         eventWidgetSelected(sender);
     }
 
     MyGUI::Button* MWList::getItemWidget(std::string_view name)
     {
-        std::string search = getName() + "_item_";
-        search += name;
-        return mScrollView->findWidget(search)->castType<MyGUI::Button>();
+        for (size_t i = 0; i < mItems.size(); ++i)
+        {
+            if (mItems[i].mName == name)
+                return getItemWidgetAt(i);
+        }
+        return nullptr;
+    }
+
+    MyGUI::Button* MWList::getItemWidgetByEventName(std::string_view eventName)
+    {
+        for (size_t i = 0; i < mItems.size(); ++i)
+        {
+            if (mItems[i].mEventName == eventName)
+                return getItemWidgetAt(i);
+        }
+        return nullptr;
+    }
+
+    MyGUI::Button* MWList::getItemWidgetAt(size_t index)
+    {
+        assert(index < mItems.size());
+        return mScrollView->findWidget(getName() + "_item_" + std::to_string(index))->castType<MyGUI::Button>();
     }
 
     void MWList::scrollToTop()

@@ -3,11 +3,13 @@
 #include <algorithm>
 
 #include <components/esm3/queststate.hpp>
+#include <components/translation/translation.hpp>
 
 #include "../mwbase/luamanager.hpp"
 #include "../mwworld/esmstore.hpp"
 
 #include "../mwbase/environment.hpp"
+#include "../mwbase/windowmanager.hpp"
 
 namespace MWDialogue
 {
@@ -39,7 +41,13 @@ namespace MWDialogue
         for (ESM::Dialogue::InfoContainer::const_iterator iter(dialogue->mInfo.begin()); iter != dialogue->mInfo.end();
              ++iter)
             if (iter->mQuestStatus == ESM::DialInfo::QS_Name)
-                return iter->mResponse;
+            {
+                // Translate the quest display name while keeping canonical IDs untouched.
+                return MWBase::Environment::get()
+                    .getWindowManager()
+                    ->getTranslationDataStorage()
+                    .translateInfoResponse(dialogue->mStringId, iter->mId.serializeText(), iter->mResponse);
+            }
 
         return {};
     }

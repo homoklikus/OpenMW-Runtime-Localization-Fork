@@ -628,14 +628,17 @@ namespace MWGui
         for (const auto& keyword : mKeywords)
         {
             std::string topicId = Misc::StringUtils::lowerCase(keyword);
-            mTopicsList->addItem(keyword, sVerticalPadding);
+            std::string displayKeyword(translationStorage.translateTopicName(keyword));
+
+            // Display translated text, emit the original technical DIAL ID.
+            mTopicsList->addItem(displayKeyword, keyword, sVerticalPadding);
 
             auto t = std::make_unique<Topic>(keyword);
             mKeywordSearch.seed(translationStorage.topicKeyword(keyword), topicId);
             t->eventTopicActivated += MyGUI::newDelegate(this, &DialogueWindow::onTopicActivated);
             mTopicLinks[topicId] = std::move(t);
 
-            if (keyword == focusedTopic)
+            if (displayKeyword == focusedTopic)
                 mControllerFocus = mTopicsList->getItemCount() - 1;
         }
 
@@ -845,7 +848,8 @@ namespace MWGui
         for (const std::string& keyword : mKeywords)
         {
             int flag = MWBase::Environment::get().getDialogueManager()->getTopicFlag(ESM::RefId::stringRefId(keyword));
-            MyGUI::Button* button = mTopicsList->getItemWidget(keyword);
+            // Look up the widget by its canonical event value, not its display label.
+            MyGUI::Button* button = mTopicsList->getItemWidgetByEventName(keyword);
             const auto oldCaption = button->getCaption();
             const MyGUI::IntSize oldSize = button->getSize();
 

@@ -1834,6 +1834,11 @@ namespace MWGui
         mMap->addVisitedLocation(name, x, y);
     }
 
+    Translation::Storage& WindowManager::getWritableTranslationDataStorage()
+    {
+        return mTranslationDataStorage;
+    }
+
     const Translation::Storage& WindowManager::getTranslationDataStorage() const
     {
         return mTranslationDataStorage;

@@ -319,6 +319,7 @@ namespace MWGui
 
         std::size_t getMessagesCount() const override;
 
+        Translation::Storage& getWritableTranslationDataStorage() override;
         const Translation::Storage& getTranslationDataStorage() const override;
 
         bool getCursorVisible() override;

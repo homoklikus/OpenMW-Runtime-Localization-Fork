@@ -1,17 +1,37 @@
 #include "contentbindings.hpp"
 
+#include <vector>
+
+#include <components/esm/attr.hpp>
 #include <components/esm3/loadacti.hpp>
 #include <components/esm3/loadalch.hpp>
+#include <components/esm3/loadappa.hpp>
+#include <components/esm3/loadarmo.hpp>
+#include <components/esm3/loadbsgn.hpp>
+#include <components/esm3/loadclot.hpp>
+#include <components/esm3/loadcont.hpp>
 #include <components/esm3/loadbook.hpp>
+#include <components/esm3/loadclas.hpp>
+#include <components/esm3/loadcrea.hpp>
+#include <components/esm3/loadfact.hpp>
+#include <components/esm3/loadnpc.hpp>
+#include <components/esm3/loadrace.hpp>
 #include <components/esm3/loaddoor.hpp>
 #include <components/esm3/loadench.hpp>
 #include <components/esm3/loadingr.hpp>
 #include <components/esm3/loadligh.hpp>
+#include <components/esm3/loadlock.hpp>
+#include <components/esm3/loadmgef.hpp>
 #include <components/esm3/loadmisc.hpp>
 #include <components/esm3/loadprob.hpp>
+#include <components/esm3/loadregn.hpp>
+#include <components/esm3/loadrepa.hpp>
+#include <components/esm3/loadskil.hpp>
 #include <components/esm3/loadsoun.hpp>
 #include <components/esm3/loadspel.hpp>
 #include <components/esm3/loadstat.hpp>
+#include <components/esm3/loadweap.hpp>
+#include <components/translation/translation.hpp>
 #include <components/fallback/fallback.hpp>
 #include <components/lua/util.hpp>
 
@@ -22,6 +42,7 @@
 #include "types/types.hpp"
 
 #include "../mwbase/environment.hpp"
+#include "../mwbase/windowmanager.hpp"
 #include "../mwworld/esmstore.hpp"
 
 namespace
@@ -46,6 +67,20 @@ namespace
         if (!id.empty())
             throw std::runtime_error("Non-string ID not allowed");
         return ESM::RefId::stringRefId(value);
+    }
+
+    template <class T, class Update>
+    bool updateLocalizedStaticRecord(MWWorld::Store<T>& store, std::string_view idText, Update&& update)
+    {
+        const ESM::RefId id = ESM::RefId::deserializeText(idText);
+        const T* found = store.search(id);
+        if (found == nullptr)
+            return false;
+
+        T record = *found;
+        update(record);
+        store.insertStatic(record);
+        return true;
     }
 }
 
@@ -385,6 +420,223 @@ namespace MWLua
             return LuaUtil::makeReadOnly(api);
         }
 
+        sol::table initTranslationBindings(sol::state_view& lua, MWWorld::ESMStore& esmStore)
+        {
+            auto& storage
+                = MWBase::Environment::get().getWindowManager()->getWritableTranslationDataStorage();
+
+            auto* factionStore = &esmStore.getWritable<ESM::Faction>();
+            auto* classStore = &esmStore.getWritable<ESM::Class>();
+            auto* raceStore = &esmStore.getWritable<ESM::Race>();
+            auto* npcStore = &esmStore.getWritable<ESM::NPC>();
+            auto* creatureStore = &esmStore.getWritable<ESM::Creature>();
+            auto* weaponStore = &esmStore.getWritable<ESM::Weapon>();
+
+            auto* armorStore = &esmStore.getWritable<ESM::Armor>();
+            auto* clothingStore = &esmStore.getWritable<ESM::Clothing>();
+            auto* containerStore = &esmStore.getWritable<ESM::Container>();
+            auto* apparatusStore = &esmStore.getWritable<ESM::Apparatus>();
+            auto* repairStore = &esmStore.getWritable<ESM::Repair>();
+            auto* lockpickStore = &esmStore.getWritable<ESM::Lockpick>();
+            auto* skillStore = &esmStore.getWritable<ESM::Skill>();
+            auto* birthSignStore = &esmStore.getWritable<ESM::BirthSign>();
+            auto* regionStore = &esmStore.getWritable<ESM::Region>();
+            auto* magicEffectStore = &esmStore.getWritable<ESM::MagicEffect>();
+            auto* attributeStore = &esmStore.getWritable<ESM::Attribute>();
+            auto* gameSettingStore = &esmStore.getWritable<ESM::GameSetting>();
+
+            sol::table api(lua, sol::create);
+
+            api["setCellName"] = [&storage](std::string_view sourceName, std::string_view displayName) {
+                storage.addCellNameTranslation(sourceName, displayName);
+            };
+            api["setTopicName"] = [&storage](std::string_view topicId, std::string_view displayName) {
+                storage.addTopicNameTranslation(topicId, displayName);
+            };
+            api["setTopicForm"] = [&storage](std::string_view phrase, std::string_view topicId) {
+                storage.setPhraseForm(phrase, topicId);
+            };
+            api["setTopicKeyword"] = [&storage](std::string_view topicId, std::string_view keyword) {
+                storage.addTopicKeyword(topicId, keyword);
+            };
+            api["setInfoResponse"]
+                = [&storage](std::string_view topicId, std::string_view infoId, std::string_view response) {
+                      storage.addInfoResponseTranslation(topicId, infoId, response);
+                  };
+            api["setChoiceText"] = [&storage](std::string_view sourceText, std::string_view displayText) {
+                storage.addChoiceTranslation(sourceText, displayText);
+            };
+            api["setScriptString"] = [&storage](std::string_view sourceText, std::string_view displayText) {
+                storage.addScriptStringTranslation(sourceText, displayText);
+            };
+
+            api["setFactionName"] = [factionStore](std::string_view id, std::string_view name) {
+                return updateLocalizedStaticRecord(*factionStore, id, [&](ESM::Faction& record) {
+                    record.mName = std::string(name);
+                });
+            };
+            api["setFactionRankName"]
+                = [factionStore](std::string_view id, std::size_t rankIndex, std::string_view name) {
+                      if (rankIndex >= 10)
+                          return false;
+                      return updateLocalizedStaticRecord(*factionStore, id, [&](ESM::Faction& record) {
+                          record.mRanks[rankIndex] = std::string(name);
+                      });
+                  };
+
+            api["setClassName"] = [classStore](std::string_view id, std::string_view name) {
+                return updateLocalizedStaticRecord(*classStore, id, [&](ESM::Class& record) {
+                    record.mName = std::string(name);
+                });
+            };
+            api["setClassDescription"] = [classStore](std::string_view id, std::string_view description) {
+                return updateLocalizedStaticRecord(*classStore, id, [&](ESM::Class& record) {
+                    record.mDescription = std::string(description);
+                });
+            };
+
+            api["setRaceName"] = [raceStore](std::string_view id, std::string_view name) {
+                return updateLocalizedStaticRecord(*raceStore, id, [&](ESM::Race& record) {
+                    record.mName = std::string(name);
+                });
+            };
+            api["setRaceDescription"] = [raceStore](std::string_view id, std::string_view description) {
+                return updateLocalizedStaticRecord(*raceStore, id, [&](ESM::Race& record) {
+                    record.mDescription = std::string(description);
+                });
+            };
+
+            api["setNpcName"] = [npcStore](std::string_view id, std::string_view name) {
+                return updateLocalizedStaticRecord(*npcStore, id, [&](ESM::NPC& record) {
+                    record.mName = std::string(name);
+                });
+            };
+            api["setCreatureName"] = [creatureStore](std::string_view id, std::string_view name) {
+                return updateLocalizedStaticRecord(*creatureStore, id, [&](ESM::Creature& record) {
+                    record.mName = std::string(name);
+                });
+            };
+            api["setWeaponName"] = [weaponStore](std::string_view id, std::string_view name) {
+                return updateLocalizedStaticRecord(*weaponStore, id, [&](ESM::Weapon& record) {
+                    record.mName = std::string(name);
+                });
+            };
+
+            api["setArmorName"] = [armorStore](std::string_view id, std::string_view name) {
+                return updateLocalizedStaticRecord(*armorStore, id, [&](ESM::Armor& record) {
+                    record.mName = std::string(name);
+                });
+            };
+            api["setClothingName"] = [clothingStore](std::string_view id, std::string_view name) {
+                return updateLocalizedStaticRecord(*clothingStore, id, [&](ESM::Clothing& record) {
+                    record.mName = std::string(name);
+                });
+            };
+            api["setContainerName"] = [containerStore](std::string_view id, std::string_view name) {
+                return updateLocalizedStaticRecord(*containerStore, id, [&](ESM::Container& record) {
+                    record.mName = std::string(name);
+                });
+            };
+            api["setApparatusName"] = [apparatusStore](std::string_view id, std::string_view name) {
+                return updateLocalizedStaticRecord(*apparatusStore, id, [&](ESM::Apparatus& record) {
+                    record.mName = std::string(name);
+                });
+            };
+            api["setRepairName"] = [repairStore](std::string_view id, std::string_view name) {
+                return updateLocalizedStaticRecord(*repairStore, id, [&](ESM::Repair& record) {
+                    record.mName = std::string(name);
+                });
+            };
+            api["setLockpickName"] = [lockpickStore](std::string_view id, std::string_view name) {
+                return updateLocalizedStaticRecord(*lockpickStore, id, [&](ESM::Lockpick& record) {
+                    record.mName = std::string(name);
+                });
+            };
+
+            api["setSkillDescription"]
+                = [skillStore](std::size_t skillIndex, std::string_view description) {
+                      if (skillIndex >= static_cast<std::size_t>(ESM::Skill::Length))
+                          return false;
+
+                      const ESM::RefId id = ESM::Skill::indexToRefId(static_cast<int>(skillIndex));
+                      const ESM::Skill* found = skillStore->search(id);
+                      if (found == nullptr)
+                          return false;
+
+                      ESM::Skill record = *found;
+                      record.mDescription = std::string(description);
+                      skillStore->insertStatic(record);
+                      return true;
+                  };
+
+            api["setBirthSignName"] = [birthSignStore](std::string_view id, std::string_view name) {
+                return updateLocalizedStaticRecord(*birthSignStore, id, [&](ESM::BirthSign& record) {
+                    record.mName = std::string(name);
+                });
+            };
+            api["setBirthSignDescription"]
+                = [birthSignStore](std::string_view id, std::string_view description) {
+                      return updateLocalizedStaticRecord(*birthSignStore, id, [&](ESM::BirthSign& record) {
+                          record.mDescription = std::string(description);
+                      });
+                  };
+            api["setRegionName"] = [regionStore](std::string_view id, std::string_view name) {
+                return updateLocalizedStaticRecord(*regionStore, id, [&](ESM::Region& record) {
+                    record.mName = std::string(name);
+                });
+            };
+
+            api["setMagicEffectDescription"]
+                = [magicEffectStore](std::size_t effectIndex, std::string_view description) {
+                      if (effectIndex >= static_cast<std::size_t>(ESM::MagicEffect::Length))
+                          return false;
+
+                      const ESM::RefId id = ESM::MagicEffect::indexToRefId(static_cast<int>(effectIndex));
+                      const ESM::MagicEffect* found = magicEffectStore->search(id);
+                      if (found == nullptr)
+                          return false;
+
+                      ESM::MagicEffect record = *found;
+                      record.mDescription = std::string(description);
+                      magicEffectStore->insertStatic(record);
+                      return true;
+                  };
+
+            api["refreshDerivedLocalization"]
+                = [gameSettingStore, skillStore, attributeStore, magicEffectStore]() {
+                      // Skill names and magic-school names are derived from GMST at startup.
+                      skillStore->setUp(*gameSettingStore);
+
+                      // Attribute names/descriptions are derived from GMST too.
+                      attributeStore->setUp(*gameSettingStore);
+
+                      // MGEF display names are derived from sEffect* GMSTs.
+                      std::vector<ESM::RefId> effectIds;
+                      effectIds.reserve(magicEffectStore->getSize());
+                      for (const ESM::MagicEffect& effect : *magicEffectStore)
+                          effectIds.push_back(effect.mId);
+
+                      std::size_t updated = 0;
+                      for (const ESM::RefId& id : effectIds)
+                      {
+                          const std::string_view gmstId = ESM::MagicEffect::refIdToGmstString(id);
+                          const ESM::GameSetting* gmst = gameSettingStore->search(gmstId);
+                          const ESM::MagicEffect* found = magicEffectStore->search(id);
+                          if (gmst == nullptr || found == nullptr || gmst->mValue.getType() != ESM::VT_String)
+                              continue;
+
+                          ESM::MagicEffect record = *found;
+                          record.mName = gmst->mValue.getString();
+                          magicEffectStore->insertStatic(record);
+                          ++updated;
+                      }
+
+                      return updated;
+                  };
+
+            return LuaUtil::makeReadOnly(api);
+        }
+
         sol::table initStaticBindings(sol::state_view& lua, MWWorld::Store<ESM::Static>& store)
         {
             addRecordStoreBindings<ESM::Static>(lua, &MWLua::tableToStatic);
@@ -422,6 +674,7 @@ namespace MWLua
         api["potions"] = initPotionBindings(lua, esmStore.getWritable<ESM::Potion>());
         api["probes"] = initProbeBindings(lua, esmStore.getWritable<ESM::Probe>());
         api["spells"] = initSpellBindings(lua, esmStore.getWritable<ESM::Spell>());
+        api["translations"] = initTranslationBindings(lua, esmStore);
         api["statics"] = initStaticBindings(lua, esmStore.getWritable<ESM::Static>());
         api["sounds"] = initSoundBindings(lua, esmStore.getWritable<ESM::Sound>());
         api["RANGE"] = LuaUtil::makeStrictReadOnly(LuaUtil::tableFromPairs<std::string_view, ESM::RangeType>(lua,

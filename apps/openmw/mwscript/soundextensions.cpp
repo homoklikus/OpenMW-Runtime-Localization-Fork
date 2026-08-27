@@ -39,6 +39,9 @@ namespace MWScript
                 std::string_view text = runtime.getStringLiteral(runtime[0].mInteger);
                 runtime.pop();
 
+                // Translate subtitle text only; the audio path remains canonical.
+                text = context.translateScriptString(text);
+
                 MWBase::Environment::get().getSoundManager()->say(ptr, Misc::ResourceHelpers::correctSoundPath(file));
 
                 if (Settings::gui().mSubtitles)

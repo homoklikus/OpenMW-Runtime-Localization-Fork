@@ -296,6 +296,7 @@ namespace MWBase
 
         virtual std::size_t getMessagesCount() const = 0;
 
+        virtual Translation::Storage& getWritableTranslationDataStorage() = 0;
         virtual const Translation::Storage& getTranslationDataStorage() const = 0;
 
         /// Warning: do not use MyGUI::InputManager::setKeyFocusWidget directly. Instead use this.

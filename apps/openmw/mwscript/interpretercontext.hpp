@@ -65,6 +65,8 @@ namespace MWScript
 
         void messageBox(std::string_view message, const std::vector<std::string>& buttons) override;
 
+        std::string_view translateScriptString(std::string_view text) const override;
+
         void report(const std::string& message) override;
         ///< By default, do nothing.
 

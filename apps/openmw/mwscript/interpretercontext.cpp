@@ -6,6 +6,7 @@
 #include <components/compiler/locals.hpp>
 #include <components/debug/debuglog.hpp>
 #include <components/esm/records.hpp>
+#include <components/translation/translation.hpp>
 
 #include "../mwworld/esmstore.hpp"
 
@@ -196,6 +197,11 @@ namespace MWScript
             MWBase::Environment::get().getWindowManager()->messageBox(message);
         else
             MWBase::Environment::get().getWindowManager()->interactiveMessageBox(message, buttons);
+    }
+
+    std::string_view InterpreterContext::translateScriptString(std::string_view text) const
+    {
+        return MWBase::Environment::get().getWindowManager()->getTranslationDataStorage().translateScriptString(text);
     }
 
     void InterpreterContext::report(const std::string& message) {}

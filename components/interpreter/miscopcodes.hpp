@@ -32,6 +32,8 @@ namespace Interpreter
                 mRuntime.pop();
 
                 std::string_view value = mRuntime.getStringLiteral(index);
+                // Visible string placeholder values may be localized too.
+                value = mRuntime.getContext().translateScriptString(value);
                 if (precision >= 0)
                     value = value.substr(0, static_cast<std::size_t>(precision));
                 if (width < 0)
@@ -123,7 +125,8 @@ namespace Interpreter
     inline std::string formatMessage(std::string_view message, Runtime& runtime)
     {
         RuntimeMessageFormatter formatter(runtime);
-        formatter.process(message);
+        // Translate the MessageBox template before formatting.
+        formatter.process(runtime.getContext().translateScriptString(message));
 
         std::string formattedMessage = formatter.getFormattedMessage();
         formattedMessage = fixDefinesMsgBox(formattedMessage, runtime.getContext());
@@ -147,7 +150,8 @@ namespace Interpreter
             {
                 index = runtime[0].mInteger;
                 runtime.pop();
-                buttons.emplace_back(runtime.getStringLiteral(index));
+                buttons.emplace_back(
+                    runtime.getContext().translateScriptString(runtime.getStringLiteral(index)));
             }
 
             std::reverse(buttons.begin(), buttons.end());

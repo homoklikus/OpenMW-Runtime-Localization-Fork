@@ -29,6 +29,9 @@ namespace Interpreter
 
         virtual void messageBox(std::string_view message, const std::vector<std::string>& buttons) = 0;
 
+        // Optional display-only localization hook. Default keeps other interpreter users unchanged.
+        virtual std::string_view translateScriptString(std::string_view text) const { return text; }
+
         void messageBox(std::string_view message)
         {
             std::vector<std::string> empty;

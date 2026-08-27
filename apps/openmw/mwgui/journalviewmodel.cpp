@@ -253,7 +253,9 @@ namespace MWGui
         void visitTopicName(
             const MWDialogue::Topic& topic, std::function<void(std::string_view)> visitor) const override
         {
-            visitor(topic.getName());
+            const Translation::Storage& translationStorage
+                = MWBase::Environment::get().getWindowManager()->getTranslationDataStorage();
+            visitor(translationStorage.translateTopicName(topic.getName()));
         }
 
         void visitTopicNamesStartingWith(
@@ -261,15 +263,19 @@ namespace MWGui
         {
             MWBase::Journal* journal = MWBase::Environment::get().getJournal();
 
+            const Translation::Storage& translationStorage
+                = MWBase::Environment::get().getWindowManager()->getTranslationDataStorage();
+
             for (const auto& [_, topic] : journal->getTopics())
             {
-                Utf8Stream stream(topic.getName());
+                std::string_view translatedName = translationStorage.translateTopicName(topic.getName());
+                Utf8Stream stream(translatedName);
                 Utf8Stream::UnicodeChar first = Utf8Stream::toLowerUtf8(stream.peek());
 
                 if (first != Utf8Stream::toLowerUtf8(character))
                     continue;
 
-                visitor(topic.getName());
+                visitor(translatedName);
             }
         }
 
