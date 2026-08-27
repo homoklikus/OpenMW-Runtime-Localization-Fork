@@ -9,6 +9,15 @@ Localization data is supplied by an external localization layer.
 This repository does not contain game localization data, Bethesda assets,
 or translated Morrowind content.
 
+Documentation
+-------------
+
+- [Architecture](docs/runtime-localization/ARCHITECTURE.md)
+- [Runtime Localization Lua API](docs/runtime-localization/API.md)
+- [Building on Linux](docs/runtime-localization/BUILD_LINUX.md)
+- [Building on Windows](docs/runtime-localization/BUILD_WINDOWS.md)
+- [Creating an external localization layer](docs/runtime-localization/LOCALIZATION_LAYER.md)
+
 Base
 ----
 
