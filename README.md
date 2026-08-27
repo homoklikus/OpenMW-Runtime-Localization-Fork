@@ -1,6 +1,8 @@
 OpenMW 0.51.0 — Runtime Localization Fork
 ==========================================
 
+**English** | [Polski](README_PL.md)
+
 An unofficial fork of OpenMW 0.51.0 adding runtime localization support
 for TES3 content while preserving canonical source records and technical
 identifiers.
