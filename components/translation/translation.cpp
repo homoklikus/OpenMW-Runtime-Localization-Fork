@@ -96,10 +96,57 @@ namespace Translation
         return entry->second;
     }
 
-    std::string_view Storage::translateInfoResponse(
-        std::string_view topicId, std::string_view infoId, std::string_view sourceText) const
+    std::string_view Storage::translateInfoResponse(std::string_view topicId, std::string_view infoId,
+        std::string_view sourceText, NpcGender npcGender, PlayerGender playerGender) const
     {
-        auto entry = mInfoResponses.find(makeInfoKey(topicId, infoId));
+        const std::string key = makeInfoKey(topicId, infoId);
+
+        // Most specific form first: exact NPC + player gender combination.
+        const ContainerType* combinedGenderResponses = nullptr;
+        if (npcGender == NpcGender::Male && playerGender == PlayerGender::Male)
+            combinedGenderResponses = &mInfoResponsesNpcMalePlayerMale;
+        else if (npcGender == NpcGender::Male && playerGender == PlayerGender::Female)
+            combinedGenderResponses = &mInfoResponsesNpcMalePlayerFemale;
+        else if (npcGender == NpcGender::Female && playerGender == PlayerGender::Male)
+            combinedGenderResponses = &mInfoResponsesNpcFemalePlayerMale;
+        else if (npcGender == NpcGender::Female && playerGender == PlayerGender::Female)
+            combinedGenderResponses = &mInfoResponsesNpcFemalePlayerFemale;
+
+        if (combinedGenderResponses != nullptr)
+        {
+            auto genderEntry = combinedGenderResponses->find(key);
+            if (genderEntry != combinedGenderResponses->end())
+                return genderEntry->second;
+        }
+
+        // Less specific NPC-only variant.
+        const ContainerType* npcGenderResponses = nullptr;
+        if (npcGender == NpcGender::Male)
+            npcGenderResponses = &mInfoResponsesNpcMale;
+        else if (npcGender == NpcGender::Female)
+            npcGenderResponses = &mInfoResponsesNpcFemale;
+
+        if (npcGenderResponses != nullptr)
+        {
+            auto genderEntry = npcGenderResponses->find(key);
+            if (genderEntry != npcGenderResponses->end())
+                return genderEntry->second;
+        }
+
+        const ContainerType* playerGenderResponses = nullptr;
+        if (playerGender == PlayerGender::Male)
+            playerGenderResponses = &mInfoResponsesPlayerMale;
+        else if (playerGender == PlayerGender::Female)
+            playerGenderResponses = &mInfoResponsesPlayerFemale;
+
+        if (playerGenderResponses != nullptr)
+        {
+            auto genderEntry = playerGenderResponses->find(key);
+            if (genderEntry != playerGenderResponses->end())
+                return genderEntry->second;
+        }
+
+        auto entry = mInfoResponses.find(key);
         if (entry == mInfoResponses.end())
             return sourceText;
         return entry->second;
@@ -170,6 +217,50 @@ namespace Translation
         std::string_view topicId, std::string_view infoId, std::string_view response)
     {
         mInfoResponses.insert_or_assign(makeInfoKey(topicId, infoId), std::string(response));
+    }
+
+    void Storage::addInfoResponseNpcTranslation(
+        std::string_view topicId, std::string_view infoId, NpcGender gender, std::string_view response)
+    {
+        ContainerType* target = nullptr;
+        if (gender == NpcGender::Male)
+            target = &mInfoResponsesNpcMale;
+        else if (gender == NpcGender::Female)
+            target = &mInfoResponsesNpcFemale;
+
+        if (target != nullptr)
+            target->insert_or_assign(makeInfoKey(topicId, infoId), std::string(response));
+    }
+
+    void Storage::addInfoResponsePlayerTranslation(
+        std::string_view topicId, std::string_view infoId, PlayerGender gender, std::string_view response)
+    {
+        ContainerType* target = nullptr;
+        if (gender == PlayerGender::Male)
+            target = &mInfoResponsesPlayerMale;
+        else if (gender == PlayerGender::Female)
+            target = &mInfoResponsesPlayerFemale;
+
+        if (target != nullptr)
+            target->insert_or_assign(makeInfoKey(topicId, infoId), std::string(response));
+    }
+
+    void Storage::addInfoResponseNpcPlayerTranslation(std::string_view topicId, std::string_view infoId,
+        NpcGender npcGender, PlayerGender playerGender, std::string_view response)
+    {
+        ContainerType* target = nullptr;
+
+        if (npcGender == NpcGender::Male && playerGender == PlayerGender::Male)
+            target = &mInfoResponsesNpcMalePlayerMale;
+        else if (npcGender == NpcGender::Male && playerGender == PlayerGender::Female)
+            target = &mInfoResponsesNpcMalePlayerFemale;
+        else if (npcGender == NpcGender::Female && playerGender == PlayerGender::Male)
+            target = &mInfoResponsesNpcFemalePlayerMale;
+        else if (npcGender == NpcGender::Female && playerGender == PlayerGender::Female)
+            target = &mInfoResponsesNpcFemalePlayerFemale;
+
+        if (target != nullptr)
+            target->insert_or_assign(makeInfoKey(topicId, infoId), std::string(response));
     }
 
     void Storage::addChoiceTranslation(std::string_view sourceText, std::string_view displayText)

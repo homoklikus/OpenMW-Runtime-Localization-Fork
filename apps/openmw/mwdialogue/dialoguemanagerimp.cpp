@@ -13,6 +13,7 @@
 #include <components/esm3/loadfact.hpp>
 #include <components/esm3/loadinfo.hpp>
 #include <components/esm3/loadmgef.hpp>
+#include <components/esm3/loadnpc.hpp>
 
 #include <components/compiler/errorhandler.hpp>
 #include <components/compiler/exception.hpp>
@@ -59,10 +60,25 @@ namespace MWDialogue
         // Display-only INFO response translation.
         // The canonical source ESM record is intentionally left untouched.
         std::string translatedInfoResponse(const Translation::Storage& storage, const ESM::Dialogue& dialogue,
-            const ESM::DialInfo& info)
+            const ESM::DialInfo& info, const MWWorld::Ptr& actor)
         {
-            return std::string(
-                storage.translateInfoResponse(dialogue.mStringId, info.mId.serializeText(), info.mResponse));
+            Translation::Storage::NpcGender npcGender = Translation::Storage::NpcGender::None;
+
+            if (actor.getClass().isNpc())
+            {
+                const auto* npc = actor.get<ESM::NPC>();
+                npcGender = npc->mBase->isMale() ? Translation::Storage::NpcGender::Male
+                                                 : Translation::Storage::NpcGender::Female;
+            }
+
+            Translation::Storage::PlayerGender playerGender = Translation::Storage::PlayerGender::None;
+            const MWWorld::Ptr player = MWBase::Environment::get().getWorld()->getPlayerPtr();
+            const auto* playerNpc = player.get<ESM::NPC>();
+            playerGender = playerNpc->mBase->isMale() ? Translation::Storage::PlayerGender::Male
+                                                      : Translation::Storage::PlayerGender::Female;
+
+            return std::string(storage.translateInfoResponse(
+                dialogue.mStringId, info.mId.serializeText(), info.mResponse, npcGender, playerGender));
         }
     }
 
@@ -198,7 +214,7 @@ namespace MWDialogue
 
                     MWScript::InterpreterContext interpreterContext(&mActor.getRefData().getLocals(), mActor);
                     const std::string displayResponse
-                        = translatedInfoResponse(mTranslationDataStorage, dialogue, *info);
+                        = translatedInfoResponse(mTranslationDataStorage, dialogue, *info, mActor);
                     callback->addResponse({}, Interpreter::fixDefinesDialog(displayResponse, interpreterContext));
                     MWBase::Environment::get().getLuaManager()->onDialogueResponse(mActor, *info, dialogue);
                     executeScript(info->mResultScript, mActor);
@@ -331,7 +347,7 @@ namespace MWDialogue
             MWScript::InterpreterContext interpreterContext(&mActor.getRefData().getLocals(), mActor);
             const ESM::Dialogue& infoDialogue = responseTopic != nullptr ? *responseTopic : dialogue;
             const std::string displayResponse
-                = translatedInfoResponse(mTranslationDataStorage, infoDialogue, *info);
+                = translatedInfoResponse(mTranslationDataStorage, infoDialogue, *info, mActor);
             callback->addResponse(title, Interpreter::fixDefinesDialog(displayResponse, interpreterContext));
             MWBase::Environment::get().getLuaManager()->onDialogueResponse(mActor, *info, dialogue);
 
@@ -498,7 +514,7 @@ namespace MWDialogue
                     const std::string& text = info->mResponse;
                     const ESM::Dialogue& infoDialogue = responseTopic != nullptr ? *responseTopic : *dialogue;
                     const std::string displayText
-                        = translatedInfoResponse(mTranslationDataStorage, infoDialogue, *info);
+                        = translatedInfoResponse(mTranslationDataStorage, infoDialogue, *info, mActor);
                     // Keep topic discovery on the canonical source response.
                     addTopicsFromText(text);
 
@@ -630,7 +646,7 @@ namespace MWDialogue
         {
             const ESM::DialInfo* info = infos[0].second;
             const std::string displayResponse
-                = translatedInfoResponse(mTranslationDataStorage, dialogue, *info);
+                = translatedInfoResponse(mTranslationDataStorage, dialogue, *info, mActor);
 
             // Keep topic discovery on the canonical source response.
             addTopicsFromText(info->mResponse);
@@ -680,7 +696,7 @@ namespace MWDialogue
         if (info != nullptr)
         {
             MWBase::WindowManager* winMgr = MWBase::Environment::get().getWindowManager();
-            const std::string displayResponse = translatedInfoResponse(mTranslationDataStorage, *dial, *info);
+            const std::string displayResponse = translatedInfoResponse(mTranslationDataStorage, *dial, *info, actor);
             if (Settings::gui().mSubtitles)
                 winMgr->messageBox(displayResponse);
             if (!info->mSound.empty())

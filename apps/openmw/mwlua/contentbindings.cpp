@@ -463,6 +463,53 @@ namespace MWLua
                 = [&storage](std::string_view topicId, std::string_view infoId, std::string_view response) {
                       storage.addInfoResponseTranslation(topicId, infoId, response);
                   };
+            api["setInfoResponseNpc"] = [&storage](std::string_view topicId, std::string_view infoId,
+                                            std::string_view gender, std::string_view response) {
+                Translation::Storage::NpcGender npcGender;
+                if (gender == "male")
+                    npcGender = Translation::Storage::NpcGender::Male;
+                else if (gender == "female")
+                    npcGender = Translation::Storage::NpcGender::Female;
+                else
+                    throw std::runtime_error("NPC gender must be 'male' or 'female'");
+
+                storage.addInfoResponseNpcTranslation(topicId, infoId, npcGender, response);
+            };
+            api["setInfoResponsePlayer"] = [&storage](std::string_view topicId, std::string_view infoId,
+                                               std::string_view gender, std::string_view response) {
+                Translation::Storage::PlayerGender playerGender;
+                if (gender == "male")
+                    playerGender = Translation::Storage::PlayerGender::Male;
+                else if (gender == "female")
+                    playerGender = Translation::Storage::PlayerGender::Female;
+                else
+                    throw std::runtime_error("Player gender must be 'male' or 'female'");
+
+                storage.addInfoResponsePlayerTranslation(topicId, infoId, playerGender, response);
+            };
+            api["setInfoResponseNpcPlayer"] = [&storage](std::string_view topicId, std::string_view infoId,
+                                                  std::string_view npcGenderText,
+                                                  std::string_view playerGenderText,
+                                                  std::string_view response) {
+                Translation::Storage::NpcGender npcGender;
+                if (npcGenderText == "male")
+                    npcGender = Translation::Storage::NpcGender::Male;
+                else if (npcGenderText == "female")
+                    npcGender = Translation::Storage::NpcGender::Female;
+                else
+                    throw std::runtime_error("NPC gender must be 'male' or 'female'");
+
+                Translation::Storage::PlayerGender playerGender;
+                if (playerGenderText == "male")
+                    playerGender = Translation::Storage::PlayerGender::Male;
+                else if (playerGenderText == "female")
+                    playerGender = Translation::Storage::PlayerGender::Female;
+                else
+                    throw std::runtime_error("Player gender must be 'male' or 'female'");
+
+                storage.addInfoResponseNpcPlayerTranslation(
+                    topicId, infoId, npcGender, playerGender, response);
+            };
             api["setChoiceText"] = [&storage](std::string_view sourceText, std::string_view displayText) {
                 storage.addChoiceTranslation(sourceText, displayText);
             };

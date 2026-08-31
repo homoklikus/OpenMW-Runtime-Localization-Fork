@@ -9,6 +9,20 @@ namespace Translation
     class Storage
     {
     public:
+        enum class NpcGender
+        {
+            None,
+            Male,
+            Female
+        };
+
+        enum class PlayerGender
+        {
+            None,
+            Male,
+            Female
+        };
+
         Storage();
 
         void loadTranslationData(const Files::Collections& dataFileCollections, std::string_view esmFileName);
@@ -19,8 +33,9 @@ namespace Translation
         std::string_view translateTopicName(std::string_view topicId) const;
 
         // Display-only INFO response translation. The source INFO record remains untouched.
-        std::string_view translateInfoResponse(
-            std::string_view topicId, std::string_view infoId, std::string_view sourceText) const;
+        std::string_view translateInfoResponse(std::string_view topicId, std::string_view infoId,
+            std::string_view sourceText, NpcGender npcGender = NpcGender::None,
+            PlayerGender playerGender = PlayerGender::None) const;
 
         // Display-only translation of Choice labels from INFO result scripts.
         std::string_view translateChoice(std::string_view sourceText) const;
@@ -42,6 +57,12 @@ namespace Translation
         void addTopicKeyword(std::string_view topicId, std::string_view keyword);
         void addInfoResponseTranslation(
             std::string_view topicId, std::string_view infoId, std::string_view response);
+        void addInfoResponseNpcTranslation(
+            std::string_view topicId, std::string_view infoId, NpcGender gender, std::string_view response);
+        void addInfoResponsePlayerTranslation(
+            std::string_view topicId, std::string_view infoId, PlayerGender gender, std::string_view response);
+        void addInfoResponseNpcPlayerTranslation(std::string_view topicId, std::string_view infoId,
+            NpcGender npcGender, PlayerGender playerGender, std::string_view response);
         void addChoiceTranslation(std::string_view sourceText, std::string_view displayText);
         void addScriptStringTranslation(std::string_view sourceText, std::string_view displayText);
 
@@ -56,7 +77,11 @@ namespace Translation
         void loadDataFromStream(ContainerType& container, std::istream& stream);
 
         ToUTF8::Utf8Encoder* mEncoder;
-        ContainerType mCellNamesTranslations, mTopicNames, mInfoResponses, mChoiceTranslations, mScriptStrings, mKeywords, mPhraseForms;
+        ContainerType mCellNamesTranslations, mTopicNames, mInfoResponses, mInfoResponsesNpcMale,
+            mInfoResponsesNpcFemale, mInfoResponsesPlayerMale, mInfoResponsesPlayerFemale,
+            mInfoResponsesNpcMalePlayerMale, mInfoResponsesNpcMalePlayerFemale,
+            mInfoResponsesNpcFemalePlayerMale, mInfoResponsesNpcFemalePlayerFemale,
+            mChoiceTranslations, mScriptStrings, mKeywords, mPhraseForms;
     };
 }
 
