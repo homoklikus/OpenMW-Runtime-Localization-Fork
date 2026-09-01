@@ -447,6 +447,13 @@ namespace MWLua
 
             sol::table api(lua, sol::create);
 
+            api["setRegistrationLocale"] = [&storage](std::string_view locale) {
+                storage.setRegistrationLocale(locale);
+            };
+            api["clearRegistrationLocale"] = [&storage]() {
+                storage.clearRegistrationLocale();
+            };
+
             api["setCellName"] = [&storage](std::string_view sourceName, std::string_view displayName) {
                 storage.addCellNameTranslation(sourceName, displayName);
             };
@@ -515,6 +522,9 @@ namespace MWLua
             };
             api["setScriptString"] = [&storage](std::string_view sourceText, std::string_view displayText) {
                 storage.addScriptStringTranslation(sourceText, displayText);
+            };
+            api["setFallbackString"] = [](std::string_view key, std::string_view displayText) {
+                return Fallback::Map::setString(key, displayText);
             };
 
             api["setFactionName"] = [factionStore](std::string_view id, std::string_view name) {

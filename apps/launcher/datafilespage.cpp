@@ -347,6 +347,40 @@ bool Launcher::DataFilesPage::loadSettings()
 
     auto language = mLauncherSettings.getLanguage();
 
+    // Bidirectional language sync:
+    // launcher -> game is handled in saveSettings()
+    // game -> launcher is handled here by reflecting the current primary
+    // preferred locale in the Morrowind Content Language selector.
+    //
+    // The secondary preferred locale is intentionally ignored here because
+    // the launcher has no UI for it.
+    const std::vector<std::string> preferredLocales = Settings::general().mPreferredLocales;
+    if (!preferredLocales.empty())
+    {
+        std::string primaryLocale = preferredLocales.front();
+        std::ranges::transform(primaryLocale, primaryLocale.begin(),
+            [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+        const std::size_t separator = primaryLocale.find_first_of("-_");
+        if (separator != std::string::npos)
+            primaryLocale.resize(separator);
+
+        if (primaryLocale == "en")
+            language = QStringLiteral("English");
+        else if (primaryLocale == "fr")
+            language = QStringLiteral("French");
+        else if (primaryLocale == "de")
+            language = QStringLiteral("German");
+        else if (primaryLocale == "it")
+            language = QStringLiteral("Italian");
+        else if (primaryLocale == "pl")
+            language = QStringLiteral("Polish");
+        else if (primaryLocale == "ru")
+            language = QStringLiteral("Russian");
+        else if (primaryLocale == "es")
+            language = QStringLiteral("Spanish");
+    }
+
     for (int i = 0; i < mSelector->languageBox()->count(); ++i)
     {
         QString languageItem = mSelector->languageBox()->itemData(i).toString();
@@ -551,6 +585,31 @@ void Launcher::DataFilesPage::saveSettings(const QString& profile)
     QString language(mSelector->languageBox()->currentData().toString());
 
     mLauncherSettings.setLanguage(language);
+
+    // Keep OpenMW's Morrowind Content Language in sync with the primary
+    // preferred locale used by Runtime Localization and OpenMW l10n.
+    // The secondary preferred locale is intentionally preserved and remains
+    // configurable only from the in-game language settings.
+    std::string primaryLocale = "en";
+    if (language == QLatin1String("French"))
+        primaryLocale = "fr";
+    else if (language == QLatin1String("German"))
+        primaryLocale = "de";
+    else if (language == QLatin1String("Italian"))
+        primaryLocale = "it";
+    else if (language == QLatin1String("Polish"))
+        primaryLocale = "pl";
+    else if (language == QLatin1String("Russian"))
+        primaryLocale = "ru";
+    else if (language == QLatin1String("Spanish"))
+        primaryLocale = "es";
+
+    std::vector<std::string> preferredLocales = Settings::general().mPreferredLocales;
+    if (preferredLocales.empty())
+        preferredLocales.push_back(primaryLocale);
+    else
+        preferredLocales[0] = primaryLocale;
+    Settings::general().mPreferredLocales.set(preferredLocales);
 
     if (language == QLatin1String("Polish"))
     {

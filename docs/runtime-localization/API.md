@@ -81,6 +81,11 @@ translations.setInfoResponse(
 The mapping is context-sensitive: the key contains both the canonical topic ID
 and canonical INFO ID.
 
+INFO IDs are normalized to lowercase by the storage key builder to match
+`ESM::RefId::serializeText()`. Localization files and Lua scripts therefore do
+not need to preserve the original letter case of an alphabetic INFO ID. Topic
+IDs are not normalized.
+
 The source INFO record remains untouched.
 
 ### `setInfoResponseNpc(topicId, infoId, gender, response)`
@@ -150,6 +155,24 @@ Runtime lookup order:
 
 This keeps simple entries simple while allowing the rare sentences whose grammar depends on both
 the speaker and the player.
+
+### `setFallbackString(key, displayText)`
+
+Replaces one non-numeric OpenMW fallback value imported from `Morrowind.ini`.
+
+```lua
+local ok = translations.setFallbackString(
+    'Level_Up_Default',
+    'Localized level-up text'
+)
+```
+
+The setter returns `true` when `key` is a valid non-numeric fallback key and
+`false` otherwise. Existing engine code that calls `Fallback::Map::getString()`
+will see the replacement immediately. This is intended for user-visible
+fallback strings such as level-up messages and character-generation questions.
+
+Numeric fallback values are intentionally not modified by this API.
 
 ### `setChoiceText(sourceText, displayText)`
 

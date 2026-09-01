@@ -4,6 +4,7 @@
 
 #include <components/esm3/loadbook.hpp>
 #include <components/esm4/loadbook.hpp>
+#include <components/translation/translation.hpp>
 #include <components/widgets/imagebutton.hpp>
 
 #include "../mwbase/environment.hpp"
@@ -62,8 +63,25 @@ namespace MWGui
             text = &scroll.get<ESM4::Book>()->mBase->mText;
         bool shrinkTextAtLastTag = scroll.getType() == ESM::REC_BOOK;
 
+        std::string runtimeMarkup;
+        if (scroll.getType() == ESM::REC_BOOK)
+        {
+            std::string key = "BOOK|";
+            key.append(scroll.getCellRef().getRefId().serializeText());
+            key.append("|TEXT");
+
+            const Translation::Storage& translationStorage
+                = MWBase::Environment::get().getWindowManager()->getTranslationDataStorage();
+            const std::string_view markup = translationStorage.runtimeLocalizationMarkup(key);
+            if (!markup.empty())
+                runtimeMarkup.assign(markup);
+        }
+
+        const std::string& renderedText = runtimeMarkup.empty() ? *text : runtimeMarkup;
+
         Formatting::BookFormatter formatter;
-        formatter.markupToWidget(mTextView, *text, 390, mTextView->getHeight(), shrinkTextAtLastTag);
+        formatter.markupToWidget(
+            mTextView, renderedText, 390, mTextView->getHeight(), shrinkTextAtLastTag);
         MyGUI::IntSize size = mTextView->getChildAt(0)->getSize();
 
         // Canvas size must be expressed with VScroll disabled, otherwise MyGUI would expand the scroll area when the

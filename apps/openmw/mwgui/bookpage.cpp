@@ -122,27 +122,33 @@ namespace MWGui
             MyGUI::Colour mActiveColour;
             MyGUI::Colour mNormalColour;
             InteractiveId mInteractiveId;
+            bool mBold = false;
+            bool mItalic = false;
 
             bool match(MyGUI::IFont* tstFont, const MyGUI::Colour& tstHotColour, const MyGUI::Colour& tstActiveColour,
-                const MyGUI::Colour& tstNormalColour, InteractiveId tstInteractiveId) const
+                const MyGUI::Colour& tstNormalColour, InteractiveId tstInteractiveId, bool tstBold, bool tstItalic) const
             {
                 return (mFont == tstFont)
-                    && partialMatch(tstHotColour, tstActiveColour, tstNormalColour, tstInteractiveId);
+                    && partialMatch(
+                        tstHotColour, tstActiveColour, tstNormalColour, tstInteractiveId, tstBold, tstItalic);
             }
 
             bool match(std::string_view tstFont, const MyGUI::Colour& tstHotColour,
                 const MyGUI::Colour& tstActiveColour, const MyGUI::Colour& tstNormalColour,
-                InteractiveId tstInteractiveId) const
+                InteractiveId tstInteractiveId, bool tstBold, bool tstItalic) const
             {
                 return (mFont->getResourceName() == tstFont)
-                    && partialMatch(tstHotColour, tstActiveColour, tstNormalColour, tstInteractiveId);
+                    && partialMatch(
+                        tstHotColour, tstActiveColour, tstNormalColour, tstInteractiveId, tstBold, tstItalic);
             }
 
             bool partialMatch(const MyGUI::Colour& tstHotColour, const MyGUI::Colour& tstActiveColour,
-                const MyGUI::Colour& tstNormalColour, InteractiveId tstInteractiveId) const
+                const MyGUI::Colour& tstNormalColour, InteractiveId tstInteractiveId, bool tstBold,
+                bool tstItalic) const
             {
                 return (mHotColour == tstHotColour) && (mActiveColour == tstActiveColour)
-                    && (mNormalColour == tstNormalColour) && (mInteractiveId == tstInteractiveId);
+                    && (mNormalColour == tstNormalColour) && (mInteractiveId == tstInteractiveId)
+                    && (mBold == tstBold) && (mItalic == tstItalic);
             }
         };
 
@@ -350,7 +356,8 @@ namespace MWGui
 
         virtual ~Typesetter() = default;
 
-        Style* createStyle(const std::string& fontName, const MyGUI::Colour& fontColour, bool useBookFont) override
+        Style* createStyle(const std::string& fontName, const MyGUI::Colour& fontColour, bool useBookFont,
+            bool bold, bool italic) override
         {
             std::string fullFontName;
             if (fontName.empty())
@@ -362,8 +369,10 @@ namespace MWGui
                 fullFontName = "Journalbook " + fullFontName;
 
             for (StyleImpl& style : mBook->mStyles)
-                if (style.match(fullFontName, fontColour, fontColour, fontColour, 0))
+            {
+                if (style.match(fullFontName, fontColour, fontColour, fontColour, 0, bold, italic))
                     return &style;
+            }
 
             MyGUI::IFont* font = MyGUI::FontManager::getInstance().getByName(fullFontName);
             if (!font)
@@ -375,6 +384,8 @@ namespace MWGui
             style.mActiveColour = fontColour;
             style.mNormalColour = fontColour;
             style.mInteractiveId = 0;
+            style.mBold = bold;
+            style.mItalic = italic;
 
             return &style;
         }
@@ -386,7 +397,8 @@ namespace MWGui
 
             if (!unique)
                 for (StyleImpl& style : mBook->mStyles)
-                    if (style.match(baseStyleImpl->mFont, hoverColour, activeColour, normalColour, id))
+                    if (style.match(baseStyleImpl->mFont, hoverColour, activeColour, normalColour, id,
+                            baseStyleImpl->mBold, baseStyleImpl->mItalic))
                         return &style;
 
             StyleImpl& style = *mBook->mStyles.insert(mBook->mStyles.end(), StyleImpl());
@@ -396,6 +408,8 @@ namespace MWGui
             style.mActiveColour = activeColour;
             style.mNormalColour = normalColour;
             style.mInteractiveId = id;
+            style.mBold = baseStyleImpl->mBold;
+            style.mItalic = baseStyleImpl->mItalic;
 
             return &style;
         }
@@ -830,6 +844,8 @@ namespace MWGui
             MyGUI::Vertex* mVertices;
             RenderXform mRenderXform;
             MyGUI::VertexColourType mVertexColourType;
+            bool mBold = false;
+            bool mItalic = false;
 
             explicit GlyphStream(MyGUI::IFont* font, float left, float top, float z, MyGUI::Vertex* vertices,
                 RenderXform const& renderXform)
@@ -848,13 +864,15 @@ namespace MWGui
 
             MyGUI::Vertex* end() const { return mVertices; }
 
-            void reset(float left, float top, MyGUI::Colour colour)
+            void reset(float left, float top, MyGUI::Colour colour, bool bold = false, bool italic = false)
             {
                 mC = MyGUI::texture_utility::toNativeColour(colour, MyGUI::VertexColourType::ColourARGB) | 0xFF000000;
                 MyGUI::texture_utility::convertColour(mC, mVertexColourType);
 
                 mCursor.left = mOrigin.left + left;
                 mCursor.top = mOrigin.top + top;
+                mBold = bold;
+                mItalic = italic;
             }
 
             void emitGlyph(MyGUI::Char ch)
@@ -890,12 +908,20 @@ namespace MWGui
         private:
             void quad(const MyGUI::FloatRect& vr, const MyGUI::FloatRect& tr)
             {
-                vertex(vr.left, vr.top, tr.left, tr.top);
-                vertex(vr.right, vr.top, tr.right, tr.top);
-                vertex(vr.left, vr.bottom, tr.left, tr.bottom);
-                vertex(vr.right, vr.top, tr.right, tr.top);
-                vertex(vr.left, vr.bottom, tr.left, tr.bottom);
-                vertex(vr.right, vr.bottom, tr.right, tr.bottom);
+                const float italicOffset = mItalic ? Settings::gui().mFontSize * 0.16f : 0.f;
+
+                const auto emitQuad = [&](float xOffset) {
+                    vertex(vr.left + italicOffset + xOffset, vr.top, tr.left, tr.top);
+                    vertex(vr.right + italicOffset + xOffset, vr.top, tr.right, tr.top);
+                    vertex(vr.left + xOffset, vr.bottom, tr.left, tr.bottom);
+                    vertex(vr.right + italicOffset + xOffset, vr.top, tr.right, tr.top);
+                    vertex(vr.left + xOffset, vr.bottom, tr.left, tr.bottom);
+                    vertex(vr.right + xOffset, vr.bottom, tr.right, tr.bottom);
+                };
+
+                emitQuad(0.f);
+                if (mBold)
+                    emitQuad(1.f);
             }
 
             void vertex(float x, float y, float u, float v)
@@ -1209,7 +1235,8 @@ namespace MWGui
                     j = mPageDisplay->mActiveTextFormats.insert(std::make_pair(font, std::move(textFormat))).first;
                 }
 
-                j->second->mCountVertex += run.mPrintableChars * 6;
+                j->second->mCountVertex
+                    += run.mPrintableChars * 6 * (run.mStyle->mBold ? 2 : 1);
             }
         };
 
@@ -1273,7 +1300,7 @@ namespace MWGui
                     : run.mStyle->mNormalColour;
 
                 mGlyphStream.reset(static_cast<float>(section.mRect.left + line.mRect.left + run.mLeft),
-                    static_cast<float>(line.mRect.top), colour);
+                    static_cast<float>(line.mRect.top), colour, run.mStyle->mBold, run.mStyle->mItalic);
 
                 Utf8Stream stream(run.mRange);
 

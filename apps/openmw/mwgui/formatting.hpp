@@ -16,12 +16,16 @@ namespace MWGui
                 : mColour(0, 0, 0)
                 , mFont("Journalbook DefaultFont")
                 , mTextSize(16)
+                , mBold(false)
+                , mItalic(false)
             {
             }
 
             MyGUI::Colour mColour;
             std::string mFont;
             int mTextSize;
+            bool mBold;
+            bool mItalic;
         };
 
         struct BlockStyle
@@ -47,6 +51,12 @@ namespace MWGui
                 Event_ImgTag,
                 Event_DivTag,
                 Event_FontTag,
+                Event_RuntimeColourOpen,
+                Event_RuntimeColourClose,
+                Event_RuntimeBoldOpen,
+                Event_RuntimeBoldClose,
+                Event_RuntimeItalicOpen,
+                Event_RuntimeItalicClose,
                 Event_PageBreak,
             };
 
@@ -57,6 +67,7 @@ namespace MWGui
             const Attributes& getAttributes() const;
             std::string getReadyText() const;
             bool isClosingTag() const;
+            const std::string& getRuntimeColour() const;
 
         private:
             void registerTag(const std::string& tag, Events type);
@@ -71,6 +82,7 @@ namespace MWGui
             bool mIgnoreLineEndings;
             Attributes mAttributes;
             std::string mTag;
+            std::string mRuntimeColour;
             bool mClosingTag;
             std::map<std::string, Events> mTagTypes;
             std::string mBuffer;
@@ -161,7 +173,9 @@ namespace MWGui
         private:
             int currentFontHeight() const;
             TextStyle mTextStyle;
-            Gui::EditBox* mEditBox;
+            Gui::EditBox* mEditBox = nullptr;
+            int mRenderedHeight = 0;
+            bool mUsesTypesetter = false;
         };
 
         class ImageElement : public GraphicElement

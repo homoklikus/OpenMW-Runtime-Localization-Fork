@@ -1,6 +1,8 @@
 #ifndef GAME_MWWORLD_WORLDIMP_H
 #define GAME_MWWORLD_WORLDIMP_H
 
+#include <functional>
+
 #include <osg/Timer>
 #include <osg/ref_ptr>
 
@@ -198,7 +200,7 @@ namespace MWWorld
 
         void loadData(const Files::Collections& fileCollections, const std::vector<std::string>& contentFiles,
             const std::vector<std::string>& groundcoverFiles, ToUTF8::Utf8Encoder* encoder,
-            Loading::Listener* listener);
+            Loading::Listener* listener, const std::function<void(ESMStore&)>& runtimeLocalizationLoader = {});
 
         // Must be called after `loadData`.
         void init(Debug::Level maxRecastLogLevel, osgViewer::Viewer* viewer, osg::ref_ptr<osg::Group> rootNode,

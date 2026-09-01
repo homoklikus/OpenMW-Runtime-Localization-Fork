@@ -26,6 +26,7 @@ namespace Fallback
             return mNonNumericFallbackMap;
         }
 
+        static bool setString(std::string_view fall, std::string_view value);
         static std::string_view getString(std::string_view fall);
         static float getFloat(std::string_view fall);
         static int getInt(std::string_view fall);

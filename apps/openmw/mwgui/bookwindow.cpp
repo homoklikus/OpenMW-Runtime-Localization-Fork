@@ -5,6 +5,7 @@
 
 #include <components/esm3/loadbook.hpp>
 #include <components/esm4/loadbook.hpp>
+#include <components/translation/translation.hpp>
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/windowmanager.hpp"
@@ -105,9 +106,25 @@ namespace MWGui
             text = &book.get<ESM4::Book>()->mBase->mText;
         bool shrinkTextAtLastTag = book.getType() == ESM::REC_BOOK;
 
+        std::string runtimeMarkup;
+        if (book.getType() == ESM::REC_BOOK)
+        {
+            std::string key = "BOOK|";
+            key.append(book.getCellRef().getRefId().serializeText());
+            key.append("|TEXT");
+
+            const Translation::Storage& translationStorage
+                = MWBase::Environment::get().getWindowManager()->getTranslationDataStorage();
+            const std::string_view markup = translationStorage.runtimeLocalizationMarkup(key);
+            if (!markup.empty())
+                runtimeMarkup.assign(markup);
+        }
+
+        const std::string& renderedText = runtimeMarkup.empty() ? *text : runtimeMarkup;
+
         Formatting::BookFormatter formatter;
-        mPages = formatter.markupToWidget(mLeftPage, *text, shrinkTextAtLastTag);
-        formatter.markupToWidget(mRightPage, *text, shrinkTextAtLastTag);
+        mPages = formatter.markupToWidget(mLeftPage, renderedText, shrinkTextAtLastTag);
+        formatter.markupToWidget(mRightPage, renderedText, shrinkTextAtLastTag);
 
         updatePages();
 

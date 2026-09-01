@@ -30,6 +30,15 @@ namespace Fallback
         }
     }
 
+    bool Map::setString(std::string_view fall, std::string_view value)
+    {
+        if (!isAllowedNonNumericFallbackKey(fall))
+            return false;
+
+        mNonNumericFallbackMap.insert_or_assign(std::string(fall), std::string(value));
+        return true;
+    }
+
     std::string_view Map::getString(std::string_view fall)
     {
         const auto it = mNonNumericFallbackMap.find(fall);

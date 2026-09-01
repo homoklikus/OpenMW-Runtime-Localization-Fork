@@ -57,6 +57,16 @@ namespace MWDialogue
 {
     namespace
     {
+        std::string runtimeLocalizationInfoKey(const ESM::Dialogue& dialogue, const ESM::DialInfo& info)
+        {
+            std::string key = "INFO|";
+            key.append(dialogue.mStringId);
+            key.push_back('|');
+            key.append(info.mId.serializeText());
+            key.append("|NAME");
+            return key;
+        }
+
         // Display-only INFO response translation.
         // The canonical source ESM record is intentionally left untouched.
         std::string translatedInfoResponse(const Translation::Storage& storage, const ESM::Dialogue& dialogue,
@@ -215,7 +225,15 @@ namespace MWDialogue
                     MWScript::InterpreterContext interpreterContext(&mActor.getRefData().getLocals(), mActor);
                     const std::string displayResponse
                         = translatedInfoResponse(mTranslationDataStorage, dialogue, *info, mActor);
-                    callback->addResponse({}, Interpreter::fixDefinesDialog(displayResponse, interpreterContext));
+                    const std::string infoLocalizationKey = runtimeLocalizationInfoKey(dialogue, *info);
+                    const std::string_view rawResponseMarkup
+                        = mTranslationDataStorage.runtimeLocalizationInfoMarkup(infoLocalizationKey, displayResponse);
+                    std::string displayMarkup;
+                    if (!rawResponseMarkup.empty())
+                        displayMarkup = Interpreter::fixDefinesDialog(std::string(rawResponseMarkup), interpreterContext);
+
+                    callback->addResponse(
+                        {}, Interpreter::fixDefinesDialog(displayResponse, interpreterContext), displayMarkup);
                     MWBase::Environment::get().getLuaManager()->onDialogueResponse(mActor, *info, dialogue);
                     executeScript(info->mResultScript, mActor);
                     mLastTopic = dialogue.mId;
@@ -348,7 +366,15 @@ namespace MWDialogue
             const ESM::Dialogue& infoDialogue = responseTopic != nullptr ? *responseTopic : dialogue;
             const std::string displayResponse
                 = translatedInfoResponse(mTranslationDataStorage, infoDialogue, *info, mActor);
-            callback->addResponse(title, Interpreter::fixDefinesDialog(displayResponse, interpreterContext));
+            const std::string infoLocalizationKey = runtimeLocalizationInfoKey(infoDialogue, *info);
+            const std::string_view rawResponseMarkup
+                = mTranslationDataStorage.runtimeLocalizationInfoMarkup(infoLocalizationKey, displayResponse);
+            std::string displayMarkup;
+            if (!rawResponseMarkup.empty())
+                displayMarkup = Interpreter::fixDefinesDialog(std::string(rawResponseMarkup), interpreterContext);
+
+            callback->addResponse(
+                title, Interpreter::fixDefinesDialog(displayResponse, interpreterContext), displayMarkup);
             MWBase::Environment::get().getLuaManager()->onDialogueResponse(mActor, *info, dialogue);
 
             if (dialogue.mType == ESM::Dialogue::Topic)

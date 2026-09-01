@@ -36,9 +36,162 @@
 
 namespace MWGui
 {
-    void ResponseCallback::addResponse(std::string_view title, std::string_view text)
+
+    namespace
     {
-        mWindow->addResponse(title, text, mNeedMargin);
+        struct RuntimeLocalizationStyleSpan
+        {
+            std::size_t mBegin = 0;
+            std::size_t mEnd = 0;
+            bool mHasColour = false;
+            MyGUI::Colour mColour;
+            bool mBold = false;
+            bool mItalic = false;
+        };
+
+        int runtimeLocalizationHexNibble(char c)
+        {
+            if (c >= '0' && c <= '9')
+                return c - '0';
+            if (c >= 'a' && c <= 'f')
+                return c - 'a' + 10;
+            if (c >= 'A' && c <= 'F')
+                return c - 'A' + 10;
+            return -1;
+        }
+
+        bool runtimeLocalizationColourAt(
+            std::string_view text, std::size_t pos, MyGUI::Colour& colour)
+        {
+            if (pos + 11 > text.size() || text.substr(pos, 4) != "[c=#" || text[pos + 10] != ']')
+                return false;
+
+            int value = 0;
+            for (std::size_t i = pos + 4; i < pos + 10; ++i)
+            {
+                const int nibble = runtimeLocalizationHexNibble(text[i]);
+                if (nibble < 0)
+                    return false;
+                value = (value << 4) | nibble;
+            }
+
+            colour = MyGUI::Colour(
+                ((value >> 16) & 0xff) / 255.f,
+                ((value >> 8) & 0xff) / 255.f,
+                (value & 0xff) / 255.f);
+            return true;
+        }
+
+        bool parseRuntimeLocalizationDialogueMarkup(std::string_view markup, std::string& plain,
+            std::vector<RuntimeLocalizationStyleSpan>& spans)
+        {
+            std::vector<char> tagStack;
+            std::vector<MyGUI::Colour> colourStack;
+            int boldDepth = 0;
+            int italicDepth = 0;
+            std::size_t segmentStart = 0;
+
+            const auto flush = [&]() {
+                if (segmentStart >= plain.size())
+                    return;
+
+                const bool hasColour = !colourStack.empty();
+                if (hasColour || boldDepth != 0 || italicDepth != 0)
+                {
+                    RuntimeLocalizationStyleSpan span;
+                    span.mBegin = segmentStart;
+                    span.mEnd = plain.size();
+                    span.mHasColour = hasColour;
+                    if (hasColour)
+                        span.mColour = colourStack.back();
+                    span.mBold = boldDepth != 0;
+                    span.mItalic = italicDepth != 0;
+                    spans.push_back(span);
+                }
+
+                segmentStart = plain.size();
+            };
+
+            const auto closeTag = [&](char expected) {
+                if (tagStack.empty() || tagStack.back() != expected)
+                    return false;
+                tagStack.pop_back();
+                return true;
+            };
+
+            for (std::size_t i = 0; i < markup.size();)
+            {
+                MyGUI::Colour colour;
+                if (runtimeLocalizationColourAt(markup, i, colour))
+                {
+                    flush();
+                    tagStack.push_back('c');
+                    colourStack.push_back(colour);
+                    i += 11;
+                    continue;
+                }
+
+                if (markup.substr(i, 3) == "[b]")
+                {
+                    flush();
+                    tagStack.push_back('b');
+                    ++boldDepth;
+                    i += 3;
+                    continue;
+                }
+
+                if (markup.substr(i, 3) == "[i]")
+                {
+                    flush();
+                    tagStack.push_back('i');
+                    ++italicDepth;
+                    i += 3;
+                    continue;
+                }
+
+                if (markup.substr(i, 4) == "[/c]")
+                {
+                    if (!closeTag('c') || colourStack.empty())
+                        return false;
+                    flush();
+                    colourStack.pop_back();
+                    i += 4;
+                    continue;
+                }
+
+                if (markup.substr(i, 4) == "[/b]")
+                {
+                    if (!closeTag('b') || boldDepth == 0)
+                        return false;
+                    flush();
+                    --boldDepth;
+                    i += 4;
+                    continue;
+                }
+
+                if (markup.substr(i, 4) == "[/i]")
+                {
+                    if (!closeTag('i') || italicDepth == 0)
+                        return false;
+                    flush();
+                    --italicDepth;
+                    i += 4;
+                    continue;
+                }
+
+                plain.push_back(markup[i]);
+                ++i;
+            }
+
+            flush();
+            return tagStack.empty() && colourStack.empty() && boldDepth == 0 && italicDepth == 0;
+        }
+    }
+
+    void ResponseCallback::addResponse(
+        std::string_view title, std::string_view text, std::string_view markup)
+    {
+        mWindow->addResponse(title, text, mNeedMargin, markup);
     }
 
     void ResponseCallback::updateTopics() const
@@ -201,8 +354,10 @@ namespace MWGui
 
     // --------------------------------------------------------------------------------------------------
 
-    Response::Response(std::string_view text, std::string_view title, bool needMargin)
+    Response::Response(
+        std::string_view text, std::string_view title, bool needMargin, std::string_view markup)
         : mTitle(title)
+        , mMarkup(markup)
         , mNeedMargin(needMargin)
     {
         mText = text;
@@ -233,42 +388,132 @@ namespace MWGui
             Link* mTopic;
         };
 
+        struct StyleToken
+        {
+            size_t mStart;
+            size_t mEnd;
+            bool mHasColour;
+            MyGUI::Colour mColour;
+            bool mBold;
+            bool mItalic;
+        };
+
+        std::vector<RuntimeLocalizationStyleSpan> sourceStyleSpans;
+        if (!mMarkup.empty())
+        {
+            std::string markupPlain;
+            if (!parseRuntimeLocalizationDialogueMarkup(mMarkup, markupPlain, sourceStyleSpans)
+                || markupPlain != mText)
+            {
+                Log(Debug::Warning) << "Runtime localization: dialogue markup/plain mismatch; formatting ignored";
+                sourceStyleSpans.clear();
+            }
+        }
+
         std::vector<KeywordSearch::Match> matches = keywordSearch.parseHyperText(mText, translationStorage);
         std::vector<Token> tokens;
         tokens.reserve(matches.size());
+        std::vector<StyleToken> styleTokens;
+        styleTokens.reserve(sourceStyleSpans.size());
+
         std::string text;
         text.reserve(mText.size());
 
-        // Generate the displayed text and a more convenient token list.
-        // The matches we got provide positions in the original text and must be recalculated.
-        KeywordSearch::Point pos = mText.begin();
+        const auto appendPlainRange = [&](size_t sourceBegin, size_t sourceEnd) {
+            if (sourceBegin >= sourceEnd)
+                return;
+
+            const size_t finalBegin = text.size();
+            text.append(mText, sourceBegin, sourceEnd - sourceBegin);
+
+            for (const RuntimeLocalizationStyleSpan& span : sourceStyleSpans)
+            {
+                const size_t begin = std::max(sourceBegin, span.mBegin);
+                const size_t end = std::min(sourceEnd, span.mEnd);
+                if (begin < end)
+                {
+                    styleTokens.push_back({ finalBegin + begin - sourceBegin, finalBegin + end - sourceBegin,
+                        span.mHasColour, span.mColour, span.mBold, span.mItalic });
+                }
+            }
+        };
+
+        // Topic hyperlinks deliberately win over translator formatting.
+        size_t sourcePos = 0;
         for (const KeywordSearch::Match& token : matches)
         {
+            const size_t matchBegin = static_cast<size_t>(std::distance(mText.begin(), token.mBeg));
+            const size_t matchEnd = static_cast<size_t>(std::distance(mText.begin(), token.mEnd));
+
+            appendPlainRange(sourcePos, matchBegin);
+
             const std::string_view displayName(token.getDisplayName());
-            text.append(pos, token.mBeg);
             text.append(displayName);
-            pos = token.mEnd;
+            sourcePos = matchEnd;
 
             auto value = topicLinks.find(token.mTopicId);
             if (value != topicLinks.end())
                 tokens.emplace_back(text.size() - displayName.size(), text.size(), value->second.get());
         }
-        text.append(pos, mText.end());
+        appendPlainRange(sourcePos, mText.size());
 
         typesetter->addContent(text);
 
         BookTypesetter::Style* textStyle = typesetter->createStyle({}, colors.normal, false);
 
-        size_t i = 0;
-        for (const Token& token : tokens)
+        struct RenderToken
         {
+            size_t mStart;
+            size_t mEnd;
+            Link* mTopic = nullptr;
+            bool mHasColour = false;
+            MyGUI::Colour mColour;
+            bool mBold = false;
+            bool mItalic = false;
+        };
+
+        std::vector<RenderToken> renderTokens;
+        renderTokens.reserve(tokens.size() + styleTokens.size());
+
+        for (const Token& token : tokens)
+            renderTokens.push_back({ token.mStart, token.mEnd, token.mTopic, false, {}, false, false });
+        for (const StyleToken& token : styleTokens)
+        {
+            renderTokens.push_back(
+                { token.mStart, token.mEnd, nullptr, token.mHasColour, token.mColour, token.mBold, token.mItalic });
+        }
+
+        std::sort(renderTokens.begin(), renderTokens.end(),
+            [](const RenderToken& left, const RenderToken& right) {
+                if (left.mStart != right.mStart)
+                    return left.mStart < right.mStart;
+                return left.mEnd < right.mEnd;
+            });
+
+        size_t i = 0;
+        for (const RenderToken& token : renderTokens)
+        {
+            if (token.mStart < i)
+                continue;
+
             if (i < token.mStart)
                 typesetter->write(textStyle, i, token.mStart);
 
-            auto id = reinterpret_cast<TypesetBook::InteractiveId>(token.mTopic);
-            BookTypesetter::Style* linkStyle
-                = typesetter->createHotStyle(textStyle, colors.link, colors.linkOver, colors.linkPressed, id);
-            typesetter->write(linkStyle, token.mStart, token.mEnd);
+            if (token.mTopic != nullptr)
+            {
+                auto id = reinterpret_cast<TypesetBook::InteractiveId>(token.mTopic);
+                BookTypesetter::Style* linkStyle
+                    = typesetter->createHotStyle(textStyle, colors.link, colors.linkOver, colors.linkPressed, id);
+                typesetter->write(linkStyle, token.mStart, token.mEnd);
+            }
+            else
+            {
+                const MyGUI::Colour styleColour = token.mHasColour ? token.mColour : colors.normal;
+                BookTypesetter::Style* style
+                    = typesetter->createStyle({}, styleColour, false, token.mBold, token.mItalic);
+                typesetter->write(style, token.mStart, token.mEnd);
+            }
+
             i = token.mEnd;
         }
 
@@ -777,9 +1022,10 @@ namespace MWGui
         mHistory->setPosition(0, static_cast<int>(pos) * -1);
     }
 
-    void DialogueWindow::addResponse(std::string_view title, std::string_view text, bool needMargin)
+    void DialogueWindow::addResponse(
+        std::string_view title, std::string_view text, bool needMargin, std::string_view markup)
     {
-        mHistoryContents.push_back(std::make_unique<Response>(text, title, needMargin));
+        mHistoryContents.push_back(std::make_unique<Response>(text, title, needMargin, markup));
         updateHistory();
     }
 
