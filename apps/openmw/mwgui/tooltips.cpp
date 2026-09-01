@@ -14,6 +14,7 @@
 #include <components/l10n/manager.hpp>
 #include <components/misc/resourcehelpers.hpp>
 #include <components/settings/values.hpp>
+#include <components/translation/translation.hpp>
 #include <components/widgets/box.hpp>
 
 #include "../mwbase/environment.hpp"
@@ -32,6 +33,143 @@
 
 namespace MWGui
 {
+
+    std::string_view runtimeLocalizationNameRecordTag(unsigned int type)
+    {
+        switch (type)
+        {
+            case ESM::REC_ACTI:
+                return "ACTI";
+            case ESM::REC_ALCH:
+                return "ALCH";
+            case ESM::REC_APPA:
+                return "APPA";
+            case ESM::REC_ARMO:
+                return "ARMO";
+            case ESM::REC_BOOK:
+                return "BOOK";
+            case ESM::REC_CLOT:
+                return "CLOT";
+            case ESM::REC_CONT:
+                return "CONT";
+            case ESM::REC_CREA:
+                return "CREA";
+            case ESM::REC_DOOR:
+                return "DOOR";
+            case ESM::REC_INGR:
+                return "INGR";
+            case ESM::REC_LIGH:
+                return "LIGH";
+            case ESM::REC_LOCK:
+                return "LOCK";
+            case ESM::REC_MISC:
+                return "MISC";
+            case ESM::REC_NPC_:
+                return "NPC_";
+            case ESM::REC_PROB:
+                return "PROB";
+            case ESM::REC_REPA:
+                return "REPA";
+            case ESM::REC_WEAP:
+                return "WEAP";
+            default:
+                return {};
+        }
+    }
+
+    std::string runtimeLocalizationNameKey(const MWWorld::Ptr& ptr)
+    {
+        const std::string_view recordTag = runtimeLocalizationNameRecordTag(ptr.getType());
+        if (recordTag.empty())
+            return {};
+
+        std::string key;
+        key.reserve(recordTag.size() + 2 + 32);
+        key.append(recordTag);
+        key.push_back('|');
+        key.append(ptr.getCellRef().getRefId().serializeText());
+        key.append("|FNAM");
+        return key;
+    }
+
+    bool isRuntimeLocalizationHexDigit(char c)
+    {
+        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+    }
+
+    bool isRuntimeLocalizationColourOpen(std::string_view text, std::size_t pos)
+    {
+        if (pos + 11 > text.size())
+            return false;
+        if (text.substr(pos, 4) != "[c=#" || text[pos + 10] != ']')
+            return false;
+        for (std::size_t i = pos + 4; i < pos + 10; ++i)
+        {
+            if (!isRuntimeLocalizationHexDigit(text[i]))
+                return false;
+        }
+        return true;
+    }
+
+    std::string renderRuntimeLocalizationColourMarkup(std::string_view markup, const MyGUI::Colour& defaultColour)
+    {
+        std::vector<std::string> colours;
+        colours.push_back(MyGUI::TextIterator::convertTagColour(defaultColour).asUTF8());
+
+        std::string result;
+        result.reserve(markup.size() + 16);
+
+        const auto appendPlain = [&](std::string_view value, std::string& target) {
+            if (value.empty())
+                return;
+            target += MyGUI::TextIterator::toTagsString(MyGUI::UString(value)).asUTF8();
+        };
+
+        std::size_t plainStart = 0;
+        for (std::size_t i = 0; i < markup.size();)
+        {
+            if (isRuntimeLocalizationColourOpen(markup, i))
+            {
+                appendPlain(markup.substr(plainStart, i - plainStart), result);
+                colours.emplace_back(markup.substr(i + 3, 7)); // #RRGGBB
+                result += colours.back();
+                i += 11;
+                plainStart = i;
+                continue;
+            }
+
+            if (markup.substr(i, 4) == "[/c]")
+            {
+                appendPlain(markup.substr(plainStart, i - plainStart), result);
+                if (colours.size() > 1)
+                    colours.pop_back();
+                result += colours.back();
+                i += 4;
+                plainStart = i;
+                continue;
+            }
+
+            std::size_t styleTagLength = 0;
+            if (markup.substr(i, 3) == "[b]" || markup.substr(i, 3) == "[i]")
+                styleTagLength = 3;
+            else if (markup.substr(i, 4) == "[/b]" || markup.substr(i, 4) == "[/i]")
+                styleTagLength = 4;
+
+            if (styleTagLength != 0)
+            {
+                appendPlain(markup.substr(plainStart, i - plainStart), result);
+                i += styleTagLength;
+                plainStart = i;
+                continue;
+            }
+
+            ++i;
+        }
+
+        appendPlain(markup.substr(plainStart), result);
+        return result;
+    }
+
     ToolTips::ToolTips()
         : Layout("openmw_tooltips.layout")
         , mFocusToolTipX(0.0)
@@ -374,6 +512,20 @@ namespace MWGui
             mDynamicToolTipBox->setVisible(true);
 
             ToolTipInfo info = object.getToolTipInfo(mFocusObject, count);
+
+            const std::string localizationKey = runtimeLocalizationNameKey(mFocusObject);
+            if (!localizationKey.empty())
+            {
+                const Translation::Storage& translationStorage
+                    = MWBase::Environment::get().getWindowManager()->getTranslationDataStorage();
+                const std::string_view markup = translationStorage.runtimeLocalizationMarkup(localizationKey);
+                if (!markup.empty())
+                {
+                    info.captionMarkup = markup;
+                    info.captionMarkup += getCountString(count);
+                }
+            }
+
             if (!image)
                 info.icon.clear();
             tooltipSize = createToolTip(info, isOwned);
@@ -454,7 +606,14 @@ namespace MWGui
             "NormalText", MyGUI::IntCoord(0, 0, 300, 300), MyGUI::Align::Left | MyGUI::Align::Top, "ToolTipCaption");
         captionWidget->setEditStatic(true);
         captionWidget->setNeedKeyFocus(false);
-        captionWidget->setCaptionWithReplacing(caption);
+        if (!info.captionMarkup.empty())
+        {
+            const std::string renderedCaption
+                = renderRuntimeLocalizationColourMarkup(info.captionMarkup, captionWidget->getTextColour());
+            captionWidget->setCaptionWithReplacing(renderedCaption);
+        }
+        else
+            captionWidget->setCaptionWithReplacing(caption);
         MyGUI::IntSize captionSize = captionWidget->getTextSize();
 
         int captionHeight = std::max(!caption.empty() ? captionSize.height : 0, imageSize);

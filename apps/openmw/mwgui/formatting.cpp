@@ -1,5 +1,7 @@
 #include "formatting.hpp"
 
+#include "bookpage.hpp"
+
 #include <charconv>
 #include <system_error>
 
@@ -80,13 +82,74 @@ namespace MWGui::Formatting
             char ch = mText[mIndex];
             if (ch == '[')
             {
+                const std::string_view remaining(mText.data() + mIndex, mText.size() - mIndex);
+
                 constexpr std::string_view pageBreakTag = "[pagebreak]\n";
-                if (std::string_view(mText.data() + mIndex, mText.size() - mIndex).starts_with(pageBreakTag))
+                if (remaining.starts_with(pageBreakTag))
                 {
                     mIndex += pageBreakTag.size();
                     flushBuffer();
                     mIgnoreNewlineTags = false;
                     return Event_PageBreak;
+                }
+
+                if (remaining.size() >= 11 && remaining.substr(0, 4) == "[c=#" && remaining[10] == ']')
+                {
+                    bool valid = true;
+                    for (std::size_t i = 4; i < 10; ++i)
+                    {
+                        const char c = remaining[i];
+                        const bool hex = (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')
+                            || (c >= 'A' && c <= 'F');
+                        if (!hex)
+                        {
+                            valid = false;
+                            break;
+                        }
+                    }
+
+                    if (valid)
+                    {
+                        mRuntimeColour.assign(remaining.substr(4, 6));
+                        mIndex += 11;
+                        flushBuffer();
+                        return Event_RuntimeColourOpen;
+                    }
+                }
+
+                if (remaining.starts_with("[/c]"))
+                {
+                    mIndex += 4;
+                    flushBuffer();
+                    return Event_RuntimeColourClose;
+                }
+
+                if (remaining.starts_with("[b]"))
+                {
+                    mIndex += 3;
+                    flushBuffer();
+                    return Event_RuntimeBoldOpen;
+                }
+
+                if (remaining.starts_with("[/b]"))
+                {
+                    mIndex += 4;
+                    flushBuffer();
+                    return Event_RuntimeBoldClose;
+                }
+
+                if (remaining.starts_with("[i]"))
+                {
+                    mIndex += 3;
+                    flushBuffer();
+                    return Event_RuntimeItalicOpen;
+                }
+
+                if (remaining.starts_with("[/i]"))
+                {
+                    mIndex += 4;
+                    flushBuffer();
+                    return Event_RuntimeItalicClose;
                 }
             }
             if (ch == '<')
@@ -161,6 +224,11 @@ namespace MWGui::Formatting
     bool BookTextParser::isClosingTag() const
     {
         return mClosingTag;
+    }
+
+    const std::string& BookTextParser::getRuntimeColour() const
+    {
+        return mRuntimeColour;
     }
 
     void BookTextParser::parseTag(std::string tag)
@@ -248,6 +316,9 @@ namespace MWGui::Formatting
         bool brBeforeLastTag = false;
         bool isPrevImg = false;
         bool inlineImageInserted = false;
+        std::vector<MyGUI::Colour> runtimeColourStack;
+        int runtimeBoldDepth = 0;
+        int runtimeItalicDepth = 0;
         for (;;)
         {
             BookTextParser::Events event = parser.next();
@@ -274,8 +345,22 @@ namespace MWGui::Formatting
                 }
             }
 
+            const bool runtimeStyleEvent
+                = event == BookTextParser::Event_RuntimeColourOpen
+                || event == BookTextParser::Event_RuntimeColourClose
+                || event == BookTextParser::Event_RuntimeBoldOpen
+                || event == BookTextParser::Event_RuntimeBoldClose
+                || event == BookTextParser::Event_RuntimeItalicOpen
+                || event == BookTextParser::Event_RuntimeItalicClose;
+
             if (plainText.empty())
-                brBeforeLastTag = true;
+            {
+                // Runtime localization style tags split the parser stream but do
+                // not represent layout content. Do not let consecutive/nested
+                // style tags manufacture an extra line before the next <BR>.
+                if (!runtimeStyleEvent)
+                    brBeforeLastTag = true;
+            }
             else
             {
                 // Each block of text (between two tags / boundary and tag) will be displayed in a separate editbox
@@ -373,6 +458,47 @@ namespace MWGui::Formatting
                         resetFontProperties();
                     else
                         handleFont(parser.getAttributes());
+                    break;
+                case BookTextParser::Event_RuntimeColourOpen:
+                {
+                    runtimeColourStack.push_back(mTextStyle.mColour);
+                    const std::string& colourString = parser.getRuntimeColour();
+                    unsigned int colour = 0;
+                    const auto result = std::from_chars(
+                        colourString.data(), colourString.data() + colourString.size(), colour, 16);
+                    if (result.ec == std::errc{} && result.ptr == colourString.data() + colourString.size())
+                    {
+                        mTextStyle.mColour = MyGUI::Colour(
+                            (colour >> 16 & 0xFF) / 255.f,
+                            (colour >> 8 & 0xFF) / 255.f,
+                            (colour & 0xFF) / 255.f);
+                    }
+                    break;
+                }
+                case BookTextParser::Event_RuntimeColourClose:
+                    if (!runtimeColourStack.empty())
+                    {
+                        mTextStyle.mColour = runtimeColourStack.back();
+                        runtimeColourStack.pop_back();
+                    }
+                    break;
+                case BookTextParser::Event_RuntimeBoldOpen:
+                    ++runtimeBoldDepth;
+                    mTextStyle.mBold = true;
+                    break;
+                case BookTextParser::Event_RuntimeBoldClose:
+                    if (runtimeBoldDepth > 0)
+                        --runtimeBoldDepth;
+                    mTextStyle.mBold = runtimeBoldDepth != 0;
+                    break;
+                case BookTextParser::Event_RuntimeItalicOpen:
+                    ++runtimeItalicDepth;
+                    mTextStyle.mItalic = true;
+                    break;
+                case BookTextParser::Event_RuntimeItalicClose:
+                    if (runtimeItalicDepth > 0)
+                        --runtimeItalicDepth;
+                    mTextStyle.mItalic = runtimeItalicDepth != 0;
                     break;
                 case BookTextParser::Event_PTag:
                 case BookTextParser::Event_DivTag:
@@ -477,9 +603,54 @@ namespace MWGui::Formatting
         : GraphicElement(parent, pag, blockStyle)
         , mTextStyle(textStyle)
     {
+        const std::string widgetName
+            = parent->getName() + MyGUI::utility::toString(parent->getChildCount());
+
+        if (mTextStyle.mItalic)
+        {
+            // BookFormatter normally uses EditBox widgets, which cannot shear
+            // individual glyphs. For italic localization spans reuse OpenMW's
+            // BookTypesetter renderer -- the same glyph path used by dialogue.
+            //
+            // Make one deliberately tall internal page. The ordinary book
+            // Paginator still controls the actual Morrowind page boundaries by
+            // vertically clipping/moving the outer "paper" widget.
+            constexpr int syntheticPageHeight = 1000000;
+            std::shared_ptr<BookTypesetter> typesetter
+                = BookTypesetter::create(pag.getPageWidth(), syntheticPageHeight);
+
+            if (mBlockStyle.mAlign.isHCenter())
+                typesetter->setSectionAlignment(BookTypesetter::AlignCenter);
+            else if (mBlockStyle.mAlign.isRight())
+                typesetter->setSectionAlignment(BookTypesetter::AlignRight);
+            else
+                typesetter->setSectionAlignment(BookTypesetter::AlignLeft);
+
+            BookTypesetter::Style* style = typesetter->createStyle(
+                mTextStyle.mFont, mTextStyle.mColour, false, mTextStyle.mBold, true);
+            typesetter->write(style, text);
+
+            std::shared_ptr<TypesetBook> book = typesetter->complete();
+            const auto renderedSize = book->getSize();
+            mRenderedHeight = static_cast<int>(renderedSize.second);
+            if (mRenderedHeight <= 0)
+                mRenderedHeight = Settings::gui().mFontSize;
+
+            MyGUI::Widget* widget = parent->createWidgetT("BookPage", "MW_BookPage",
+                MyGUI::IntCoord(0, pag.getCurrentTop(), pag.getPageWidth(), mRenderedHeight),
+                MyGUI::Align::Left | MyGUI::Align::Top, widgetName);
+
+            BookPage* page = widget->castType<BookPage>();
+            page->setNeedMouseFocus(false);
+            page->showPage(std::move(book), 0);
+
+            mUsesTypesetter = true;
+            return;
+        }
+
         Gui::EditBox* box = parent->createWidget<Gui::EditBox>("NormalText",
             MyGUI::IntCoord(0, pag.getCurrentTop(), pag.getPageWidth(), 0), MyGUI::Align::Left | MyGUI::Align::Top,
-            parent->getName() + MyGUI::utility::toString(parent->getChildCount()));
+            widgetName);
         box->setEditStatic(true);
         box->setEditMultiLine(true);
         box->setEditWordWrap(true);
@@ -489,6 +660,14 @@ namespace MWGui::Formatting
         box->setTextAlign(mBlockStyle.mAlign);
         box->setTextColour(mTextStyle.mColour);
         box->setFontName(mTextStyle.mFont);
+
+        if (mTextStyle.mBold)
+        {
+            MyGUI::ISubWidgetText* editText = box->getSubWidgetText();
+            editText->setShadow(true);
+            editText->setShadowColour(mTextStyle.mColour);
+        }
+
         box->setCaption(MyGUI::TextIterator::toTagsString(text));
         box->setSize(box->getSize().width, box->getTextSize().height);
         mEditBox = box;
@@ -496,6 +675,8 @@ namespace MWGui::Formatting
 
     int TextElement::getHeight()
     {
+        if (mUsesTypesetter)
+            return mRenderedHeight;
         return mEditBox->getTextSize().height;
     }
 
@@ -507,6 +688,14 @@ namespace MWGui::Formatting
         if (lineHeight > 0)
             lastLine /= lineHeight;
         int ret = mPaginator.getCurrentTop() + lastLine * lineHeight;
+
+        if (mUsesTypesetter)
+        {
+            // The synthetic italic BookPage is a child of the same tall paper
+            // as ordinary EditBoxes. It is therefore clipped by the outer
+            // Morrowind page. We only need a line-aligned split coordinate.
+            return ret;
+        }
 
         // first empty lines that would go to the next page should be ignored
         mPaginator.setIgnoreLeadingEmptyLines(true);

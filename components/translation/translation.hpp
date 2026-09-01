@@ -4,12 +4,69 @@
 #include <components/files/collections.hpp>
 #include <components/toutf8/toutf8.hpp>
 
+#include <cstddef>
+#include <functional>
+#include <iosfwd>
+#include <map>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
 namespace Translation
 {
     class Storage
     {
     public:
+        enum class NpcGender
+        {
+            None,
+            Male,
+            Female
+        };
+
+        enum class PlayerGender
+        {
+            None,
+            Male,
+            Female
+        };
+
         Storage();
+
+        // Engine-side language selection for runtime localization.
+        // Locales use the same preference order as OpenMW's General/preferred locales.
+        void setPreferredLocales(const std::vector<std::string>& locales);
+        const std::vector<std::string>& getPreferredLocales() const;
+
+        // Returns the preference rank for a locale, including base-language matching
+        // (for example pl_PL <-> pl), or std::nullopt when the locale is not selected.
+        std::optional<std::size_t> localePriority(std::string_view locale) const;
+
+        // Claims one logical runtime-localization slot for a locale.
+        // Higher-priority locales win regardless of registration order.
+        // Equal priority is accepted so later content layers can overwrite earlier ones.
+        bool claimRuntimeLocale(std::string_view locale, std::string_view slotKey);
+
+        void setRegistrationLocale(std::string_view locale);
+        void clearRegistrationLocale();
+        bool claimActiveRuntimeLocale(std::string_view slotKey);
+
+        // Native runtime-localization YAML loader. The language is selected in C++
+        // from OpenMW General/preferred locales; Lua is not involved.
+        using RuntimeLocalizationScalarHandler
+            = std::function<bool(std::string_view key, std::string_view sourceText, std::string_view displayText)>;
+        using RuntimeLocalizationFallbackHandler
+            = std::function<bool(std::string_view section, std::string_view valueName, std::string_view displayText)>;
+
+        std::size_t loadRuntimeLocalizationYaml(std::istream& stream, std::string_view sourceName,
+            const RuntimeLocalizationScalarHandler& scalarHandler = {},
+            const RuntimeLocalizationFallbackHandler& fallbackHandler = {});
+
+        std::string prepareRuntimeLocalizationText(std::string_view key, std::string_view displayText);
+        std::string_view runtimeLocalizationMarkup(std::string_view key) const;
+        std::string prepareRuntimeLocalizationInfoText(std::string_view key, std::string_view displayText);
+        std::string_view runtimeLocalizationInfoMarkup(std::string_view key, std::string_view plainText) const;
 
         void loadTranslationData(const Files::Collections& dataFileCollections, std::string_view esmFileName);
 
@@ -19,8 +76,9 @@ namespace Translation
         std::string_view translateTopicName(std::string_view topicId) const;
 
         // Display-only INFO response translation. The source INFO record remains untouched.
-        std::string_view translateInfoResponse(
-            std::string_view topicId, std::string_view infoId, std::string_view sourceText) const;
+        std::string_view translateInfoResponse(std::string_view topicId, std::string_view infoId,
+            std::string_view sourceText, NpcGender npcGender = NpcGender::None,
+            PlayerGender playerGender = PlayerGender::None) const;
 
         // Display-only translation of Choice labels from INFO result scripts.
         std::string_view translateChoice(std::string_view sourceText) const;
@@ -42,6 +100,12 @@ namespace Translation
         void addTopicKeyword(std::string_view topicId, std::string_view keyword);
         void addInfoResponseTranslation(
             std::string_view topicId, std::string_view infoId, std::string_view response);
+        void addInfoResponseNpcTranslation(
+            std::string_view topicId, std::string_view infoId, NpcGender gender, std::string_view response);
+        void addInfoResponsePlayerTranslation(
+            std::string_view topicId, std::string_view infoId, PlayerGender gender, std::string_view response);
+        void addInfoResponseNpcPlayerTranslation(std::string_view topicId, std::string_view infoId,
+            NpcGender npcGender, PlayerGender playerGender, std::string_view response);
         void addChoiceTranslation(std::string_view sourceText, std::string_view displayText);
         void addScriptStringTranslation(std::string_view sourceText, std::string_view displayText);
 
@@ -56,7 +120,17 @@ namespace Translation
         void loadDataFromStream(ContainerType& container, std::istream& stream);
 
         ToUTF8::Utf8Encoder* mEncoder;
-        ContainerType mCellNamesTranslations, mTopicNames, mInfoResponses, mChoiceTranslations, mScriptStrings, mKeywords, mPhraseForms;
+        std::map<std::string, std::string, std::less<>> mRuntimeLocalizationMarkup;
+
+        std::vector<std::string> mPreferredLocales;
+        std::map<std::string, std::size_t, std::less<>> mRuntimeLocaleClaims;
+        std::string mRegistrationLocale;
+
+        ContainerType mCellNamesTranslations, mTopicNames, mInfoResponses, mInfoResponsesNpcMale,
+            mInfoResponsesNpcFemale, mInfoResponsesPlayerMale, mInfoResponsesPlayerFemale,
+            mInfoResponsesNpcMalePlayerMale, mInfoResponsesNpcMalePlayerFemale,
+            mInfoResponsesNpcFemalePlayerMale, mInfoResponsesNpcFemalePlayerFemale,
+            mChoiceTranslations, mScriptStrings, mKeywords, mPhraseForms;
     };
 }
 

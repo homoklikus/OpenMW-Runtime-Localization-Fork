@@ -81,7 +81,98 @@ translations.setInfoResponse(
 The mapping is context-sensitive: the key contains both the canonical topic ID
 and canonical INFO ID.
 
+INFO IDs are normalized to lowercase by the storage key builder to match
+`ESM::RefId::serializeText()`. Localization files and Lua scripts therefore do
+not need to preserve the original letter case of an alphabetic INFO ID. Topic
+IDs are not normalized.
+
 The source INFO record remains untouched.
+
+### `setInfoResponseNpc(topicId, infoId, gender, response)`
+
+Sets an NPC-gender-specific display variant for one INFO record.
+
+```lua
+translations.setInfoResponseNpc(
+    'canonical topic',
+    'canonical-info-id',
+    'female',
+    'Localized female NPC response'
+)
+```
+
+`gender` must be `male` or `female`.
+
+Runtime lookup order:
+
+1. matching NPC-gender variant,
+2. default value set by `setInfoResponse(...)`,
+3. original source response.
+
+If the current dialogue actor is not an NPC, the default/source fallback is used.
+The canonical INFO record and its vanilla dialogue filters remain untouched.
+
+### `setInfoResponsePlayer(topicId, infoId, gender, response)`
+
+Sets a player-gender-specific display variant for one INFO record.
+
+```lua
+translations.setInfoResponsePlayer(
+    'canonical topic',
+    'canonical-info-id',
+    'female',
+    'Localized response addressed to a female player'
+)
+```
+
+`gender` must be `male` or `female`.
+
+The player gender is resolved at display time from the current player NPC.
+
+### `setInfoResponseNpcPlayer(topicId, infoId, npcGender, playerGender, response)`
+
+Sets the most specific INFO display variant for an exact NPC-gender + player-gender combination.
+
+```lua
+translations.setInfoResponseNpcPlayer(
+    'canonical topic',
+    'canonical-info-id',
+    'female',
+    'male',
+    'Localized response for female NPC speaking to male player'
+)
+```
+
+Both gender arguments must be `male` or `female`.
+
+Runtime lookup order:
+
+1. exact NPC + player gender combination,
+2. matching NPC-gender variant,
+3. matching player-gender variant,
+4. default value set by `setInfoResponse(...)`,
+5. original source response.
+
+This keeps simple entries simple while allowing the rare sentences whose grammar depends on both
+the speaker and the player.
+
+### `setFallbackString(key, displayText)`
+
+Replaces one non-numeric OpenMW fallback value imported from `Morrowind.ini`.
+
+```lua
+local ok = translations.setFallbackString(
+    'Level_Up_Default',
+    'Localized level-up text'
+)
+```
+
+The setter returns `true` when `key` is a valid non-numeric fallback key and
+`false` otherwise. Existing engine code that calls `Fallback::Map::getString()`
+will see the replacement immediately. This is intended for user-visible
+fallback strings such as level-up messages and character-generation questions.
+
+Numeric fallback values are intentionally not modified by this API.
 
 ### `setChoiceText(sourceText, displayText)`
 

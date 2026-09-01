@@ -60,7 +60,8 @@ namespace MWGui
         static std::shared_ptr<BookTypesetter> create(int pageWidth, int pageHeight);
 
         /// Create a simple text style consisting of a font and a text color.
-        virtual Style* createStyle(const std::string& fontName, const MyGUI::Colour& colour, bool useBookFont = true)
+        virtual Style* createStyle(const std::string& fontName, const MyGUI::Colour& colour,
+            bool useBookFont = true, bool bold = false, bool italic = false)
             = 0;
 
         /// Create a hyper-link style with a user-defined identifier based on an

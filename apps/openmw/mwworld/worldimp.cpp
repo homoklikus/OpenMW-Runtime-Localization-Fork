@@ -211,13 +211,21 @@ namespace MWWorld
     }
 
     void World::loadData(const Files::Collections& fileCollections, const std::vector<std::string>& contentFiles,
-        const std::vector<std::string>& groundcoverFiles, ToUTF8::Utf8Encoder* encoder, Loading::Listener* listener)
+        const std::vector<std::string>& groundcoverFiles, ToUTF8::Utf8Encoder* encoder, Loading::Listener* listener,
+        const std::function<void(ESMStore&)>& runtimeLocalizationLoader)
     {
         mContentFiles = contentFiles;
         mESMVersions.resize(mContentFiles.size(), -1);
 
         loadContentFiles(fileCollections, contentFiles, encoder, listener);
         loadGroundcoverFiles(fileCollections, groundcoverFiles, encoder, listener);
+
+        // Runtime Localization is applied before ESMStore::setUp().
+        // This is the native replacement for the localization load.lua hook.
+        if (runtimeLocalizationLoader)
+            runtimeLocalizationLoader(mStore);
+
+        // Normal OpenMW Lua hooks remain available for unrelated mods/scripts.
         MWBase::Environment::get().getLuaManager()->contentFilesLoaded();
 
         fillGlobalVariables();

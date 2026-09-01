@@ -2,6 +2,8 @@
 
 #include <cerrno>
 #include <chrono>
+#include <charconv>
+#include <optional>
 #include <future>
 #include <system_error>
 
@@ -13,6 +15,35 @@
 
 #include <components/debug/debuglog.hpp>
 #include <components/debug/gldebug.hpp>
+
+#include <components/esm/attr.hpp>
+#include <components/esm3/loadacti.hpp>
+#include <components/esm3/loadalch.hpp>
+#include <components/esm3/loadappa.hpp>
+#include <components/esm3/loadarmo.hpp>
+#include <components/esm3/loadbook.hpp>
+#include <components/esm3/loadbsgn.hpp>
+#include <components/esm3/loadclas.hpp>
+#include <components/esm3/loadclot.hpp>
+#include <components/esm3/loadcont.hpp>
+#include <components/esm3/loadcrea.hpp>
+#include <components/esm3/loaddoor.hpp>
+#include <components/esm3/loadfact.hpp>
+#include <components/esm3/loadgmst.hpp>
+#include <components/esm3/loadingr.hpp>
+#include <components/esm3/loadligh.hpp>
+#include <components/esm3/loadlock.hpp>
+#include <components/esm3/loadmgef.hpp>
+#include <components/esm3/loadmisc.hpp>
+#include <components/esm3/loadnpc.hpp>
+#include <components/esm3/loadprob.hpp>
+#include <components/esm3/loadrace.hpp>
+#include <components/esm3/loadregn.hpp>
+#include <components/esm3/loadrepa.hpp>
+#include <components/esm3/loadskil.hpp>
+#include <components/esm3/loadspel.hpp>
+#include <components/esm3/loadweap.hpp>
+#include <components/fallback/fallback.hpp>
 
 #include <components/misc/rng.hpp>
 #include <components/misc/strings/format.hpp>
@@ -69,6 +100,7 @@
 
 #include "mwworld/class.hpp"
 #include "mwworld/datetimemanager.hpp"
+#include "mwworld/esmstore.hpp"
 #include "mwworld/worldimp.hpp"
 
 #include "mwrender/vismask.hpp"
@@ -87,6 +119,326 @@
 
 namespace
 {
+    bool splitRuntimeLocalizationKey(std::string_view key, std::string_view& recordType,
+        std::string_view& recordId, std::string_view& field)
+    {
+        const std::size_t first = key.find('|');
+        const std::size_t last = key.rfind('|');
+        if (first == std::string_view::npos || last == std::string_view::npos || first == last)
+            return false;
+
+        recordType = key.substr(0, first);
+        recordId = key.substr(first + 1, last - first - 1);
+        field = key.substr(last + 1);
+        return !recordType.empty() && !recordId.empty() && !field.empty();
+    }
+
+    std::optional<std::size_t> parseUnsigned(std::string_view text)
+    {
+        std::size_t value = 0;
+        const char* begin = text.data();
+        const char* end = text.data() + text.size();
+        const auto result = std::from_chars(begin, end, value);
+        if (result.ec != std::errc{} || result.ptr != end)
+            return std::nullopt;
+        return value;
+    }
+
+    template <class T, class Update>
+    bool updateLocalizedStaticRecord(MWWorld::ESMStore& esmStore, std::string_view idText, Update&& update)
+    {
+        auto& store = esmStore.getWritable<T>();
+        const ESM::RefId id = ESM::RefId::deserializeText(idText);
+        const T* found = store.search(id);
+        if (found == nullptr)
+            return false;
+
+        T record = *found;
+        update(record);
+        store.insertStatic(record);
+        return true;
+    }
+
+    bool applyNativeRuntimeLocalizationScalar(MWWorld::ESMStore& esmStore, Translation::Storage& storage,
+        std::string_view key, std::string_view sourceText, std::string_view displayText)
+    {
+        std::string_view recordType;
+        std::string_view recordId;
+        std::string_view field;
+
+        if (!splitRuntimeLocalizationKey(key, recordType, recordId, field))
+        {
+            Log(Debug::Warning) << "Runtime localization: malformed key " << key;
+            return false;
+        }
+
+        auto checked = [&](bool result) {
+            if (!result)
+                Log(Debug::Warning) << "Runtime localization: target record not found for " << key;
+            return result;
+        };
+
+        if (recordType == "CELL" && field == "NAME")
+        {
+            storage.addCellNameTranslation(recordId, displayText);
+            return true;
+        }
+
+        if (recordType == "DIAL" && field == "NAME")
+        {
+            storage.addTopicNameTranslation(recordId, displayText);
+            storage.setPhraseForm(displayText, recordId);
+            storage.addTopicKeyword(recordId, displayText);
+            return true;
+        }
+
+        if (recordType == "INFO" && field.starts_with("CHOICE["))
+        {
+            if (sourceText.empty())
+            {
+                Log(Debug::Warning) << "Runtime localization: CHOICE without EN source: " << key;
+                return false;
+            }
+            storage.addChoiceTranslation(sourceText, displayText);
+            return true;
+        }
+
+        if ((recordType == "SCPT" || recordType == "INFO")
+            && (field.starts_with("SAY[") || field.starts_with("MESSAGEBOX[")))
+        {
+            if (sourceText.empty())
+            {
+                Log(Debug::Warning) << "Runtime localization: script string without EN source: " << key;
+                return false;
+            }
+            storage.addScriptStringTranslation(sourceText, displayText);
+            return true;
+        }
+
+        if (recordType == "FACT")
+        {
+            if (field == "FNAM")
+                return checked(updateLocalizedStaticRecord<ESM::Faction>(esmStore, recordId,
+                    [&](ESM::Faction& record) { record.mName = std::string(displayText); }));
+
+            std::optional<std::size_t> rankIndex;
+            if (field == "RNAM")
+                rankIndex = 0;
+            else if (field.starts_with("RNAM[") && field.ends_with("]"))
+                rankIndex = parseUnsigned(field.substr(5, field.size() - 6));
+
+            if (rankIndex && *rankIndex < 10)
+                return checked(updateLocalizedStaticRecord<ESM::Faction>(esmStore, recordId,
+                    [&](ESM::Faction& record) { record.mRanks[*rankIndex] = std::string(displayText); }));
+        }
+
+        if (recordType == "CLAS")
+        {
+            if (field == "FNAM")
+                return checked(updateLocalizedStaticRecord<ESM::Class>(esmStore, recordId,
+                    [&](ESM::Class& record) { record.mName = std::string(displayText); }));
+            if (field == "DESC")
+                return checked(updateLocalizedStaticRecord<ESM::Class>(esmStore, recordId,
+                    [&](ESM::Class& record) { record.mDescription = std::string(displayText); }));
+        }
+
+        if (recordType == "RACE")
+        {
+            if (field == "FNAM")
+                return checked(updateLocalizedStaticRecord<ESM::Race>(esmStore, recordId,
+                    [&](ESM::Race& record) { record.mName = std::string(displayText); }));
+            if (field == "DESC")
+                return checked(updateLocalizedStaticRecord<ESM::Race>(esmStore, recordId,
+                    [&](ESM::Race& record) { record.mDescription = std::string(displayText); }));
+        }
+
+        if (recordType == "NPC_" && field == "FNAM")
+            return checked(updateLocalizedStaticRecord<ESM::NPC>(esmStore, recordId,
+                [&](ESM::NPC& record) { record.mName = std::string(displayText); }));
+
+        if (recordType == "CREA" && field == "FNAM")
+            return checked(updateLocalizedStaticRecord<ESM::Creature>(esmStore, recordId,
+                [&](ESM::Creature& record) { record.mName = std::string(displayText); }));
+
+        if (recordType == "WEAP" && field == "FNAM")
+            return checked(updateLocalizedStaticRecord<ESM::Weapon>(esmStore, recordId,
+                [&](ESM::Weapon& record) { record.mName = std::string(displayText); }));
+
+        if (recordType == "ARMO" && field == "FNAM")
+            return checked(updateLocalizedStaticRecord<ESM::Armor>(esmStore, recordId,
+                [&](ESM::Armor& record) { record.mName = std::string(displayText); }));
+
+        if (recordType == "CLOT" && field == "FNAM")
+            return checked(updateLocalizedStaticRecord<ESM::Clothing>(esmStore, recordId,
+                [&](ESM::Clothing& record) { record.mName = std::string(displayText); }));
+
+        if (recordType == "CONT" && field == "FNAM")
+            return checked(updateLocalizedStaticRecord<ESM::Container>(esmStore, recordId,
+                [&](ESM::Container& record) { record.mName = std::string(displayText); }));
+
+        if (recordType == "APPA" && field == "FNAM")
+            return checked(updateLocalizedStaticRecord<ESM::Apparatus>(esmStore, recordId,
+                [&](ESM::Apparatus& record) { record.mName = std::string(displayText); }));
+
+        if (recordType == "REPA" && field == "FNAM")
+            return checked(updateLocalizedStaticRecord<ESM::Repair>(esmStore, recordId,
+                [&](ESM::Repair& record) { record.mName = std::string(displayText); }));
+
+        if (recordType == "LOCK" && field == "FNAM")
+            return checked(updateLocalizedStaticRecord<ESM::Lockpick>(esmStore, recordId,
+                [&](ESM::Lockpick& record) { record.mName = std::string(displayText); }));
+
+        if (recordType == "SKIL" && field == "DESC")
+        {
+            const std::optional<std::size_t> skillIndex = parseUnsigned(recordId);
+            if (!skillIndex || *skillIndex >= static_cast<std::size_t>(ESM::Skill::Length))
+                return false;
+
+            auto& store = esmStore.getWritable<ESM::Skill>();
+            const ESM::RefId id = ESM::Skill::indexToRefId(static_cast<int>(*skillIndex));
+            const ESM::Skill* found = store.search(id);
+            if (found == nullptr)
+                return false;
+
+            ESM::Skill record = *found;
+            record.mDescription = std::string(displayText);
+            store.insertStatic(record);
+            return true;
+        }
+
+        if (recordType == "BSGN")
+        {
+            if (field == "FNAM")
+                return checked(updateLocalizedStaticRecord<ESM::BirthSign>(esmStore, recordId,
+                    [&](ESM::BirthSign& record) { record.mName = std::string(displayText); }));
+            if (field == "DESC")
+                return checked(updateLocalizedStaticRecord<ESM::BirthSign>(esmStore, recordId,
+                    [&](ESM::BirthSign& record) { record.mDescription = std::string(displayText); }));
+        }
+
+        if (recordType == "REGN" && field == "FNAM")
+            return checked(updateLocalizedStaticRecord<ESM::Region>(esmStore, recordId,
+                [&](ESM::Region& record) { record.mName = std::string(displayText); }));
+
+        if (recordType == "MGEF" && field == "DESC")
+        {
+            const std::optional<std::size_t> effectIndex = parseUnsigned(recordId);
+            if (!effectIndex || *effectIndex >= static_cast<std::size_t>(ESM::MagicEffect::Length))
+                return false;
+
+            auto& store = esmStore.getWritable<ESM::MagicEffect>();
+            const ESM::RefId id = ESM::MagicEffect::indexToRefId(static_cast<int>(*effectIndex));
+            const ESM::MagicEffect* found = store.search(id);
+            if (found == nullptr)
+                return false;
+
+            ESM::MagicEffect record = *found;
+            record.mDescription = std::string(displayText);
+            store.insertStatic(record);
+            return true;
+        }
+
+        if (recordType == "GMST" && field == "STRV")
+        {
+            auto& store = esmStore.getWritable<ESM::GameSetting>();
+            const ESM::RefId id = ESM::RefId::deserializeText(recordId);
+
+            ESM::GameSetting record;
+            if (const ESM::GameSetting* found = store.search(id))
+                record = *found;
+            else
+            {
+                record.blank();
+                record.mId = id;
+            }
+
+            record.mValue.setType(ESM::VT_String);
+            record.mValue.setString(std::string(displayText));
+            store.insertStatic(record);
+            return true;
+        }
+
+        if (recordType == "ACTI" && field == "FNAM")
+            return checked(updateLocalizedStaticRecord<ESM::Activator>(esmStore, recordId,
+                [&](ESM::Activator& record) { record.mName = std::string(displayText); }));
+
+        if (recordType == "BOOK")
+        {
+            if (field == "FNAM")
+                return checked(updateLocalizedStaticRecord<ESM::Book>(esmStore, recordId,
+                    [&](ESM::Book& record) { record.mName = std::string(displayText); }));
+            if (field == "TEXT")
+                return checked(updateLocalizedStaticRecord<ESM::Book>(esmStore, recordId,
+                    [&](ESM::Book& record) { record.mText = std::string(displayText); }));
+        }
+
+        if (recordType == "DOOR" && field == "FNAM")
+            return checked(updateLocalizedStaticRecord<ESM::Door>(esmStore, recordId,
+                [&](ESM::Door& record) { record.mName = std::string(displayText); }));
+
+        if (recordType == "INGR" && field == "FNAM")
+            return checked(updateLocalizedStaticRecord<ESM::Ingredient>(esmStore, recordId,
+                [&](ESM::Ingredient& record) { record.mName = std::string(displayText); }));
+
+        if (recordType == "LIGH" && field == "FNAM")
+            return checked(updateLocalizedStaticRecord<ESM::Light>(esmStore, recordId,
+                [&](ESM::Light& record) { record.mName = std::string(displayText); }));
+
+        if (recordType == "MISC" && field == "FNAM")
+            return checked(updateLocalizedStaticRecord<ESM::Miscellaneous>(esmStore, recordId,
+                [&](ESM::Miscellaneous& record) { record.mName = std::string(displayText); }));
+
+        if (recordType == "ALCH" && field == "FNAM")
+            return checked(updateLocalizedStaticRecord<ESM::Potion>(esmStore, recordId,
+                [&](ESM::Potion& record) { record.mName = std::string(displayText); }));
+
+        if (recordType == "PROB" && field == "FNAM")
+            return checked(updateLocalizedStaticRecord<ESM::Probe>(esmStore, recordId,
+                [&](ESM::Probe& record) { record.mName = std::string(displayText); }));
+
+        if (recordType == "SPEL" && field == "FNAM")
+            return checked(updateLocalizedStaticRecord<ESM::Spell>(esmStore, recordId,
+                [&](ESM::Spell& record) { record.mName = std::string(displayText); }));
+
+        Log(Debug::Warning) << "Runtime localization: unsupported YAML key " << key;
+        return false;
+    }
+
+    bool applyNativeRuntimeLocalizationFallback(std::string_view section, std::string_view valueName,
+        std::string_view displayText)
+    {
+        std::string fallbackKey;
+
+        if (section == "Level Up")
+        {
+            fallbackKey = "Level_Up_";
+            fallbackKey.append(valueName);
+        }
+        else if (section.starts_with("Question "))
+        {
+            const std::string_view number = section.substr(std::string_view("Question ").size());
+            if (number.empty())
+                return false;
+
+            for (const char c : number)
+            {
+                if (c < '0' || c > '9')
+                    return false;
+            }
+
+            fallbackKey = "Question_";
+            fallbackKey.append(number);
+            fallbackKey.push_back('_');
+            fallbackKey.append(valueName);
+        }
+        else
+        {
+            return false;
+        }
+
+        return Fallback::Map::setString(fallbackKey, displayText);
+    }
+
     void checkSDLError(int ret)
     {
         if (ret != 0)
@@ -763,6 +1115,11 @@ void OMW::Engine::prepareEngine()
 
     mL10nManager = std::make_unique<L10n::Manager>(mVFS.get());
     mL10nManager->setPreferredLocales(Settings::general().mPreferredLocales, Settings::general().mGmstOverridesL10n);
+
+    // Runtime localization uses the exact same language preference list as OpenMW l10n.
+    // There is intentionally no separate language selector for the fork.
+    mTranslationDataStorage.setPreferredLocales(Settings::general().mPreferredLocales);
+
     mEnvironment.setL10nManager(*mL10nManager);
 
     mLuaManager = std::make_unique<MWLua::LuaManager>(mVFS.get(), mResDir / "lua_libs");
@@ -883,8 +1240,84 @@ void OMW::Engine::prepareEngine()
 
     Loading::Listener* listener = MWBase::Environment::get().getWindowManager()->getLoadingScreen();
     Loading::AsyncListener asyncListener(*listener);
-    auto dataLoading = std::async(std::launch::async,
-        [&] { mWorld->loadData(mFileCollections, mContentFiles, mGroundcoverFiles, mEncoder.get(), &asyncListener); });
+
+    auto runtimeLocalizationLoader = [this](MWWorld::ESMStore& esmStore) {
+        const auto scalarHandler = [&](std::string_view key, std::string_view sourceText, std::string_view displayText) {
+            const std::string plainDisplayText
+                = mTranslationDataStorage.prepareRuntimeLocalizationText(key, displayText);
+            return applyNativeRuntimeLocalizationScalar(
+                esmStore, mTranslationDataStorage, key, sourceText, plainDisplayText);
+        };
+
+        const auto fallbackHandler
+            = [&](std::string_view section, std::string_view valueName, std::string_view displayText) {
+                  return applyNativeRuntimeLocalizationFallback(section, valueName, displayText);
+              };
+
+        std::size_t totalApplied = 0;
+
+        const auto loadModule = [&](std::string_view pathText) {
+            const VFS::Path::Normalized path(pathText);
+            const Files::IStreamPtr stream = mVFS->find(path);
+            if (stream == nullptr)
+            {
+                Log(Debug::Verbose) << "Runtime localization: YAML not found " << path.value();
+                return;
+            }
+
+            totalApplied += mTranslationDataStorage.loadRuntimeLocalizationYaml(
+                *stream, path.value(), scalarHandler, fallbackHandler);
+        };
+
+        // One rule for every active record content file:
+        //   SomeMod.esp        -> localization/language/SomeMod.yaml
+        //   SomeMaster.esm     -> localization/language/SomeMaster.yaml
+        //   SomeAddon.omwaddon -> localization/language/SomeAddon.yaml
+        //   SomeGame.omwgame   -> localization/language/SomeGame.yaml
+        //
+        // No directory scan is performed. We probe exactly one YAML path for
+        // each active record content file, preserving effective load order.
+        for (const std::string& contentFile : mContentFiles)
+        {
+            std::string_view fileName = contentFile;
+
+            const std::size_t slash = fileName.find_last_of("/\\");
+            if (slash != std::string_view::npos)
+                fileName.remove_prefix(slash + 1);
+
+            const std::size_t dot = fileName.find_last_of('.');
+            if (dot == std::string_view::npos || dot == 0)
+                continue;
+
+            std::string extension(fileName.substr(dot));
+            for (char& c : extension)
+            {
+                if (c >= 'A' && c <= 'Z')
+                    c = static_cast<char>(c - 'A' + 'a');
+            }
+
+            if (extension != ".esp" && extension != ".esm" && extension != ".omwaddon"
+                && extension != ".omwgame")
+                continue;
+
+            const std::string_view stem = fileName.substr(0, dot);
+            if (stem.empty())
+                continue;
+
+            std::string yamlPath = "localization/language/";
+            yamlPath.append(stem);
+            yamlPath.append(".yaml");
+
+            loadModule(yamlPath);
+        }
+
+        Log(Debug::Info) << "Runtime localization: native loading complete, applied=" << totalApplied;
+    };
+
+    auto dataLoading = std::async(std::launch::async, [&] {
+        mWorld->loadData(mFileCollections, mContentFiles, mGroundcoverFiles, mEncoder.get(), &asyncListener,
+            runtimeLocalizationLoader);
+    });
 
     if (!mSkipMenu)
     {
@@ -899,6 +1332,7 @@ void OMW::Engine::prepareEngine()
         while (dataLoading.wait_for(50ms) != std::future_status::ready)
             asyncListener.update();
         dataLoading.get();
+
     }
     listener->loadingOff();
 

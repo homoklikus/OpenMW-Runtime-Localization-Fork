@@ -35,7 +35,8 @@ namespace MWGui
         {
         }
 
-        void addResponse(std::string_view title, std::string_view text) override;
+        void addResponse(
+            std::string_view title, std::string_view text, std::string_view markup = {}) override;
 
         void updateTopics() const;
     };
@@ -121,10 +122,12 @@ namespace MWGui
 
     struct Response : DialogueText
     {
-        Response(std::string_view text, std::string_view title = {}, bool needMargin = true);
+        Response(std::string_view text, std::string_view title = {}, bool needMargin = true,
+            std::string_view markup = {});
         void write(std::shared_ptr<BookTypesetter> typesetter, const MWDialogue::KeywordSearch& keywordSearch,
             std::unordered_map<std::string, std::unique_ptr<Link>>& topicLinks) const override;
         std::string mTitle;
+        std::string mMarkup;
         bool mNeedMargin;
     };
 
@@ -151,7 +154,8 @@ namespace MWGui
         /// @return true if stale keywords were updated successfully
         bool setKeywords(const std::list<std::string>& keyWord);
 
-        void addResponse(std::string_view title, std::string_view text, bool needMargin = true);
+        void addResponse(std::string_view title, std::string_view text, bool needMargin = true,
+            std::string_view markup = {});
 
         void addMessageBox(std::string_view text);
 
