@@ -14,11 +14,9 @@ ani przetłumaczonej zawartości Morrowinda.
 Dokumentacja
 ------------
 
-- [Architektura](docs/runtime-localization/ARCHITECTURE_PL.md)
-- [Runtime Localization Lua API](docs/runtime-localization/API_PL.md)
-- [Budowanie w systemie Linux](docs/runtime-localization/BUILD_LINUX_PL.md)
-- [Budowanie w systemie Windows](docs/runtime-localization/BUILD_WINDOWS_PL.md)
-- [Tworzenie zewnętrznej warstwy lokalizacji](docs/runtime-localization/LOCALIZATION_LAYER_PL.md)
+Nowa dokumentacja jest obecnie tworzona i rozbudowywana.
+
+- [Wiki projektu](https://github.com/homoklikus/OpenMW-Runtime-Localization-Fork/wiki)
 
 Baza
 ----

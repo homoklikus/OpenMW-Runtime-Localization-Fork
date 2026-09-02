@@ -18,11 +18,9 @@ or translated Morrowind content.
 Documentation
 -------------
 
-- [Architecture](docs/runtime-localization/ARCHITECTURE.md)
-- [Runtime Localization Lua API](docs/runtime-localization/API.md)
-- [Building on Linux](docs/runtime-localization/BUILD_LINUX.md)
-- [Building on Windows](docs/runtime-localization/BUILD_WINDOWS.md)
-- [Creating an external localization layer](docs/runtime-localization/LOCALIZATION_LAYER.md)
+The documentation is currently being rebuilt and expanded.
+
+- [Project Wiki](https://github.com/homoklikus/OpenMW-Runtime-Localization-Fork/wiki)
 
 Base
 ----
