@@ -1119,6 +1119,12 @@ void OMW::Engine::prepareEngine()
     // Runtime localization uses the exact same language preference list as OpenMW l10n.
     // There is intentionally no separate language selector for the fork.
     mTranslationDataStorage.setPreferredLocales(Settings::general().mPreferredLocales);
+    mTranslationDataStorage.setRuntimeLocalizationQaSource(
+        Settings::general().mRuntimeLocalizationQaSource.get());
+
+    if (!Settings::general().mRuntimeLocalizationQaSource.get().empty())
+        Log(Debug::Info) << "Runtime localization: QA highlight source="
+                         << Settings::general().mRuntimeLocalizationQaSource.get();
 
     mEnvironment.setL10nManager(*mL10nManager);
 

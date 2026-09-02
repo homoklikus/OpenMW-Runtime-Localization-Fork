@@ -519,7 +519,21 @@ namespace MWGui
                 const Translation::Storage& translationStorage
                     = MWBase::Environment::get().getWindowManager()->getTranslationDataStorage();
                 const std::string_view markup = translationStorage.runtimeLocalizationMarkup(localizationKey);
-                if (!markup.empty())
+                const bool qaHighlight
+                    = translationStorage.runtimeLocalizationQaHighlight(localizationKey);
+
+                if (qaHighlight)
+                {
+                    info.captionMarkup = "[c=#ff4cff]QA:[/c] ";
+                    if (!markup.empty())
+                    {
+                        info.captionMarkup.append(markup);
+                        info.captionMarkup += getCountString(count);
+                    }
+                    else
+                        info.captionMarkup.append(info.caption);
+                }
+                else if (!markup.empty())
                 {
                     info.captionMarkup = markup;
                     info.captionMarkup += getCountString(count);

@@ -75,6 +75,13 @@ namespace MWGui
             const std::string_view markup = translationStorage.runtimeLocalizationMarkup(key);
             if (!markup.empty())
                 runtimeMarkup.assign(markup);
+
+            if (translationStorage.runtimeLocalizationQaHighlight(key))
+            {
+                std::string qaRenderedText = "[c=#ff4cff]QA:[/c] ";
+                qaRenderedText.append(runtimeMarkup.empty() ? *text : runtimeMarkup);
+                runtimeMarkup = std::move(qaRenderedText);
+            }
         }
 
         const std::string& renderedText = runtimeMarkup.empty() ? *text : runtimeMarkup;

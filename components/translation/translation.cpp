@@ -34,6 +34,35 @@ namespace Translation
             return result;
         }
 
+        std::string normalizeRuntimeLocalizationSourceName(std::string_view sourceName)
+        {
+            std::string result(sourceName);
+
+            const std::size_t separator = result.find_last_of("/\\");
+            if (separator != std::string::npos)
+                result.erase(0, separator + 1);
+
+            for (char& c : result)
+            {
+                if (c >= 'A' && c <= 'Z')
+                    c = static_cast<char>(c - 'A' + 'a');
+            }
+
+            constexpr std::string_view extensions[] = {
+                ".yaml", ".esp", ".esm", ".omwaddon", ".omwgame"
+            };
+            for (const std::string_view extension : extensions)
+            {
+                if (result.ends_with(extension))
+                {
+                    result.resize(result.size() - extension.size());
+                    break;
+                }
+            }
+
+            return result;
+        }
+
         std::string_view baseLocale(std::string_view locale)
         {
             const std::size_t separator = locale.find('_');
@@ -695,10 +724,18 @@ namespace Translation
             {
                 bool applied = false;
 
+                const auto prepareInfo = [&](std::string_view displayText) {
+                    std::string plain
+                        = mStorage.prepareRuntimeLocalizationInfoText(mEntry.mYamlKey, displayText);
+                    mStorage.recordRuntimeLocalizationInfoSource(
+                        mEntry.mYamlKey, plain, mSourceName);
+                    return plain;
+                };
+
                 if (!mEntry.mSelectedIsMap && mEntry.mScalarValue)
                 {
                     mStorage.addInfoResponseTranslation(mEntry.mTopicId, mEntry.mInfoId,
-                        mStorage.prepareRuntimeLocalizationInfoText(mEntry.mYamlKey, *mEntry.mScalarValue));
+                        prepareInfo(*mEntry.mScalarValue));
                     applied = true;
                 }
                 else
@@ -706,63 +743,59 @@ namespace Translation
                     if (mEntry.mDefault)
                     {
                         mStorage.addInfoResponseTranslation(mEntry.mTopicId, mEntry.mInfoId,
-                            mStorage.prepareRuntimeLocalizationInfoText(mEntry.mYamlKey, *mEntry.mDefault));
+                            prepareInfo(*mEntry.mDefault));
                         applied = true;
                     }
                     if (mEntry.mNpcMale)
                     {
                         mStorage.addInfoResponseNpcTranslation(mEntry.mTopicId, mEntry.mInfoId, NpcGender::Male,
-                            mStorage.prepareRuntimeLocalizationInfoText(mEntry.mYamlKey, *mEntry.mNpcMale));
+                            prepareInfo(*mEntry.mNpcMale));
                         applied = true;
                     }
                     if (mEntry.mNpcFemale)
                     {
                         mStorage.addInfoResponseNpcTranslation(mEntry.mTopicId, mEntry.mInfoId, NpcGender::Female,
-                            mStorage.prepareRuntimeLocalizationInfoText(mEntry.mYamlKey, *mEntry.mNpcFemale));
+                            prepareInfo(*mEntry.mNpcFemale));
                         applied = true;
                     }
                     if (mEntry.mPlayerMale)
                     {
                         mStorage.addInfoResponsePlayerTranslation(mEntry.mTopicId, mEntry.mInfoId, PlayerGender::Male,
-                            mStorage.prepareRuntimeLocalizationInfoText(mEntry.mYamlKey, *mEntry.mPlayerMale));
+                            prepareInfo(*mEntry.mPlayerMale));
                         applied = true;
                     }
                     if (mEntry.mPlayerFemale)
                     {
                         mStorage.addInfoResponsePlayerTranslation(mEntry.mTopicId, mEntry.mInfoId, PlayerGender::Female,
-                            mStorage.prepareRuntimeLocalizationInfoText(mEntry.mYamlKey, *mEntry.mPlayerFemale));
+                            prepareInfo(*mEntry.mPlayerFemale));
                         applied = true;
                     }
                     if (mEntry.mNpcMalePlayerMale)
                     {
                         mStorage.addInfoResponseNpcPlayerTranslation(mEntry.mTopicId, mEntry.mInfoId,
                             NpcGender::Male, PlayerGender::Male,
-                            mStorage.prepareRuntimeLocalizationInfoText(
-                                mEntry.mYamlKey, *mEntry.mNpcMalePlayerMale));
+                            prepareInfo(*mEntry.mNpcMalePlayerMale));
                         applied = true;
                     }
                     if (mEntry.mNpcMalePlayerFemale)
                     {
                         mStorage.addInfoResponseNpcPlayerTranslation(mEntry.mTopicId, mEntry.mInfoId,
                             NpcGender::Male, PlayerGender::Female,
-                            mStorage.prepareRuntimeLocalizationInfoText(
-                                mEntry.mYamlKey, *mEntry.mNpcMalePlayerFemale));
+                            prepareInfo(*mEntry.mNpcMalePlayerFemale));
                         applied = true;
                     }
                     if (mEntry.mNpcFemalePlayerMale)
                     {
                         mStorage.addInfoResponseNpcPlayerTranslation(mEntry.mTopicId, mEntry.mInfoId,
                             NpcGender::Female, PlayerGender::Male,
-                            mStorage.prepareRuntimeLocalizationInfoText(
-                                mEntry.mYamlKey, *mEntry.mNpcFemalePlayerMale));
+                            prepareInfo(*mEntry.mNpcFemalePlayerMale));
                         applied = true;
                     }
                     if (mEntry.mNpcFemalePlayerFemale)
                     {
                         mStorage.addInfoResponseNpcPlayerTranslation(mEntry.mTopicId, mEntry.mInfoId,
                             NpcGender::Female, PlayerGender::Female,
-                            mStorage.prepareRuntimeLocalizationInfoText(
-                                mEntry.mYamlKey, *mEntry.mNpcFemalePlayerFemale));
+                            prepareInfo(*mEntry.mNpcFemalePlayerFemale));
                         applied = true;
                     }
                 }
@@ -807,7 +840,10 @@ namespace Translation
 
                 if (mScalarHandler
                     && mScalarHandler(mEntry.mYamlKey, mEntry.mEnglishScalar.value_or(""), *mEntry.mScalarValue))
+                {
+                    mStorage.recordRuntimeLocalizationSource(mEntry.mYamlKey, mSourceName);
                     ++mApplied;
+                }
                 else
                 {
                     ++mSkipped;
@@ -1082,6 +1118,115 @@ namespace Translation
         if (it == mRuntimeLocalizationMarkup.end())
             return {};
         return it->second;
+    }
+
+    void Storage::recordRuntimeLocalizationSource(std::string_view key, std::string_view sourceName)
+    {
+        if (mRuntimeLocalizationQaSource.empty())
+            return;
+
+        std::string normalizedKey(key);
+        for (char& c : normalizedKey)
+        {
+            if (c >= 'A' && c <= 'Z')
+                c = static_cast<char>(c - 'A' + 'a');
+        }
+
+        const auto existing = mRuntimeLocalizationSource.find(normalizedKey);
+        if (existing != mRuntimeLocalizationSource.end() && existing->second != sourceName)
+        {
+            Log(Debug::Verbose) << "Runtime localization: source override key=" << key
+                             << " old=" << existing->second << " new=" << sourceName;
+        }
+
+        mRuntimeLocalizationSource.insert_or_assign(normalizedKey, std::string(sourceName));
+    }
+
+    std::string_view Storage::runtimeLocalizationSource(std::string_view key) const
+    {
+        std::string normalizedKey(key);
+        for (char& c : normalizedKey)
+        {
+            if (c >= 'A' && c <= 'Z')
+                c = static_cast<char>(c - 'A' + 'a');
+        }
+
+        const auto it = mRuntimeLocalizationSource.find(normalizedKey);
+        if (it == mRuntimeLocalizationSource.end())
+            return {};
+        return it->second;
+    }
+
+    void Storage::recordRuntimeLocalizationInfoSource(
+        std::string_view key, std::string_view plainText, std::string_view sourceName)
+    {
+        if (mRuntimeLocalizationQaSource.empty())
+            return;
+
+        std::string normalizedKey(key);
+        for (char& c : normalizedKey)
+        {
+            if (c >= 'A' && c <= 'Z')
+                c = static_cast<char>(c - 'A' + 'a');
+        }
+
+        normalizedKey.push_back('\x1f');
+        normalizedKey.append(plainText);
+
+        const auto existing = mRuntimeLocalizationSource.find(normalizedKey);
+        if (existing != mRuntimeLocalizationSource.end() && existing->second != sourceName)
+        {
+            Log(Debug::Verbose) << "Runtime localization: INFO source override key=" << key
+                             << " old=" << existing->second << " new=" << sourceName;
+        }
+
+        mRuntimeLocalizationSource.insert_or_assign(normalizedKey, std::string(sourceName));
+    }
+
+    std::string_view Storage::runtimeLocalizationInfoSource(
+        std::string_view key, std::string_view plainText) const
+    {
+        std::string normalizedKey(key);
+        for (char& c : normalizedKey)
+        {
+            if (c >= 'A' && c <= 'Z')
+                c = static_cast<char>(c - 'A' + 'a');
+        }
+
+        normalizedKey.push_back('\x1f');
+        normalizedKey.append(plainText);
+
+        const auto it = mRuntimeLocalizationSource.find(normalizedKey);
+        if (it == mRuntimeLocalizationSource.end())
+            return {};
+        return it->second;
+    }
+
+    void Storage::setRuntimeLocalizationQaSource(std::string_view sourceName)
+    {
+        mRuntimeLocalizationQaSource = normalizeRuntimeLocalizationSourceName(sourceName);
+        mRuntimeLocalizationSource.clear();
+    }
+
+    bool Storage::runtimeLocalizationQaHighlight(std::string_view key) const
+    {
+        if (mRuntimeLocalizationQaSource.empty())
+            return false;
+
+        const std::string_view source = runtimeLocalizationSource(key);
+        return !source.empty()
+            && normalizeRuntimeLocalizationSourceName(source) == mRuntimeLocalizationQaSource;
+    }
+
+    bool Storage::runtimeLocalizationInfoQaHighlight(
+        std::string_view key, std::string_view plainText) const
+    {
+        if (mRuntimeLocalizationQaSource.empty())
+            return false;
+
+        const std::string_view source = runtimeLocalizationInfoSource(key, plainText);
+        return !source.empty()
+            && normalizeRuntimeLocalizationSourceName(source) == mRuntimeLocalizationQaSource;
     }
 
     void Storage::loadTranslationData(const Files::Collections& dataFileCollections, std::string_view esmFileName)

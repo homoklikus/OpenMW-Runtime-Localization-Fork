@@ -68,6 +68,22 @@ namespace Translation
         std::string prepareRuntimeLocalizationInfoText(std::string_view key, std::string_view displayText);
         std::string_view runtimeLocalizationInfoMarkup(std::string_view key, std::string_view plainText) const;
 
+        // QA provenance for runtime-localized display text. The loader records the
+        // sidecar that successfully supplied the currently effective value.
+        void recordRuntimeLocalizationSource(std::string_view key, std::string_view sourceName);
+        std::string_view runtimeLocalizationSource(std::string_view key) const;
+        void recordRuntimeLocalizationInfoSource(
+            std::string_view key, std::string_view plainText, std::string_view sourceName);
+        std::string_view runtimeLocalizationInfoSource(
+            std::string_view key, std::string_view plainText) const;
+
+        // QA highlighting is display-only. The selected source may be given as a
+        // content filename, YAML filename, path, or just a matching stem.
+        void setRuntimeLocalizationQaSource(std::string_view sourceName);
+        bool runtimeLocalizationQaHighlight(std::string_view key) const;
+        bool runtimeLocalizationInfoQaHighlight(
+            std::string_view key, std::string_view plainText) const;
+
         void loadTranslationData(const Files::Collections& dataFileCollections, std::string_view esmFileName);
 
         std::string_view translateCellName(std::string_view cellName) const;
@@ -121,6 +137,8 @@ namespace Translation
 
         ToUTF8::Utf8Encoder* mEncoder;
         std::map<std::string, std::string, std::less<>> mRuntimeLocalizationMarkup;
+        std::map<std::string, std::string, std::less<>> mRuntimeLocalizationSource;
+        std::string mRuntimeLocalizationQaSource;
 
         std::vector<std::string> mPreferredLocales;
         std::map<std::string, std::size_t, std::less<>> mRuntimeLocaleClaims;

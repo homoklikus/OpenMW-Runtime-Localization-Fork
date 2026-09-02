@@ -228,12 +228,14 @@ namespace MWDialogue
                     const std::string infoLocalizationKey = runtimeLocalizationInfoKey(dialogue, *info);
                     const std::string_view rawResponseMarkup
                         = mTranslationDataStorage.runtimeLocalizationInfoMarkup(infoLocalizationKey, displayResponse);
+                    const bool qaHighlight = mTranslationDataStorage.runtimeLocalizationInfoQaHighlight(
+                        infoLocalizationKey, displayResponse);
                     std::string displayMarkup;
                     if (!rawResponseMarkup.empty())
                         displayMarkup = Interpreter::fixDefinesDialog(std::string(rawResponseMarkup), interpreterContext);
 
-                    callback->addResponse(
-                        {}, Interpreter::fixDefinesDialog(displayResponse, interpreterContext), displayMarkup);
+                    callback->addResponse({}, Interpreter::fixDefinesDialog(displayResponse, interpreterContext),
+                        displayMarkup, qaHighlight);
                     MWBase::Environment::get().getLuaManager()->onDialogueResponse(mActor, *info, dialogue);
                     executeScript(info->mResultScript, mActor);
                     mLastTopic = dialogue.mId;
@@ -369,12 +371,14 @@ namespace MWDialogue
             const std::string infoLocalizationKey = runtimeLocalizationInfoKey(infoDialogue, *info);
             const std::string_view rawResponseMarkup
                 = mTranslationDataStorage.runtimeLocalizationInfoMarkup(infoLocalizationKey, displayResponse);
+            const bool qaHighlight = mTranslationDataStorage.runtimeLocalizationInfoQaHighlight(
+                infoLocalizationKey, displayResponse);
             std::string displayMarkup;
             if (!rawResponseMarkup.empty())
                 displayMarkup = Interpreter::fixDefinesDialog(std::string(rawResponseMarkup), interpreterContext);
 
-            callback->addResponse(
-                title, Interpreter::fixDefinesDialog(displayResponse, interpreterContext), displayMarkup);
+            callback->addResponse(title, Interpreter::fixDefinesDialog(displayResponse, interpreterContext),
+                displayMarkup, qaHighlight);
             MWBase::Environment::get().getLuaManager()->onDialogueResponse(mActor, *info, dialogue);
 
             if (dialogue.mType == ESM::Dialogue::Topic)

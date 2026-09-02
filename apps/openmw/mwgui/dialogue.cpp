@@ -189,9 +189,9 @@ namespace MWGui
     }
 
     void ResponseCallback::addResponse(
-        std::string_view title, std::string_view text, std::string_view markup)
+        std::string_view title, std::string_view text, std::string_view markup, bool qaHighlight)
     {
-        mWindow->addResponse(title, text, mNeedMargin, markup);
+        mWindow->addResponse(title, text, mNeedMargin, markup, qaHighlight);
     }
 
     void ResponseCallback::updateTopics() const
@@ -354,11 +354,12 @@ namespace MWGui
 
     // --------------------------------------------------------------------------------------------------
 
-    Response::Response(
-        std::string_view text, std::string_view title, bool needMargin, std::string_view markup)
+    Response::Response(std::string_view text, std::string_view title, bool needMargin,
+        std::string_view markup, bool qaHighlight)
         : mTitle(title)
         , mMarkup(markup)
         , mNeedMargin(needMargin)
+        , mQaHighlight(qaHighlight)
     {
         mText = text;
     }
@@ -456,6 +457,29 @@ namespace MWGui
                 tokens.emplace_back(text.size() - displayName.size(), text.size(), value->second.get());
         }
         appendPlainRange(sourcePos, mText.size());
+
+        if (mQaHighlight)
+        {
+            constexpr std::string_view qaMarker = "QA: ";
+            const std::size_t qaMarkerSize = qaMarker.size();
+
+            text.insert(0, qaMarker);
+
+            for (Token& token : tokens)
+            {
+                token.mStart += qaMarkerSize;
+                token.mEnd += qaMarkerSize;
+            }
+
+            for (StyleToken& token : styleTokens)
+            {
+                token.mStart += qaMarkerSize;
+                token.mEnd += qaMarkerSize;
+            }
+
+            styleTokens.push_back(
+                { 0, qaMarkerSize, true, MyGUI::Colour(1.f, 0.3f, 1.f), true, false });
+        }
 
         typesetter->addContent(text);
 
@@ -1022,10 +1046,11 @@ namespace MWGui
         mHistory->setPosition(0, static_cast<int>(pos) * -1);
     }
 
-    void DialogueWindow::addResponse(
-        std::string_view title, std::string_view text, bool needMargin, std::string_view markup)
+    void DialogueWindow::addResponse(std::string_view title, std::string_view text,
+        bool needMargin, std::string_view markup, bool qaHighlight)
     {
-        mHistoryContents.push_back(std::make_unique<Response>(text, title, needMargin, markup));
+        mHistoryContents.push_back(
+            std::make_unique<Response>(text, title, needMargin, markup, qaHighlight));
         updateHistory();
     }
 
