@@ -126,27 +126,6 @@ namespace Translation
             return result;
         }
 
-        bool parseInfoLocalizationKey(
-            std::string_view key, std::string_view& topicId, std::string_view& infoId)
-        {
-            constexpr std::string_view prefix = "INFO|";
-            constexpr std::string_view suffix = "|NAME";
-
-            if (!key.starts_with(prefix) || !key.ends_with(suffix)
-                || key.size() <= prefix.size() + suffix.size())
-                return false;
-
-            const std::string_view payload
-                = key.substr(prefix.size(), key.size() - prefix.size() - suffix.size());
-            const std::size_t separator = payload.rfind('|');
-            if (separator == std::string_view::npos || separator == 0 || separator + 1 >= payload.size())
-                return false;
-
-            topicId = payload.substr(0, separator);
-            infoId = payload.substr(separator + 1);
-            return true;
-        }
-
         std::string makeInfoKey(std::string_view topicId, std::string_view infoId)
         {
             // ESM::RefId::serializeText() canonicalizes string RefIds to lowercase.
