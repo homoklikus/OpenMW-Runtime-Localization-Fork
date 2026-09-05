@@ -96,6 +96,10 @@ namespace Translation
             std::string_view sourceText, NpcGender npcGender = NpcGender::None,
             PlayerGender playerGender = PlayerGender::None) const;
 
+        // Returns whether any registered translation for this INFO uses
+        // NPC- and/or player-gender-specific variants.
+        bool hasInfoResponseGenderVariants(std::string_view topicId, std::string_view infoId) const;
+
         // Display-only translation of Choice labels from INFO result scripts.
         std::string_view translateChoice(std::string_view sourceText) const;
 

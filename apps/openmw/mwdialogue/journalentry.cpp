@@ -3,6 +3,7 @@
 #include <stdexcept>
 
 #include <components/esm3/journalentry.hpp>
+#include <components/esm3/loadnpc.hpp>
 
 #include <components/interpreter/defines.hpp>
 #include <components/translation/translation.hpp>
@@ -11,6 +12,7 @@
 #include "../mwbase/windowmanager.hpp"
 #include "../mwbase/world.hpp"
 
+#include "../mwworld/class.hpp"
 #include "../mwworld/esmstore.hpp"
 #include "../mwworld/globals.hpp"
 
@@ -30,8 +32,26 @@ namespace MWDialogue
                 // Translate INFO before journal define expansion.
                 const auto& translations
                     = MWBase::Environment::get().getWindowManager()->getTranslationDataStorage();
+
+                Translation::Storage::NpcGender npcGender = Translation::Storage::NpcGender::None;
+                if (!actor.isEmpty() && actor.getClass().isNpc())
+                {
+                    const auto* npc = actor.get<ESM::NPC>();
+                    npcGender = npc->mBase->isMale() ? Translation::Storage::NpcGender::Male
+                                                     : Translation::Storage::NpcGender::Female;
+                }
+
+                Translation::Storage::PlayerGender playerGender = Translation::Storage::PlayerGender::None;
+                const MWWorld::Ptr player = MWBase::Environment::get().getWorld()->getPlayerPtr();
+                if (!player.isEmpty() && player.getClass().isNpc())
+                {
+                    const auto* playerNpc = player.get<ESM::NPC>();
+                    playerGender = playerNpc->mBase->isMale() ? Translation::Storage::PlayerGender::Male
+                                                              : Translation::Storage::PlayerGender::Female;
+                }
+
                 const std::string_view response = translations.translateInfoResponse(
-                    dialogue->mStringId, iter->mId.serializeText(), iter->mResponse);
+                    dialogue->mStringId, iter->mId.serializeText(), iter->mResponse, npcGender, playerGender);
 
                 if (actor.isEmpty())
                 {

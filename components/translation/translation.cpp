@@ -1336,6 +1336,30 @@ namespace Translation
         return entry->second;
     }
 
+    bool Storage::hasInfoResponseGenderVariants(std::string_view topicId, std::string_view infoId) const
+    {
+        const std::string key = makeInfoKey(topicId, infoId);
+
+        const ContainerType* const genderResponses[] = {
+            &mInfoResponsesNpcMale,
+            &mInfoResponsesNpcFemale,
+            &mInfoResponsesPlayerMale,
+            &mInfoResponsesPlayerFemale,
+            &mInfoResponsesNpcMalePlayerMale,
+            &mInfoResponsesNpcMalePlayerFemale,
+            &mInfoResponsesNpcFemalePlayerMale,
+            &mInfoResponsesNpcFemalePlayerFemale,
+        };
+
+        for (const ContainerType* responses : genderResponses)
+        {
+            if (responses->find(key) != responses->end())
+                return true;
+        }
+
+        return false;
+    }
+
     std::string_view Storage::translateChoice(std::string_view sourceText) const
     {
         auto entry = mChoiceTranslations.find(sourceText);

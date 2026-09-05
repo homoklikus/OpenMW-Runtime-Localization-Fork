@@ -4,6 +4,7 @@
 
 #include <MyGUI_LanguageManager.h>
 
+#include <components/esm3/loaddial.hpp>
 #include <components/misc/strings/algorithm.hpp>
 #include <components/translation/translation.hpp>
 
@@ -14,6 +15,7 @@
 
 #include "../mwdialogue/keywordsearch.hpp"
 #include "../mwworld/datetimemanager.hpp"
+#include "../mwworld/esmstore.hpp"
 
 namespace MWGui
 {
@@ -66,15 +68,77 @@ namespace MWGui
             return journal->getEntries().empty();
         }
 
+        static bool containsPotentialDefine(std::string_view text)
+        {
+            for (std::size_t i = 0; i + 1 < text.size(); ++i)
+            {
+                const char marker = text[i];
+                const char next = text[i + 1];
+
+                if ((marker == '%' || marker == '^')
+                    && ((next >= 'A' && next <= 'Z') || (next >= 'a' && next <= 'z') || next == '_'))
+                    return true;
+            }
+
+            return false;
+        }
+
+        std::string localizedEntryText(
+            const ESM::RefId& topicId, const ESM::RefId& infoId, const std::string& savedText) const
+        {
+            const auto& dialogues = MWBase::Environment::get().getESMStore()->get<ESM::Dialogue>();
+            const ESM::Dialogue* dialogue = dialogues.search(topicId);
+            if (dialogue == nullptr)
+                return savedText;
+
+            const ESM::DialInfo* info = nullptr;
+            for (const ESM::DialInfo& candidate : dialogue->mInfo)
+            {
+                if (candidate.mId == infoId)
+                {
+                    info = &candidate;
+                    break;
+                }
+            }
+
+            if (info == nullptr)
+                return savedText;
+
+            const Translation::Storage& translations
+                = MWBase::Environment::get().getWindowManager()->getTranslationDataStorage();
+
+            // Old JOUR records contain topic/info/text, but not enough stable actor
+            // context to reproduce a historical gender choice. Preserve the saved
+            // rendered text instead of selecting default or guessing a variant.
+            if (translations.hasInfoResponseGenderVariants(dialogue->mStringId, info->mId.serializeText()))
+                return savedText;
+
+            const std::string_view translated
+                = translations.translateInfoResponse(dialogue->mStringId, info->mId.serializeText(), savedText);
+
+            // translateInfoResponse returns sourceText itself when no translation exists.
+            if (translated.data() == savedText.data() && translated.size() == savedText.size())
+                return savedText;
+
+            // Saved journal text already contains define expansion. Old saves do not
+            // retain enough actor context to safely expand a newly selected translation.
+            if (containsPotentialDefine(translated))
+                return savedText;
+
+            return std::string(translated);
+        }
+
         template <typename EntryType, typename Interface>
         struct BaseEntry : Interface
         {
             const EntryType* mEntry;
             JournalViewModelImpl const* mModel;
+            ESM::RefId mTopicId;
 
-            BaseEntry(JournalViewModelImpl const* model, const EntryType& entry)
+            BaseEntry(JournalViewModelImpl const* model, const EntryType& entry, const ESM::RefId& topicId)
                 : mEntry(&entry)
                 , mModel(model)
+                , mTopicId(topicId)
             {
             }
 
@@ -102,7 +166,8 @@ namespace MWGui
                     MWBase::WindowManager& windowManager = *MWBase::Environment::get().getWindowManager();
                     const Translation::Storage& translationStorage = windowManager.getTranslationDataStorage();
 
-                    const std::string& text = mEntry->getText();
+                    const std::string text
+                        = mModel->localizedEntryText(mTopicId, mEntry->mInfoId, mEntry->getText());
                     mText.reserve(text.size());
 
                     auto matches = mModel->mKeywordSearch.parseHyperText(text, translationStorage);
@@ -189,7 +254,7 @@ namespace MWGui
             mutable std::string mTimestamp;
 
             JournalEntryImpl(JournalViewModelImpl const* model, const MWDialogue::StampedJournalEntry& entry)
-                : BaseEntry(model, entry)
+                : BaseEntry(model, entry, entry.mTopic)
             {
             }
 
@@ -285,7 +350,7 @@ namespace MWGui
 
             TopicEntryImpl(
                 JournalViewModelImpl const* model, MWDialogue::Topic const& topic, const MWDialogue::Entry& entry)
-                : BaseEntry(model, entry)
+                : BaseEntry(model, entry, topic.getTopic())
                 , mTopic(topic)
             {
             }
