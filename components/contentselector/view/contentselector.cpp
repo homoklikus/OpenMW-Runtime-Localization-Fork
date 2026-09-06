@@ -69,6 +69,7 @@ ContentSelectorView::ContentSelector::ContentSelector(QWidget* parent, bool show
     if (!showOMWScripts)
     {
         ui->languageComboBox->setHidden(true);
+        ui->sortButton->setHidden(true);
         ui->refreshButton->setHidden(true);
     }
 
@@ -156,6 +157,7 @@ void ContentSelectorView::ContentSelector::buildAddonView()
 
     connect(ui->searchFilter, &QLineEdit::textEdited, mAddonProxyModel, &QSortFilterProxyModel::setFilterWildcard);
     connect(ui->searchFilter, &QLineEdit::textEdited, this, &ContentSelector::slotSearchFilterTextChanged);
+    connect(ui->sortButton, &QToolButton::clicked, this, &ContentSelector::slotSortFiles);
 
     ui->addonView->setModel(mAddonProxyModel);
     ui->addonView->setItemDelegateForColumn(
@@ -447,6 +449,20 @@ void ContentSelectorView::ContentSelector::slotCopySelectedItemsPaths()
 void ContentSelectorView::ContentSelector::slotSearchFilterTextChanged(const QString& newText)
 {
     ui->addonView->setDragEnabled(newText.isEmpty());
+}
+
+void ContentSelectorView::ContentSelector::slotSortFiles()
+{
+    if (!mContentModel)
+        return;
+
+    // ContentModel already knows the master/dependency graph and keeps
+    // built-in/non-user entries at the beginning. Reuse that native sorter
+    // instead of maintaining a second load-order implementation here.
+    mContentModel->sortFiles();
+    ui->addonView->selectionModel()->clearSelection();
+
+    emit signalLoadOrderChanged();
 }
 
 void ContentSelectorView::ContentSelector::slotRowsMoved()

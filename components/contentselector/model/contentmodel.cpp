@@ -68,6 +68,7 @@ namespace
 ContentSelectorModel::ContentModel::ContentModel(
     QObject* parent, QIcon& warningIcon, QIcon& errorIcon, bool showOMWScripts)
     : QAbstractTableModel(parent)
+    , mGameFile(nullptr)
     , mWarningIcon(warningIcon)
     , mErrorIcon(errorIcon)
     , mShowOMWScripts(showOMWScripts)
@@ -775,6 +776,85 @@ void ContentSelectorModel::ContentModel::sortFiles()
             auto missingFile = std::make_unique<EsmFile>(filename);
             missingFile->setFromAnotherConfigFile(true);
             mFiles.insert(firstModifiable++, missingFile.release());
+        }
+    }
+
+    // The custom launcher ordering below is meaningful only after the
+    // current game file has been selected from the active content list.
+    //
+    // sortFiles() is also called earlier while the Data Files page is being
+    // populated. At that point mGameFile is still nullptr, so keep the
+    // original OpenMW sorting behaviour and do not move official expansions
+    // around an unknown game file.
+    if (mGameFile)
+    {
+        // Morrowind.esm is hidden from the add-on table, but it still lives in
+        // mFiles and Tribunal/Bloodmoon depend on it. Keep it internally
+        // before all visible add-ons.
+        if (!mGameFile->builtIn() && !mGameFile->fromAnotherConfigFile())
+        {
+            const int gameFilePosition = indexFromItem(mGameFile).row();
+            if (gameFilePosition >= firstModifiable)
+            {
+                mFiles.move(gameFilePosition, firstModifiable);
+                ++firstModifiable;
+            }
+        }
+
+        // Keep the two official expansions directly below the fixed prefix.
+        // In the normal Morrowind setup this gives Tribunal.esm and
+        // Bloodmoon.esm visible positions 2 and 3 respectively.
+        //
+        // Do not use the .esm extension as a generic "master" test:
+        // large mods such as Tamriel Rebuilt also ship ESM files. What matters
+        // for the remaining files is whether another plugin actually depends
+        // on them.
+        for (const QString& expansionName :
+            { QStringLiteral("Tribunal.esm"), QStringLiteral("Bloodmoon.esm") })
+        {
+            const EsmFile* expansion = item(expansionName);
+            if (!expansion || expansion->builtIn() || expansion->fromAnotherConfigFile())
+                continue;
+
+            const int expansionPosition = indexFromItem(expansion).row();
+            if (expansionPosition >= firstModifiable)
+                mFiles.move(expansionPosition, firstModifiable++);
+        }
+
+        // Prefer real dependency providers ("masters") before leaf plugins,
+        // regardless of whether their extension is .esm or .esp.
+        std::vector<EsmFile*> dependencyMasters;
+        for (EsmFile* candidate : mFiles)
+        {
+            const int candidatePosition = mFiles.indexOf(candidate);
+            if (candidatePosition < firstModifiable)
+                continue;
+
+            bool isDependency = false;
+            for (const EsmFile* other : mFiles)
+            {
+                if (other == candidate)
+                    continue;
+
+                if (other->gameFiles().contains(candidate->fileName(), Qt::CaseInsensitive))
+                {
+                    isDependency = true;
+                    break;
+                }
+            }
+
+            if (isDependency)
+                dependencyMasters.push_back(candidate);
+        }
+
+        int masterInsertPosition = firstModifiable;
+        for (EsmFile* master : dependencyMasters)
+        {
+            const int masterPosition = mFiles.indexOf(master);
+            if (masterPosition < masterInsertPosition)
+                continue;
+
+            mFiles.move(masterPosition, masterInsertPosition++);
         }
     }
 

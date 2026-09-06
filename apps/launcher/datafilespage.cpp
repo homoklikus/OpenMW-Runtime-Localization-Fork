@@ -215,6 +215,11 @@ Launcher::DataFilesPage::DataFilesPage(const Files::ConfigurationManager& cfg, C
             mMainDialog->writeSettings();
         });
 
+    // Sorting is an explicit user action. Persist the resulting load order
+    // immediately instead of waiting for launcher shutdown.
+    connect(mSelector, &ContentSelectorView::ContentSelector::signalLoadOrderChanged, this,
+        [this]() { mMainDialog->writeSettings(); });
+
     mReloadCellsTimer = new QTimer(this);
     mReloadCellsTimer->setSingleShot(true);
     mReloadCellsTimer->setInterval(200);

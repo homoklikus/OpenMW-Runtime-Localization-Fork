@@ -67,6 +67,19 @@
           <widget class="QLineEdit" name="searchFilter"/>
          </item>
          <item>
+          <widget class="QToolButton" name="sortButton">
+           <property name="toolTip">
+            <string>Sort plugins by their dependencies.</string>
+           </property>
+           <property name="text">
+            <string>Sort</string>
+           </property>
+           <property name="autoRaise">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
           <widget class="QComboBox" name="languageComboBox">
            <property name="minimumSize">
             <size>

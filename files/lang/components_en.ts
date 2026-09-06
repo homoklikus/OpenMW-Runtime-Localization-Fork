@@ -7,6 +7,14 @@
         <source>Select language used by ESM/ESP content files to allow OpenMW to detect their encoding. </source>
         <translation></translation>
     </message>
+    <message>
+        <source>Sort</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Sort plugins by their dependencies.</source>
+        <translation></translation>
+    </message>
 </context>
 <context>
     <name>ContentSelectorModel::ContentModel</name>

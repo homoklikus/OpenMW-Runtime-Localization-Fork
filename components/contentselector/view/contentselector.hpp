@@ -80,6 +80,7 @@ namespace ContentSelectorView
         void signalAddonDataChanged(const QModelIndex& topleft, const QModelIndex& bottomright);
         void signalSelectedFilesChanged(QStringList selectedFiles);
         void signalGroundcoverChanged(bool enabled);
+        void signalLoadOrderChanged();
 
     private slots:
 
@@ -90,6 +91,7 @@ namespace ContentSelectorView
         void slotUncheckMultiSelectedItems();
         void slotCopySelectedItemsPaths();
         void slotSearchFilterTextChanged(const QString& newText);
+        void slotSortFiles();
         void slotRowsMoved();
     };
 }
