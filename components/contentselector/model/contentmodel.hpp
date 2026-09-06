@@ -25,13 +25,27 @@ namespace ContentSelectorModel
     {
         Q_OBJECT
     public:
+        enum Column
+        {
+            Column_FileName = 0,
+            Column_Number,
+            Column_Status,
+            Column_Count
+        };
+
         explicit ContentModel(QObject* parent, QIcon& warningIcon, QIcon& errorIcon, bool showOMWScripts);
         ~ContentModel();
 
         void setEncoding(const QString& encoding);
+        void setGroundcoverFiles(const QStringList& fileList);
+        QStringList groundcoverFiles() const;
+        bool isGroundcover(const EsmFile* file) const;
+        bool setGroundcover(const EsmFile* file, bool enabled);
 
         int rowCount(const QModelIndex& parent = QModelIndex()) const override;
         int columnCount(const QModelIndex& parent = QModelIndex()) const override;
+        QVariant headerData(
+            int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override;
 
         QVariant data(const QModelIndex& index, int role) const override;
         Qt::ItemFlags flags(const QModelIndex& index) const override;
@@ -87,6 +101,7 @@ namespace ContentSelectorModel
         QStringList mNonUserContent;
         std::set<const EsmFile*> mCheckedFiles;
         QHash<QString, bool> mNewFiles;
+        QSet<QString> mGroundcoverFiles;
         QString mEncoding;
         QIcon mWarningIcon;
         QIcon mErrorIcon;

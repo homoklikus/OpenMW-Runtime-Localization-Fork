@@ -13,6 +13,8 @@
 #include <QDirIterator>
 #include <QFont>
 #include <QIODevice>
+#include <QPainter>
+#include <QPixmap>
 #include <QProgressDialog>
 
 #include <components/esm/format.hpp>
@@ -20,6 +22,48 @@
 #include <components/esm4/reader.hpp>
 #include <components/files/openfile.hpp>
 #include <components/files/qtconversion.hpp>
+
+namespace
+{
+    const QIcon& groundcoverStatusIcon()
+    {
+        static const QIcon icon = []() {
+            QPixmap pixmap(16, 16);
+            pixmap.fill(Qt::transparent);
+
+            QPainter painter(&pixmap);
+            painter.setRenderHint(QPainter::Antialiasing, true);
+
+            const QColor green(66, 160, 72);
+
+            QPen stemPen(green);
+            stemPen.setWidthF(1.8);
+            stemPen.setCapStyle(Qt::RoundCap);
+            painter.setPen(stemPen);
+            painter.drawLine(QPointF(8.0, 14.0), QPointF(8.0, 6.0));
+
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(green);
+
+            painter.save();
+            painter.translate(6.0, 7.0);
+            painter.rotate(28.0);
+            painter.drawEllipse(QRectF(-4.2, -1.8, 6.2, 3.6));
+            painter.restore();
+
+            painter.save();
+            painter.translate(10.0, 5.5);
+            painter.rotate(-28.0);
+            painter.drawEllipse(QRectF(-2.0, -1.8, 6.2, 3.6));
+            painter.restore();
+
+            painter.end();
+            return QIcon(pixmap);
+        }();
+
+        return icon;
+    }
+}
 
 ContentSelectorModel::ContentModel::ContentModel(
     QObject* parent, QIcon& warningIcon, QIcon& errorIcon, bool showOMWScripts)
@@ -29,7 +73,7 @@ ContentSelectorModel::ContentModel::ContentModel(
     , mShowOMWScripts(showOMWScripts)
     , mMimeType("application/omwcontent")
     , mMimeTypes(QStringList() << mMimeType)
-    , mColumnCount(1)
+    , mColumnCount(Column_Count)
     , mDropActions(Qt::MoveAction)
 {
     setEncoding("win1252");
@@ -47,6 +91,76 @@ void ContentSelectorModel::ContentModel::setEncoding(const QString& encoding)
     mEncoding = encoding;
 }
 
+void ContentSelectorModel::ContentModel::setGroundcoverFiles(const QStringList& fileList)
+{
+    mGroundcoverFiles.clear();
+    for (const QString& fileName : fileList)
+        mGroundcoverFiles.insert(fileName.toLower());
+
+    // Groundcover is loaded through groundcover=, not content=.
+    // If a file is present in both lists, prefer Groundcover.
+    for (const EsmFile* file : mFiles)
+    {
+        if (isGroundcover(file))
+            mCheckedFiles.erase(file);
+    }
+
+    refreshModel({ Qt::DisplayRole, Qt::DecorationRole, Qt::ToolTipRole, Qt::CheckStateRole, Qt::UserRole + 1 });
+}
+
+QStringList ContentSelectorModel::ContentModel::groundcoverFiles() const
+{
+    QStringList result;
+    for (const EsmFile* file : mFiles)
+    {
+        if (isGroundcover(file))
+            result.push_back(file->fileName());
+    }
+    return result;
+}
+
+bool ContentSelectorModel::ContentModel::isGroundcover(const EsmFile* file) const
+{
+    return file && mGroundcoverFiles.contains(file->fileName().toLower());
+}
+
+bool ContentSelectorModel::ContentModel::setGroundcover(const EsmFile* file, bool enabled)
+{
+    if (!file || file->isGameFile() || file->builtIn() || file->fromAnotherConfigFile()
+        || file->fileName().endsWith(QLatin1String(".omwscripts"), Qt::CaseInsensitive))
+        return false;
+
+    const QString key = file->fileName().toLower();
+    const bool wasGroundcover = mGroundcoverFiles.contains(key);
+
+    if (wasGroundcover == enabled)
+        return false;
+
+    if (enabled)
+    {
+        mGroundcoverFiles.insert(key);
+
+        // A plugin must not be loaded simultaneously as normal content
+        // and as Groundcover.
+        mCheckedFiles.erase(file);
+    }
+    else
+    {
+        mGroundcoverFiles.remove(key);
+
+        // Be symmetrical: removing a plugin from Groundcover immediately
+        // restores it as normal content instead of waiting for a launcher
+        // restart/reload.
+        setCheckState(file, true);
+    }
+
+    const int row = mFiles.indexOf(const_cast<EsmFile*>(file));
+    if (row >= 0)
+        emit dataChanged(index(row, Column_FileName), index(row, Column_Status));
+
+    return true;
+}
+
 int ContentSelectorModel::ContentModel::columnCount(const QModelIndex& parent) const
 {
     if (parent.isValid())
@@ -61,6 +175,27 @@ int ContentSelectorModel::ContentModel::rowCount(const QModelIndex& parent) cons
         return 0;
 
     return mFiles.size();
+}
+
+QVariant ContentSelectorModel::ContentModel::headerData(
+    int section, Qt::Orientation orientation, int role) const
+{
+    if (orientation == Qt::Horizontal && role == Qt::DisplayRole)
+    {
+        switch (section)
+        {
+            case Column_FileName:
+                return tr("Plugins");
+            case Column_Number:
+                return tr("No.");
+            case Column_Status:
+                return tr("Status");
+            default:
+                break;
+        }
+    }
+
+    return QAbstractTableModel::headerData(section, orientation, role);
 }
 
 const ContentSelectorModel::EsmFile* ContentSelectorModel::ContentModel::item(int row) const
@@ -95,7 +230,7 @@ QModelIndex ContentSelectorModel::ContentModel::indexFromItem(const EsmFile* ite
     EsmFile* const nonConstFilePtr = const_cast<EsmFile*>(item);
 
     if (item)
-        return index(mFiles.indexOf(nonConstFilePtr), 0);
+        return index(mFiles.indexOf(nonConstFilePtr), Column_FileName);
 
     return QModelIndex();
 }
@@ -104,6 +239,9 @@ Qt::ItemFlags ContentSelectorModel::ContentModel::flags(const QModelIndex& index
 {
     if (!index.isValid())
         return Qt::ItemIsDropEnabled;
+
+    if (index.column() != Column_FileName)
+        return flags(index.siblingAtColumn(Column_FileName)) & ~Qt::ItemIsUserCheckable;
 
     const EsmFile* file = item(index.row());
 
@@ -153,6 +291,72 @@ QVariant ContentSelectorModel::ContentModel::data(const QModelIndex& index, int 
         return QVariant();
 
     const int column = index.column();
+
+    if (column == Column_Number)
+    {
+        switch (role)
+        {
+            case Qt::EditRole:
+            case Qt::DisplayRole:
+            {
+                int number = 0;
+                for (int row = 0; row <= index.row(); ++row)
+                {
+                    if (!mFiles.at(row)->isGameFile())
+                        ++number;
+                }
+                return number;
+            }
+            case Qt::TextAlignmentRole:
+                return QVariant(Qt::AlignRight | Qt::AlignVCenter);
+            default:
+                return QVariant();
+        }
+    }
+
+    if (column == Column_Status)
+    {
+        switch (role)
+        {
+            case Qt::EditRole:
+            case Qt::DisplayRole:
+                if (file->isMissing())
+                    return tr("Missing");
+                if (isLoadOrderError(file))
+                    return tr("Warning");
+                if (isGroundcover(file))
+                    return QString();
+                return tr("OK");
+
+            case Qt::DecorationRole:
+                if (isGroundcover(file))
+                    return groundcoverStatusIcon();
+                if (file->isMissing())
+                    return mErrorIcon;
+                if (isLoadOrderError(file))
+                    return mWarningIcon;
+                return QVariant();
+
+            case Qt::ToolTipRole:
+            {
+                QStringList tooltip;
+                if (isGroundcover(file))
+                    tooltip << tr("Groundcover");
+                if (file->isMissing())
+                    tooltip << tr("Missing");
+                else if (isLoadOrderError(file))
+                    tooltip << tr("Warning");
+
+                return tooltip.isEmpty() ? QVariant() : QVariant(tooltip.join('\n'));
+            }
+
+            case Qt::TextAlignmentRole:
+                return QVariant(Qt::AlignCenter);
+
+            default:
+                return QVariant();
+        }
+    }
 
     switch (role)
     {
@@ -239,6 +443,9 @@ bool ContentSelectorModel::ContentModel::setData(const QModelIndex& index, const
     if (!index.isValid())
         return false;
 
+    if (index.column() != Column_FileName)
+        return false;
+
     EsmFile* file = item(index.row());
     switch (role)
     {
@@ -296,12 +503,17 @@ QMimeData* ContentSelectorModel::ContentModel::mimeData(const QModelIndexList& i
 {
     QByteArray encodedData;
     QDataStream stream(&encodedData, QIODevice::WriteOnly);
+    QSet<int> encodedRows;
 
     for (const QModelIndex& index : indexes)
     {
         if (!index.isValid())
             continue;
 
+        if (encodedRows.contains(index.row()))
+            continue;
+
+        encodedRows.insert(index.row());
         stream << index.row();
     }
 
@@ -317,7 +529,7 @@ bool ContentSelectorModel::ContentModel::dropMimeData(
     if (action == Qt::IgnoreAction)
         return true;
 
-    if (column > 0)
+    if (column >= mColumnCount)
         return false;
 
     if (!data->hasFormat(mMimeType))
@@ -747,7 +959,10 @@ QString ContentSelectorModel::ContentModel::toolTip(const EsmFile* file) const
 
 void ContentSelectorModel::ContentModel::refreshModel(std::initializer_list<int> roles)
 {
-    emit dataChanged(index(0, 0), index(rowCount() - 1, 0), roles);
+    if (rowCount() == 0 || columnCount() == 0)
+        return;
+
+    emit dataChanged(index(0, 0), index(rowCount() - 1, columnCount() - 1), roles);
 }
 
 bool ContentSelectorModel::ContentModel::setCheckState(const EsmFile* file, bool checkState)

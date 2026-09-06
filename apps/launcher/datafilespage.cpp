@@ -204,6 +204,13 @@ Launcher::DataFilesPage::DataFilesPage(const Files::ConfigurationManager& cfg, C
     connect(mSelector, &ContentSelectorView::ContentSelector::signalAddonDataChanged, this,
         &DataFilesPage::slotAddonDataChanged);
 
+    // Groundcover assignment is a launcher configuration action, not merely
+    // a pending UI edit. Persist it immediately so groundcover= in openmw.cfg
+    // and [Groundcover] enabled=true in settings.cfg are visible at once,
+    // without closing/restarting the launcher.
+    connect(mSelector, &ContentSelectorView::ContentSelector::signalGroundcoverChanged, this,
+        [this]() { mMainDialog->writeSettings(); });
+
     mReloadCellsTimer = new QTimer(this);
     mReloadCellsTimer->setSingleShot(true);
     mReloadCellsTimer->setInterval(200);
@@ -541,6 +548,11 @@ void Launcher::DataFilesPage::populateFileViews(const QString& contentModelName)
     }
     mSelector->setNonUserContent(nonUserContent);
     mSelector->setProfileContent(mLauncherSettings.getContentListFiles(contentModelName));
+
+    QStringList groundcoverFiles;
+    for (const auto& groundcover : mGameSettings.values(QStringLiteral("groundcover")))
+        groundcoverFiles.push_back(groundcover.value);
+    mSelector->setGroundcoverFiles(groundcoverFiles);
 }
 
 void Launcher::DataFilesPage::saveSettings(const QString& profile)
@@ -581,6 +593,25 @@ void Launcher::DataFilesPage::saveSettings(const QString& profile)
     }
     mLauncherSettings.setContentList(profileName, dirNames, archiveNames, fileNames);
     mGameSettings.setContentList(dirList, selectedArchivePaths(), fileNames);
+
+    // Groundcover uses its own ordered groundcover= entries in openmw.cfg
+    // and must stay separate from the normal content= load order.
+    mGameSettings.remove(QStringLiteral("groundcover"));
+    const QStringList groundcoverFiles = mSelector->groundcoverFiles();
+    for (const QString& fileName : groundcoverFiles)
+        mGameSettings.setMultiValue(QStringLiteral("groundcover"), { fileName });
+
+    // Groundcover plugins are ignored by the engine unless the feature itself
+    // is enabled in settings.cfg. Selecting at least one Groundcover plugin
+    // therefore also ensures:
+    //
+    // [Groundcover]
+    // enabled = true
+    //
+    // Settings::Manager::saveUser() writes this change to the user's
+    // settings.cfg later in MainDialog::writeSettings().
+    if (!groundcoverFiles.isEmpty() && !Settings::groundcover().mEnabled)
+        Settings::groundcover().mEnabled.set(true);
 
     QString language(mSelector->languageBox()->currentData().toString());
 

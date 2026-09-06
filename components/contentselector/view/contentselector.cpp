@@ -4,11 +4,60 @@
 
 #include <components/contentselector/model/esmfile.hpp>
 
+#include <algorithm>
+#include <QApplication>
+#include <QPainter>
+#include <QStyle>
+#include <QStyledItemDelegate>
+#include <QStyleOptionViewItem>
 #include <QClipboard>
+#include <QHeaderView>
 #include <QMenu>
 #include <QModelIndex>
 #include <QProgressDialog>
 #include <QSortFilterProxyModel>
+namespace
+{
+    class StatusItemDelegate final : public QStyledItemDelegate
+    {
+    public:
+        using QStyledItemDelegate::QStyledItemDelegate;
+
+        void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override
+        {
+            QStyleOptionViewItem opt(option);
+            initStyleOption(&opt, index);
+
+            // Groundcover: Status contains only an icon. QStyledItemDelegate
+            // normally places DecorationRole on the left, so center it here.
+            if (opt.text.isEmpty() && !opt.icon.isNull())
+            {
+                const QIcon icon = opt.icon;
+                opt.icon = QIcon();
+
+                QStyle* style = opt.widget ? opt.widget->style() : QApplication::style();
+                style->drawControl(QStyle::CE_ItemViewItem, &opt, painter, opt.widget);
+
+                const int side = std::min({ 16, option.rect.width(), option.rect.height() });
+                const QRect iconRect(
+                    option.rect.center().x() - side / 2,
+                    option.rect.center().y() - side / 2,
+                    side,
+                    side);
+
+                const QIcon::Mode mode
+                    = (option.state & QStyle::State_Enabled) ? QIcon::Normal : QIcon::Disabled;
+                const QIcon::State state
+                    = (option.state & QStyle::State_Selected) ? QIcon::On : QIcon::Off;
+
+                icon.paint(painter, iconRect, Qt::AlignCenter, mode, state);
+                return;
+            }
+
+            QStyledItemDelegate::paint(painter, option, index);
+        }
+    };
+}
 
 ContentSelectorView::ContentSelector::ContentSelector(QWidget* parent, bool showOMWScripts)
     : QObject(parent)
@@ -61,7 +110,8 @@ public:
         static const QString contentTypeAddon
             = QString::number(static_cast<int>(ContentSelectorModel::ContentType_Addon));
 
-        QModelIndex nameIndex = sourceModel()->index(sourceRow, 0, sourceParent);
+        QModelIndex nameIndex = sourceModel()->index(
+            sourceRow, ContentSelectorModel::ContentModel::Column_FileName, sourceParent);
         const QString userRole = sourceModel()->data(nameIndex, Qt::UserRole).toString();
 
         return QSortFilterProxyModel::filterAcceptsRow(sourceRow, sourceParent) && userRole == contentTypeAddon;
@@ -100,6 +150,7 @@ void ContentSelectorView::ContentSelector::buildAddonView()
     mAddonProxyModel = new AddOnProxyModel(this);
     mAddonProxyModel->setFilterRegularExpression(searchFilter()->text());
     mAddonProxyModel->setFilterCaseSensitivity(Qt::CaseInsensitive);
+    mAddonProxyModel->setFilterKeyColumn(ContentSelectorModel::ContentModel::Column_FileName);
     mAddonProxyModel->setDynamicSortFilter(true);
     mAddonProxyModel->setSourceModel(mContentModel);
 
@@ -107,6 +158,18 @@ void ContentSelectorView::ContentSelector::buildAddonView()
     connect(ui->searchFilter, &QLineEdit::textEdited, this, &ContentSelector::slotSearchFilterTextChanged);
 
     ui->addonView->setModel(mAddonProxyModel);
+    ui->addonView->setItemDelegateForColumn(
+        ContentSelectorModel::ContentModel::Column_Status, new StatusItemDelegate(ui->addonView));
+
+    QHeaderView* header = ui->addonView->horizontalHeader();
+    header->moveSection(
+        header->visualIndex(ContentSelectorModel::ContentModel::Column_Number), 0);
+    header->setSectionResizeMode(
+        ContentSelectorModel::ContentModel::Column_Number, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(
+        ContentSelectorModel::ContentModel::Column_FileName, QHeaderView::Stretch);
+    header->setSectionResizeMode(
+        ContentSelectorModel::ContentModel::Column_Status, QHeaderView::ResizeToContents);
 
     connect(ui->addonView, &QTableView::activated, this, &ContentSelector::slotAddonTableItemActivated);
     connect(mContentModel, &ContentSelectorModel::ContentModel::dataChanged, this,
@@ -124,6 +187,12 @@ void ContentSelectorView::ContentSelector::buildContextMenu()
     mContextMenu->addAction(tr("&Check Selected"), this, SLOT(slotCheckMultiSelectedItems()));
     mContextMenu->addAction(tr("&Uncheck Selected"), this, SLOT(slotUncheckMultiSelectedItems()));
     mContextMenu->addAction(tr("&Copy Path(s) to Clipboard"), this, SLOT(slotCopySelectedItemsPaths()));
+
+    mContextMenu->addSeparator();
+    mContextMenu->addAction(tr("Mark Selected as Groundcover"), this,
+        [this]() { setGroundcoverForSelectedItems(true); });
+    mContextMenu->addAction(tr("Unmark Selected as Groundcover"), this,
+        [this]() { setGroundcoverForSelectedItems(false); });
 }
 
 void ContentSelectorView::ContentSelector::setNonUserContent(const QStringList& fileList)
@@ -146,6 +215,11 @@ void ContentSelectorView::ContentSelector::setProfileContent(const QStringList& 
     }
 
     setContentList(fileList);
+}
+
+void ContentSelectorView::ContentSelector::setGroundcoverFiles(const QStringList& fileList)
+{
+    mContentModel->setGroundcoverFiles(fileList);
 }
 
 void ContentSelectorView::ContentSelector::setGameFile(const QString& filename)
@@ -196,6 +270,14 @@ ContentSelectorModel::ContentFileList ContentSelectorView::ContentSelector::sele
     return mContentModel->checkedItems();
 }
 
+QStringList ContentSelectorView::ContentSelector::groundcoverFiles() const
+{
+    if (!mContentModel)
+        return {};
+
+    return mContentModel->groundcoverFiles();
+}
+
 void ContentSelectorView::ContentSelector::addFiles(const QString& path, bool newfiles)
 {
     mContentModel->addFiles(path, newfiles);
@@ -237,7 +319,8 @@ QString ContentSelectorView::ContentSelector::currentFile() const
     if (!currentIdx.isValid() && ui->gameFileView->currentIndex() > 0)
         return ui->gameFileView->currentText();
 
-    QModelIndex idx = mContentModel->index(mAddonProxyModel->mapToSource(currentIdx).row(), 0, QModelIndex());
+    QModelIndex idx = mContentModel->index(mAddonProxyModel->mapToSource(currentIdx).row(),
+        ContentSelectorModel::ContentModel::Column_FileName, QModelIndex());
     return mContentModel->data(idx, Qt::DisplayRole).toString();
 }
 
@@ -275,7 +358,8 @@ void ContentSelectorView::ContentSelector::setGameFileSelected(int index, bool s
 void ContentSelectorView::ContentSelector::slotAddonTableItemActivated(const QModelIndex& index)
 {
     // toggles check state when an AddOn file is double clicked or activated by keyboard
-    QModelIndex sourceIndex = mAddonProxyModel->mapToSource(index);
+    QModelIndex sourceIndex = mAddonProxyModel->mapToSource(index).siblingAtColumn(
+        ContentSelectorModel::ContentModel::Column_FileName);
 
     if (!mContentModel->isEnabled(sourceIndex))
         return;
@@ -296,7 +380,8 @@ void ContentSelectorView::ContentSelector::slotShowContextMenu(const QPoint& pos
 
 void ContentSelectorView::ContentSelector::setCheckStateForMultiSelectedItems(Qt::CheckState checkState)
 {
-    const QModelIndexList selectedIndexes = ui->addonView->selectionModel()->selectedIndexes();
+    const QModelIndexList selectedIndexes
+        = ui->addonView->selectionModel()->selectedRows(ContentSelectorModel::ContentModel::Column_FileName);
 
     QProgressDialog progressDialog("Updating content selection", {}, 0, static_cast<int>(selectedIndexes.size()));
     progressDialog.setWindowModality(Qt::WindowModal);
@@ -318,6 +403,24 @@ void ContentSelectorView::ContentSelector::slotUncheckMultiSelectedItems()
     setCheckStateForMultiSelectedItems(Qt::Unchecked);
 }
 
+void ContentSelectorView::ContentSelector::setGroundcoverForSelectedItems(bool enabled)
+{
+    bool changed = false;
+
+    const QModelIndexList selectedIndexes
+        = ui->addonView->selectionModel()->selectedRows(ContentSelectorModel::ContentModel::Column_FileName);
+
+    for (const QModelIndex& proxyIndex : selectedIndexes)
+    {
+        const QModelIndex sourceIndex = mAddonProxyModel->mapToSource(proxyIndex);
+        const ContentSelectorModel::EsmFile* file = mContentModel->item(sourceIndex.row());
+        changed = mContentModel->setGroundcover(file, enabled) || changed;
+    }
+
+    if (changed)
+        emit signalGroundcoverChanged();
+}
+
 void ContentSelectorView::ContentSelector::slotCheckMultiSelectedItems()
 {
     setCheckStateForMultiSelectedItems(Qt::Checked);
@@ -327,7 +430,8 @@ void ContentSelectorView::ContentSelector::slotCopySelectedItemsPaths()
 {
     QClipboard* clipboard = QApplication::clipboard();
     QStringList filepaths;
-    for (const QModelIndex& index : ui->addonView->selectionModel()->selectedIndexes())
+    for (const QModelIndex& index :
+        ui->addonView->selectionModel()->selectedRows(ContentSelectorModel::ContentModel::Column_FileName))
     {
         int row = mAddonProxyModel->mapToSource(index).row();
         const ContentSelectorModel::EsmFile* file = mContentModel->item(row);

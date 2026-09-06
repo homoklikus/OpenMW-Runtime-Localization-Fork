@@ -22,6 +22,34 @@
         <source>This file needs to load after %1</source>
         <translation></translation>
     </message>
+    <message>
+        <source>No.</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Plugins</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Status</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Missing</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Warning</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>OK</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Groundcover</source>
+        <translation></translation>
+    </message>
 </context>
 <context>
     <name>ContentSelectorModel::EsmFile</name>
@@ -58,6 +86,14 @@
     </message>
     <message>
         <source>&amp;Copy Path(s) to Clipboard</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Mark Selected as Groundcover</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Unmark Selected as Groundcover</source>
         <translation></translation>
     </message>
 </context>

@@ -42,12 +42,14 @@ namespace ContentSelectorView
         void clearFiles();
         void setNonUserContent(const QStringList& fileList);
         void setProfileContent(const QStringList& fileList);
+        void setGroundcoverFiles(const QStringList& fileList);
 
         void clearCheckStates();
         void setEncoding(const QString& encoding);
         void setContentList(const QStringList& list);
 
         ContentSelectorModel::ContentFileList selectedFiles() const;
+        QStringList groundcoverFiles() const;
 
         void setGameFile(const QString& filename = QString(""));
 
@@ -70,12 +72,14 @@ namespace ContentSelectorView
         void buildContextMenu();
         void setGameFileSelected(int index, bool selected);
         void setCheckStateForMultiSelectedItems(Qt::CheckState checkState);
+        void setGroundcoverForSelectedItems(bool enabled);
 
     signals:
         void signalCurrentGamefileIndexChanged(int);
 
         void signalAddonDataChanged(const QModelIndex& topleft, const QModelIndex& bottomright);
         void signalSelectedFilesChanged(QStringList selectedFiles);
+        void signalGroundcoverChanged();
 
     private slots:
 

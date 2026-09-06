@@ -22,6 +22,34 @@
         <source>This file needs to load after %1</source>
         <translation>Ten plik musi zostać załadowany po %1</translation>
     </message>
+    <message>
+        <source>No.</source>
+        <translation>Lp.</translation>
+    </message>
+    <message>
+        <source>Plugins</source>
+        <translation>Wtyczki</translation>
+    </message>
+    <message>
+        <source>Status</source>
+        <translation>Status</translation>
+    </message>
+    <message>
+        <source>Missing</source>
+        <translation>Brak pliku</translation>
+    </message>
+    <message>
+        <source>Warning</source>
+        <translation>Ostrzeżenie</translation>
+    </message>
+    <message>
+        <source>OK</source>
+        <translation>OK</translation>
+    </message>
+    <message>
+        <source>Groundcover</source>
+        <translation>Roślinność</translation>
+    </message>
 </context>
 <context>
     <name>ContentSelectorModel::EsmFile</name>
@@ -50,7 +78,7 @@
     </message>
     <message>
         <source>&amp;Check Selected</source>
-        <translation>&amp;Sprawdź wybrane</translation>
+        <translation>&amp;Zaznacz wybrane</translation>
     </message>
     <message>
         <source>&amp;Uncheck Selected</source>
@@ -59,6 +87,14 @@
     <message>
         <source>&amp;Copy Path(s) to Clipboard</source>
         <translation>&amp;Skopiuj Ścieżkę(ki)do Schowka</translation>
+    </message>
+    <message>
+        <source>Mark Selected as Groundcover</source>
+        <translation>Zaznacz wybrane jako roślinność</translation>
+    </message>
+    <message>
+        <source>Unmark Selected as Groundcover</source>
+        <translation>Odznacz wybrane jako roślinność</translation>
     </message>
 </context>
 <context>
