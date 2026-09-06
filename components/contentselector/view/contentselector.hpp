@@ -79,7 +79,7 @@ namespace ContentSelectorView
 
         void signalAddonDataChanged(const QModelIndex& topleft, const QModelIndex& bottomright);
         void signalSelectedFilesChanged(QStringList selectedFiles);
-        void signalGroundcoverChanged();
+        void signalGroundcoverChanged(bool enabled);
 
     private slots:
 

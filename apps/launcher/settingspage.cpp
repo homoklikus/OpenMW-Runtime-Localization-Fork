@@ -8,6 +8,7 @@
 #include <QDesktopServices>
 #include <QFileDialog>
 #include <QMenu>
+#include <QSignalBlocker>
 #include <QString>
 
 #include <components/config/gamesettings.hpp>
@@ -119,6 +120,24 @@ Launcher::SettingsPage::SettingsPage(
     }
 
     loadSettings();
+
+    // Groundcover settings are persisted immediately, just like Groundcover
+    // assignment from the Data Files page. These connections are created
+    // only after loadSettings(), so loading the initial values does not
+    // rewrite settings.cfg during launcher startup.
+    connect(groundcoverEnabledCheckBox, &QCheckBox::toggled, this,
+        &SettingsPage::signalGroundcoverSettingsChanged);
+    connect(groundcoverDensitySpinBox, qOverload<int>(&QSpinBox::valueChanged), this,
+        [this](int) { emit signalGroundcoverSettingsChanged(); });
+    connect(groundcoverRenderingDistanceSpinBox, qOverload<double>(&QDoubleSpinBox::valueChanged), this,
+        [this](double) { emit signalGroundcoverSettingsChanged(); });
+    connect(groundcoverStompModeComboBox, qOverload<int>(&QComboBox::currentIndexChanged), this,
+        [this](int) { emit signalGroundcoverSettingsChanged(); });
+    connect(groundcoverStompIntensityComboBox, qOverload<int>(&QComboBox::currentIndexChanged), this,
+        [this](int) { emit signalGroundcoverSettingsChanged(); });
+    connect(groundcoverPointLightingCheckBox, &QCheckBox::toggled, this,
+        &SettingsPage::signalGroundcoverSettingsChanged);
+
 
     mCellNameCompleter.setModel(&mCellNameCompleterModel);
     startDefaultCharacterAtField->setCompleter(&mCellNameCompleter);
@@ -342,6 +361,21 @@ bool Launcher::SettingsPage::loadSettings()
                 break;
         }
         lightingMethodComboBox->setCurrentIndex(lightingMethod);
+    }
+
+    // Groundcover
+    {
+        connect(groundcoverEnabledCheckBox, &QCheckBox::toggled, this, &SettingsPage::slotGroundcoverToggled);
+
+        loadSettingBool(Settings::groundcover().mEnabled, *groundcoverEnabledCheckBox);
+        groundcoverDensitySpinBox->setValue(
+            static_cast<int>(std::round(Settings::groundcover().mDensity.get() * 100.0f)));
+        groundcoverRenderingDistanceSpinBox->setValue(Settings::groundcover().mRenderingDistance);
+        loadSettingInt(Settings::groundcover().mStompMode, *groundcoverStompModeComboBox);
+        loadSettingInt(Settings::groundcover().mStompIntensity, *groundcoverStompIntensityComboBox);
+        loadSettingBool(Settings::groundcover().mPointLighting, *groundcoverPointLightingCheckBox);
+
+        slotGroundcoverToggled(groundcoverEnabledCheckBox->isChecked());
     }
 
     // Audio
@@ -630,6 +664,18 @@ void Launcher::SettingsPage::saveSettings()
             Settings::shadows().mComputeSceneBounds.set("none");
     }
 
+    // Groundcover
+    {
+        saveSettingBool(*groundcoverEnabledCheckBox, Settings::groundcover().mEnabled);
+        Settings::groundcover().mDensity.set(
+            static_cast<float>(groundcoverDensitySpinBox->value()) / 100.0f);
+        Settings::groundcover().mRenderingDistance.set(
+            static_cast<float>(groundcoverRenderingDistanceSpinBox->value()));
+        saveSettingInt(*groundcoverStompModeComboBox, Settings::groundcover().mStompMode);
+        saveSettingInt(*groundcoverStompIntensityComboBox, Settings::groundcover().mStompIntensity);
+        saveSettingBool(*groundcoverPointLightingCheckBox, Settings::groundcover().mPointLighting);
+    }
+
     // Audio
     {
         if (audioDeviceSelectorComboBox->currentIndex() != 0)
@@ -752,6 +798,21 @@ void Launcher::SettingsPage::slotDistantLandToggled(bool checked)
 {
     activeGridObjectPagingCheckBox->setEnabled(checked);
     objectPagingMinSizeComboBox->setEnabled(checked);
+}
+
+void Launcher::SettingsPage::slotGroundcoverToggled(bool checked)
+{
+    groundcoverOptionsWidget->setEnabled(checked);
+}
+
+void Launcher::SettingsPage::setGroundcoverEnabled(bool enabled)
+{
+    // Called programmatically from Data Files. That caller performs the
+    // write itself because it must persist both openmw.cfg and settings.cfg.
+    // Block this checkbox signal here to avoid a duplicate writeSettings().
+    const QSignalBlocker blocker(groundcoverEnabledCheckBox);
+    groundcoverEnabledCheckBox->setChecked(enabled);
+    slotGroundcoverToggled(enabled);
 }
 
 void Launcher::SettingsPage::slotOpenFile(QTreeWidgetItem* item)

@@ -418,7 +418,7 @@ void ContentSelectorView::ContentSelector::setGroundcoverForSelectedItems(bool e
     }
 
     if (changed)
-        emit signalGroundcoverChanged();
+        emit signalGroundcoverChanged(enabled);
 }
 
 void ContentSelectorView::ContentSelector::slotCheckMultiSelectedItems()

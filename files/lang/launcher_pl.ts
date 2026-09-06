@@ -1537,5 +1537,81 @@ Logi i ustawienia zmienione za pomocą programu uruchamiającego i w grze zostan
         <source>Active Config Directories</source>
         <translation>Aktywne katalogi konfiguracyjne</translation>
     </message>
+    <message>
+        <source>Groundcover</source>
+        <translation>Roślinność</translation>
+    </message>
+    <message>
+        <source>Enable Groundcover</source>
+        <translation>Włącz roślinność</translation>
+    </message>
+    <message>
+        <source>Enable separate Groundcover handling in OpenMW.</source>
+        <translation>Włącza osobną obsługę roślinności przez OpenMW.</translation>
+    </message>
+    <message>
+        <source>Density</source>
+        <translation>Gęstość</translation>
+    </message>
+    <message>
+        <source>Percentage of Groundcover instances to render.</source>
+        <translation>Procent obiektów roślinności, które mają być renderowane.</translation>
+    </message>
+    <message>
+        <source>Rendering Distance</source>
+        <translation>Odległość renderowania</translation>
+    </message>
+    <message>
+        <source>Maximum distance in game units at which Groundcover is rendered.</source>
+        <translation>Maksymalna odległość w jednostkach gry, z której renderowana jest roślinność.</translation>
+    </message>
+    <message>
+        <source>Stomp Mode</source>
+        <translation>Tryb deptania</translation>
+    </message>
+    <message>
+        <source>Controls how Groundcover reacts to player movement.</source>
+        <translation>Określa, jak roślinność reaguje na ruch gracza.</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <translation>Wyłączone</translation>
+    </message>
+    <message>
+        <source>Position Only</source>
+        <translation>Tylko pozycja</translation>
+    </message>
+    <message>
+        <source>Position and Height</source>
+        <translation>Pozycja i wysokość</translation>
+    </message>
+    <message>
+        <source>Stomp Intensity</source>
+        <translation>Intensywność deptania</translation>
+    </message>
+    <message>
+        <source>Controls the range and amount of Groundcover movement when trampled.</source>
+        <translation>Określa zasięg i siłę poruszania roślinności podczas deptania.</translation>
+    </message>
+    <message>
+        <source>Gentle</source>
+        <translation>Delikatna</translation>
+    </message>
+    <message>
+        <source>Normal</source>
+        <translation>Normalna</translation>
+    </message>
+    <message>
+        <source>MGE XE</source>
+        <translation>MGE XE</translation>
+    </message>
+    <message>
+        <source>Point Lighting</source>
+        <translation>Oświetlenie punktowe</translation>
+    </message>
+    <message>
+        <source>Allow Groundcover to receive lighting from point lights.</source>
+        <translation>Pozwala roślinności odbierać światło ze źródeł punktowych.</translation>
+    </message>
 </context>
 </TS>

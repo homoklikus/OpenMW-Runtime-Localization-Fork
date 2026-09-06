@@ -25,6 +25,10 @@ namespace Launcher
 
         bool loadSettings();
         void saveSettings();
+        void setGroundcoverEnabled(bool enabled);
+
+    signals:
+        void signalGroundcoverSettingsChanged();
 
     public slots:
         void slotLoadedCellsChanged(QStringList cellNames);
@@ -37,6 +41,7 @@ namespace Launcher
         void slotSkyBlendingToggled(bool checked);
         void slotShadowDistLimitToggled(bool checked);
         void slotDistantLandToggled(bool checked);
+        void slotGroundcoverToggled(bool checked);
         void slotControllerMenusToggled(bool checked);
         void slotOpenFile(QTreeWidgetItem* item);
 

@@ -209,7 +209,11 @@ Launcher::DataFilesPage::DataFilesPage(const Files::ConfigurationManager& cfg, C
     // and [Groundcover] enabled=true in settings.cfg are visible at once,
     // without closing/restarting the launcher.
     connect(mSelector, &ContentSelectorView::ContentSelector::signalGroundcoverChanged, this,
-        [this]() { mMainDialog->writeSettings(); });
+        [this](bool enabled) {
+            if (enabled)
+                mMainDialog->setGroundcoverEnabled(true);
+            mMainDialog->writeSettings();
+        });
 
     mReloadCellsTimer = new QTimer(this);
     mReloadCellsTimer->setSingleShot(true);
@@ -600,18 +604,6 @@ void Launcher::DataFilesPage::saveSettings(const QString& profile)
     const QStringList groundcoverFiles = mSelector->groundcoverFiles();
     for (const QString& fileName : groundcoverFiles)
         mGameSettings.setMultiValue(QStringLiteral("groundcover"), { fileName });
-
-    // Groundcover plugins are ignored by the engine unless the feature itself
-    // is enabled in settings.cfg. Selecting at least one Groundcover plugin
-    // therefore also ensures:
-    //
-    // [Groundcover]
-    // enabled = true
-    //
-    // Settings::Manager::saveUser() writes this change to the user's
-    // settings.cfg later in MainDialog::writeSettings().
-    if (!groundcoverFiles.isEmpty() && !Settings::groundcover().mEnabled)
-        Settings::groundcover().mEnabled.set(true);
 
     QString language(mSelector->languageBox()->currentData().toString());
 

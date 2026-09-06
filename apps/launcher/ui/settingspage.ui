@@ -739,6 +739,169 @@
              </item>
             </layout>
            </widget>
+           <widget class="QWidget" name="groundcoverTab">
+            <attribute name="title">
+             <string>Groundcover</string>
+            </attribute>
+            <layout class="QVBoxLayout" name="verticalLayoutGroundcover">
+             <item>
+              <widget class="QCheckBox" name="groundcoverEnabledCheckBox">
+               <property name="toolTip">
+                <string>Enable separate Groundcover handling in OpenMW.</string>
+               </property>
+               <property name="text">
+                <string>Enable Groundcover</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QWidget" name="groundcoverOptionsWidget">
+               <layout class="QGridLayout" name="groundcoverGridLayout">
+                <item row="0" column="0">
+                 <widget class="QLabel" name="groundcoverDensityLabel">
+                  <property name="toolTip">
+                   <string>Percentage of Groundcover instances to render.</string>
+                  </property>
+                  <property name="text">
+                   <string>Density</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="0" column="1">
+                 <widget class="QSpinBox" name="groundcoverDensitySpinBox">
+                  <property name="toolTip">
+                   <string>Percentage of Groundcover instances to render.</string>
+                  </property>
+                  <property name="suffix">
+                   <string> %</string>
+                  </property>
+                  <property name="maximum">
+                   <number>100</number>
+                  </property>
+                  <property name="value">
+                   <number>100</number>
+                  </property>
+                 </widget>
+                </item>
+                <item row="1" column="0">
+                 <widget class="QLabel" name="groundcoverRenderingDistanceLabel">
+                  <property name="toolTip">
+                   <string>Maximum distance in game units at which Groundcover is rendered.</string>
+                  </property>
+                  <property name="text">
+                   <string>Rendering Distance</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="1" column="1">
+                 <widget class="QDoubleSpinBox" name="groundcoverRenderingDistanceSpinBox">
+                  <property name="toolTip">
+                   <string>Maximum distance in game units at which Groundcover is rendered.</string>
+                  </property>
+                  <property name="decimals">
+                   <number>0</number>
+                  </property>
+                  <property name="maximum">
+                   <double>1000000.000000000000000</double>
+                  </property>
+                  <property name="singleStep">
+                   <double>256.000000000000000</double>
+                  </property>
+                 </widget>
+                </item>
+                <item row="2" column="0">
+                 <widget class="QLabel" name="groundcoverStompModeLabel">
+                  <property name="toolTip">
+                   <string>Controls how Groundcover reacts to player movement.</string>
+                  </property>
+                  <property name="text">
+                   <string>Stomp Mode</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="2" column="1">
+                 <widget class="QComboBox" name="groundcoverStompModeComboBox">
+                  <property name="toolTip">
+                   <string>Controls how Groundcover reacts to player movement.</string>
+                  </property>
+                  <item>
+                   <property name="text">
+                    <string>Disabled</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Position Only</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Position and Height</string>
+                   </property>
+                  </item>
+                 </widget>
+                </item>
+                <item row="3" column="0">
+                 <widget class="QLabel" name="groundcoverStompIntensityLabel">
+                  <property name="toolTip">
+                   <string>Controls the range and amount of Groundcover movement when trampled.</string>
+                  </property>
+                  <property name="text">
+                   <string>Stomp Intensity</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="3" column="1">
+                 <widget class="QComboBox" name="groundcoverStompIntensityComboBox">
+                  <property name="toolTip">
+                   <string>Controls the range and amount of Groundcover movement when trampled.</string>
+                  </property>
+                  <item>
+                   <property name="text">
+                    <string>Gentle</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Normal</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>MGE XE</string>
+                   </property>
+                  </item>
+                 </widget>
+                </item>
+                <item row="4" column="0" colspan="2">
+                 <widget class="QCheckBox" name="groundcoverPointLightingCheckBox">
+                  <property name="toolTip">
+                   <string>Allow Groundcover to receive lighting from point lights.</string>
+                  </property>
+                  <property name="text">
+                   <string>Point Lighting</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </widget>
+             </item>
+             <item>
+              <spacer name="groundcoverVerticalSpacer">
+               <property name="orientation">
+                <enum>Qt::Vertical</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>20</width>
+                 <height>40</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+            </layout>
+           </widget>
+
            <widget class="QWidget" name="postProcessingTab">
             <attribute name="title">
              <string>Post Processing</string>

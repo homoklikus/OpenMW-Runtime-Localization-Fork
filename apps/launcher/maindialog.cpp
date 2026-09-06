@@ -138,6 +138,10 @@ void Launcher::MainDialog::createPages()
     // Using Qt::QueuedConnection because signal is emitted in a subthread and slot is in the main thread
     connect(mDataFilesPage, &DataFilesPage::signalLoadedCellsChanged, mSettingsPage,
         &SettingsPage::slotLoadedCellsChanged, Qt::QueuedConnection);
+
+    connect(mSettingsPage, &SettingsPage::signalGroundcoverSettingsChanged, this,
+        [this]() { writeSettings(); });
+
 }
 
 Launcher::FirstRunDialogResult Launcher::MainDialog::showFirstRunDialog()
@@ -472,6 +476,11 @@ void Launcher::MainDialog::saveSettings()
         .mPosY = pos().y(),
     });
     mLauncherSettings.resetFirstRun();
+}
+
+void Launcher::MainDialog::setGroundcoverEnabled(bool enabled)
+{
+    mSettingsPage->setGroundcoverEnabled(enabled);
 }
 
 bool Launcher::MainDialog::writeSettings()

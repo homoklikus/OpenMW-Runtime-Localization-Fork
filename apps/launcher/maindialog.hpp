@@ -51,6 +51,7 @@ namespace Launcher
 
         bool reloadSettings();
         bool writeSettings();
+        void setGroundcoverEnabled(bool enabled);
 
     public slots:
         void enableDataPage();

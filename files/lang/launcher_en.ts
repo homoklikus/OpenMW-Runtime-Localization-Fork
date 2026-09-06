@@ -1513,5 +1513,81 @@ Logs and settings changed through the launcher and in-game will be saved here.</
         <source>Active Config Directories</source>
         <translation></translation>
     </message>
+    <message>
+        <source>Groundcover</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Enable Groundcover</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Enable separate Groundcover handling in OpenMW.</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Density</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Percentage of Groundcover instances to render.</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Rendering Distance</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Maximum distance in game units at which Groundcover is rendered.</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Stomp Mode</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Controls how Groundcover reacts to player movement.</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Position Only</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Position and Height</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Stomp Intensity</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Controls the range and amount of Groundcover movement when trampled.</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Gentle</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Normal</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>MGE XE</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Point Lighting</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Allow Groundcover to receive lighting from point lights.</source>
+        <translation></translation>
+    </message>
 </context>
 </TS>
