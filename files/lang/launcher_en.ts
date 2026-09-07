@@ -644,6 +644,42 @@ Detected layout: %4</translation>
         <source>(archive root)</source>
         <translation>(archive root)</translation>
     </message>
+    <message>
+        <source>Select subpackages to preview the final file set. Selected packages are layered from top to bottom; later rows override earlier rows with the same relative path. Green = package contributes files, red = all of its files are overridden.</source>
+        <translation>Select subpackages to preview the final file set. Selected packages are layered from top to bottom; later rows override earlier rows with the same relative path. Green = package contributes files, red = all of its files are overridden.</translation>
+    </message>
+    <message>
+        <source>Use</source>
+        <translation>Use</translation>
+    </message>
+    <message>
+        <source>Active</source>
+        <translation>Active</translation>
+    </message>
+    <message>
+        <source>Overridden</source>
+        <translation>Overridden</translation>
+    </message>
+    <message>
+        <source>Status</source>
+        <translation>Status</translation>
+    </message>
+    <message>
+        <source>Not selected</source>
+        <translation>Not selected</translation>
+    </message>
+    <message>
+        <source>Fully overridden</source>
+        <translation>Fully overridden</translation>
+    </message>
+    <message>
+        <source>Partially overridden</source>
+        <translation>Partially overridden</translation>
+    </message>
+    <message>
+        <source>Used</source>
+        <translation>Used</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

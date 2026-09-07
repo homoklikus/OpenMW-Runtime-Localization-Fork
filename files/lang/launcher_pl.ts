@@ -648,6 +648,42 @@ Wykryty układ: %4</translation>
         <source>(archive root)</source>
         <translation>(katalog główny archiwum)</translation>
     </message>
+    <message>
+        <source>Select subpackages to preview the final file set. Selected packages are layered from top to bottom; later rows override earlier rows with the same relative path. Green = package contributes files, red = all of its files are overridden.</source>
+        <translation>Wybierz podpakiety, aby zobaczyć podgląd końcowego zestawu plików. Wybrane pakiety są nakładane od góry do dołu; późniejsze wiersze nadpisują wcześniejsze pliki o tej samej ścieżce względnej. Zielony = pakiet wnosi używane pliki, czerwony = wszystkie jego pliki są nadpisane.</translation>
+    </message>
+    <message>
+        <source>Use</source>
+        <translation>Użyj</translation>
+    </message>
+    <message>
+        <source>Active</source>
+        <translation>Aktywne</translation>
+    </message>
+    <message>
+        <source>Overridden</source>
+        <translation>Nadpisane</translation>
+    </message>
+    <message>
+        <source>Status</source>
+        <translation>Stan</translation>
+    </message>
+    <message>
+        <source>Not selected</source>
+        <translation>Niewybrany</translation>
+    </message>
+    <message>
+        <source>Fully overridden</source>
+        <translation>Całkowicie nadpisany</translation>
+    </message>
+    <message>
+        <source>Partially overridden</source>
+        <translation>Częściowo nadpisany</translation>
+    </message>
+    <message>
+        <source>Used</source>
+        <translation>Używany</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

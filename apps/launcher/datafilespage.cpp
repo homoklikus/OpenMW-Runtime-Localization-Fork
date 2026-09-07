@@ -4,7 +4,9 @@
 #include <archive.h>
 #include <archive_entry.h>
 
+#include <QBrush>
 #include <QClipboard>
+#include <QColor>
 #include <QAbstractItemView>
 #include <QDebug>
 #include <QDesktopServices>
@@ -23,6 +25,7 @@
 #include <QProgressDialog>
 #include <QPushButton>
 #include <QSet>
+#include <QSignalBlocker>
 #include <QSize>
 #include <QTableWidget>
 #include <QTimer>
@@ -801,14 +804,45 @@ void Launcher::DataFilesPage::analyzeModArchive()
     layout->addWidget(summary);
 
     auto* note = new QLabel(
-        tr("This step only analyzes the archive. Installation and subpackage selection will be added next."),
+        tr("Select subpackages to preview the final file set. Selected packages are layered from top to bottom; "
+           "later rows override earlier rows with the same relative path. Green = package contributes files, "
+           "red = all of its files are overridden."),
         &dialog);
     note->setWordWrap(true);
     layout->addWidget(note);
 
+    QHash<QString, QSet<QString>> filesByRoot;
+    for (const QString& root : roots)
+    {
+        QSet<QString> rootFiles;
+        const QString prefix = root.isEmpty() ? QString() : root + '/';
+
+        for (const QString& path : filePaths)
+        {
+            QString relativePath;
+            if (root.isEmpty())
+                relativePath = path;
+            else if (path.startsWith(prefix, Qt::CaseInsensitive))
+                relativePath = path.mid(prefix.size());
+            else
+                continue;
+
+            relativePath.replace('\\', '/');
+            while (relativePath.startsWith(QLatin1String("./")))
+                relativePath.remove(0, 2);
+
+            if (!relativePath.isEmpty())
+                rootFiles.insert(relativePath.toLower());
+        }
+
+        filesByRoot.insert(root, rootFiles);
+    }
+
     auto* table = new QTableWidget(&dialog);
-    table->setColumnCount(3);
-    table->setHorizontalHeaderLabels({ tr("No."), tr("Detected data root / subpackage"), tr("Files") });
+    table->setColumnCount(7);
+    table->setHorizontalHeaderLabels(
+        { tr("Use"), tr("No."), tr("Detected data root / subpackage"), tr("Files"),
+            tr("Active"), tr("Overridden"), tr("Status") });
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table->setSelectionBehavior(QAbstractItemView::SelectRows);
     table->setAlternatingRowColors(true);
@@ -818,7 +852,7 @@ void Launcher::DataFilesPage::analyzeModArchive()
     {
         table->setRowCount(1);
         auto* item = new QTableWidgetItem(tr("No candidate data roots were detected."));
-        table->setSpan(0, 0, 1, 3);
+        table->setSpan(0, 0, 1, 7);
         table->setItem(0, 0, item);
     }
     else
@@ -828,18 +862,125 @@ void Launcher::DataFilesPage::analyzeModArchive()
         for (int row = 0; row < roots.size(); ++row)
         {
             const QString& root = roots.at(row);
-            table->setItem(row, 0, new QTableWidgetItem(QString::number(row + 1)));
-            table->setItem(row, 1,
-                new QTableWidgetItem(root.isEmpty() ? tr("(archive root)") : root));
+
+            auto* useItem = new QTableWidgetItem;
+            useItem->setFlags((useItem->flags() | Qt::ItemIsUserCheckable) & ~Qt::ItemIsEditable);
+            useItem->setCheckState(Qt::Checked);
+            useItem->setTextAlignment(Qt::AlignCenter);
+            table->setItem(row, 0, useItem);
+
+            auto* numberItem = new QTableWidgetItem(QString::number(row + 1));
+            numberItem->setTextAlignment(Qt::AlignCenter);
+            table->setItem(row, 1, numberItem);
+
             table->setItem(row, 2,
-                new QTableWidgetItem(QString::number(filesPerRoot.value(root))));
+                new QTableWidgetItem(root.isEmpty() ? tr("(archive root)") : root));
+
+            auto* filesItem = new QTableWidgetItem(QString::number(filesByRoot.value(root).size()));
+            filesItem->setTextAlignment(Qt::AlignCenter);
+            table->setItem(row, 3, filesItem);
+
+            auto* activeItem = new QTableWidgetItem;
+            activeItem->setTextAlignment(Qt::AlignCenter);
+            table->setItem(row, 4, activeItem);
+
+            auto* overriddenItem = new QTableWidgetItem;
+            overriddenItem->setTextAlignment(Qt::AlignCenter);
+            table->setItem(row, 5, overriddenItem);
+
+            table->setItem(row, 6, new QTableWidgetItem);
         }
     }
 
+    const auto refreshSubpackagePreview = [table, roots, filesByRoot, this]() {
+        if (roots.isEmpty())
+            return;
+
+        QSignalBlocker blocker(table);
+
+        QHash<QString, int> finalOwner;
+        for (int row = 0; row < roots.size(); ++row)
+        {
+            const QTableWidgetItem* useItem = table->item(row, 0);
+            if (!useItem || useItem->checkState() != Qt::Checked)
+                continue;
+
+            const QSet<QString>& paths = filesByRoot.value(roots.at(row));
+            for (const QString& path : paths)
+                finalOwner.insert(path, row);
+        }
+
+        const QBrush usedBrush(QColor(46, 125, 50));
+        const QBrush overriddenBrush(QColor(198, 40, 40));
+        const QBrush disabledBrush(table->palette().color(QPalette::Disabled, QPalette::Text));
+
+        for (int row = 0; row < roots.size(); ++row)
+        {
+            const QTableWidgetItem* useItem = table->item(row, 0);
+            const bool selected = useItem && useItem->checkState() == Qt::Checked;
+            const QSet<QString>& paths = filesByRoot.value(roots.at(row));
+
+            int active = 0;
+            if (selected)
+            {
+                for (const QString& path : paths)
+                {
+                    if (finalOwner.value(path, -1) == row)
+                        ++active;
+                }
+            }
+
+            const int overridden = selected ? paths.size() - active : 0;
+
+            table->item(row, 4)->setText(selected ? QString::number(active) : QStringLiteral("—"));
+            table->item(row, 5)->setText(selected ? QString::number(overridden) : QStringLiteral("—"));
+
+            QString status;
+            QBrush rowBrush;
+            if (!selected)
+            {
+                status = tr("Not selected");
+                rowBrush = disabledBrush;
+            }
+            else if (!paths.isEmpty() && active == 0)
+            {
+                status = tr("Fully overridden");
+                rowBrush = overriddenBrush;
+            }
+            else if (overridden > 0)
+            {
+                status = tr("Partially overridden");
+                rowBrush = usedBrush;
+            }
+            else
+            {
+                status = tr("Used");
+                rowBrush = usedBrush;
+            }
+
+            table->item(row, 6)->setText(status);
+
+            for (int column = 1; column < table->columnCount(); ++column)
+                table->item(row, column)->setForeground(rowBrush);
+        }
+    };
+
+    connect(table, &QTableWidget::itemChanged, &dialog,
+        [refreshSubpackagePreview](QTableWidgetItem* item) {
+            if (item && item->column() == 0)
+                refreshSubpackagePreview();
+        });
+
+    refreshSubpackagePreview();
+
     auto* header = table->horizontalHeader();
     header->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-    header->setSectionResizeMode(1, QHeaderView::Stretch);
-    header->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(2, QHeaderView::Stretch);
+    header->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(5, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(6, QHeaderView::ResizeToContents);
     layout->addWidget(table);
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
