@@ -114,6 +114,7 @@ namespace Launcher
         {
             QString mRelativePath;
             QStringList mOtherMods;
+            QString mWinnerMod;
             bool mWins = false;
         };
 

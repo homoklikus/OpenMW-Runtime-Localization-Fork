@@ -124,12 +124,19 @@ namespace
         if (!root.exists())
             return result;
 
-        for (const QString& assetDirectory : assetDirectories)
+        // Use the real directory names found on disk and compare them
+        // case-insensitively. Morrowind VFS paths are case-insensitive, but
+        // Linux filesystems usually are not. Mods commonly ship "Textures",
+        // "Meshes", etc. instead of lowercase directory names.
+        const QFileInfoList rootSubdirectories
+            = root.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot | QDir::Readable);
+
+        for (const QFileInfo& subdirectory : rootSubdirectories)
         {
-            const QString assetRootPath = root.filePath(assetDirectory);
-            const QDir assetRoot(assetRootPath);
-            if (!assetRoot.exists())
+            if (!assetDirectories.contains(subdirectory.fileName(), Qt::CaseInsensitive))
                 continue;
+
+            const QString assetRootPath = subdirectory.absoluteFilePath();
 
             QDirIterator it(assetRootPath, QDir::Files | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
             while (it.hasNext())
@@ -137,6 +144,10 @@ namespace
                 const QString absolutePath = it.next();
                 QString relativePath = root.relativeFilePath(absolutePath);
                 relativePath.replace('\\', '/');
+
+                // Conflict keys follow VFS semantics rather than host
+                // filesystem casing, so Textures/foo.dds and
+                // textures/Foo.dds are the same resource.
                 result.insert(relativePath.toLower());
             }
         }
@@ -848,9 +859,30 @@ void Launcher::DataFilesPage::updateAssetConflictStats()
     QStringList directories;
     mAssetConflictDetails.clear();
 
+    // Resolve the actual directory of the selected game file (normally the
+    // original Morrowind "Data Files"). That directory may live in the user's
+    // openmw.cfg and therefore count as a user setting, but it is not a mod
+    // and must never participate in mod-vs-mod conflict statistics.
+    QStringList profileContent = mLauncherSettings.getContentListFiles(ui.profilesComboBox->currentText());
+    QString gameFilePath = mSelector->gameFilePath(profileContent);
+
+    // Fallback for old/empty launcher profiles: use the currently configured
+    // OpenMW content list.
+    if (gameFilePath.isEmpty())
+    {
+        QStringList configuredContent;
+        for (const auto& content : mGameSettings.getContentList())
+            configuredContent.push_back(content.value);
+        gameFilePath = mSelector->gameFilePath(configuredContent);
+    }
+
+    const QString gameDataDirectory = gameFilePath.isEmpty()
+        ? QString()
+        : normalizedAbsolutePath(QFileInfo(gameFilePath).absolutePath());
+
     // Only enabled user data= entries are mods controlled by this launcher
-    // profile. Fixed OpenMW/base-game directories are intentionally excluded
-    // from the conflict counters, so "Conflicts" means mod-vs-mod conflicts.
+    // profile. Fixed OpenMW directories and the selected game's own data
+    // directory are intentionally excluded, so "Conflicts" means mod-vs-mod.
     for (int row = 0; row < ui.directoryListWidget->count(); ++row)
     {
         const QListWidgetItem* item = ui.directoryListWidget->item(row);
@@ -859,6 +891,10 @@ void Launcher::DataFilesPage::updateAssetConflictStats()
 
         const Config::SettingValue setting = qvariant_cast<Config::SettingValue>(item->data(Qt::UserRole));
         if (!mGameSettings.isUserSetting(setting))
+            continue;
+
+        if (!gameDataDirectory.isEmpty()
+            && samePath(setting.value, gameDataDirectory))
             continue;
 
         if (mSelector->containsAssetFiles(setting.value))
@@ -913,9 +949,13 @@ void Launcher::DataFilesPage::updateAssetConflictStats()
             }
             otherMods.removeDuplicates();
 
+            QString winnerMod = QFileInfo(directories.at(winner)).fileName();
+            if (winnerMod.isEmpty())
+                winnerMod = directories.at(winner);
+
             const QString key = normalizedAbsolutePath(directories.at(owner));
             mAssetConflictDetails[key].push_back(
-                AssetConflictDetail{ it.key(), otherMods, owner == winner });
+                AssetConflictDetail{ it.key(), otherMods, winnerMod, owner == winner });
         }
     }
 
@@ -982,8 +1022,8 @@ void Launcher::DataFilesPage::showAssetConflictDetails(const QString& path)
     filter->setPlaceholderText(tr("Filter conflicts..."));
     layout->addWidget(filter);
 
-    auto* table = new QTableWidget(details.size(), 3, &dialog);
-    table->setHorizontalHeaderLabels({ tr("File"), tr("Result"), tr("Conflicts With") });
+    auto* table = new QTableWidget(details.size(), 4, &dialog);
+    table->setHorizontalHeaderLabels({ tr("File"), tr("Result"), tr("Winner"), tr("Conflicts With") });
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table->setSelectionBehavior(QAbstractItemView::SelectRows);
     table->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -996,20 +1036,24 @@ void Launcher::DataFilesPage::showAssetConflictDetails(const QString& path)
 
         auto* fileItem = new QTableWidgetItem(detail.mRelativePath);
         auto* resultItem = new QTableWidgetItem(detail.mWins ? tr("Wins") : tr("Loses"));
+        auto* winnerItem = new QTableWidgetItem(detail.mWins ? tr("This mod") : detail.mWinnerMod);
         auto* modsItem = new QTableWidgetItem(detail.mOtherMods.join(", "));
 
         fileItem->setToolTip(detail.mRelativePath);
+        winnerItem->setToolTip(detail.mWinnerMod);
         modsItem->setToolTip(detail.mOtherMods.join("\n"));
 
         table->setItem(row, 0, fileItem);
         table->setItem(row, 1, resultItem);
-        table->setItem(row, 2, modsItem);
+        table->setItem(row, 2, winnerItem);
+        table->setItem(row, 3, modsItem);
     }
 
     auto* header = table->horizontalHeader();
     header->setSectionResizeMode(0, QHeaderView::Stretch);
     header->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-    header->setSectionResizeMode(2, QHeaderView::Stretch);
+    header->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(3, QHeaderView::Stretch);
 
     table->setSortingEnabled(true);
     layout->addWidget(table);

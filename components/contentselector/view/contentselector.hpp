@@ -56,6 +56,7 @@ namespace ContentSelectorView
 
         ContentSelectorModel::ContentFileList selectedFiles() const;
         QStringList groundcoverFiles() const;
+        QString gameFilePath(const QStringList& contentFiles) const;
 
         void setGameFile(const QString& filename = QString(""));
 

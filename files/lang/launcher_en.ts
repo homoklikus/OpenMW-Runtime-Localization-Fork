@@ -462,6 +462,14 @@ to default Morrowind fonts. Check this box if you still prefer original fonts ov
         <source>Loses</source>
         <translation>Loses</translation>
     </message>
+    <message>
+        <source>Winner</source>
+        <translation>Winner</translation>
+    </message>
+    <message>
+        <source>This mod</source>
+        <translation>This mod</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

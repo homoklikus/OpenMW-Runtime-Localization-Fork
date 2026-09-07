@@ -286,6 +286,21 @@ QStringList ContentSelectorView::ContentSelector::groundcoverFiles() const
     return mContentModel->groundcoverFiles();
 }
 
+QString ContentSelectorView::ContentSelector::gameFilePath(const QStringList& contentFiles) const
+{
+    if (!mContentModel)
+        return {};
+
+    for (const QString& fileName : contentFiles)
+    {
+        const ContentSelectorModel::EsmFile* file = mContentModel->item(fileName);
+        if (file && file->isGameFile() && !file->filePath().isEmpty())
+            return file->filePath();
+    }
+
+    return {};
+}
+
 void ContentSelectorView::ContentSelector::addFiles(const QString& path, bool newfiles)
 {
     mContentModel->addFiles(path, newfiles);

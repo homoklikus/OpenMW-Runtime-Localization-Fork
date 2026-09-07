@@ -466,6 +466,14 @@ do domyślnych czcionek Morrowind. Zaznacz to pole, jeśli nadal wolisz oryginal
         <source>Loses</source>
         <translation>Przegrywa</translation>
     </message>
+    <message>
+        <source>Winner</source>
+        <translation>Wygrywa</translation>
+    </message>
+    <message>
+        <source>This mod</source>
+        <translation>Ten mod</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>
