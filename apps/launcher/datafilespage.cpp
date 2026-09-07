@@ -6,6 +6,7 @@
 
 #include <QBrush>
 #include <QClipboard>
+#include <QCoreApplication>
 #include <QColor>
 #include <QAbstractItemView>
 #include <QDebug>
@@ -35,11 +36,14 @@
 #include <QNetworkRequest>
 #include <QPair>
 #include <QProgressDialog>
+#include <QProcess>
 #include <QRegularExpression>
+#include <QSaveFile>
 #include <QPushButton>
 #include <QSet>
 #include <QSettings>
 #include <QSignalBlocker>
+#include <QStandardPaths>
 #include <QSize>
 #include <QTableWidget>
 #include <QTemporaryDir>
@@ -82,6 +86,412 @@ const char* Launcher::DataFilesPage::mDefaultContentListName = "Default";
 
 namespace
 {
+    const QString& nxmDesktopEntryId()
+    {
+        static const QString id = QStringLiteral("openmw-morrowindpl-nxm.desktop");
+        return id;
+    }
+
+    QString nxmHandlerExecutablePath()
+    {
+#ifdef Q_OS_LINUX
+        const QString appImage = QString::fromLocal8Bit(qgetenv("APPIMAGE")).trimmed();
+        if (!appImage.isEmpty())
+            return QFileInfo(appImage).absoluteFilePath();
+#endif
+        return QFileInfo(QCoreApplication::applicationFilePath()).absoluteFilePath();
+    }
+
+    QString desktopExecValue(QString executable)
+    {
+        executable.replace(QLatin1Char('\\'), QStringLiteral("\\\\"));
+        executable.replace(QLatin1Char('"'), QStringLiteral("\\\""));
+        executable.replace(QLatin1Char('`'), QStringLiteral("\\`"));
+        executable.replace(QLatin1Char('$'), QStringLiteral("\\$"));
+        executable.replace(QLatin1Char('%'), QStringLiteral("%%"));
+        // %u is the Desktop Entry field code for one URL. Only literal
+        // percent signs that belong to the executable path must be escaped.
+        return QStringLiteral("\"%1\" %u").arg(executable);
+    }
+
+    QString readDefaultHandlerFromMimeapps(const QString& path)
+    {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+            return {};
+
+        const QStringList lines
+            = QString::fromUtf8(file.readAll()).split(QLatin1Char('\n'));
+        bool inDefaults = false;
+
+        for (QString line : lines)
+        {
+            line = line.trimmed();
+            if (line.startsWith(QLatin1Char('[')) && line.endsWith(QLatin1Char(']')))
+            {
+                inDefaults = line.compare(
+                    QStringLiteral("[Default Applications]"), Qt::CaseInsensitive) == 0;
+                continue;
+            }
+
+            if (!inDefaults || line.startsWith(QLatin1Char('#'))
+                || line.startsWith(QLatin1Char(';')))
+                continue;
+
+            const int equals = line.indexOf(QLatin1Char('='));
+            if (equals <= 0)
+                continue;
+
+            if (line.left(equals).trimmed().compare(
+                    QStringLiteral("x-scheme-handler/nxm"), Qt::CaseInsensitive) != 0)
+                continue;
+
+            const QStringList handlers
+                = line.mid(equals + 1).split(QLatin1Char(';'), Qt::SkipEmptyParts);
+            if (!handlers.isEmpty())
+                return handlers.constFirst().trimmed();
+        }
+
+        return {};
+    }
+
+    QString fallbackNxmHandlerDesktopId()
+    {
+#ifdef Q_OS_LINUX
+        QString configHome = QString::fromLocal8Bit(qgetenv("XDG_CONFIG_HOME")).trimmed();
+        if (configHome.isEmpty())
+            configHome = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
+
+        QString dataHome = QString::fromLocal8Bit(qgetenv("XDG_DATA_HOME")).trimmed();
+        if (dataHome.isEmpty())
+            dataHome = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
+
+        QStringList candidates;
+        if (!configHome.isEmpty())
+            candidates << QDir(configHome).filePath(QStringLiteral("mimeapps.list"));
+        if (!dataHome.isEmpty())
+            candidates << QDir(dataHome).filePath(QStringLiteral("applications/mimeapps.list"));
+        candidates << QStringLiteral("/usr/local/share/applications/mimeapps.list")
+                   << QStringLiteral("/usr/share/applications/mimeapps.list");
+
+        for (const QString& path : candidates)
+        {
+            const QString handler = readDefaultHandlerFromMimeapps(path);
+            if (!handler.isEmpty())
+                return handler;
+        }
+#endif
+        return {};
+    }
+
+    QString currentNxmHandlerDesktopId()
+    {
+#ifdef Q_OS_LINUX
+        const QString gio = QStandardPaths::findExecutable(QStringLiteral("gio"));
+        if (!gio.isEmpty())
+        {
+            QProcess process;
+            process.start(gio, { QStringLiteral("mime"), QStringLiteral("x-scheme-handler/nxm") });
+            if (process.waitForFinished(3000) && process.exitStatus() == QProcess::NormalExit)
+            {
+                const QString output = QString::fromUtf8(
+                    process.readAllStandardOutput() + process.readAllStandardError());
+                const QStringList lines
+                    = output.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+
+                if (!lines.isEmpty())
+                {
+                    static const QRegularExpression desktopIdExpression(
+                        QStringLiteral(R"(([A-Za-z0-9][A-Za-z0-9._+@-]*\.desktop))"));
+                    const QRegularExpressionMatch match
+                        = desktopIdExpression.match(lines.constFirst());
+                    if (match.hasMatch())
+                        return match.captured(1);
+                }
+            }
+        }
+#endif
+        return fallbackNxmHandlerDesktopId();
+    }
+
+    QString desktopEntryDisplayName(const QString& desktopId)
+    {
+        if (desktopId.isEmpty())
+            return {};
+        if (desktopId.compare(nxmDesktopEntryId(), Qt::CaseInsensitive) == 0)
+            return QStringLiteral("OpenMW Launcher");
+
+#ifdef Q_OS_LINUX
+        QStringList applicationDirectories
+            = QStandardPaths::standardLocations(QStandardPaths::ApplicationsLocation);
+        const QString userApplications
+            = QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation);
+        if (!userApplications.isEmpty() && !applicationDirectories.contains(userApplications))
+            applicationDirectories.prepend(userApplications);
+
+        for (const QString& directory : applicationDirectories)
+        {
+            QFile file(QDir(directory).filePath(desktopId));
+            if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+                continue;
+
+            const QStringList lines
+                = QString::fromUtf8(file.readAll()).split(QLatin1Char('\n'));
+            bool inDesktopEntry = false;
+            QString plainName;
+
+            for (QString line : lines)
+            {
+                line = line.trimmed();
+                if (line.startsWith(QLatin1Char('[')) && line.endsWith(QLatin1Char(']')))
+                {
+                    inDesktopEntry = line.compare(
+                        QStringLiteral("[Desktop Entry]"), Qt::CaseInsensitive) == 0;
+                    continue;
+                }
+
+                if (!inDesktopEntry)
+                    continue;
+
+                if (line.startsWith(QStringLiteral("Name=")))
+                    plainName = line.mid(5).trimmed();
+            }
+
+            if (!plainName.isEmpty())
+                return plainName;
+        }
+#endif
+
+        return desktopId;
+    }
+
+    bool writeNxmDesktopEntry(QString& error)
+    {
+#ifndef Q_OS_LINUX
+        error = QStringLiteral("Unsupported platform.");
+        return false;
+#else
+        QString applicationsDirectory
+            = QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation);
+        if (applicationsDirectory.isEmpty())
+        {
+            const QString dataHome
+                = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
+            applicationsDirectory
+                = QDir(dataHome).filePath(QStringLiteral("applications"));
+        }
+
+        if (applicationsDirectory.isEmpty()
+            || !QDir().mkpath(applicationsDirectory))
+        {
+            error = applicationsDirectory;
+            return false;
+        }
+
+        const QString desktopPath
+            = QDir(applicationsDirectory).filePath(nxmDesktopEntryId());
+
+        QSaveFile file(desktopPath);
+        if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+        {
+            error = desktopPath;
+            return false;
+        }
+
+        const QString desktopEntry = QStringLiteral(
+            "[Desktop Entry]\n"
+            "Type=Application\n"
+            "Name=OpenMW Launcher NXM Handler\n"
+            "Exec=%1\n"
+            "Terminal=false\n"
+            "NoDisplay=true\n"
+            "MimeType=x-scheme-handler/nxm;\n")
+                                         .arg(desktopExecValue(nxmHandlerExecutablePath()));
+
+        const QByteArray data = desktopEntry.toUtf8();
+        if (file.write(data) != data.size() || !file.commit())
+        {
+            error = desktopPath;
+            return false;
+        }
+
+        return true;
+#endif
+    }
+
+    bool writeMimeappsDefault(QString& error)
+    {
+#ifndef Q_OS_LINUX
+        error = QStringLiteral("Unsupported platform.");
+        return false;
+#else
+        QString configHome = QString::fromLocal8Bit(qgetenv("XDG_CONFIG_HOME")).trimmed();
+        if (configHome.isEmpty())
+            configHome = QStandardPaths::writableLocation(QStandardPaths::ConfigLocation);
+
+        if (configHome.isEmpty() || !QDir().mkpath(configHome))
+        {
+            error = configHome;
+            return false;
+        }
+
+        const QString mimeappsPath
+            = QDir(configHome).filePath(QStringLiteral("mimeapps.list"));
+
+        QStringList lines;
+        QFile existing(mimeappsPath);
+        if (existing.open(QIODevice::ReadOnly | QIODevice::Text))
+            lines = QString::fromUtf8(existing.readAll()).split(
+                QLatin1Char('\n'), Qt::KeepEmptyParts);
+
+        const QString section = QStringLiteral("[Default Applications]");
+        const QString association = QStringLiteral(
+            "x-scheme-handler/nxm=%1;").arg(nxmDesktopEntryId());
+
+        bool inDefaults = false;
+        bool foundSection = false;
+        bool wroteAssociation = false;
+        QStringList output;
+
+        for (const QString& originalLine : lines)
+        {
+            const QString trimmed = originalLine.trimmed();
+
+            if (trimmed.startsWith(QLatin1Char('['))
+                && trimmed.endsWith(QLatin1Char(']')))
+            {
+                if (inDefaults && !wroteAssociation)
+                {
+                    output << association;
+                    wroteAssociation = true;
+                }
+
+                inDefaults = trimmed.compare(section, Qt::CaseInsensitive) == 0;
+                if (inDefaults)
+                    foundSection = true;
+
+                output << originalLine;
+                continue;
+            }
+
+            if (inDefaults)
+            {
+                const int equals = trimmed.indexOf(QLatin1Char('='));
+                if (equals > 0
+                    && trimmed.left(equals).trimmed().compare(
+                           QStringLiteral("x-scheme-handler/nxm"),
+                           Qt::CaseInsensitive) == 0)
+                {
+                    if (!wroteAssociation)
+                    {
+                        output << association;
+                        wroteAssociation = true;
+                    }
+                    continue;
+                }
+            }
+
+            output << originalLine;
+        }
+
+        if (!foundSection)
+        {
+            if (!output.isEmpty() && !output.constLast().isEmpty())
+                output << QString();
+            output << section << association;
+            wroteAssociation = true;
+        }
+        else if (inDefaults && !wroteAssociation)
+        {
+            output << association;
+            wroteAssociation = true;
+        }
+
+        QSaveFile file(mimeappsPath);
+        if (!file.open(QIODevice::WriteOnly | QIODevice::Text))
+        {
+            error = mimeappsPath;
+            return false;
+        }
+
+        const QByteArray data = output.join(QLatin1Char('\n')).toUtf8();
+        if (file.write(data) != data.size() || !file.commit())
+        {
+            error = mimeappsPath;
+            return false;
+        }
+
+        return true;
+#endif
+    }
+
+    void refreshDesktopDatabase()
+    {
+#ifdef Q_OS_LINUX
+        const QString applicationsDirectory
+            = QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation);
+
+        const QString updateDesktopDatabase
+            = QStandardPaths::findExecutable(QStringLiteral("update-desktop-database"));
+        if (!updateDesktopDatabase.isEmpty() && !applicationsDirectory.isEmpty())
+        {
+            QProcess process;
+            process.start(updateDesktopDatabase, { applicationsDirectory });
+            process.waitForFinished(3000);
+        }
+
+        QString kbuildsycoca
+            = QStandardPaths::findExecutable(QStringLiteral("kbuildsycoca6"));
+        if (kbuildsycoca.isEmpty())
+            kbuildsycoca = QStandardPaths::findExecutable(QStringLiteral("kbuildsycoca5"));
+        if (!kbuildsycoca.isEmpty())
+            QProcess::startDetached(kbuildsycoca, {});
+#endif
+    }
+
+    bool setOpenMwAsDefaultNxmHandler(QString& error)
+    {
+#ifndef Q_OS_LINUX
+        error = QStringLiteral("Unsupported platform.");
+        return false;
+#else
+        if (!writeNxmDesktopEntry(error))
+            return false;
+
+        refreshDesktopDatabase();
+
+        bool associationWritten = false;
+        const QString gio = QStandardPaths::findExecutable(QStringLiteral("gio"));
+        if (!gio.isEmpty())
+        {
+            QProcess process;
+            process.start(gio,
+                { QStringLiteral("mime"), QStringLiteral("x-scheme-handler/nxm"),
+                    nxmDesktopEntryId() });
+            associationWritten = process.waitForFinished(3000)
+                && process.exitStatus() == QProcess::NormalExit
+                && process.exitCode() == 0;
+        }
+
+        if (!associationWritten)
+            associationWritten = writeMimeappsDefault(error);
+
+        if (!associationWritten)
+            return false;
+
+        refreshDesktopDatabase();
+
+        if (currentNxmHandlerDesktopId().compare(
+                nxmDesktopEntryId(), Qt::CaseInsensitive) != 0)
+        {
+            error = QStringLiteral("The desktop environment did not accept the new default handler.");
+            return false;
+        }
+
+        return true;
+#endif
+    }
+
     void contentSubdirs(const QString& path, QStringList& dirs)
     {
         static const QStringList fileFilter{
@@ -408,6 +818,14 @@ Launcher::DataFilesPage::DataFilesPage(const Files::ConfigurationManager& cfg, C
         tr("Connect to Nexus Mods with a Personal API key for development and testing."));
     ui.modsDirectoryLayout->insertWidget(4, nexusModsButton);
     connect(nexusModsButton, &QPushButton::released, this, &DataFilesPage::connectNexusMods);
+
+#ifdef Q_OS_LINUX
+    auto* nxmHandlerButton = new QPushButton(tr("NXM Handler..."), this);
+    nxmHandlerButton->setToolTip(
+        tr("View or change the default application for Nexus Mods Mod Manager Download links."));
+    ui.modsDirectoryLayout->insertWidget(5, nxmHandlerButton);
+    connect(nxmHandlerButton, &QPushButton::released, this, &DataFilesPage::showNxmHandlerSettings);
+#endif
 
     ui.modsDirectoryLineEdit->setText(mLauncherSettings.getModsDirectory());
 
@@ -1470,6 +1888,119 @@ void Launcher::DataFilesPage::installModArchive(const QString& archivePath, cons
     }
 }
 
+void Launcher::DataFilesPage::showNxmHandlerSettings()
+{
+#ifndef Q_OS_LINUX
+    return;
+#else
+    const QString currentHandler = currentNxmHandlerDesktopId();
+    const bool isOpenMw = currentHandler.compare(
+        nxmDesktopEntryId(), Qt::CaseInsensitive) == 0;
+
+    QString status;
+    if (currentHandler.isEmpty())
+    {
+        status = tr("No default NXM handler is currently configured.");
+    }
+    else if (isOpenMw)
+    {
+        status = tr("Current NXM handler: OpenMW Launcher");
+    }
+    else
+    {
+        const QString displayName = desktopEntryDisplayName(currentHandler);
+        status = tr("Current NXM handler: %1\n%2")
+                     .arg(displayName, currentHandler);
+    }
+
+    QMessageBox dialog(this);
+    dialog.setWindowTitle(tr("NXM Handler"));
+    dialog.setIcon(QMessageBox::Information);
+    dialog.setText(status);
+    if (isOpenMw)
+    {
+        dialog.setInformativeText(
+            tr("OpenMW Launcher is already the default application for nxm:// links. "
+               "Nexus Mods Mod Manager Download links will be opened in this launcher."));
+    }
+    else
+    {
+        dialog.setInformativeText(
+            tr("Only one application can be the default handler for nxm:// links. "
+               "Changing it will send future Nexus Mods Mod Manager Download links "
+               "to OpenMW Launcher."));
+    }
+
+    QPushButton* setDefaultButton = nullptr;
+    if (!isOpenMw)
+    {
+        setDefaultButton = dialog.addButton(
+            tr("Set OpenMW Launcher as Default"), QMessageBox::AcceptRole);
+    }
+    dialog.addButton(QMessageBox::Close);
+
+    dialog.exec();
+
+    if (!setDefaultButton || dialog.clickedButton() != setDefaultButton)
+        return;
+
+    QString error;
+    if (!setOpenMwAsDefaultNxmHandler(error))
+    {
+        QMessageBox::critical(this, tr("NXM Handler"),
+            tr("Could not set OpenMW Launcher as the default NXM handler.\n%1")
+                .arg(error));
+        return;
+    }
+
+    QMessageBox::information(this, tr("NXM Handler"),
+        tr("OpenMW Launcher is now the default application for nxm:// links."));
+#endif
+}
+
+bool Launcher::DataFilesPage::ensureNxmHandlerForDownload()
+{
+#ifndef Q_OS_LINUX
+    return true;
+#else
+    const QString currentHandler = currentNxmHandlerDesktopId();
+    if (currentHandler.compare(nxmDesktopEntryId(), Qt::CaseInsensitive) == 0)
+        return true;
+
+    QString currentText;
+    if (currentHandler.isEmpty())
+    {
+        currentText = tr("No default NXM handler is currently configured.");
+    }
+    else
+    {
+        currentText = tr("Mod Manager Download links are currently handled by:\n%1")
+                          .arg(desktopEntryDisplayName(currentHandler));
+    }
+
+    const QMessageBox::StandardButton answer = QMessageBox::question(
+        this, tr("NXM Handler"),
+        tr("%1\n\nOpenMW Launcher must be the default NXM handler to receive "
+           "this download. Set OpenMW Launcher as default now?")
+            .arg(currentText),
+        QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+
+    if (answer != QMessageBox::Yes)
+        return false;
+
+    QString error;
+    if (!setOpenMwAsDefaultNxmHandler(error))
+    {
+        QMessageBox::critical(this, tr("NXM Handler"),
+            tr("Could not set OpenMW Launcher as the default NXM handler.\n%1")
+                .arg(error));
+        return false;
+    }
+
+    return true;
+#endif
+}
+
 void Launcher::DataFilesPage::connectNexusMods()
 {
     if (!ensureNexusConnected())
@@ -2138,66 +2669,69 @@ void Launcher::DataFilesPage::downloadNexusFile(
         }
         else
         {
+            if (!ensureNxmHandlerForDownload())
+                return;
+
             mPendingNxmModId = modId;
             mPendingNxmFileId = fileId;
             mReceivedNxmUrl.clear();
 
             QDialog waitDialog(this);
-        waitDialog.setWindowTitle(tr("Nexus Mods - Free Download"));
-        waitDialog.setModal(true);
-        waitDialog.resize(560, 180);
+            waitDialog.setWindowTitle(tr("Nexus Mods - Free Download"));
+            waitDialog.setModal(true);
+            waitDialog.resize(560, 180);
 
-        auto* waitLayout = new QVBoxLayout(&waitDialog);
+            auto* waitLayout = new QVBoxLayout(&waitDialog);
 
-        auto* waitLabel = new QLabel(
-            tr("The Nexus Mods download page has been opened in your browser.\n\n"
-               "Choose Slow Download. "
-               "The launcher will receive the NXM link automatically."),
-            &waitDialog);
-        waitLabel->setWordWrap(true);
-        waitLayout->addWidget(waitLabel);
+            auto* waitLabel = new QLabel(
+                tr("The Nexus Mods download page has been opened in your browser.\n\n"
+                   "Choose Slow Download. "
+                   "The launcher will receive the NXM link automatically."),
+                &waitDialog);
+            waitLabel->setWordWrap(true);
+            waitLayout->addWidget(waitLabel);
 
-        auto* statusLabel = new QLabel(tr("Waiting for the NXM download link..."), &waitDialog);
-        statusLabel->setAlignment(Qt::AlignCenter);
-        waitLayout->addWidget(statusLabel);
+            auto* statusLabel = new QLabel(tr("Waiting for the NXM download link..."), &waitDialog);
+            statusLabel->setAlignment(Qt::AlignCenter);
+            waitLayout->addWidget(statusLabel);
 
-        auto* waitButtons = new QDialogButtonBox(QDialogButtonBox::Cancel, &waitDialog);
-        connect(waitButtons, &QDialogButtonBox::rejected, &waitDialog, &QDialog::reject);
-        waitLayout->addWidget(waitButtons);
+            auto* waitButtons = new QDialogButtonBox(QDialogButtonBox::Cancel, &waitDialog);
+            connect(waitButtons, &QDialogButtonBox::rejected, &waitDialog, &QDialog::reject);
+            waitLayout->addWidget(waitButtons);
 
-        mNxmWaitDialog = &waitDialog;
+            mNxmWaitDialog = &waitDialog;
 
-        const QUrl downloadPage(
-            QStringLiteral("https://www.nexusmods.com/morrowind/mods/%1?tab=files&file_id=%2&nmm=1")
-                .arg(modId)
-                .arg(fileId));
+            const QUrl downloadPage(
+                QStringLiteral("https://www.nexusmods.com/morrowind/mods/%1?tab=files&file_id=%2&nmm=1")
+                    .arg(modId)
+                    .arg(fileId));
 
-        if (!QDesktopServices::openUrl(downloadPage))
-        {
+            if (!QDesktopServices::openUrl(downloadPage))
+            {
+                mNxmWaitDialog = nullptr;
+                mPendingNxmModId = 0;
+                mPendingNxmFileId = 0;
+                mReceivedNxmUrl.clear();
+
+                QMessageBox::warning(this, tr("Nexus Mods"),
+                    tr("Could not open the Nexus Mods download page."));
+                return;
+            }
+
+            const int waitResult = waitDialog.exec();
+
             mNxmWaitDialog = nullptr;
             mPendingNxmModId = 0;
             mPendingNxmFileId = 0;
+
+            if (waitResult != QDialog::Accepted || mReceivedNxmUrl.isEmpty())
+            {
+                mReceivedNxmUrl.clear();
+                return;
+            }
+
+            const QUrl nxmUrl(mReceivedNxmUrl, QUrl::StrictMode);
             mReceivedNxmUrl.clear();
-
-            QMessageBox::warning(this, tr("Nexus Mods"),
-                tr("Could not open the Nexus Mods download page."));
-            return;
-        }
-
-        const int waitResult = waitDialog.exec();
-
-        mNxmWaitDialog = nullptr;
-        mPendingNxmModId = 0;
-        mPendingNxmFileId = 0;
-
-        if (waitResult != QDialog::Accepted || mReceivedNxmUrl.isEmpty())
-        {
-            mReceivedNxmUrl.clear();
-            return;
-        }
-
-        const QUrl nxmUrl(mReceivedNxmUrl, QUrl::StrictMode);
-        mReceivedNxmUrl.clear();
 
             const QUrlQuery query(nxmUrl);
             nxmKey = query.queryItemValue(QStringLiteral("key"));

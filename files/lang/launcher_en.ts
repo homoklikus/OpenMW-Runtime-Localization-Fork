@@ -1196,6 +1196,68 @@ Choose Slow Download. The launcher will receive the NXM link automatically.</tra
         <source>The file requested by the browser does not contain valid download information.</source>
         <translation>The file requested by the browser does not contain valid download information.</translation>
     </message>
+    <message>
+        <source>NXM Handler...</source>
+        <translation>NXM Handler...</translation>
+    </message>
+    <message>
+        <source>View or change the default application for Nexus Mods Mod Manager Download links.</source>
+        <translation>View or change the default application for Nexus Mods Mod Manager Download links.</translation>
+    </message>
+    <message>
+        <source>NXM Handler</source>
+        <translation>NXM Handler</translation>
+    </message>
+    <message>
+        <source>No default NXM handler is currently configured.</source>
+        <translation>No default NXM handler is currently configured.</translation>
+    </message>
+    <message>
+        <source>Current NXM handler: OpenMW Launcher</source>
+        <translation>Current NXM handler: OpenMW Launcher</translation>
+    </message>
+    <message>
+        <source>Current NXM handler: %1
+%2</source>
+        <translation>Current NXM handler: %1
+%2</translation>
+    </message>
+    <message>
+        <source>Only one application can be the default handler for nxm:// links. Changing it will send future Nexus Mods Mod Manager Download links to OpenMW Launcher.</source>
+        <translation>Only one application can be the default handler for nxm:// links. Changing it will send future Nexus Mods Mod Manager Download links to OpenMW Launcher.</translation>
+    </message>
+    <message>
+        <source>Set OpenMW Launcher as Default</source>
+        <translation>Set OpenMW Launcher as Default</translation>
+    </message>
+    <message>
+        <source>Could not set OpenMW Launcher as the default NXM handler.
+%1</source>
+        <translation>Could not set OpenMW Launcher as the default NXM handler.
+%1</translation>
+    </message>
+    <message>
+        <source>OpenMW Launcher is now the default application for nxm:// links.</source>
+        <translation>OpenMW Launcher is now the default application for nxm:// links.</translation>
+    </message>
+    <message>
+        <source>Mod Manager Download links are currently handled by:
+%1</source>
+        <translation>Mod Manager Download links are currently handled by:
+%1</translation>
+    </message>
+    <message>
+        <source>%1
+
+OpenMW Launcher must be the default NXM handler to receive this download. Set OpenMW Launcher as default now?</source>
+        <translation>%1
+
+OpenMW Launcher must be the default NXM handler to receive this download. Set OpenMW Launcher as default now?</translation>
+    </message>
+    <message>
+        <source>OpenMW Launcher is already the default application for nxm:// links. Nexus Mods Mod Manager Download links will be opened in this launcher.</source>
+        <translation>OpenMW Launcher is already the default application for nxm:// links. Nexus Mods Mod Manager Download links will be opened in this launcher.</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>
