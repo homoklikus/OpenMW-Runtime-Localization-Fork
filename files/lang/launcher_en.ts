@@ -1188,6 +1188,14 @@ Choose Slow Download. The launcher will receive the NXM link automatically.</tra
         <source>Could not open the Nexus Mods download page.</source>
         <translation>Could not open the Nexus Mods download page.</translation>
     </message>
+    <message>
+        <source>The file requested by the browser was not found in this Nexus Mods mod.</source>
+        <translation>The file requested by the browser was not found in this Nexus Mods mod.</translation>
+    </message>
+    <message>
+        <source>The file requested by the browser does not contain valid download information.</source>
+        <translation>The file requested by the browser does not contain valid download information.</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

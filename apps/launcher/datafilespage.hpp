@@ -203,8 +203,11 @@ namespace Launcher
         void installModArchive(const QString& archivePath, const QString& suggestedModName = QString(),
             const QString& archiveDisplayName = QString(), const NexusModMetadata* nexusMetadata = nullptr);
         void connectNexusMods();
+        bool ensureNexusConnected();
+        bool fetchNexusFileMetadata(int modId, qint64 fileId, NexusModMetadata& metadata);
         void lookupNexusMod();
-        void downloadNexusFile(const NexusModMetadata& metadata);
+        void downloadNexusFile(
+            const NexusModMetadata& metadata, const QString& receivedNxmUrl = QString());
         void removeManagedModsDirectoryEntries(const QString& rootPath);
         void applyDataDirectoryOrder(const QStringList& paths);
         void updateAssetConflictStats();

@@ -1472,23 +1472,28 @@ void Launcher::DataFilesPage::installModArchive(const QString& archivePath, cons
 
 void Launcher::DataFilesPage::connectNexusMods()
 {
-    if (!mNexusApiKey.isEmpty())
-    {
-        lookupNexusMod();
+    if (!ensureNexusConnected())
         return;
-    }
+
+    lookupNexusMod();
+}
+
+bool Launcher::DataFilesPage::ensureNexusConnected()
+{
+    if (!mNexusApiKey.isEmpty())
+        return true;
 
     bool accepted = false;
     const QString enteredKey = QInputDialog::getText(this, tr("Connect to Nexus Mods"),
-        tr("Personal API key:"), QLineEdit::Password, mNexusApiKey, &accepted).trimmed();
+        tr("Personal API key:"), QLineEdit::Password, QString(), &accepted).trimmed();
 
     if (!accepted)
-        return;
+        return false;
 
     if (enteredKey.isEmpty())
     {
         QMessageBox::warning(this, tr("Nexus Mods"), tr("Enter a Personal API key."));
-        return;
+        return false;
     }
 
     QNetworkRequest request(QUrl(QStringLiteral("https://api.nexusmods.com/v1/users/validate.json")));
@@ -1524,14 +1529,14 @@ void Launcher::DataFilesPage::connectNexusMods()
             tr("Could not connect to Nexus Mods.\nHTTP status: %1\n%2")
                 .arg(httpStatus)
                 .arg(details));
-        return;
+        return false;
     }
 
     if (parseError.error != QJsonParseError::NoError || object.isEmpty())
     {
         QMessageBox::critical(this, tr("Nexus Mods"),
             tr("Nexus Mods returned an invalid response."));
-        return;
+        return false;
     }
 
     const QString userName = object.value(QStringLiteral("name")).toString();
@@ -1539,7 +1544,7 @@ void Launcher::DataFilesPage::connectNexusMods()
     {
         QMessageBox::critical(this, tr("Nexus Mods"),
             tr("The API key was accepted, but the Nexus Mods account name was not returned."));
-        return;
+        return false;
     }
 
     mNexusApiKey = enteredKey;
@@ -1553,16 +1558,13 @@ void Launcher::DataFilesPage::connectNexusMods()
             .arg(mNexusUserName)
             .arg(mNexusPremium ? tr("Premium") : tr("Free")));
 
-    lookupNexusMod();
+    return true;
 }
 
 void Launcher::DataFilesPage::lookupNexusMod()
 {
-    if (mNexusApiKey.isEmpty())
-    {
-        connectNexusMods();
+    if (!ensureNexusConnected())
         return;
-    }
 
     bool accepted = false;
     const QString input = QInputDialog::getText(this, tr("Nexus Mods - Find Mod"),
@@ -1840,6 +1842,131 @@ void Launcher::DataFilesPage::lookupNexusMod()
     dialog.exec();
 }
 
+bool Launcher::DataFilesPage::fetchNexusFileMetadata(
+    int modId, qint64 fileId, NexusModMetadata& metadata)
+{
+    if (mNexusApiKey.isEmpty() || modId <= 0 || fileId <= 0)
+        return false;
+
+    QNetworkAccessManager networkManager;
+
+    auto getJson = [&](const QUrl& url, QJsonDocument& document, QString& errorText) -> bool
+    {
+        QNetworkRequest request(url);
+        request.setRawHeader("apikey", mNexusApiKey.toUtf8());
+        request.setRawHeader("Application-Name", QByteArrayLiteral("OpenMW-Runtime-Localization-Fork"));
+        request.setRawHeader("Application-Version", QByteArrayLiteral("0.4-dev"));
+
+        QNetworkReply* reply = networkManager.get(request);
+        QEventLoop eventLoop;
+        connect(reply, &QNetworkReply::finished, &eventLoop, &QEventLoop::quit);
+        eventLoop.exec();
+
+        const QByteArray responseData = reply->readAll();
+        const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const QNetworkReply::NetworkError networkErrorCode = reply->error();
+        const QString networkError = reply->errorString();
+        reply->deleteLater();
+
+        QJsonParseError parseError;
+        document = QJsonDocument::fromJson(responseData, &parseError);
+
+        if (networkErrorCode != QNetworkReply::NoError || httpStatus < 200 || httpStatus >= 300)
+        {
+            QString apiMessage;
+            if (document.isObject())
+                apiMessage = document.object().value(QStringLiteral("message")).toString();
+
+            errorText = tr("HTTP status: %1\n%2")
+                            .arg(httpStatus)
+                            .arg(apiMessage.isEmpty() ? networkError : apiMessage);
+            return false;
+        }
+
+        if (parseError.error != QJsonParseError::NoError)
+        {
+            errorText = tr("Nexus Mods returned an invalid JSON response.");
+            return false;
+        }
+
+        return true;
+    };
+
+    QJsonDocument modDocument;
+    QJsonDocument filesDocument;
+    QString errorText;
+
+    const QUrl modUrl(
+        QStringLiteral("https://api.nexusmods.com/v1/games/morrowind/mods/%1.json")
+            .arg(modId));
+    if (!getJson(modUrl, modDocument, errorText) || !modDocument.isObject())
+    {
+        QMessageBox::critical(this, tr("Nexus Mods"),
+            tr("Could not retrieve mod information.\n%1").arg(errorText));
+        return false;
+    }
+
+    const QUrl filesUrl(
+        QStringLiteral("https://api.nexusmods.com/v1/games/morrowind/mods/%1/files.json")
+            .arg(modId));
+    if (!getJson(filesUrl, filesDocument, errorText) || !filesDocument.isObject())
+    {
+        QMessageBox::critical(this, tr("Nexus Mods"),
+            tr("Could not retrieve the mod file list.\n%1").arg(errorText));
+        return false;
+    }
+
+    const QJsonObject mod = modDocument.object();
+    const QJsonArray files = filesDocument.object().value(QStringLiteral("files")).toArray();
+
+    QJsonObject selectedFile;
+    for (const QJsonValue& value : files)
+    {
+        const QJsonObject file = value.toObject();
+        if (file.value(QStringLiteral("file_id")).toVariant().toLongLong() == fileId)
+        {
+            selectedFile = file;
+            break;
+        }
+    }
+
+    if (selectedFile.isEmpty())
+    {
+        QMessageBox::warning(this, tr("Nexus Mods"),
+            tr("The file requested by the browser was not found in this Nexus Mods mod."));
+        return false;
+    }
+
+    metadata = NexusModMetadata{};
+    metadata.mModId = modId;
+    metadata.mFileId = fileId;
+    metadata.mVersion = selectedFile.value(QStringLiteral("version")).toString().trimmed();
+    if (metadata.mVersion.isEmpty())
+        metadata.mVersion = mod.value(QStringLiteral("version")).toString().trimmed();
+    metadata.mAuthor = mod.value(QStringLiteral("author")).toString().trimmed();
+    metadata.mUploadedBy = selectedFile.value(QStringLiteral("uploaded_by")).toString().trimmed();
+    metadata.mNexusName = mod.value(QStringLiteral("name")).toString().trimmed();
+    metadata.mNexusFileName = selectedFile.value(QStringLiteral("name")).toString().trimmed();
+    metadata.mInstallationFile
+        = selectedFile.value(QStringLiteral("file_name")).toString().trimmed();
+    metadata.mFileSize
+        = selectedFile.value(QStringLiteral("size_kb")).toVariant().toLongLong() * 1024;
+    metadata.mDescription = mod.value(QStringLiteral("summary")).toString().trimmed();
+    metadata.mCategoryId = mod.value(QStringLiteral("category_id")).toInt();
+    metadata.mCategoryName = mod.value(QStringLiteral("category_name")).toString().trimmed();
+    metadata.mFileCategory
+        = selectedFile.value(QStringLiteral("category_name")).toString().trimmed();
+
+    if (metadata.mInstallationFile.isEmpty())
+    {
+        QMessageBox::warning(this, tr("Nexus Mods"),
+            tr("The file requested by the browser does not contain valid download information."));
+        return false;
+    }
+
+    return true;
+}
+
 void Launcher::DataFilesPage::handleNxmUrl(const QString& urlText)
 {
     const QUrl nxmUrl(urlText.trimmed(), QUrl::StrictMode);
@@ -1850,7 +1977,7 @@ void Launcher::DataFilesPage::handleNxmUrl(const QString& urlText)
 
     bool modIdOk = false;
     bool fileIdOk = false;
-    const qint64 modId = pathMatch.hasMatch()
+    const qint64 parsedModId = pathMatch.hasMatch()
         ? pathMatch.captured(1).toLongLong(&modIdOk)
         : 0;
     const qint64 fileId = pathMatch.hasMatch()
@@ -1860,56 +1987,97 @@ void Launcher::DataFilesPage::handleNxmUrl(const QString& urlText)
     if (!nxmUrl.isValid()
         || nxmUrl.scheme().compare(QStringLiteral("nxm"), Qt::CaseInsensitive) != 0
         || nxmUrl.host().compare(QStringLiteral("morrowind"), Qt::CaseInsensitive) != 0
-        || !pathMatch.hasMatch() || !modIdOk || !fileIdOk || modId <= 0 || fileId <= 0)
+        || !pathMatch.hasMatch() || !modIdOk || !fileIdOk
+        || parsedModId <= 0 || parsedModId > std::numeric_limits<int>::max()
+        || fileId <= 0)
     {
         QMessageBox::warning(this, tr("Nexus Mods - NXM Link"),
             tr("The received URL is not a valid Morrowind NXM link."));
         return;
     }
 
-    if (!mNxmWaitDialog || mPendingNxmModId <= 0 || mPendingNxmFileId <= 0)
+    const int modId = static_cast<int>(parsedModId);
+
+    // Internal launcher flow: preserve the exact pending file handshake.
+    if (mNxmWaitDialog && mPendingNxmModId > 0 && mPendingNxmFileId > 0)
     {
-        QMessageBox::information(this, tr("Nexus Mods - NXM Link"),
-            tr("No Nexus Mods download is currently waiting for an NXM link."));
+        if (modId != mPendingNxmModId || fileId != mPendingNxmFileId)
+        {
+            QMessageBox::warning(this, tr("Nexus Mods"),
+                tr("The received NXM link does not match the selected Morrowind file."));
+            return;
+        }
+
+        const QUrlQuery query(nxmUrl);
+        const QString nxmKey = query.queryItemValue(QStringLiteral("key"));
+        const QString nxmExpires = query.queryItemValue(QStringLiteral("expires"));
+
+        bool expiresOk = false;
+        const qint64 expires = nxmExpires.toLongLong(&expiresOk);
+        bool userIdOk = false;
+        const qint64 linkUserId
+            = query.queryItemValue(QStringLiteral("user_id")).toLongLong(&userIdOk);
+
+        if (nxmKey.isEmpty() || !expiresOk || expires <= QDateTime::currentSecsSinceEpoch())
+        {
+            QMessageBox::warning(this, tr("Nexus Mods"),
+                tr("The NXM download link is missing its authorization data or has expired."));
+            return;
+        }
+
+        if (mNexusUserId > 0 && userIdOk && linkUserId != mNexusUserId)
+        {
+            QMessageBox::warning(this, tr("Nexus Mods"),
+                tr("The NXM link was generated for a different Nexus Mods account."));
+            return;
+        }
+
+        mReceivedNxmUrl = nxmUrl.toString(QUrl::FullyEncoded);
+        mNxmWaitDialog->accept();
         return;
     }
 
-    if (modId != mPendingNxmModId || fileId != mPendingNxmFileId)
-    {
-        QMessageBox::warning(this, tr("Nexus Mods"),
-            tr("The received NXM link does not match the selected Morrowind file."));
+    // External browser flow:
+    // Nexus website -> Mod Manager Download -> nxm:// -> this launcher.
+    if (!ensureNexusConnected())
         return;
+
+    if (!mNexusPremium)
+    {
+        const QUrlQuery query(nxmUrl);
+        const QString nxmKey = query.queryItemValue(QStringLiteral("key"));
+        const QString nxmExpires = query.queryItemValue(QStringLiteral("expires"));
+
+        bool expiresOk = false;
+        const qint64 expires = nxmExpires.toLongLong(&expiresOk);
+        bool userIdOk = false;
+        const qint64 linkUserId
+            = query.queryItemValue(QStringLiteral("user_id")).toLongLong(&userIdOk);
+
+        if (nxmKey.isEmpty() || !expiresOk || expires <= QDateTime::currentSecsSinceEpoch())
+        {
+            QMessageBox::warning(this, tr("Nexus Mods"),
+                tr("The NXM download link is missing its authorization data or has expired."));
+            return;
+        }
+
+        if (mNexusUserId > 0 && userIdOk && linkUserId != mNexusUserId)
+        {
+            QMessageBox::warning(this, tr("Nexus Mods"),
+                tr("The NXM link was generated for a different Nexus Mods account."));
+            return;
+        }
     }
 
-    const QUrlQuery query(nxmUrl);
-    const QString nxmKey = query.queryItemValue(QStringLiteral("key"));
-    const QString nxmExpires = query.queryItemValue(QStringLiteral("expires"));
-
-    bool expiresOk = false;
-    const qint64 expires = nxmExpires.toLongLong(&expiresOk);
-    bool userIdOk = false;
-    const qint64 linkUserId
-        = query.queryItemValue(QStringLiteral("user_id")).toLongLong(&userIdOk);
-
-    if (nxmKey.isEmpty() || !expiresOk || expires <= QDateTime::currentSecsSinceEpoch())
-    {
-        QMessageBox::warning(this, tr("Nexus Mods"),
-            tr("The NXM download link is missing its authorization data or has expired."));
+    NexusModMetadata metadata;
+    if (!fetchNexusFileMetadata(modId, fileId, metadata))
         return;
-    }
 
-    if (mNexusUserId > 0 && userIdOk && linkUserId != mNexusUserId)
-    {
-        QMessageBox::warning(this, tr("Nexus Mods"),
-            tr("The NXM link was generated for a different Nexus Mods account."));
-        return;
-    }
-
-    mReceivedNxmUrl = nxmUrl.toString(QUrl::FullyEncoded);
-    mNxmWaitDialog->accept();
+    downloadNexusFile(metadata, nxmUrl.toString(QUrl::FullyEncoded));
 }
 
-void Launcher::DataFilesPage::downloadNexusFile(const NexusModMetadata& metadata)
+void Launcher::DataFilesPage::downloadNexusFile(
+    const NexusModMetadata& metadata, const QString& receivedNxmUrl)
 {
     const int modId = metadata.mModId;
     const qint64 fileId = metadata.mFileId;
@@ -1927,11 +2095,54 @@ void Launcher::DataFilesPage::downloadNexusFile(const NexusModMetadata& metadata
 
     if (!mNexusPremium)
     {
-        mPendingNxmModId = modId;
-        mPendingNxmFileId = fileId;
-        mReceivedNxmUrl.clear();
+        if (!receivedNxmUrl.isEmpty())
+        {
+            const QUrl nxmUrl(receivedNxmUrl, QUrl::StrictMode);
+            const QString expectedPath
+                = QStringLiteral("/mods/%1/files/%2").arg(modId).arg(fileId);
 
-        QDialog waitDialog(this);
+            if (!nxmUrl.isValid()
+                || nxmUrl.scheme().compare(QStringLiteral("nxm"), Qt::CaseInsensitive) != 0
+                || nxmUrl.host().compare(QStringLiteral("morrowind"), Qt::CaseInsensitive) != 0
+                || nxmUrl.path().compare(expectedPath, Qt::CaseInsensitive) != 0)
+            {
+                QMessageBox::warning(this, tr("Nexus Mods"),
+                    tr("The received NXM link does not match the selected Morrowind file."));
+                return;
+            }
+
+            const QUrlQuery query(nxmUrl);
+            nxmKey = query.queryItemValue(QStringLiteral("key"));
+            nxmExpires = query.queryItemValue(QStringLiteral("expires"));
+
+            bool expiresOk = false;
+            const qint64 expires = nxmExpires.toLongLong(&expiresOk);
+            bool userIdOk = false;
+            const qint64 linkUserId
+                = query.queryItemValue(QStringLiteral("user_id")).toLongLong(&userIdOk);
+
+            if (nxmKey.isEmpty() || !expiresOk
+                || expires <= QDateTime::currentSecsSinceEpoch())
+            {
+                QMessageBox::warning(this, tr("Nexus Mods"),
+                    tr("The NXM download link is missing its authorization data or has expired."));
+                return;
+            }
+
+            if (mNexusUserId > 0 && userIdOk && linkUserId != mNexusUserId)
+            {
+                QMessageBox::warning(this, tr("Nexus Mods"),
+                    tr("The NXM link was generated for a different Nexus Mods account."));
+                return;
+            }
+        }
+        else
+        {
+            mPendingNxmModId = modId;
+            mPendingNxmFileId = fileId;
+            mReceivedNxmUrl.clear();
+
+            QDialog waitDialog(this);
         waitDialog.setWindowTitle(tr("Nexus Mods - Free Download"));
         waitDialog.setModal(true);
         waitDialog.resize(560, 180);
@@ -1988,9 +2199,10 @@ void Launcher::DataFilesPage::downloadNexusFile(const NexusModMetadata& metadata
         const QUrl nxmUrl(mReceivedNxmUrl, QUrl::StrictMode);
         mReceivedNxmUrl.clear();
 
-        const QUrlQuery query(nxmUrl);
-        nxmKey = query.queryItemValue(QStringLiteral("key"));
-        nxmExpires = query.queryItemValue(QStringLiteral("expires"));
+            const QUrlQuery query(nxmUrl);
+            nxmKey = query.queryItemValue(QStringLiteral("key"));
+            nxmExpires = query.queryItemValue(QStringLiteral("expires"));
+        }
     }
 
     QUrl apiUrl(QStringLiteral(
