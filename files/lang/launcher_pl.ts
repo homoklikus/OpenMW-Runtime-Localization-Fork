@@ -684,6 +684,96 @@ Wykryty układ: %4</translation>
         <source>Used</source>
         <translation>Używany</translation>
     </message>
+    <message>
+        <source>Install Mod</source>
+        <translation>Instalacja moda</translation>
+    </message>
+    <message>
+        <source>Select a valid Mods Directory before installing a mod from an archive.</source>
+        <translation>Przed instalacją moda z archiwum wybierz prawidłowy Katalog modów.</translation>
+    </message>
+    <message>
+        <source>Mod name:</source>
+        <translation>Nazwa moda:</translation>
+    </message>
+    <message>
+        <source>The mod will be installed as one subdirectory of the configured Mods Directory.</source>
+        <translation>Mod zostanie zainstalowany jako jeden podkatalog skonfigurowanego Katalogu modów.</translation>
+    </message>
+    <message>
+        <source>Install</source>
+        <translation>Zainstaluj</translation>
+    </message>
+    <message>
+        <source>The mod name is invalid. Do not use path separators or characters reserved by Windows.</source>
+        <translation>Nazwa moda jest nieprawidłowa. Nie używaj separatorów ścieżek ani znaków zarezerwowanych przez Windows.</translation>
+    </message>
+    <message>
+        <source>A mod directory named "%1" already exists.
+Choose a different mod name or remove the existing directory first.</source>
+        <translation>Katalog moda o nazwie „%1” już istnieje.
+Wybierz inną nazwę moda albo najpierw usuń istniejący katalog.</translation>
+    </message>
+    <message>
+        <source>Select at least one subpackage containing files.</source>
+        <translation>Wybierz co najmniej jeden podpakiet zawierający pliki.</translation>
+    </message>
+    <message>
+        <source>Could not create a temporary installation directory inside the Mods Directory.</source>
+        <translation>Nie można utworzyć tymczasowego katalogu instalacyjnego wewnątrz Katalogu modów.</translation>
+    </message>
+    <message>
+        <source>Could not reopen the archive for installation:
+%1</source>
+        <translation>Nie można ponownie otworzyć archiwum do instalacji:
+%1</translation>
+    </message>
+    <message>
+        <source>The archive contains an unsafe path:
+%1</source>
+        <translation>Archiwum zawiera niebezpieczną ścieżkę:
+%1</translation>
+    </message>
+    <message>
+        <source>Could not create directory:
+%1</source>
+        <translation>Nie można utworzyć katalogu:
+%1</translation>
+    </message>
+    <message>
+        <source>Could not write file:
+%1</source>
+        <translation>Nie można zapisać pliku:
+%1</translation>
+    </message>
+    <message>
+        <source>Could not read archive data:
+%1</source>
+        <translation>Nie można odczytać danych archiwum:
+%1</translation>
+    </message>
+    <message>
+        <source>Could not finish reading the archive:
+%1</source>
+        <translation>Nie można dokończyć odczytu archiwum:
+%1</translation>
+    </message>
+    <message>
+        <source>Could not finalize the installation in:
+%1</source>
+        <translation>Nie można sfinalizować instalacji w:
+%1</translation>
+    </message>
+    <message>
+        <source>Mod Installed</source>
+        <translation>Mod zainstalowany</translation>
+    </message>
+    <message>
+        <source>Installed %1 files to:
+%2</source>
+        <translation>Zainstalowano %1 plików do:
+%2</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

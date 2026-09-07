@@ -15,6 +15,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QHash>
+#include <QHBoxLayout>
 #include <QImageReader>
 #include <QLabel>
 #include <QHeaderView>
@@ -23,11 +24,13 @@
 #include <QMessageBox>
 #include <QPair>
 #include <QProgressDialog>
+#include <QRegularExpression>
 #include <QPushButton>
 #include <QSet>
 #include <QSignalBlocker>
 #include <QSize>
 #include <QTableWidget>
+#include <QTemporaryDir>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -600,6 +603,14 @@ void Launcher::DataFilesPage::removeManagedModsDirectoryEntries(const QString& r
 
 void Launcher::DataFilesPage::analyzeModArchive()
 {
+    const QString modsDirectory = mLauncherSettings.getModsDirectory();
+    if (modsDirectory.isEmpty() || !QDir(modsDirectory).exists())
+    {
+        QMessageBox::warning(this, tr("Install Mod"),
+            tr("Select a valid Mods Directory before installing a mod from an archive."));
+        return;
+    }
+
     const QString archivePath = QFileDialog::getOpenFileName(this, tr("Select Mod Archive"), QString(),
         tr("Mod Archives (*.zip *.7z *.rar);;All Files (*)"));
 
@@ -811,6 +822,14 @@ void Launcher::DataFilesPage::analyzeModArchive()
     note->setWordWrap(true);
     layout->addWidget(note);
 
+    auto* modNameLayout = new QHBoxLayout;
+    auto* modNameLabel = new QLabel(tr("Mod name:"), &dialog);
+    auto* modNameEdit = new QLineEdit(QFileInfo(archivePath).completeBaseName(), &dialog);
+    modNameEdit->setToolTip(tr("The mod will be installed as one subdirectory of the configured Mods Directory."));
+    modNameLayout->addWidget(modNameLabel);
+    modNameLayout->addWidget(modNameEdit, 1);
+    layout->addLayout(modNameLayout);
+
     QHash<QString, QSet<QString>> filesByRoot;
     for (const QString& root : roots)
     {
@@ -825,6 +844,26 @@ void Launcher::DataFilesPage::analyzeModArchive()
             else if (path.startsWith(prefix, Qt::CaseInsensitive))
                 relativePath = path.mid(prefix.size());
             else
+                continue;
+
+            // If another detected data root is nested below this one, its files
+            // belong to that subpackage rather than to the parent package.
+            bool belongsToNestedRoot = false;
+            for (const QString& otherRoot : roots)
+            {
+                if (otherRoot == root || otherRoot.isEmpty())
+                    continue;
+
+                const QString nestedPrefix = otherRoot + '/';
+                if (path.startsWith(nestedPrefix, Qt::CaseInsensitive)
+                    && (root.isEmpty() || otherRoot.startsWith(prefix, Qt::CaseInsensitive)))
+                {
+                    belongsToNestedRoot = true;
+                    break;
+                }
+            }
+
+            if (belongsToNestedRoot)
                 continue;
 
             relativePath.replace('\\', '/');
@@ -983,11 +1022,253 @@ void Launcher::DataFilesPage::analyzeModArchive()
     header->setSectionResizeMode(6, QHeaderView::ResizeToContents);
     layout->addWidget(table);
 
-    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+    QPushButton* installButton = buttons->button(QDialogButtonBox::Ok);
+    installButton->setText(tr("Install"));
+    installButton->setEnabled(!roots.isEmpty());
+    connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout->addWidget(buttons);
 
-    dialog.exec();
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    const QString modName = modNameEdit->text().trimmed();
+    static const QRegularExpression invalidModNameCharacters(QStringLiteral(R"([<>:"/\\|?*])"));
+
+    if (modName.isEmpty() || modName == QLatin1String(".") || modName == QLatin1String("..")
+        || invalidModNameCharacters.match(modName).hasMatch()
+        || modName.endsWith(' ') || modName.endsWith('.'))
+    {
+        QMessageBox::warning(this, tr("Install Mod"),
+            tr("The mod name is invalid. Do not use path separators or characters reserved by Windows."));
+        return;
+    }
+
+    const QString destinationPath = QDir(modsDirectory).filePath(modName);
+    if (QFileInfo::exists(destinationPath))
+    {
+        QMessageBox::warning(this, tr("Install Mod"),
+            tr("A mod directory named \"%1\" already exists.\nChoose a different mod name or remove the existing directory first.")
+                .arg(modName));
+        return;
+    }
+
+    QList<int> selectedRows;
+    QHash<QString, int> finalOwner;
+
+    for (int row = 0; row < roots.size(); ++row)
+    {
+        const QTableWidgetItem* useItem = table->item(row, 0);
+        if (!useItem || useItem->checkState() != Qt::Checked)
+            continue;
+
+        selectedRows.push_back(row);
+        const QSet<QString>& paths = filesByRoot.value(roots.at(row));
+        for (const QString& path : paths)
+            finalOwner.insert(path, row);
+    }
+
+    if (selectedRows.isEmpty() || finalOwner.isEmpty())
+    {
+        QMessageBox::warning(this, tr("Install Mod"),
+            tr("Select at least one subpackage containing files."));
+        return;
+    }
+
+    QTemporaryDir stagingDir(QDir(modsDirectory).filePath(QStringLiteral(".openmw-install-XXXXXX")));
+    if (!stagingDir.isValid())
+    {
+        QMessageBox::critical(this, tr("Install Mod"),
+            tr("Could not create a temporary installation directory inside the Mods Directory."));
+        return;
+    }
+
+    struct archive* installArchive = archive_read_new();
+    if (!installArchive)
+    {
+        QMessageBox::critical(this, tr("Install Mod"), tr("Could not initialize the archive reader."));
+        return;
+    }
+
+    archive_read_support_filter_all(installArchive);
+    archive_read_support_format_all(installArchive);
+
+    if (archive_read_open_filename(installArchive, encodedPath.constData(), 10240) != ARCHIVE_OK)
+    {
+        const char* error = archive_error_string(installArchive);
+        const QString errorText = error ? QString::fromUtf8(error) : tr("Unknown error");
+        archive_read_free(installArchive);
+        QMessageBox::critical(this, tr("Install Mod"),
+            tr("Could not reopen the archive for installation:\n%1").arg(errorText));
+        return;
+    }
+
+    bool installFailed = false;
+    QString installError;
+    int installedFiles = 0;
+
+    struct archive_entry* installEntry = nullptr;
+    int installReadResult = ARCHIVE_OK;
+
+    while ((installReadResult = archive_read_next_header(installArchive, &installEntry)) == ARCHIVE_OK)
+    {
+        if (archive_entry_filetype(installEntry) != AE_IFREG
+            || archive_entry_symlink(installEntry) != nullptr
+            || archive_entry_hardlink(installEntry) != nullptr)
+        {
+            archive_read_data_skip(installArchive);
+            continue;
+        }
+
+        const char* rawPath = archive_entry_pathname_utf8(installEntry);
+        if (!rawPath)
+            rawPath = archive_entry_pathname(installEntry);
+        if (!rawPath)
+        {
+            archive_read_data_skip(installArchive);
+            continue;
+        }
+
+        QString archiveEntryPath = QString::fromUtf8(rawPath).trimmed();
+        archiveEntryPath.replace('\\', '/');
+        while (archiveEntryPath.startsWith(QLatin1String("./")))
+            archiveEntryPath.remove(0, 2);
+        while (archiveEntryPath.startsWith('/'))
+            archiveEntryPath.remove(0, 1);
+
+        bool extractedThisEntry = false;
+
+        for (const int row : selectedRows)
+        {
+            const QString& root = roots.at(row);
+            const QString prefix = root.isEmpty() ? QString() : root + '/';
+
+            QString relativePath;
+            if (root.isEmpty())
+                relativePath = archiveEntryPath;
+            else if (archiveEntryPath.startsWith(prefix, Qt::CaseInsensitive))
+                relativePath = archiveEntryPath.mid(prefix.size());
+            else
+                continue;
+
+            relativePath.replace('\\', '/');
+            while (relativePath.startsWith(QLatin1String("./")))
+                relativePath.remove(0, 2);
+
+            const QString normalizedRelativePath = relativePath.toLower();
+            if (!filesByRoot.value(root).contains(normalizedRelativePath)
+                || finalOwner.value(normalizedRelativePath, -1) != row)
+                continue;
+
+            const QStringList pathParts = relativePath.split('/', Qt::KeepEmptyParts);
+            bool unsafePath = relativePath.isEmpty() || QDir::isAbsolutePath(relativePath);
+            for (const QString& part : pathParts)
+            {
+                if (part.isEmpty() || part == QLatin1String(".") || part == QLatin1String("..")
+                    || part.contains(':'))
+                {
+                    unsafePath = true;
+                    break;
+                }
+            }
+
+            if (unsafePath)
+            {
+                installFailed = true;
+                installError = tr("The archive contains an unsafe path:\n%1").arg(relativePath);
+                break;
+            }
+
+            const QString outputPath = QDir(stagingDir.path()).filePath(relativePath);
+            const QString outputDirectory = QFileInfo(outputPath).absolutePath();
+
+            if (!QDir().mkpath(outputDirectory))
+            {
+                installFailed = true;
+                installError = tr("Could not create directory:\n%1").arg(outputDirectory);
+                break;
+            }
+
+            QFile outputFile(outputPath);
+            if (!outputFile.open(QIODevice::WriteOnly | QIODevice::Truncate))
+            {
+                installFailed = true;
+                installError = tr("Could not write file:\n%1").arg(outputPath);
+                break;
+            }
+
+            char buffer[64 * 1024];
+            while (true)
+            {
+                const la_ssize_t bytesRead = archive_read_data(installArchive, buffer, sizeof(buffer));
+                if (bytesRead == 0)
+                    break;
+
+                if (bytesRead < 0)
+                {
+                    const char* error = archive_error_string(installArchive);
+                    installFailed = true;
+                    installError = tr("Could not read archive data:\n%1")
+                        .arg(error ? QString::fromUtf8(error) : tr("Unknown error"));
+                    break;
+                }
+
+                if (outputFile.write(buffer, bytesRead) != bytesRead)
+                {
+                    installFailed = true;
+                    installError = tr("Could not write file:\n%1").arg(outputPath);
+                    break;
+                }
+            }
+
+            outputFile.close();
+
+            if (installFailed)
+                break;
+
+            ++installedFiles;
+            extractedThisEntry = true;
+            break;
+        }
+
+        if (installFailed)
+            break;
+
+        if (!extractedThisEntry)
+            archive_read_data_skip(installArchive);
+    }
+
+    if (!installFailed && installReadResult != ARCHIVE_EOF)
+    {
+        const char* error = archive_error_string(installArchive);
+        installFailed = true;
+        installError = tr("Could not finish reading the archive:\n%1")
+            .arg(error ? QString::fromUtf8(error) : tr("Unknown error"));
+    }
+
+    archive_read_free(installArchive);
+
+    if (installFailed)
+    {
+        QMessageBox::critical(this, tr("Install Mod"), installError);
+        return;
+    }
+
+    const QString stagingLeafName = QFileInfo(stagingDir.path()).fileName();
+    QDir modsRoot(modsDirectory);
+    if (!modsRoot.rename(stagingLeafName, modName))
+    {
+        QMessageBox::critical(this, tr("Install Mod"),
+            tr("Could not finalize the installation in:\n%1").arg(destinationPath));
+        return;
+    }
+
+    refreshDataFilesView();
+    mMainDialog->writeSettings();
+
+    QMessageBox::information(this, tr("Mod Installed"),
+        tr("Installed %1 files to:\n%2").arg(installedFiles).arg(destinationPath));
 }
 
 void Launcher::DataFilesPage::chooseModsDirectory()

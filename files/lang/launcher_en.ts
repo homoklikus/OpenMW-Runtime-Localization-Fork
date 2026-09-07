@@ -680,6 +680,96 @@ Detected layout: %4</translation>
         <source>Used</source>
         <translation>Used</translation>
     </message>
+    <message>
+        <source>Install Mod</source>
+        <translation>Install Mod</translation>
+    </message>
+    <message>
+        <source>Select a valid Mods Directory before installing a mod from an archive.</source>
+        <translation>Select a valid Mods Directory before installing a mod from an archive.</translation>
+    </message>
+    <message>
+        <source>Mod name:</source>
+        <translation>Mod name:</translation>
+    </message>
+    <message>
+        <source>The mod will be installed as one subdirectory of the configured Mods Directory.</source>
+        <translation>The mod will be installed as one subdirectory of the configured Mods Directory.</translation>
+    </message>
+    <message>
+        <source>Install</source>
+        <translation>Install</translation>
+    </message>
+    <message>
+        <source>The mod name is invalid. Do not use path separators or characters reserved by Windows.</source>
+        <translation>The mod name is invalid. Do not use path separators or characters reserved by Windows.</translation>
+    </message>
+    <message>
+        <source>A mod directory named "%1" already exists.
+Choose a different mod name or remove the existing directory first.</source>
+        <translation>A mod directory named "%1" already exists.
+Choose a different mod name or remove the existing directory first.</translation>
+    </message>
+    <message>
+        <source>Select at least one subpackage containing files.</source>
+        <translation>Select at least one subpackage containing files.</translation>
+    </message>
+    <message>
+        <source>Could not create a temporary installation directory inside the Mods Directory.</source>
+        <translation>Could not create a temporary installation directory inside the Mods Directory.</translation>
+    </message>
+    <message>
+        <source>Could not reopen the archive for installation:
+%1</source>
+        <translation>Could not reopen the archive for installation:
+%1</translation>
+    </message>
+    <message>
+        <source>The archive contains an unsafe path:
+%1</source>
+        <translation>The archive contains an unsafe path:
+%1</translation>
+    </message>
+    <message>
+        <source>Could not create directory:
+%1</source>
+        <translation>Could not create directory:
+%1</translation>
+    </message>
+    <message>
+        <source>Could not write file:
+%1</source>
+        <translation>Could not write file:
+%1</translation>
+    </message>
+    <message>
+        <source>Could not read archive data:
+%1</source>
+        <translation>Could not read archive data:
+%1</translation>
+    </message>
+    <message>
+        <source>Could not finish reading the archive:
+%1</source>
+        <translation>Could not finish reading the archive:
+%1</translation>
+    </message>
+    <message>
+        <source>Could not finalize the installation in:
+%1</source>
+        <translation>Could not finalize the installation in:
+%1</translation>
+    </message>
+    <message>
+        <source>Mod Installed</source>
+        <translation>Mod Installed</translation>
+    </message>
+    <message>
+        <source>Installed %1 files to:
+%2</source>
+        <translation>Installed %1 files to:
+%2</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>
