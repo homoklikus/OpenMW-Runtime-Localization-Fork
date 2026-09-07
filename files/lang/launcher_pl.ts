@@ -550,6 +550,104 @@ do domyślnych czcionek Morrowind. Zaznacz to pole, jeśli nadal wolisz oryginal
         <source>No comparable texture resolutions were found.</source>
         <translation>Nie znaleziono porównywalnych rozdzielczości tekstur.</translation>
     </message>
+    <message>
+        <source>Install from Archive...</source>
+        <translation>Instaluj z archiwum...</translation>
+    </message>
+    <message>
+        <source>Select a ZIP, 7Z or RAR mod archive and analyze its installation structure.</source>
+        <translation>Wybierz archiwum moda ZIP, 7Z lub RAR i przeanalizuj jego strukturę instalacji.</translation>
+    </message>
+    <message>
+        <source>Select Mod Archive</source>
+        <translation>Wybierz archiwum moda</translation>
+    </message>
+    <message>
+        <source>Mod Archives (*.zip *.7z *.rar);;All Files (*)</source>
+        <translation>Archiwa modów (*.zip *.7z *.rar);;Wszystkie pliki (*)</translation>
+    </message>
+    <message>
+        <source>Archive Analysis</source>
+        <translation>Analiza archiwum</translation>
+    </message>
+    <message>
+        <source>Could not initialize the archive reader.</source>
+        <translation>Nie można zainicjalizować czytnika archiwów.</translation>
+    </message>
+    <message>
+        <source>Unknown error</source>
+        <translation>Nieznany błąd</translation>
+    </message>
+    <message>
+        <source>Could not open the archive:
+%1</source>
+        <translation>Nie można otworzyć archiwum:
+%1</translation>
+    </message>
+    <message>
+        <source>The archive was only partially read:
+%1</source>
+        <translation>Archiwum zostało odczytane tylko częściowo:
+%1</translation>
+    </message>
+    <message>
+        <source>No recognizable Morrowind data root</source>
+        <translation>Nie rozpoznano katalogu danych Morrowinda</translation>
+    </message>
+    <message>
+        <source>Simple mod (data files at archive root)</source>
+        <translation>Prosty mod (pliki danych w katalogu głównym archiwum)</translation>
+    </message>
+    <message>
+        <source>Single wrapped data root</source>
+        <translation>Pojedynczy opakowany katalog danych</translation>
+    </message>
+    <message>
+        <source>BAIN-like package with multiple subpackages</source>
+        <translation>Pakiet typu BAIN z wieloma podpakietami</translation>
+    </message>
+    <message>
+        <source>Multiple possible data roots</source>
+        <translation>Wiele możliwych katalogów danych</translation>
+    </message>
+    <message>
+        <source>Archive Analysis — %1</source>
+        <translation>Analiza archiwum — %1</translation>
+    </message>
+    <message>
+        <source>Archive: %1
+Format: %2
+Files: %3
+Detected layout: %4</source>
+        <translation>Archiwum: %1
+Format: %2
+Pliki: %3
+Wykryty układ: %4</translation>
+    </message>
+    <message>
+        <source>Unknown</source>
+        <translation>Nieznany</translation>
+    </message>
+    <message>
+        <source>This step only analyzes the archive. Installation and subpackage selection will be added next.</source>
+        <translation>Ten etap tylko analizuje archiwum. Instalacja i wybór podpakietów zostaną dodane w następnym kroku.</translation>
+    </message>
+    <message>
+        <source>Detected data root / subpackage</source>
+        <translation>Wykryty katalog danych / podpakiet</translation>
+    </message>
+    <message>
+        <source>Files</source>
+        <translation>Pliki</translation>
+    </message>
+    <message>
+        <source>No candidate data roots were detected.</source>
+        <translation>Nie wykryto kandydatów na katalog danych.</translation>
+    </message>
+    <message>
+        <source>(archive root)</source>
+        <translation>(katalog główny archiwum)</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

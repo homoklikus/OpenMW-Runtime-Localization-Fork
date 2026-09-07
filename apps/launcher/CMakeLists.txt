@@ -62,6 +62,8 @@ openmw_add_executable(openmw-launcher
 
 add_dependencies(openmw-launcher qm-files)
 
+target_include_directories(openmw-launcher PRIVATE ${LibArchive_INCLUDE_DIRS})
+
 if (WIN32)
     INSTALL(TARGETS openmw-launcher RUNTIME DESTINATION ".")
 endif (WIN32)
@@ -69,6 +71,7 @@ endif (WIN32)
 target_link_libraries(openmw-launcher
     SDL2::SDL2
     ${OPENAL_LIBRARY}
+    ${LibArchive_LIBRARIES}
     components_qt
 )
 

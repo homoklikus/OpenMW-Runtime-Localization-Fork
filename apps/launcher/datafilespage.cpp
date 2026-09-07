@@ -1,6 +1,9 @@
 #include "datafilespage.hpp"
 #include "maindialog.hpp"
 
+#include <archive.h>
+#include <archive_entry.h>
+
 #include <QClipboard>
 #include <QAbstractItemView>
 #include <QDebug>
@@ -371,6 +374,13 @@ Launcher::DataFilesPage::DataFilesPage(const Files::ConfigurationManager& cfg, C
     connect(ui.directoryRemoveButton, &QPushButton::released, this, &DataFilesPage::removeDirectory);
     connect(ui.modsDirectoryBrowseButton, &QPushButton::released, this, [this]() { chooseModsDirectory(); });
     connect(ui.modsDirectoryClearButton, &QPushButton::released, this, [this]() { clearModsDirectory(); });
+
+    auto* installArchiveButton = new QPushButton(tr("Install from Archive..."), this);
+    installArchiveButton->setToolTip(
+        tr("Select a ZIP, 7Z or RAR mod archive and analyze its installation structure."));
+    ui.modsDirectoryLayout->insertWidget(3, installArchiveButton);
+    connect(installArchiveButton, &QPushButton::released, this, &DataFilesPage::analyzeModArchive);
+
     ui.modsDirectoryLineEdit->setText(mLauncherSettings.getModsDirectory());
 
     connect(
@@ -583,6 +593,260 @@ void Launcher::DataFilesPage::removeManagedModsDirectoryEntries(const QString& r
         if (isDirectChildPath(setting.value, rootPath))
             delete ui.directoryListWidget->takeItem(row);
     }
+}
+
+void Launcher::DataFilesPage::analyzeModArchive()
+{
+    const QString archivePath = QFileDialog::getOpenFileName(this, tr("Select Mod Archive"), QString(),
+        tr("Mod Archives (*.zip *.7z *.rar);;All Files (*)"));
+
+    if (archivePath.isEmpty())
+        return;
+
+    struct archive* archiveHandle = archive_read_new();
+    if (!archiveHandle)
+    {
+        QMessageBox::critical(this, tr("Archive Analysis"), tr("Could not initialize the archive reader."));
+        return;
+    }
+
+    archive_read_support_filter_all(archiveHandle);
+    archive_read_support_format_all(archiveHandle);
+
+    const QByteArray encodedPath = QFile::encodeName(archivePath);
+    if (archive_read_open_filename(archiveHandle, encodedPath.constData(), 10240) != ARCHIVE_OK)
+    {
+        const char* error = archive_error_string(archiveHandle);
+        const QString errorText = error ? QString::fromUtf8(error) : tr("Unknown error");
+        archive_read_free(archiveHandle);
+        QMessageBox::critical(this, tr("Archive Analysis"),
+            tr("Could not open the archive:\n%1").arg(errorText));
+        return;
+    }
+
+    QStringList filePaths;
+    QString archiveFormat;
+    struct archive_entry* entry = nullptr;
+    int readResult = ARCHIVE_OK;
+
+    while ((readResult = archive_read_next_header(archiveHandle, &entry)) == ARCHIVE_OK)
+    {
+        if (archiveFormat.isEmpty())
+        {
+            const char* formatName = archive_format_name(archiveHandle);
+            if (formatName)
+                archiveFormat = QString::fromUtf8(formatName);
+        }
+
+        if (archive_entry_filetype(entry) == AE_IFDIR)
+        {
+            archive_read_data_skip(archiveHandle);
+            continue;
+        }
+
+        const char* rawPath = archive_entry_pathname_utf8(entry);
+        if (!rawPath)
+            rawPath = archive_entry_pathname(entry);
+        if (!rawPath)
+        {
+            archive_read_data_skip(archiveHandle);
+            continue;
+        }
+
+        QString path = QString::fromUtf8(rawPath).trimmed();
+        path.replace('\\', '/');
+
+        while (path.startsWith(QLatin1String("./")))
+            path.remove(0, 2);
+        while (path.startsWith('/'))
+            path.remove(0, 1);
+
+        if (!path.isEmpty())
+            filePaths.push_back(path);
+
+        archive_read_data_skip(archiveHandle);
+    }
+
+    QString archiveError;
+    if (readResult != ARCHIVE_EOF)
+    {
+        const char* error = archive_error_string(archiveHandle);
+        if (error)
+            archiveError = QString::fromUtf8(error);
+    }
+
+    archive_read_free(archiveHandle);
+
+    if (!archiveError.isEmpty())
+    {
+        QMessageBox::warning(this, tr("Archive Analysis"),
+            tr("The archive was only partially read:\n%1").arg(archiveError));
+    }
+
+    static const QStringList assetDirectories{
+        QStringLiteral("animations"),
+        QStringLiteral("bookart"),
+        QStringLiteral("fonts"),
+        QStringLiteral("icons"),
+        QStringLiteral("interface"),
+        QStringLiteral("l10n"),
+        QStringLiteral("meshes"),
+        QStringLiteral("music"),
+        QStringLiteral("mygui"),
+        QStringLiteral("scripts"),
+        QStringLiteral("shaders"),
+        QStringLiteral("sound"),
+        QStringLiteral("splash"),
+        QStringLiteral("strings"),
+        QStringLiteral("textures"),
+        QStringLiteral("trees"),
+        QStringLiteral("video"),
+    };
+
+    static const QStringList rootFileExtensions{
+        QStringLiteral("esm"),
+        QStringLiteral("esp"),
+        QStringLiteral("bsa"),
+        QStringLiteral("ba2"),
+        QStringLiteral("omwgame"),
+        QStringLiteral("omwaddon"),
+        QStringLiteral("omwscripts"),
+    };
+
+    QSet<QString> candidateRoots;
+
+    for (const QString& path : filePaths)
+    {
+        const QStringList parts = path.split('/', Qt::SkipEmptyParts);
+        if (parts.isEmpty())
+            continue;
+
+        bool foundRoot = false;
+        for (int i = 0; i < parts.size(); ++i)
+        {
+            if (assetDirectories.contains(parts.at(i), Qt::CaseInsensitive))
+            {
+                candidateRoots.insert(parts.mid(0, i).join('/'));
+                foundRoot = true;
+                break;
+            }
+        }
+
+        if (foundRoot)
+            continue;
+
+        const QString extension = QFileInfo(parts.constLast()).suffix().toLower();
+        if (rootFileExtensions.contains(extension))
+            candidateRoots.insert(parts.mid(0, parts.size() - 1).join('/'));
+    }
+
+    QStringList roots = candidateRoots.values();
+    std::sort(roots.begin(), roots.end(),
+        [](const QString& lhs, const QString& rhs) {
+            return lhs.compare(rhs, Qt::CaseInsensitive) < 0;
+        });
+
+    QHash<QString, int> filesPerRoot;
+    for (const QString& root : roots)
+    {
+        int count = 0;
+        const QString prefix = root.isEmpty() ? QString() : root + '/';
+
+        for (const QString& path : filePaths)
+        {
+            if (root.isEmpty() || path.startsWith(prefix, Qt::CaseInsensitive))
+                ++count;
+        }
+
+        filesPerRoot.insert(root, count);
+    }
+
+    int numberedRoots = 0;
+    for (const QString& root : roots)
+    {
+        const QString firstSegment = root.section('/', 0, 0).trimmed();
+        if (firstSegment.size() >= 2 && firstSegment.at(0).isDigit() && firstSegment.at(1).isDigit())
+            ++numberedRoots;
+    }
+
+    QString layoutType;
+    if (roots.isEmpty())
+        layoutType = tr("No recognizable Morrowind data root");
+    else if (roots.size() == 1)
+    {
+        if (roots.constFirst().isEmpty())
+            layoutType = tr("Simple mod (data files at archive root)");
+        else
+            layoutType = tr("Single wrapped data root");
+    }
+    else if (numberedRoots >= 2)
+        layoutType = tr("BAIN-like package with multiple subpackages");
+    else
+        layoutType = tr("Multiple possible data roots");
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Archive Analysis — %1").arg(QFileInfo(archivePath).fileName()));
+    dialog.resize(850, 520);
+
+    auto* layout = new QVBoxLayout(&dialog);
+
+    auto* summary = new QLabel(
+        tr("Archive: %1\nFormat: %2\nFiles: %3\nDetected layout: %4")
+            .arg(QFileInfo(archivePath).fileName())
+            .arg(archiveFormat.isEmpty() ? tr("Unknown") : archiveFormat)
+            .arg(filePaths.size())
+            .arg(layoutType),
+        &dialog);
+    summary->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    layout->addWidget(summary);
+
+    auto* note = new QLabel(
+        tr("This step only analyzes the archive. Installation and subpackage selection will be added next."),
+        &dialog);
+    note->setWordWrap(true);
+    layout->addWidget(note);
+
+    auto* table = new QTableWidget(&dialog);
+    table->setColumnCount(3);
+    table->setHorizontalHeaderLabels({ tr("No."), tr("Detected data root / subpackage"), tr("Files") });
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->setAlternatingRowColors(true);
+    table->verticalHeader()->setVisible(false);
+
+    if (roots.isEmpty())
+    {
+        table->setRowCount(1);
+        auto* item = new QTableWidgetItem(tr("No candidate data roots were detected."));
+        table->setSpan(0, 0, 1, 3);
+        table->setItem(0, 0, item);
+    }
+    else
+    {
+        table->setRowCount(roots.size());
+
+        for (int row = 0; row < roots.size(); ++row)
+        {
+            const QString& root = roots.at(row);
+            table->setItem(row, 0, new QTableWidgetItem(QString::number(row + 1)));
+            table->setItem(row, 1,
+                new QTableWidgetItem(root.isEmpty() ? tr("(archive root)") : root));
+            table->setItem(row, 2,
+                new QTableWidgetItem(QString::number(filesPerRoot.value(root))));
+        }
+    }
+
+    auto* header = table->horizontalHeader();
+    header->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(1, QHeaderView::Stretch);
+    header->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    layout->addWidget(table);
+
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+
+    dialog.exec();
 }
 
 void Launcher::DataFilesPage::chooseModsDirectory()

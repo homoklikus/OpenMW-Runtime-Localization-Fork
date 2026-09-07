@@ -173,6 +173,7 @@ namespace Launcher
         QStringList modsDirectoryChildren() const;
         void chooseModsDirectory();
         void clearModsDirectory();
+        void analyzeModArchive();
         void removeManagedModsDirectoryEntries(const QString& rootPath);
         void applyAssetDirectoryOrder(const QStringList& paths);
         void updateAssetConflictStats();

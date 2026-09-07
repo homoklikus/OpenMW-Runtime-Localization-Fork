@@ -546,6 +546,104 @@ to default Morrowind fonts. Check this box if you still prefer original fonts ov
         <source>No comparable texture resolutions were found.</source>
         <translation>No comparable texture resolutions were found.</translation>
     </message>
+    <message>
+        <source>Install from Archive...</source>
+        <translation>Install from Archive...</translation>
+    </message>
+    <message>
+        <source>Select a ZIP, 7Z or RAR mod archive and analyze its installation structure.</source>
+        <translation>Select a ZIP, 7Z or RAR mod archive and analyze its installation structure.</translation>
+    </message>
+    <message>
+        <source>Select Mod Archive</source>
+        <translation>Select Mod Archive</translation>
+    </message>
+    <message>
+        <source>Mod Archives (*.zip *.7z *.rar);;All Files (*)</source>
+        <translation>Mod Archives (*.zip *.7z *.rar);;All Files (*)</translation>
+    </message>
+    <message>
+        <source>Archive Analysis</source>
+        <translation>Archive Analysis</translation>
+    </message>
+    <message>
+        <source>Could not initialize the archive reader.</source>
+        <translation>Could not initialize the archive reader.</translation>
+    </message>
+    <message>
+        <source>Unknown error</source>
+        <translation>Unknown error</translation>
+    </message>
+    <message>
+        <source>Could not open the archive:
+%1</source>
+        <translation>Could not open the archive:
+%1</translation>
+    </message>
+    <message>
+        <source>The archive was only partially read:
+%1</source>
+        <translation>The archive was only partially read:
+%1</translation>
+    </message>
+    <message>
+        <source>No recognizable Morrowind data root</source>
+        <translation>No recognizable Morrowind data root</translation>
+    </message>
+    <message>
+        <source>Simple mod (data files at archive root)</source>
+        <translation>Simple mod (data files at archive root)</translation>
+    </message>
+    <message>
+        <source>Single wrapped data root</source>
+        <translation>Single wrapped data root</translation>
+    </message>
+    <message>
+        <source>BAIN-like package with multiple subpackages</source>
+        <translation>BAIN-like package with multiple subpackages</translation>
+    </message>
+    <message>
+        <source>Multiple possible data roots</source>
+        <translation>Multiple possible data roots</translation>
+    </message>
+    <message>
+        <source>Archive Analysis — %1</source>
+        <translation>Archive Analysis — %1</translation>
+    </message>
+    <message>
+        <source>Archive: %1
+Format: %2
+Files: %3
+Detected layout: %4</source>
+        <translation>Archive: %1
+Format: %2
+Files: %3
+Detected layout: %4</translation>
+    </message>
+    <message>
+        <source>Unknown</source>
+        <translation>Unknown</translation>
+    </message>
+    <message>
+        <source>This step only analyzes the archive. Installation and subpackage selection will be added next.</source>
+        <translation>This step only analyzes the archive. Installation and subpackage selection will be added next.</translation>
+    </message>
+    <message>
+        <source>Detected data root / subpackage</source>
+        <translation>Detected data root / subpackage</translation>
+    </message>
+    <message>
+        <source>Files</source>
+        <translation>Files</translation>
+    </message>
+    <message>
+        <source>No candidate data roots were detected.</source>
+        <translation>No candidate data roots were detected.</translation>
+    </message>
+    <message>
+        <source>(archive root)</source>
+        <translation>(archive root)</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

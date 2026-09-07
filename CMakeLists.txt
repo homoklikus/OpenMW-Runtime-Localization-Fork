@@ -276,6 +276,10 @@ endif()
 
 find_package(LZ4 REQUIRED)
 
+if (BUILD_LAUNCHER)
+    find_package(LibArchive REQUIRED)
+endif()
+
 if (USE_QT)
     find_package(QT REQUIRED COMPONENTS Core NAMES Qt6)
     find_package(Qt6 COMPONENTS Core Widgets Network OpenGL OpenGLWidgets LinguistTools Svg REQUIRED)
