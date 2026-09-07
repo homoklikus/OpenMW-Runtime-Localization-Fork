@@ -542,6 +542,14 @@ do domyślnych czcionek Morrowind. Zaznacz to pole, jeśli nadal wolisz oryginal
         <source>DDS resolution comparison against %1:</source>
         <translation>Porównanie rozdzielczości DDS względem %1:</translation>
     </message>
+    <message>
+        <source>Texture resolution comparison against %1:</source>
+        <translation>Porównanie rozdzielczości tekstur względem %1:</translation>
+    </message>
+    <message>
+        <source>No comparable texture resolutions were found.</source>
+        <translation>Nie znaleziono porównywalnych rozdzielczości tekstur.</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

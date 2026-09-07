@@ -10,6 +10,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QHash>
+#include <QImageReader>
 #include <QLabel>
 #include <QHeaderView>
 #include <QList>
@@ -179,6 +180,59 @@ namespace
             return {};
 
         return QSize(static_cast<int>(width), static_cast<int>(height));
+    }
+
+    QSize readTgaSize(const QString& filePath)
+    {
+        QFile file(filePath);
+        if (!file.open(QIODevice::ReadOnly))
+            return {};
+
+        // TGA header stores width and height as little-endian 16-bit values
+        // at offsets 12 and 14. No image decoding is needed.
+        const QByteArray header = file.read(18);
+        if (header.size() < 18)
+            return {};
+
+        const auto readLittleEndian16 = [](const char* data) -> quint16 {
+            const auto* bytes = reinterpret_cast<const unsigned char*>(data);
+            return static_cast<quint16>(bytes[0])
+                | (static_cast<quint16>(bytes[1]) << 8);
+        };
+
+        const quint16 width = readLittleEndian16(header.constData() + 12);
+        const quint16 height = readLittleEndian16(header.constData() + 14);
+
+        if (width == 0 || height == 0)
+            return {};
+
+        return QSize(static_cast<int>(width), static_cast<int>(height));
+    }
+
+    QSize readTextureSize(const QString& filePath)
+    {
+        const QString suffix = QFileInfo(filePath).suffix().toLower();
+
+        if (suffix == QLatin1String("dds"))
+            return readDdsSize(filePath);
+
+        if (suffix == QLatin1String("tga"))
+            return readTgaSize(filePath);
+
+        // QImageReader::size() reads image metadata only; it does not decode
+        // the full image. These formats are useful for OpenMW texture mods
+        // that do not use DDS.
+        if (suffix == QLatin1String("png")
+            || suffix == QLatin1String("jpg")
+            || suffix == QLatin1String("jpeg")
+            || suffix == QLatin1String("bmp"))
+        {
+            QImageReader reader(filePath);
+            reader.setAutoTransform(false);
+            return reader.size();
+        }
+
+        return {};
     }
 
     QString textureSizeText(const QSize& size)
@@ -1053,7 +1107,7 @@ void Launcher::DataFilesPage::showAssetConflictDetails(const QString& path)
         &dialog);
     layout->addWidget(summary);
 
-    auto* resolutionTitle = new QLabel(tr("DDS resolution comparison against %1:").arg(modName), &dialog);
+    auto* resolutionTitle = new QLabel(tr("Texture resolution comparison against %1:").arg(modName), &dialog);
     layout->addWidget(resolutionTitle);
 
     auto* resolutionTable = new QTableWidget(&dialog);
@@ -1105,16 +1159,13 @@ void Launcher::DataFilesPage::showAssetConflictDetails(const QString& path)
         return filesIt.value();
     };
 
-    auto ddsSizeFor = [&](const QString& directory, const QString& relativePath) -> QSize {
-        if (!relativePath.endsWith(QLatin1String(".dds"), Qt::CaseInsensitive))
-            return {};
-
+    auto textureSizeFor = [&](const QString& directory, const QString& relativePath) -> QSize {
         const QHash<QString, QString>& files = filesForDirectory(directory);
         const auto fileIt = files.constFind(relativePath.toLower());
         if (fileIt == files.cend())
             return {};
 
-        return readDdsSize(fileIt.value());
+        return readTextureSize(fileIt.value());
     };
 
     QHash<QString, ResolutionComparison> comparisons;
@@ -1133,7 +1184,7 @@ void Launcher::DataFilesPage::showAssetConflictDetails(const QString& path)
         winnerItem->setToolTip(detail.mWinnerMod);
         modsItem->setToolTip(detail.mOtherMods.join("\n"));
 
-        const QSize currentSize = ddsSizeFor(path, detail.mRelativePath);
+        const QSize currentSize = textureSizeFor(path, detail.mRelativePath);
         if (currentSize.isValid() && !currentSize.isEmpty())
         {
             resolutionItem->setText(textureSizeText(currentSize));
@@ -1150,7 +1201,7 @@ void Launcher::DataFilesPage::showAssetConflictDetails(const QString& path)
             {
                 const QString& otherName = detail.mOtherMods.at(competitor);
                 const QString& otherPath = detail.mOtherModPaths.at(competitor);
-                const QSize otherSize = ddsSizeFor(otherPath, detail.mRelativePath);
+                const QSize otherSize = textureSizeFor(otherPath, detail.mRelativePath);
                 if (!otherSize.isValid() || otherSize.isEmpty())
                     continue;
 
@@ -1215,7 +1266,7 @@ void Launcher::DataFilesPage::showAssetConflictDetails(const QString& path)
     if (comparisonKeys.isEmpty())
     {
         resolutionTable->setRowCount(1);
-        auto* noDataItem = new QTableWidgetItem(tr("No comparable DDS texture resolutions were found."));
+        auto* noDataItem = new QTableWidgetItem(tr("No comparable texture resolutions were found."));
         resolutionTable->setSpan(0, 0, 1, 6);
         resolutionTable->setItem(0, 0, noDataItem);
     }

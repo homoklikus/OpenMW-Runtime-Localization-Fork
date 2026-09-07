@@ -538,6 +538,14 @@ to default Morrowind fonts. Check this box if you still prefer original fonts ov
         <source>DDS resolution comparison against %1:</source>
         <translation>DDS resolution comparison against %1:</translation>
     </message>
+    <message>
+        <source>Texture resolution comparison against %1:</source>
+        <translation>Texture resolution comparison against %1:</translation>
+    </message>
+    <message>
+        <source>No comparable texture resolutions were found.</source>
+        <translation>No comparable texture resolutions were found.</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>
