@@ -4,6 +4,7 @@
 #include "loadordererror.hpp"
 #include <QAbstractTableModel>
 #include <QIcon>
+#include <QHash>
 #include <QSet>
 #include <QStringList>
 
@@ -61,8 +62,12 @@ namespace ContentSelectorModel
             const QMimeData* data, Qt::DropAction action, int row, int column, const QModelIndex& parent) override;
 
         void addFiles(const QString& path, bool newfiles);
+        void addAssetDirectory(const QString& path, bool newfiles);
         void sortFiles();
         bool containsDataFiles(const QString& path);
+        bool containsAssetFiles(const QString& path) const;
+        void clearConflictStats();
+        void setDirectoryConflictStats(const QString& path, int conflicts, int wins, int losses);
         void clearFiles();
 
         QModelIndex indexFromItem(const EsmFile* item) const;
@@ -84,6 +89,9 @@ namespace ContentSelectorModel
 
         void refreshModel(std::initializer_list<int> roles = {});
 
+    signals:
+        void signalAssetDirectoryOrderChanged(QStringList paths);
+
     private:
         void addFile(EsmFile* file);
 
@@ -101,7 +109,7 @@ namespace ContentSelectorModel
         QStringList mNonUserContent;
         std::set<const EsmFile*> mCheckedFiles;
         QHash<QString, bool> mNewFiles;
-        QSet<QString> mGroundcoverFiles;
+        QHash<QString, QString> mGroundcoverFiles;
         QString mEncoding;
         QIcon mWarningIcon;
         QIcon mErrorIcon;

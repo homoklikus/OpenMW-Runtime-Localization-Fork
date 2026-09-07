@@ -37,8 +37,12 @@ namespace ContentSelectorView
         QString currentFile() const;
 
         void addFiles(const QString& path, bool newfiles = false);
+        void addAssetDirectory(const QString& path, bool newfiles = false);
         void sortFiles();
         bool containsDataFiles(const QString& path);
+        bool containsAssetFiles(const QString& path) const;
+        void clearConflictStats();
+        void setDirectoryConflictStats(const QString& path, int conflicts, int wins, int losses);
         void clearFiles();
         void setNonUserContent(const QStringList& fileList);
         void setProfileContent(const QStringList& fileList);
@@ -81,6 +85,7 @@ namespace ContentSelectorView
         void signalSelectedFilesChanged(QStringList selectedFiles);
         void signalGroundcoverChanged(bool enabled);
         void signalLoadOrderChanged();
+        void signalAssetDirectoryOrderChanged(QStringList paths);
 
     private slots:
 

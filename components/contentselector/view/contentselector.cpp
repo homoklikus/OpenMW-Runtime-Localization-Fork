@@ -176,6 +176,8 @@ void ContentSelectorView::ContentSelector::buildAddonView()
     connect(ui->addonView, &QTableView::activated, this, &ContentSelector::slotAddonTableItemActivated);
     connect(mContentModel, &ContentSelectorModel::ContentModel::dataChanged, this,
         &ContentSelector::signalAddonDataChanged);
+    connect(mContentModel, &ContentSelectorModel::ContentModel::signalAssetDirectoryOrderChanged, this,
+        &ContentSelector::signalAssetDirectoryOrderChanged);
     connect(mContentModel, &ContentSelectorModel::ContentModel::dataChanged, this, &ContentSelector::slotRowsMoved);
     buildContextMenu();
 }
@@ -299,6 +301,11 @@ void ContentSelectorView::ContentSelector::addFiles(const QString& path, bool ne
     mContentModel->uncheckAll();
 }
 
+void ContentSelectorView::ContentSelector::addAssetDirectory(const QString& path, bool newfiles)
+{
+    mContentModel->addAssetDirectory(path, newfiles);
+}
+
 void ContentSelectorView::ContentSelector::sortFiles()
 {
     mContentModel->sortFiles();
@@ -307,6 +314,22 @@ void ContentSelectorView::ContentSelector::sortFiles()
 bool ContentSelectorView::ContentSelector::containsDataFiles(const QString& path)
 {
     return mContentModel->containsDataFiles(path);
+}
+
+bool ContentSelectorView::ContentSelector::containsAssetFiles(const QString& path) const
+{
+    return mContentModel->containsAssetFiles(path);
+}
+
+void ContentSelectorView::ContentSelector::clearConflictStats()
+{
+    mContentModel->clearConflictStats();
+}
+
+void ContentSelectorView::ContentSelector::setDirectoryConflictStats(
+    const QString& path, int conflicts, int wins, int losses)
+{
+    mContentModel->setDirectoryConflictStats(path, conflicts, wins, losses);
 }
 
 void ContentSelectorView::ContentSelector::clearFiles()

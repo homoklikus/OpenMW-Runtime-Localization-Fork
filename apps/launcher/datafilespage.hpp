@@ -158,6 +158,12 @@ namespace Launcher
         void addProfile(const QString& profile, bool setAsCurrent);
         void checkForDefaultProfile();
         void populateFileViews(const QString& contentModelName);
+        QStringList modsDirectoryChildren() const;
+        void chooseModsDirectory();
+        void clearModsDirectory();
+        void removeManagedModsDirectoryEntries(const QString& rootPath);
+        void applyAssetDirectoryOrder(const QStringList& paths);
+        void updateAssetConflictStats();
         void onReloadCellsTimerTimeout();
         void reloadCells();
         void refreshDataFilesView();

@@ -159,6 +159,30 @@
         <source>Ctrl+R</source>
         <translation>Ctrl+R</translation>
     </message>
+    <message>
+        <source>Mods Directory:</source>
+        <translation>Katalog modów:</translation>
+    </message>
+    <message>
+        <source>Each immediate subdirectory is treated as one mod and added automatically as a data directory.</source>
+        <translation>Każdy bezpośredni podkatalog jest traktowany jako osobny mod i automatycznie dodawany jako katalog danych.</translation>
+    </message>
+    <message>
+        <source>No Mods Directory selected</source>
+        <translation>Nie wybrano katalogu modów</translation>
+    </message>
+    <message>
+        <source>Browse...</source>
+        <translation>Przeglądaj...</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>Wyczyść</translation>
+    </message>
+    <message>
+        <source>Select Mods Directory</source>
+        <translation>Wybierz katalog modów</translation>
+    </message>
 </context>
 <context>
     <name>GraphicsPage</name>

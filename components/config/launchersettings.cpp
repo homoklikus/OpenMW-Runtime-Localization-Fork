@@ -22,6 +22,7 @@ namespace Config
         constexpr char sProfilesSection[] = "Profiles";
         constexpr char sImporterSection[] = "Importer";
         constexpr char sLanguageKey[] = "language";
+        constexpr char sModsDirectoryKey[] = "modsdirectory";
         constexpr char sCurrentProfileKey[] = "currentprofile";
         constexpr char sDataKey[] = "data";
         constexpr char sArchiveKey[] = "fallback-archive";
@@ -115,6 +116,11 @@ namespace Config
                 settings.mLanguage = value;
                 return true;
             }
+            if (key == sModsDirectoryKey)
+            {
+                settings.mModsDirectory = value;
+                return true;
+            }
 
             return false;
         }
@@ -192,6 +198,8 @@ namespace Config
         {
             writeSectionHeader(sSettingsSection, stream);
             writeKeyValue(sLanguageKey, value.mLanguage, stream);
+            if (!value.mModsDirectory.isEmpty())
+                writeKeyValue(sModsDirectoryKey, value.mModsDirectory, stream);
         }
 
         void writeProfiles(const LauncherSettings::Profiles& value, QTextStream& stream)

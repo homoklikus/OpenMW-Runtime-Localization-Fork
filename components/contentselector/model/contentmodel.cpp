@@ -11,6 +11,7 @@
 #include <QDebug>
 #include <QDir>
 #include <QDirIterator>
+#include <QFileInfo>
 #include <QFont>
 #include <QIODevice>
 #include <QPainter>
@@ -96,7 +97,7 @@ void ContentSelectorModel::ContentModel::setGroundcoverFiles(const QStringList& 
 {
     mGroundcoverFiles.clear();
     for (const QString& fileName : fileList)
-        mGroundcoverFiles.insert(fileName.toLower());
+        mGroundcoverFiles.insert(fileName.toLower(), fileName);
 
     // Groundcover is loaded through groundcover=, not content=.
     // If a file is present in both lists, prefer Groundcover.
@@ -112,11 +113,37 @@ void ContentSelectorModel::ContentModel::setGroundcoverFiles(const QStringList& 
 QStringList ContentSelectorModel::ContentModel::groundcoverFiles() const
 {
     QStringList result;
+    QSet<QString> emitted;
+
+    // Prefer the current content-model order and current filename spelling for
+    // plugins that are presently visible.
     for (const EsmFile* file : mFiles)
     {
-        if (isGroundcover(file))
-            result.push_back(file->fileName());
+        if (!isGroundcover(file))
+            continue;
+
+        const QString key = file->fileName().toLower();
+        result.push_back(file->fileName());
+        emitted.insert(key);
     }
+
+    // Preserve configured Groundcover plugins that are temporarily missing
+    // from the scanned data directories. This is important when a mod is moved
+    // to another data= path: refreshing the launcher must not silently erase
+    // its groundcover= assignment before the new path is discovered.
+    QStringList missing;
+    for (auto it = mGroundcoverFiles.cbegin(); it != mGroundcoverFiles.cend(); ++it)
+    {
+        if (!emitted.contains(it.key()))
+            missing.push_back(it.value());
+    }
+
+    std::sort(missing.begin(), missing.end(),
+        [](const QString& lhs, const QString& rhs) {
+            return lhs.compare(rhs, Qt::CaseInsensitive) < 0;
+        });
+    result.append(missing);
+
     return result;
 }
 
@@ -127,7 +154,8 @@ bool ContentSelectorModel::ContentModel::isGroundcover(const EsmFile* file) cons
 
 bool ContentSelectorModel::ContentModel::setGroundcover(const EsmFile* file, bool enabled)
 {
-    if (!file || file->isGameFile() || file->builtIn() || file->fromAnotherConfigFile()
+    if (!file || file->isAssetDirectory() || file->isGameFile() || file->builtIn()
+        || file->fromAnotherConfigFile()
         || file->fileName().endsWith(QLatin1String(".omwscripts"), Qt::CaseInsensitive))
         return false;
 
@@ -139,7 +167,7 @@ bool ContentSelectorModel::ContentModel::setGroundcover(const EsmFile* file, boo
 
     if (enabled)
     {
-        mGroundcoverFiles.insert(key);
+        mGroundcoverFiles.insert(key, file->fileName());
 
         // A plugin must not be loaded simultaneously as normal content
         // and as Groundcover.
@@ -186,7 +214,7 @@ QVariant ContentSelectorModel::ContentModel::headerData(
         switch (section)
         {
             case Column_FileName:
-                return tr("Plugins");
+                return tr("Mods / Plugins");
             case Column_Number:
                 return tr("No.");
             case Column_Status:
@@ -248,6 +276,9 @@ Qt::ItemFlags ContentSelectorModel::ContentModel::flags(const QModelIndex& index
 
     if (!file)
         return Qt::NoItemFlags;
+
+    if (file->isAssetDirectory())
+        return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsDragEnabled;
 
     if (file->builtIn() || file->fromAnotherConfigFile())
         return Qt::ItemIsEnabled;
@@ -327,6 +358,10 @@ QVariant ContentSelectorModel::ContentModel::data(const QModelIndex& index, int 
                     return tr("Warning");
                 if (isGroundcover(file))
                     return QString();
+                if (file->conflictCount() > 0)
+                    return tr("Conflicts: %1").arg(file->conflictCount());
+                if (file->isAssetDirectory())
+                    return tr("Assets");
                 return tr("OK");
 
             case Qt::DecorationRole:
@@ -341,12 +376,21 @@ QVariant ContentSelectorModel::ContentModel::data(const QModelIndex& index, int 
             case Qt::ToolTipRole:
             {
                 QStringList tooltip;
+                if (file->isAssetDirectory() && file->conflictCount() == 0)
+                    tooltip << tr("Asset-only mod");
                 if (isGroundcover(file))
                     tooltip << tr("Groundcover");
                 if (file->isMissing())
                     tooltip << tr("Missing");
                 else if (isLoadOrderError(file))
                     tooltip << tr("Warning");
+
+                if (file->conflictCount() > 0)
+                {
+                    tooltip << tr("Conflicts: %1").arg(file->conflictCount());
+                    tooltip << tr("Wins: %1").arg(file->conflictWins());
+                    tooltip << tr("Loses: %1").arg(file->conflictLosses());
+                }
 
                 return tooltip.isEmpty() ? QVariant() : QVariant(tooltip.join('\n'));
             }
@@ -386,6 +430,9 @@ QVariant ContentSelectorModel::ContentModel::data(const QModelIndex& index, int 
         case Qt::EditRole:
         case Qt::DisplayRole:
         {
+            if (file->isAssetDirectory() && column == Column_FileName)
+                return file->displayName();
+
             if (column >= 0 && column <= EsmFile::FileProperty_GameFile)
                 return file->fileProperty(static_cast<EsmFile::FileProperty>(column));
 
@@ -417,7 +464,7 @@ QVariant ContentSelectorModel::ContentModel::data(const QModelIndex& index, int 
 
         case Qt::CheckStateRole:
         {
-            if (file == mGameFile)
+            if (file->isAssetDirectory() || file == mGameFile)
                 return QVariant();
 
             return isChecked(file) ? Qt::Checked : Qt::Unchecked;
@@ -514,6 +561,10 @@ QMimeData* ContentSelectorModel::ContentModel::mimeData(const QModelIndexList& i
         if (encodedRows.contains(index.row()))
             continue;
 
+        const EsmFile* file = item(index.row());
+        if (!file)
+            continue;
+
         encodedRows.insert(index.row());
         stream << index.row();
     }
@@ -561,6 +612,80 @@ bool ContentSelectorModel::ContentModel::dropMimeData(
         stream >> sourceRow;
         toMove.emplace_back(mFiles.at(sourceRow));
     }
+
+    if (toMove.empty())
+        return false;
+
+    const bool containsAssetDirectory = std::any_of(toMove.begin(), toMove.end(),
+        [](const EsmFile* file) { return file && file->isAssetDirectory(); });
+    const bool movingOnlyAssetDirectories = std::all_of(toMove.begin(), toMove.end(),
+        [](const EsmFile* file) { return file && file->isAssetDirectory(); });
+
+    // Do not mix the two independent orders in one drag operation:
+    // plugin rows control content= load order, while asset-only rows control
+    // data= priority.
+    if (containsAssetDirectory && !movingOnlyAssetDirectories)
+        return false;
+
+    if (movingOnlyAssetDirectories)
+    {
+        // Keep the physical slots occupied by asset rows in the combined
+        // Mods / Plugins table. Only reorder the asset entries among those
+        // slots. This avoids pretending that data= and content= are one
+        // shared load order.
+        std::vector<EsmFile*> assetFiles;
+        assetFiles.reserve(mFiles.size());
+        for (EsmFile* file : mFiles)
+        {
+            if (file->isAssetDirectory())
+                assetFiles.push_back(file);
+        }
+
+        // Preserve current visual order for multi-selection.
+        std::sort(toMove.begin(), toMove.end(), [this](const EsmFile* lhs, const EsmFile* rhs) {
+            return mFiles.indexOf(const_cast<EsmFile*>(lhs)) < mFiles.indexOf(const_cast<EsmFile*>(rhs));
+        });
+
+        std::vector<EsmFile*> remaining;
+        remaining.reserve(assetFiles.size());
+        for (EsmFile* file : assetFiles)
+        {
+            if (std::find(toMove.begin(), toMove.end(), file) == toMove.end())
+                remaining.push_back(file);
+        }
+
+        // Translate the table drop row to an insertion position in the
+        // asset-only sequence. Moved rows themselves do not count.
+        int insertPosition = 0;
+        const int boundedBeginRow = std::clamp(beginRow, 0, static_cast<int>(mFiles.size()));
+        for (int i = 0; i < boundedBeginRow; ++i)
+        {
+            EsmFile* file = mFiles.at(i);
+            if (file->isAssetDirectory()
+                && std::find(toMove.begin(), toMove.end(), file) == toMove.end())
+                ++insertPosition;
+        }
+        insertPosition = std::clamp(insertPosition, 0, static_cast<int>(remaining.size()));
+
+        remaining.insert(remaining.begin() + insertPosition, toMove.begin(), toMove.end());
+
+        emit layoutAboutToBeChanged();
+        std::size_t assetIndex = 0;
+        for (int i = 0; i < mFiles.size(); ++i)
+        {
+            if (mFiles.at(i)->isAssetDirectory())
+                mFiles[i] = remaining.at(assetIndex++);
+        }
+        emit layoutChanged();
+
+        QStringList directoryOrder;
+        for (const EsmFile* file : remaining)
+            directoryOrder.push_back(file->filePath());
+
+        emit signalAssetDirectoryOrderChanged(directoryOrder);
+        return true;
+    }
+
     int minRow = mFiles.size();
     int maxRow = 0;
     for (EsmFile* file : toMove)
@@ -702,6 +827,69 @@ void ContentSelectorModel::ContentModel::addFiles(const QString& path, bool newf
     }
 }
 
+void ContentSelectorModel::ContentModel::addAssetDirectory(const QString& path, bool newfiles)
+{
+    const QDir dir(path);
+    if (!dir.exists())
+        return;
+
+    const QString absolutePath = QDir::cleanPath(dir.absolutePath());
+
+    for (const EsmFile* existing : mFiles)
+    {
+        if (existing->isAssetDirectory()
+            && existing->filePath().compare(absolutePath, Qt::CaseInsensitive) == 0)
+            return;
+    }
+
+    QString displayName = QFileInfo(absolutePath).fileName();
+    if (displayName.isEmpty())
+        displayName = absolutePath;
+
+    auto asset = std::make_unique<EsmFile>(QStringLiteral("@assetdir:%1#").arg(absolutePath));
+    asset->setAssetDirectory(true);
+    asset->setDisplayName(displayName);
+    asset->setFilePath(absolutePath);
+    asset->setDate(QFileInfo(absolutePath).lastModified());
+
+    EsmFile* raw = asset.get();
+    addFile(asset.release());
+    setNew(raw, newfiles);
+}
+
+bool ContentSelectorModel::ContentModel::containsAssetFiles(const QString& path) const
+{
+    static const QStringList assetDirectories{
+        QStringLiteral("animations"),
+        QStringLiteral("bookart"),
+        QStringLiteral("fonts"),
+        QStringLiteral("icons"),
+        QStringLiteral("interface"),
+        QStringLiteral("l10n"),
+        QStringLiteral("meshes"),
+        QStringLiteral("music"),
+        QStringLiteral("mygui"),
+        QStringLiteral("scripts"),
+        QStringLiteral("shaders"),
+        QStringLiteral("sound"),
+        QStringLiteral("splash"),
+        QStringLiteral("strings"),
+        QStringLiteral("textures"),
+        QStringLiteral("trees"),
+        QStringLiteral("video"),
+    };
+
+    const QDir dir(path);
+    if (!dir.exists())
+        return false;
+
+    if (!dir.entryInfoList(assetDirectories, QDir::Dirs | QDir::NoDotAndDotDot).isEmpty())
+        return true;
+
+    const QStringList archives{ QStringLiteral("*.bsa"), QStringLiteral("*.ba2") };
+    return !dir.entryInfoList(archives, QDir::Files).isEmpty();
+}
+
 bool ContentSelectorModel::ContentModel::containsDataFiles(const QString& path)
 {
     QStringList filters;
@@ -709,8 +897,42 @@ bool ContentSelectorModel::ContentModel::containsDataFiles(const QString& path)
             << "*.esm"
             << "*.omwgame"
             << "*.omwaddon";
+    if (mShowOMWScripts)
+        filters << "*.omwscripts";
+
     QDirIterator it(path, filters, QDir::Files | QDir::NoDotAndDotDot);
     return it.hasNext();
+}
+
+void ContentSelectorModel::ContentModel::clearConflictStats()
+{
+    for (EsmFile* file : mFiles)
+        file->setConflictStats(0, 0, 0);
+
+    refreshModel({ Qt::DisplayRole, Qt::ToolTipRole });
+}
+
+void ContentSelectorModel::ContentModel::setDirectoryConflictStats(
+    const QString& path, int conflicts, int wins, int losses)
+{
+    const QString targetDirectory = QDir::cleanPath(QFileInfo(path).absoluteFilePath());
+
+    for (EsmFile* file : mFiles)
+    {
+        if (!file || file->filePath().isEmpty())
+            continue;
+
+        QString directory;
+        if (file->isAssetDirectory())
+            directory = QDir::cleanPath(QFileInfo(file->filePath()).absoluteFilePath());
+        else
+            directory = QDir::cleanPath(QFileInfo(file->filePath()).absolutePath());
+
+        if (directory.compare(targetDirectory, Qt::CaseInsensitive) == 0)
+            file->setConflictStats(conflicts, wins, losses);
+    }
+
+    refreshModel({ Qt::DisplayRole, Qt::ToolTipRole });
 }
 
 void ContentSelectorModel::ContentModel::clearFiles()
@@ -1014,6 +1236,9 @@ QList<ContentSelectorModel::LoadOrderError> ContentSelectorModel::ContentModel::
 
 QString ContentSelectorModel::ContentModel::toolTip(const EsmFile* file) const
 {
+    if (file && file->isAssetDirectory())
+        return tr("<b>Asset-only mod</b><br/><b>Path:</b><br/>%1").arg(file->filePath());
+
     int index = indexFromItem(file).row();
     auto errors = checkForLoadOrderErrors(file, index);
     if (!errors.empty())
@@ -1047,7 +1272,7 @@ void ContentSelectorModel::ContentModel::refreshModel(std::initializer_list<int>
 
 bool ContentSelectorModel::ContentModel::setCheckState(const EsmFile* file, bool checkState)
 {
-    if (!file || file->builtIn() || file->fromAnotherConfigFile())
+    if (!file || file->isAssetDirectory() || file->builtIn() || file->fromAnotherConfigFile())
         return false;
 
     if (checkState)

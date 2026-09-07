@@ -20,6 +20,7 @@ namespace Config
         struct Settings
         {
             QString mLanguage;
+            QString mModsDirectory;
         };
 
         struct MainWindow
@@ -88,6 +89,10 @@ namespace Config
         QString getLanguage() const { return mSettings.mLanguage; }
 
         void setLanguage(const QString& value) { mSettings.mLanguage = value; }
+
+        QString getModsDirectory() const { return mSettings.mModsDirectory; }
+
+        void setModsDirectory(const QString& value) { mSettings.mModsDirectory = value; }
 
         MainWindow getMainWindow() const { return mGeneral.mMainWindow; }
 

@@ -58,6 +58,34 @@
         <source>Groundcover</source>
         <translation></translation>
     </message>
+    <message>
+        <source>Mods / Plugins</source>
+        <translation>Mods / Plugins</translation>
+    </message>
+    <message>
+        <source>Assets</source>
+        <translation>Assets</translation>
+    </message>
+    <message>
+        <source>Asset-only mod</source>
+        <translation>Asset-only mod</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Asset-only mod&lt;/b&gt;&lt;br/&gt;&lt;b&gt;Path:&lt;/b&gt;&lt;br/&gt;%1</source>
+        <translation>&lt;b&gt;Asset-only mod&lt;/b&gt;&lt;br/&gt;&lt;b&gt;Path:&lt;/b&gt;&lt;br/&gt;%1</translation>
+    </message>
+    <message>
+        <source>Conflicts: %1</source>
+        <translation>Conflicts: %1</translation>
+    </message>
+    <message>
+        <source>Wins: %1</source>
+        <translation>Wins: %1</translation>
+    </message>
+    <message>
+        <source>Loses: %1</source>
+        <translation>Loses: %1</translation>
+    </message>
 </context>
 <context>
     <name>ContentSelectorModel::EsmFile</name>

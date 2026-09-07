@@ -173,6 +173,47 @@
          </property>
         </widget>
        </item>
+       <item row="2" column="0" colspan="2">
+        <layout class="QHBoxLayout" name="modsDirectoryLayout">
+         <item>
+          <widget class="QLabel" name="modsDirectoryLabel">
+           <property name="text">
+            <string>Mods Directory:</string>
+           </property>
+           <property name="toolTip">
+            <string>Each immediate subdirectory is treated as one mod and added automatically as a data directory.</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLineEdit" name="modsDirectoryLineEdit">
+           <property name="readOnly">
+            <bool>true</bool>
+           </property>
+           <property name="placeholderText">
+            <string>No Mods Directory selected</string>
+           </property>
+           <property name="toolTip">
+            <string>Each immediate subdirectory is treated as one mod and added automatically as a data directory.</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="modsDirectoryBrowseButton">
+           <property name="text">
+            <string>Browse...</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="modsDirectoryClearButton">
+           <property name="text">
+            <string>Clear</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
       </layout>
      </widget>
      <widget class="QWidget" name="archiveTab">

@@ -159,6 +159,30 @@
         <source>Ctrl+R</source>
         <translation></translation>
     </message>
+    <message>
+        <source>Mods Directory:</source>
+        <translation>Mods Directory:</translation>
+    </message>
+    <message>
+        <source>Each immediate subdirectory is treated as one mod and added automatically as a data directory.</source>
+        <translation>Each immediate subdirectory is treated as one mod and added automatically as a data directory.</translation>
+    </message>
+    <message>
+        <source>No Mods Directory selected</source>
+        <translation>No Mods Directory selected</translation>
+    </message>
+    <message>
+        <source>Browse...</source>
+        <translation>Browse...</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>Clear</translation>
+    </message>
+    <message>
+        <source>Select Mods Directory</source>
+        <translation>Select Mods Directory</translation>
+    </message>
 </context>
 <context>
     <name>GraphicsPage</name>

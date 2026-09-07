@@ -58,6 +58,34 @@
         <source>Groundcover</source>
         <translation>Roślinność</translation>
     </message>
+    <message>
+        <source>Mods / Plugins</source>
+        <translation>Mody / wtyczki</translation>
+    </message>
+    <message>
+        <source>Assets</source>
+        <translation>Zasoby</translation>
+    </message>
+    <message>
+        <source>Asset-only mod</source>
+        <translation>Mod bez wtyczki</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;Asset-only mod&lt;/b&gt;&lt;br/&gt;&lt;b&gt;Path:&lt;/b&gt;&lt;br/&gt;%1</source>
+        <translation>&lt;b&gt;Mod bez wtyczki&lt;/b&gt;&lt;br/&gt;&lt;b&gt;Ścieżka:&lt;/b&gt;&lt;br/&gt;%1</translation>
+    </message>
+    <message>
+        <source>Conflicts: %1</source>
+        <translation>Konflikty: %1</translation>
+    </message>
+    <message>
+        <source>Wins: %1</source>
+        <translation>Wygrywa: %1</translation>
+    </message>
+    <message>
+        <source>Loses: %1</source>
+        <translation>Przegrywa: %1</translation>
+    </message>
 </context>
 <context>
     <name>ContentSelectorModel::EsmFile</name>

@@ -44,6 +44,14 @@ namespace ContentSelectorModel
         void setDescription(const QString& description);
         void setBuiltIn(bool builtIn);
         void setFromAnotherConfigFile(bool fromAnotherConfigFile);
+        void setAssetDirectory(bool assetDirectory) { mAssetDirectory = assetDirectory; }
+        void setDisplayName(const QString& displayName) { mDisplayName = displayName; }
+        void setConflictStats(int conflicts, int wins, int losses)
+        {
+            mConflictCount = conflicts;
+            mConflictWins = wins;
+            mConflictLosses = losses;
+        }
 
         void addGameFile(const QString& name) { mGameFiles.append(name); }
         QVariant fileProperty(const FileProperty prop) const;
@@ -55,6 +63,11 @@ namespace ContentSelectorModel
         const QString& filePath() const { return mPath; }
         bool builtIn() const { return mBuiltIn; }
         bool fromAnotherConfigFile() const { return mFromAnotherConfigFile; }
+        bool isAssetDirectory() const { return mAssetDirectory; }
+        const QString& displayName() const { return mDisplayName.isEmpty() ? mFileName : mDisplayName; }
+        int conflictCount() const { return mConflictCount; }
+        int conflictWins() const { return mConflictWins; }
+        int conflictLosses() const { return mConflictLosses; }
         bool isMissing() const { return mPath.isEmpty(); }
 
         /// @note Contains file names, not paths.
@@ -100,9 +113,14 @@ namespace ContentSelectorModel
         QStringList mGameFiles;
         QString mDescription;
         QString mToolTip;
+        QString mDisplayName;
         bool mBuiltIn = false;
         bool mFromAnotherConfigFile = false;
+        bool mAssetDirectory = false;
         bool mHasGameExtension = false;
+        int mConflictCount = 0;
+        int mConflictWins = 0;
+        int mConflictLosses = 0;
     };
 }
 

@@ -55,7 +55,7 @@ void ContentSelectorModel::EsmFile::setFromAnotherConfigFile(bool fromAnotherCon
 
 bool ContentSelectorModel::EsmFile::isGameFile() const
 {
-    return mHasGameExtension && mGameFiles.empty();
+    return !mAssetDirectory && mHasGameExtension && mGameFiles.empty();
 }
 
 QVariant ContentSelectorModel::EsmFile::fileProperty(const FileProperty prop) const

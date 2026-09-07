@@ -4,12 +4,15 @@
 #include <QClipboard>
 #include <QDebug>
 #include <QDesktopServices>
+#include <QDirIterator>
 #include <QFileDialog>
+#include <QHash>
 #include <QList>
 #include <QMessageBox>
 #include <QPair>
 #include <QProgressDialog>
 #include <QPushButton>
+#include <QSet>
 #include <QTimer>
 
 #include <algorithm>
@@ -85,6 +88,77 @@ namespace
 
         for (const auto& subdir : currentDir.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot))
             contentSubdirs(subdir.canonicalFilePath(), dirs);
+    }
+
+    QSet<QString> looseAssetPaths(const QString& rootPath)
+    {
+        static const QStringList assetDirectories{
+            QStringLiteral("animations"),
+            QStringLiteral("bookart"),
+            QStringLiteral("fonts"),
+            QStringLiteral("icons"),
+            QStringLiteral("interface"),
+            QStringLiteral("l10n"),
+            QStringLiteral("meshes"),
+            QStringLiteral("music"),
+            QStringLiteral("mygui"),
+            QStringLiteral("scripts"),
+            QStringLiteral("shaders"),
+            QStringLiteral("sound"),
+            QStringLiteral("splash"),
+            QStringLiteral("strings"),
+            QStringLiteral("textures"),
+            QStringLiteral("trees"),
+            QStringLiteral("video"),
+        };
+
+        QSet<QString> result;
+        const QDir root(rootPath);
+        if (!root.exists())
+            return result;
+
+        for (const QString& assetDirectory : assetDirectories)
+        {
+            const QString assetRootPath = root.filePath(assetDirectory);
+            const QDir assetRoot(assetRootPath);
+            if (!assetRoot.exists())
+                continue;
+
+            QDirIterator it(assetRootPath, QDir::Files | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+            while (it.hasNext())
+            {
+                const QString absolutePath = it.next();
+                QString relativePath = root.relativeFilePath(absolutePath);
+                relativePath.replace('\\', '/');
+                result.insert(relativePath.toLower());
+            }
+        }
+
+        return result;
+    }
+
+    QString normalizedAbsolutePath(const QString& path)
+    {
+        return QDir::cleanPath(QFileInfo(path).absoluteFilePath());
+    }
+
+    bool samePath(const QString& lhs, const QString& rhs)
+    {
+#ifdef Q_OS_WINDOWS
+        constexpr auto caseSensitivity = Qt::CaseInsensitive;
+#else
+        constexpr auto caseSensitivity = Qt::CaseSensitive;
+#endif
+        return normalizedAbsolutePath(lhs).compare(normalizedAbsolutePath(rhs), caseSensitivity) == 0;
+    }
+
+    bool isDirectChildPath(const QString& childPath, const QString& rootPath)
+    {
+        if (rootPath.isEmpty())
+            return false;
+
+        const QFileInfo childInfo(normalizedAbsolutePath(childPath));
+        return samePath(childInfo.absolutePath(), normalizedAbsolutePath(rootPath));
     }
 
     QList<QPair<int, QListWidgetItem*>> sortedSelectedItems(QListWidget* list, bool reverse = false)
@@ -189,6 +263,10 @@ Launcher::DataFilesPage::DataFilesPage(const Files::ConfigurationManager& cfg, C
     connect(ui.directoryDownButton, &QPushButton::released, this,
         [this]() { this->moveSources(ui.directoryListWidget, 1); });
     connect(ui.directoryRemoveButton, &QPushButton::released, this, &DataFilesPage::removeDirectory);
+    connect(ui.modsDirectoryBrowseButton, &QPushButton::released, this, [this]() { chooseModsDirectory(); });
+    connect(ui.modsDirectoryClearButton, &QPushButton::released, this, [this]() { clearModsDirectory(); });
+    ui.modsDirectoryLineEdit->setText(mLauncherSettings.getModsDirectory());
+
     connect(
         ui.archiveUpButton, &QPushButton::released, this, [this]() { this->moveSources(ui.archiveListWidget, -1); });
     connect(
@@ -219,6 +297,16 @@ Launcher::DataFilesPage::DataFilesPage(const Files::ConfigurationManager& cfg, C
     // immediately instead of waiting for launcher shutdown.
     connect(mSelector, &ContentSelectorView::ContentSelector::signalLoadOrderChanged, this,
         [this]() { mMainDialog->writeSettings(); });
+
+    // Dragging an asset-only row changes the real data= priority, not the
+    // plugin content= order. Mirror the order to Data Directories, recalculate
+    // conflict winners/losers and persist immediately.
+    connect(mSelector, &ContentSelectorView::ContentSelector::signalAssetDirectoryOrderChanged, this,
+        [this](const QStringList& paths) {
+            applyAssetDirectoryOrder(paths);
+            updateAssetConflictStats();
+            mMainDialog->writeSettings();
+        });
 
     mReloadCellsTimer = new QTimer(this);
     mReloadCellsTimer->setSingleShot(true);
@@ -345,6 +433,89 @@ void Launcher::DataFilesPage::buildDirectoryPickerContextMenu()
         [this]() { setCheckStateForMultiSelectedItems(mDirectoryPicker.dirListWidget, Qt::Unchecked); });
 }
 
+QStringList Launcher::DataFilesPage::modsDirectoryChildren() const
+{
+    QStringList result;
+
+    const QString rootPath = mLauncherSettings.getModsDirectory();
+    if (rootPath.isEmpty())
+        return result;
+
+    const QDir root(rootPath);
+    if (!root.exists())
+        return result;
+
+    const QFileInfoList entries = root.entryInfoList(
+        QDir::Dirs | QDir::NoDotAndDotDot | QDir::Readable, QDir::Name | QDir::IgnoreCase);
+
+    for (const QFileInfo& entry : entries)
+    {
+        QString path = entry.canonicalFilePath();
+        if (path.isEmpty())
+            path = entry.absoluteFilePath();
+        result.push_back(QDir::cleanPath(path));
+    }
+
+    return result;
+}
+
+void Launcher::DataFilesPage::removeManagedModsDirectoryEntries(const QString& rootPath)
+{
+    if (rootPath.isEmpty())
+        return;
+
+    for (int row = ui.directoryListWidget->count() - 1; row >= 0; --row)
+    {
+        QListWidgetItem* item = ui.directoryListWidget->item(row);
+        if (!item || !(item->flags() & Qt::ItemIsEnabled))
+            continue;
+
+        const Config::SettingValue setting = qvariant_cast<Config::SettingValue>(item->data(Qt::UserRole));
+        if (isDirectChildPath(setting.value, rootPath))
+            delete ui.directoryListWidget->takeItem(row);
+    }
+}
+
+void Launcher::DataFilesPage::chooseModsDirectory()
+{
+    const QString current = mLauncherSettings.getModsDirectory();
+    QString selected = QFileDialog::getExistingDirectory(
+        this, tr("Select Mods Directory"), current, QFileDialog::ShowDirsOnly | QFileDialog::Option::ReadOnly);
+
+    if (selected.isEmpty())
+        return;
+
+    const QDir selectedDir(selected);
+    selected = selectedDir.canonicalPath();
+    if (selected.isEmpty())
+        selected = selectedDir.absolutePath();
+    selected = QDir::cleanPath(selected);
+
+    if (samePath(selected, current))
+        return;
+
+    removeManagedModsDirectoryEntries(current);
+    mLauncherSettings.setModsDirectory(selected);
+    ui.modsDirectoryLineEdit->setText(selected);
+
+    refreshDataFilesView();
+    mMainDialog->writeSettings();
+}
+
+void Launcher::DataFilesPage::clearModsDirectory()
+{
+    const QString current = mLauncherSettings.getModsDirectory();
+    if (current.isEmpty())
+        return;
+
+    removeManagedModsDirectoryEntries(current);
+    mLauncherSettings.setModsDirectory({});
+    ui.modsDirectoryLineEdit->clear();
+
+    refreshDataFilesView();
+    mMainDialog->writeSettings();
+}
+
 bool Launcher::DataFilesPage::loadSettings()
 {
     ui.navMeshMaxSizeSpinBox->setValue(getMaxNavMeshDbFileSizeMiB());
@@ -418,6 +589,48 @@ void Launcher::DataFilesPage::populateFileViews(const QString& contentModelName)
 
     QList<Config::SettingValue> directories = mGameSettings.getDataDirs();
     QStringList contentModelDirectories = mLauncherSettings.getDataDirectoryList(contentModelName);
+
+    ui.modsDirectoryLineEdit->setText(mLauncherSettings.getModsDirectory());
+
+    const QString modsRoot = mLauncherSettings.getModsDirectory();
+    const QStringList automaticMods = modsDirectoryChildren();
+
+    if (!modsRoot.isEmpty())
+    {
+        // If the selected profile has not stored data directories yet, start
+        // from the current user data= list so selecting a Mods Directory does
+        // not discard manually configured directories.
+        if (contentModelDirectories.isEmpty())
+        {
+            for (const Config::SettingValue& dir : directories)
+            {
+                if (mGameSettings.isUserSetting(dir))
+                    contentModelDirectories.push_back(dir.originalRepresentation);
+            }
+        }
+
+        // Forget auto-managed direct children that were physically removed
+        // from the Mods Directory.
+        contentModelDirectories.erase(
+            std::remove_if(contentModelDirectories.begin(), contentModelDirectories.end(),
+                [&](const QString& path) {
+                    return isDirectChildPath(path, modsRoot) && !QDir(path).exists();
+                }),
+            contentModelDirectories.end());
+
+        // Preserve the user's saved priority. Newly copied mods are appended
+        // at the end, giving them the highest data= priority until reordered.
+        for (const QString& modPath : automaticMods)
+        {
+            const bool alreadyPresent = std::any_of(
+                contentModelDirectories.cbegin(), contentModelDirectories.cend(),
+                [&](const QString& existing) { return samePath(existing, modPath); });
+
+            if (!alreadyPresent)
+                contentModelDirectories.push_back(modPath);
+        }
+    }
+
     if (!contentModelDirectories.isEmpty())
     {
         directories.erase(std::remove_if(directories.begin(), directories.end(),
@@ -454,8 +667,17 @@ void Launcher::DataFilesPage::populateFileViews(const QString& contentModelName)
 
         QStringList tooltip;
 
-        // add content files presents in current directory
+        // add content files present in current directory
         mSelector->addFiles(currentDir.value, mNewDataDirs.contains(currentDir.value));
+
+        const bool containsContentFiles = mSelector->containsDataFiles(currentDir.value);
+        const bool containsAssetFiles = mSelector->containsAssetFiles(currentDir.value);
+
+        // A user data= directory is a mod even when it has no ESP/ESM.
+        // Represent asset-only mods in Data Files without creating a fake
+        // content= entry.
+        if (mGameSettings.isUserSetting(currentDir) && !containsContentFiles && containsAssetFiles)
+            mSelector->addAssetDirectory(currentDir.value, mNewDataDirs.contains(currentDir.value));
 
         // add current directory to list
         ui.directoryListWidget->addItem(currentDir.originalRepresentation);
@@ -492,7 +714,7 @@ void Launcher::DataFilesPage::populateFileViews(const QString& contentModelName)
         }
 
         // Add a "data file" icon if the directory contains a content file
-        if (mSelector->containsDataFiles(currentDir.value))
+        if (containsContentFiles)
         {
             item->setIcon(containsDataIcon);
 
@@ -510,6 +732,7 @@ void Launcher::DataFilesPage::populateFileViews(const QString& contentModelName)
     }
     progressBar.setValue(progressBar.maximum());
     mSelector->sortFiles();
+    updateAssetConflictStats();
 
     QList<Config::SettingValue> selectedArchives = mGameSettings.getArchiveList();
     QStringList contentModelSelectedArchives = mLauncherSettings.getArchiveList(contentModelName);
@@ -562,6 +785,118 @@ void Launcher::DataFilesPage::populateFileViews(const QString& contentModelName)
     for (const auto& groundcover : mGameSettings.values(QStringLiteral("groundcover")))
         groundcoverFiles.push_back(groundcover.value);
     mSelector->setGroundcoverFiles(groundcoverFiles);
+}
+
+void Launcher::DataFilesPage::applyAssetDirectoryOrder(const QStringList& paths)
+{
+    if (paths.size() < 2)
+        return;
+
+    // Normalize requested paths for reliable matching.
+    QStringList normalizedOrder;
+    normalizedOrder.reserve(paths.size());
+    for (const QString& path : paths)
+        normalizedOrder.push_back(QDir::cleanPath(QFileInfo(path).absoluteFilePath()));
+
+    QList<QListWidgetItem*> allItems;
+    allItems.reserve(ui.directoryListWidget->count());
+    while (ui.directoryListWidget->count() > 0)
+        allItems.push_back(ui.directoryListWidget->takeItem(0));
+
+    QVector<int> assetSlots;
+    QHash<QString, QListWidgetItem*> assetItems;
+
+    for (int i = 0; i < allItems.size(); ++i)
+    {
+        QListWidgetItem* item = allItems.at(i);
+        const Config::SettingValue setting = qvariant_cast<Config::SettingValue>(item->data(Qt::UserRole));
+        const QString normalizedPath = QDir::cleanPath(QFileInfo(setting.value).absoluteFilePath());
+
+        if (normalizedOrder.contains(normalizedPath, Qt::CaseInsensitive))
+        {
+            assetSlots.push_back(i);
+            assetItems.insert(normalizedPath.toLower(), item);
+        }
+    }
+
+    if (assetSlots.size() == normalizedOrder.size())
+    {
+        for (int i = 0; i < assetSlots.size(); ++i)
+        {
+            QListWidgetItem* item = assetItems.value(normalizedOrder.at(i).toLower(), nullptr);
+            if (item)
+                allItems[assetSlots.at(i)] = item;
+        }
+    }
+
+    for (QListWidgetItem* item : allItems)
+        ui.directoryListWidget->addItem(item);
+}
+
+void Launcher::DataFilesPage::updateAssetConflictStats()
+{
+    QStringList directories;
+
+    // Only enabled user data= entries are mods controlled by this launcher
+    // profile. Fixed OpenMW/base-game directories are intentionally excluded
+    // from the conflict counters, so "Conflicts" means mod-vs-mod conflicts.
+    for (int row = 0; row < ui.directoryListWidget->count(); ++row)
+    {
+        const QListWidgetItem* item = ui.directoryListWidget->item(row);
+        if (!item || !(item->flags() & Qt::ItemIsEnabled))
+            continue;
+
+        const Config::SettingValue setting = qvariant_cast<Config::SettingValue>(item->data(Qt::UserRole));
+        if (!mGameSettings.isUserSetting(setting))
+            continue;
+
+        if (mSelector->containsAssetFiles(setting.value))
+            directories.push_back(setting.value);
+    }
+
+    struct Stats
+    {
+        int conflicts = 0;
+        int wins = 0;
+        int losses = 0;
+    };
+
+    QVector<Stats> stats(directories.size());
+    QHash<QString, QVector<int>> owners;
+
+    for (int i = 0; i < directories.size(); ++i)
+    {
+        const QSet<QString> files = looseAssetPaths(directories.at(i));
+        for (const QString& relativePath : files)
+            owners[relativePath].push_back(i);
+    }
+
+    for (auto it = owners.cbegin(); it != owners.cend(); ++it)
+    {
+        const QVector<int>& fileOwners = it.value();
+        if (fileOwners.size() < 2)
+            continue;
+
+        // OpenMW resolves duplicate loose files in favour of the later
+        // (higher-priority) data= directory.
+        const int winner = fileOwners.constLast();
+
+        for (const int owner : fileOwners)
+        {
+            ++stats[owner].conflicts;
+            if (owner == winner)
+                ++stats[owner].wins;
+            else
+                ++stats[owner].losses;
+        }
+    }
+
+    mSelector->clearConflictStats();
+    for (int i = 0; i < directories.size(); ++i)
+    {
+        mSelector->setDirectoryConflictStats(
+            directories.at(i), stats[i].conflicts, stats[i].wins, stats[i].losses);
+    }
 }
 
 void Launcher::DataFilesPage::saveSettings(const QString& profile)
@@ -965,6 +1300,8 @@ void Launcher::DataFilesPage::sortDirectories()
             ui.directoryListWidget->setCurrentRow(i);
         }
     }
+
+    updateAssetConflictStats();
 }
 
 void Launcher::DataFilesPage::sortArchives()
@@ -1035,6 +1372,9 @@ void Launcher::DataFilesPage::moveSources(QListWidget* sourceList, int step)
         sourceList->insertItem(newRow, item);
         sourceList->setCurrentRow(newRow);
     }
+
+    if (sourceList == ui.directoryListWidget)
+        updateAssetConflictStats();
 }
 
 void Launcher::DataFilesPage::addArchive(const QString& name, Qt::CheckState selected, int row)
