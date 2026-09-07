@@ -17,6 +17,7 @@
 #include <QHash>
 #include <QHBoxLayout>
 #include <QImageReader>
+#include <QInputDialog>
 #include <QLabel>
 #include <QHeaderView>
 #include <QList>
@@ -32,6 +33,7 @@
 #include <QTableWidget>
 #include <QTemporaryDir>
 #include <QTimer>
+#include <QUuid>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -1033,25 +1035,76 @@ void Launcher::DataFilesPage::analyzeModArchive()
     if (dialog.exec() != QDialog::Accepted)
         return;
 
-    const QString modName = modNameEdit->text().trimmed();
+    QString modName = modNameEdit->text().trimmed();
     static const QRegularExpression invalidModNameCharacters(QStringLiteral(R"([<>:"/\\|?*])"));
 
-    if (modName.isEmpty() || modName == QLatin1String(".") || modName == QLatin1String("..")
-        || invalidModNameCharacters.match(modName).hasMatch()
-        || modName.endsWith(' ') || modName.endsWith('.'))
+    const auto isValidModName = [](const QString& name) {
+        return !name.isEmpty() && name != QLatin1String(".") && name != QLatin1String("..")
+            && !invalidModNameCharacters.match(name).hasMatch()
+            && !name.endsWith(' ') && !name.endsWith('.');
+    };
+
+    if (!isValidModName(modName))
     {
         QMessageBox::warning(this, tr("Install Mod"),
             tr("The mod name is invalid. Do not use path separators or characters reserved by Windows."));
         return;
     }
 
-    const QString destinationPath = QDir(modsDirectory).filePath(modName);
+    QString destinationPath = QDir(modsDirectory).filePath(modName);
+    bool replaceExisting = false;
+
     if (QFileInfo::exists(destinationPath))
     {
-        QMessageBox::warning(this, tr("Install Mod"),
-            tr("A mod directory named \"%1\" already exists.\nChoose a different mod name or remove the existing directory first.")
-                .arg(modName));
-        return;
+        QMessageBox collisionBox(QMessageBox::Question, tr("Mod Already Exists"),
+            tr("A mod directory named \"%1\" already exists.\n\n"
+               "You can replace it safely after the new version has been fully extracted, "
+               "or install this archive under a different name.")
+                .arg(modName),
+            QMessageBox::NoButton, this);
+
+        QPushButton* replaceButton = collisionBox.addButton(tr("Replace Existing"), QMessageBox::AcceptRole);
+        QPushButton* installAsNewButton = collisionBox.addButton(tr("Install as New..."), QMessageBox::ActionRole);
+        QPushButton* cancelButton = collisionBox.addButton(QMessageBox::Cancel);
+        collisionBox.setDefaultButton(cancelButton);
+        collisionBox.exec();
+
+        if (collisionBox.clickedButton() == replaceButton)
+        {
+            replaceExisting = true;
+        }
+        else if (collisionBox.clickedButton() == installAsNewButton)
+        {
+            bool accepted = false;
+            const QString suggestedName = modName + tr(" - Copy");
+            const QString newName = QInputDialog::getText(this, tr("Install as New"),
+                tr("New mod name:"), QLineEdit::Normal, suggestedName, &accepted).trimmed();
+
+            if (!accepted)
+                return;
+
+            if (!isValidModName(newName))
+            {
+                QMessageBox::warning(this, tr("Install Mod"),
+                    tr("The mod name is invalid. Do not use path separators or characters reserved by Windows."));
+                return;
+            }
+
+            const QString newDestinationPath = QDir(modsDirectory).filePath(newName);
+            if (QFileInfo::exists(newDestinationPath))
+            {
+                QMessageBox::warning(this, tr("Install Mod"),
+                    tr("A mod directory named \"%1\" already exists.").arg(newName));
+                return;
+            }
+
+            modName = newName;
+            destinationPath = newDestinationPath;
+        }
+        else
+        {
+            return;
+        }
     }
 
     QList<int> selectedRows;
@@ -1257,18 +1310,66 @@ void Launcher::DataFilesPage::analyzeModArchive()
 
     const QString stagingLeafName = QFileInfo(stagingDir.path()).fileName();
     QDir modsRoot(modsDirectory);
+
+    QString backupLeafName;
+    QString backupPath;
+
+    if (replaceExisting)
+    {
+        backupLeafName = QStringLiteral(".openmw-backup-%1")
+            .arg(QUuid::createUuid().toString(QUuid::WithoutBraces));
+        backupPath = modsRoot.filePath(backupLeafName);
+
+        if (!modsRoot.rename(modName, backupLeafName))
+        {
+            QMessageBox::critical(this, tr("Install Mod"),
+                tr("Could not move the existing mod to a temporary backup:\n%1").arg(destinationPath));
+            return;
+        }
+    }
+
     if (!modsRoot.rename(stagingLeafName, modName))
     {
+        if (replaceExisting)
+        {
+            if (!modsRoot.rename(backupLeafName, modName))
+            {
+                QMessageBox::critical(this, tr("Install Mod"),
+                    tr("Could not finalize the new installation and could not automatically restore the old mod.\n"
+                       "The backup is still available at:\n%1")
+                        .arg(backupPath));
+                return;
+            }
+        }
+
         QMessageBox::critical(this, tr("Install Mod"),
             tr("Could not finalize the installation in:\n%1").arg(destinationPath));
         return;
     }
 
+    bool backupRemoved = true;
+    if (replaceExisting)
+        backupRemoved = QDir(backupPath).removeRecursively();
+
     refreshDataFilesView();
     mMainDialog->writeSettings();
 
-    QMessageBox::information(this, tr("Mod Installed"),
-        tr("Installed %1 files to:\n%2").arg(installedFiles).arg(destinationPath));
+    if (replaceExisting && !backupRemoved)
+    {
+        QMessageBox::warning(this, tr("Mod Replaced"),
+            tr("The mod was replaced successfully, but the temporary backup could not be removed:\n%1")
+                .arg(backupPath));
+    }
+    else if (replaceExisting)
+    {
+        QMessageBox::information(this, tr("Mod Replaced"),
+            tr("Replaced the existing mod with %1 files in:\n%2").arg(installedFiles).arg(destinationPath));
+    }
+    else
+    {
+        QMessageBox::information(this, tr("Mod Installed"),
+            tr("Installed %1 files to:\n%2").arg(installedFiles).arg(destinationPath));
+    }
 }
 
 void Launcher::DataFilesPage::chooseModsDirectory()

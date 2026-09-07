@@ -770,6 +770,72 @@ Choose a different mod name or remove the existing directory first.</translation
         <translation>Installed %1 files to:
 %2</translation>
     </message>
+    <message>
+        <source>Mod Already Exists</source>
+        <translation>Mod Already Exists</translation>
+    </message>
+    <message>
+        <source>A mod directory named "%1" already exists.
+
+You can replace it safely after the new version has been fully extracted, or install this archive under a different name.</source>
+        <translation>A mod directory named "%1" already exists.
+
+You can replace it safely after the new version has been fully extracted, or install this archive under a different name.</translation>
+    </message>
+    <message>
+        <source>Replace Existing</source>
+        <translation>Replace Existing</translation>
+    </message>
+    <message>
+        <source>Install as New...</source>
+        <translation>Install as New...</translation>
+    </message>
+    <message>
+        <source>Install as New</source>
+        <translation>Install as New</translation>
+    </message>
+    <message>
+        <source>New mod name:</source>
+        <translation>New mod name:</translation>
+    </message>
+    <message>
+        <source> - Copy</source>
+        <translation> - Copy</translation>
+    </message>
+    <message>
+        <source>A mod directory named "%1" already exists.</source>
+        <translation>A mod directory named "%1" already exists.</translation>
+    </message>
+    <message>
+        <source>Could not move the existing mod to a temporary backup:
+%1</source>
+        <translation>Could not move the existing mod to a temporary backup:
+%1</translation>
+    </message>
+    <message>
+        <source>Could not finalize the new installation and could not automatically restore the old mod.
+The backup is still available at:
+%1</source>
+        <translation>Could not finalize the new installation and could not automatically restore the old mod.
+The backup is still available at:
+%1</translation>
+    </message>
+    <message>
+        <source>Mod Replaced</source>
+        <translation>Mod Replaced</translation>
+    </message>
+    <message>
+        <source>The mod was replaced successfully, but the temporary backup could not be removed:
+%1</source>
+        <translation>The mod was replaced successfully, but the temporary backup could not be removed:
+%1</translation>
+    </message>
+    <message>
+        <source>Replaced the existing mod with %1 files in:
+%2</source>
+        <translation>Replaced the existing mod with %1 files in:
+%2</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

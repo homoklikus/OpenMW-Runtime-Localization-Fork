@@ -774,6 +774,72 @@ Wybierz inną nazwę moda albo najpierw usuń istniejący katalog.</translation>
         <translation>Zainstalowano %1 plików do:
 %2</translation>
     </message>
+    <message>
+        <source>Mod Already Exists</source>
+        <translation>Mod już istnieje</translation>
+    </message>
+    <message>
+        <source>A mod directory named "%1" already exists.
+
+You can replace it safely after the new version has been fully extracted, or install this archive under a different name.</source>
+        <translation>Katalog moda o nazwie „%1” już istnieje.
+
+Możesz bezpiecznie zastąpić go po pełnym rozpakowaniu nowej wersji albo zainstalować to archiwum pod inną nazwą.</translation>
+    </message>
+    <message>
+        <source>Replace Existing</source>
+        <translation>Zastąp istniejący</translation>
+    </message>
+    <message>
+        <source>Install as New...</source>
+        <translation>Zainstaluj jako nowy...</translation>
+    </message>
+    <message>
+        <source>Install as New</source>
+        <translation>Instaluj jako nowy</translation>
+    </message>
+    <message>
+        <source>New mod name:</source>
+        <translation>Nowa nazwa moda:</translation>
+    </message>
+    <message>
+        <source> - Copy</source>
+        <translation> - Kopia</translation>
+    </message>
+    <message>
+        <source>A mod directory named "%1" already exists.</source>
+        <translation>Katalog moda o nazwie „%1” już istnieje.</translation>
+    </message>
+    <message>
+        <source>Could not move the existing mod to a temporary backup:
+%1</source>
+        <translation>Nie można przenieść istniejącego moda do tymczasowej kopii zapasowej:
+%1</translation>
+    </message>
+    <message>
+        <source>Could not finalize the new installation and could not automatically restore the old mod.
+The backup is still available at:
+%1</source>
+        <translation>Nie można sfinalizować nowej instalacji ani automatycznie przywrócić starego moda.
+Kopia zapasowa nadal znajduje się w:
+%1</translation>
+    </message>
+    <message>
+        <source>Mod Replaced</source>
+        <translation>Mod zastąpiony</translation>
+    </message>
+    <message>
+        <source>The mod was replaced successfully, but the temporary backup could not be removed:
+%1</source>
+        <translation>Mod został zastąpiony poprawnie, ale nie udało się usunąć tymczasowej kopii zapasowej:
+%1</translation>
+    </message>
+    <message>
+        <source>Replaced the existing mod with %1 files in:
+%2</source>
+        <translation>Zastąpiono istniejący mod wersją zawierającą %1 plików w:
+%2</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>
