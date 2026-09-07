@@ -144,6 +144,9 @@ namespace Launcher
         QStringList mKnownArchives;
         QStringList mNewDataDirs;
         QHash<QString, QVector<AssetConflictDetail>> mAssetConflictDetails;
+        QString mNexusApiKey;
+        QString mNexusUserName;
+        bool mNexusPremium = false;
 
         Process::ProcessInvoker* mNavMeshToolInvoker;
         NavMeshToolProgress mNavMeshToolProgress;
@@ -174,6 +177,7 @@ namespace Launcher
         void chooseModsDirectory();
         void clearModsDirectory();
         void analyzeModArchive();
+        void connectNexusMods();
         void removeManagedModsDirectoryEntries(const QString& rootPath);
         void applyAssetDirectoryOrder(const QStringList& paths);
         void updateAssetConflictStats();

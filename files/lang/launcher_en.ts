@@ -836,6 +836,68 @@ The backup is still available at:
         <translation>Replaced the existing mod with %1 files in:
 %2</translation>
     </message>
+    <message>
+        <source>Nexus Mods...</source>
+        <translation>Nexus Mods...</translation>
+    </message>
+    <message>
+        <source>Connect to Nexus Mods with a Personal API key for development and testing.</source>
+        <translation>Connect to Nexus Mods with a Personal API key for development and testing.</translation>
+    </message>
+    <message>
+        <source>Connect to Nexus Mods</source>
+        <translation>Connect to Nexus Mods</translation>
+    </message>
+    <message>
+        <source>Personal API key:</source>
+        <translation>Personal API key:</translation>
+    </message>
+    <message>
+        <source>Nexus Mods</source>
+        <translation>Nexus Mods</translation>
+    </message>
+    <message>
+        <source>Enter a Personal API key.</source>
+        <translation>Enter a Personal API key.</translation>
+    </message>
+    <message>
+        <source>Could not connect to Nexus Mods.
+HTTP status: %1
+%2</source>
+        <translation>Could not connect to Nexus Mods.
+HTTP status: %1
+%2</translation>
+    </message>
+    <message>
+        <source>Nexus Mods returned an invalid response.</source>
+        <translation>Nexus Mods returned an invalid response.</translation>
+    </message>
+    <message>
+        <source>The API key was accepted, but the Nexus Mods account name was not returned.</source>
+        <translation>The API key was accepted, but the Nexus Mods account name was not returned.</translation>
+    </message>
+    <message>
+        <source>Nexus Mods Connected</source>
+        <translation>Nexus Mods Connected</translation>
+    </message>
+    <message>
+        <source>Connected to Nexus Mods as: %1
+Account: %2
+
+The Personal API key is kept only for this launcher session.</source>
+        <translation>Connected to Nexus Mods as: %1
+Account: %2
+
+The Personal API key is kept only for this launcher session.</translation>
+    </message>
+    <message>
+        <source>Premium</source>
+        <translation>Premium</translation>
+    </message>
+    <message>
+        <source>Free</source>
+        <translation>Free</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

@@ -840,6 +840,68 @@ Kopia zapasowa nadal znajduje się w:
         <translation>Zastąpiono istniejący mod wersją zawierającą %1 plików w:
 %2</translation>
     </message>
+    <message>
+        <source>Nexus Mods...</source>
+        <translation>Nexus Mods...</translation>
+    </message>
+    <message>
+        <source>Connect to Nexus Mods with a Personal API key for development and testing.</source>
+        <translation>Połącz z Nexus Mods za pomocą osobistego klucza API do celów deweloperskich i testowych.</translation>
+    </message>
+    <message>
+        <source>Connect to Nexus Mods</source>
+        <translation>Połącz z Nexus Mods</translation>
+    </message>
+    <message>
+        <source>Personal API key:</source>
+        <translation>Osobisty klucz API:</translation>
+    </message>
+    <message>
+        <source>Nexus Mods</source>
+        <translation>Nexus Mods</translation>
+    </message>
+    <message>
+        <source>Enter a Personal API key.</source>
+        <translation>Wprowadź osobisty klucz API.</translation>
+    </message>
+    <message>
+        <source>Could not connect to Nexus Mods.
+HTTP status: %1
+%2</source>
+        <translation>Nie można połączyć się z Nexus Mods.
+Status HTTP: %1
+%2</translation>
+    </message>
+    <message>
+        <source>Nexus Mods returned an invalid response.</source>
+        <translation>Nexus Mods zwrócił nieprawidłową odpowiedź.</translation>
+    </message>
+    <message>
+        <source>The API key was accepted, but the Nexus Mods account name was not returned.</source>
+        <translation>Klucz API został zaakceptowany, ale Nexus Mods nie zwrócił nazwy konta.</translation>
+    </message>
+    <message>
+        <source>Nexus Mods Connected</source>
+        <translation>Połączono z Nexus Mods</translation>
+    </message>
+    <message>
+        <source>Connected to Nexus Mods as: %1
+Account: %2
+
+The Personal API key is kept only for this launcher session.</source>
+        <translation>Połączono z Nexus Mods jako: %1
+Konto: %2
+
+Osobisty klucz API jest przechowywany tylko na czas tej sesji launchera.</translation>
+    </message>
+    <message>
+        <source>Premium</source>
+        <translation>Premium</translation>
+    </message>
+    <message>
+        <source>Free</source>
+        <translation>Darmowe</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

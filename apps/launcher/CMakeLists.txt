@@ -75,7 +75,7 @@ target_link_libraries(openmw-launcher
     components_qt
 )
 
-target_link_libraries(openmw-launcher Qt::Widgets Qt::Core Qt::Svg)
+target_link_libraries(openmw-launcher Qt::Widgets Qt::Core Qt::Svg Qt::Network)
 
 if (WIN32)
     target_sources(openmw-launcher PRIVATE ${CMAKE_SOURCE_DIR}/files/windows/other-apps.manifest)

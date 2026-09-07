@@ -11,6 +11,7 @@
 #include <QDebug>
 #include <QDesktopServices>
 #include <QDialogButtonBox>
+#include <QEventLoop>
 #include <QDirIterator>
 #include <QFile>
 #include <QFileDialog>
@@ -18,11 +19,17 @@
 #include <QHBoxLayout>
 #include <QImageReader>
 #include <QInputDialog>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
 #include <QLabel>
 #include <QHeaderView>
 #include <QList>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QPair>
 #include <QProgressDialog>
 #include <QRegularExpression>
@@ -33,6 +40,7 @@
 #include <QTableWidget>
 #include <QTemporaryDir>
 #include <QTimer>
+#include <QUrl>
 #include <QUuid>
 #include <QVBoxLayout>
 
@@ -388,6 +396,12 @@ Launcher::DataFilesPage::DataFilesPage(const Files::ConfigurationManager& cfg, C
         tr("Select a ZIP, 7Z or RAR mod archive and analyze its installation structure."));
     ui.modsDirectoryLayout->insertWidget(3, installArchiveButton);
     connect(installArchiveButton, &QPushButton::released, this, &DataFilesPage::analyzeModArchive);
+
+    auto* nexusModsButton = new QPushButton(tr("Nexus Mods..."), this);
+    nexusModsButton->setToolTip(
+        tr("Connect to Nexus Mods with a Personal API key for development and testing."));
+    ui.modsDirectoryLayout->insertWidget(4, nexusModsButton);
+    connect(nexusModsButton, &QPushButton::released, this, &DataFilesPage::connectNexusMods);
 
     ui.modsDirectoryLineEdit->setText(mLauncherSettings.getModsDirectory());
 
@@ -1370,6 +1384,83 @@ void Launcher::DataFilesPage::analyzeModArchive()
         QMessageBox::information(this, tr("Mod Installed"),
             tr("Installed %1 files to:\n%2").arg(installedFiles).arg(destinationPath));
     }
+}
+
+void Launcher::DataFilesPage::connectNexusMods()
+{
+    bool accepted = false;
+    const QString enteredKey = QInputDialog::getText(this, tr("Connect to Nexus Mods"),
+        tr("Personal API key:"), QLineEdit::Password, mNexusApiKey, &accepted).trimmed();
+
+    if (!accepted)
+        return;
+
+    if (enteredKey.isEmpty())
+    {
+        QMessageBox::warning(this, tr("Nexus Mods"), tr("Enter a Personal API key."));
+        return;
+    }
+
+    QNetworkRequest request(QUrl(QStringLiteral("https://api.nexusmods.com/v1/users/validate.json")));
+    request.setRawHeader("apikey", enteredKey.toUtf8());
+    request.setRawHeader("Application-Name", QByteArrayLiteral("OpenMW-Runtime-Localization-Fork"));
+    request.setRawHeader("Application-Version", QByteArrayLiteral("0.4-dev"));
+
+    QNetworkAccessManager networkManager;
+    QNetworkReply* reply = networkManager.get(request);
+
+    QEventLoop eventLoop;
+    connect(reply, &QNetworkReply::finished, &eventLoop, &QEventLoop::quit);
+    eventLoop.exec();
+
+    const QByteArray responseData = reply->readAll();
+    const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    const QString networkError = reply->errorString();
+    const bool requestSucceeded
+        = reply->error() == QNetworkReply::NoError && httpStatus >= 200 && httpStatus < 300;
+    reply->deleteLater();
+
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(responseData, &parseError);
+    const QJsonObject object = document.isObject() ? document.object() : QJsonObject();
+
+    if (!requestSucceeded)
+    {
+        QString details = object.value(QStringLiteral("message")).toString();
+        if (details.isEmpty())
+            details = networkError;
+
+        QMessageBox::critical(this, tr("Nexus Mods"),
+            tr("Could not connect to Nexus Mods.\nHTTP status: %1\n%2")
+                .arg(httpStatus)
+                .arg(details));
+        return;
+    }
+
+    if (parseError.error != QJsonParseError::NoError || object.isEmpty())
+    {
+        QMessageBox::critical(this, tr("Nexus Mods"),
+            tr("Nexus Mods returned an invalid response."));
+        return;
+    }
+
+    const QString userName = object.value(QStringLiteral("name")).toString();
+    if (userName.isEmpty())
+    {
+        QMessageBox::critical(this, tr("Nexus Mods"),
+            tr("The API key was accepted, but the Nexus Mods account name was not returned."));
+        return;
+    }
+
+    mNexusApiKey = enteredKey;
+    mNexusUserName = userName;
+    mNexusPremium = object.value(QStringLiteral("is_premium")).toBool(false);
+
+    QMessageBox::information(this, tr("Nexus Mods Connected"),
+        tr("Connected to Nexus Mods as: %1\nAccount: %2\n\n"
+           "The Personal API key is kept only for this launcher session.")
+            .arg(mNexusUserName)
+            .arg(mNexusPremium ? tr("Premium") : tr("Free")));
 }
 
 void Launcher::DataFilesPage::chooseModsDirectory()
