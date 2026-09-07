@@ -10,6 +10,7 @@
 
 #include <components/contentselector/model/contentmodel.hpp>
 
+class QAction;
 class QSortFilterProxyModel;
 
 namespace Ui
@@ -24,6 +25,7 @@ namespace ContentSelectorView
         Q_OBJECT
 
         QMenu* mContextMenu;
+        QAction* mShowAssetConflictsAction = nullptr;
 
     protected:
         ContentSelectorModel::ContentModel* mContentModel;
@@ -77,6 +79,7 @@ namespace ContentSelectorView
         void setGameFileSelected(int index, bool selected);
         void setCheckStateForMultiSelectedItems(Qt::CheckState checkState);
         void setGroundcoverForSelectedItems(bool enabled);
+        QString selectedConflictDirectoryPath() const;
 
     signals:
         void signalCurrentGamefileIndexChanged(int);
@@ -86,6 +89,7 @@ namespace ContentSelectorView
         void signalGroundcoverChanged(bool enabled);
         void signalLoadOrderChanged();
         void signalAssetDirectoryOrderChanged(QStringList paths);
+        void signalShowAssetConflicts(QString path);
 
     private slots:
 
@@ -95,6 +99,7 @@ namespace ContentSelectorView
         void slotCheckMultiSelectedItems();
         void slotUncheckMultiSelectedItems();
         void slotCopySelectedItemsPaths();
+        void slotShowAssetConflicts();
         void slotSearchFilterTextChanged(const QString& newText);
         void slotSortFiles();
         void slotRowsMoved();

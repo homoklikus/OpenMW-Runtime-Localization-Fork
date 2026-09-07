@@ -2,18 +2,25 @@
 #include "maindialog.hpp"
 
 #include <QClipboard>
+#include <QAbstractItemView>
 #include <QDebug>
 #include <QDesktopServices>
+#include <QDialogButtonBox>
 #include <QDirIterator>
 #include <QFileDialog>
 #include <QHash>
+#include <QLabel>
+#include <QHeaderView>
 #include <QList>
+#include <QLineEdit>
 #include <QMessageBox>
 #include <QPair>
 #include <QProgressDialog>
 #include <QPushButton>
 #include <QSet>
+#include <QTableWidget>
 #include <QTimer>
+#include <QVBoxLayout>
 
 #include <algorithm>
 #include <mutex>
@@ -307,6 +314,9 @@ Launcher::DataFilesPage::DataFilesPage(const Files::ConfigurationManager& cfg, C
             updateAssetConflictStats();
             mMainDialog->writeSettings();
         });
+
+    connect(mSelector, &ContentSelectorView::ContentSelector::signalShowAssetConflicts, this,
+        [this](const QString& path) { showAssetConflictDetails(path); });
 
     mReloadCellsTimer = new QTimer(this);
     mReloadCellsTimer->setSingleShot(true);
@@ -836,6 +846,7 @@ void Launcher::DataFilesPage::applyAssetDirectoryOrder(const QStringList& paths)
 void Launcher::DataFilesPage::updateAssetConflictStats()
 {
     QStringList directories;
+    mAssetConflictDetails.clear();
 
     // Only enabled user data= entries are mods controlled by this launcher
     // profile. Fixed OpenMW/base-game directories are intentionally excluded
@@ -888,7 +899,33 @@ void Launcher::DataFilesPage::updateAssetConflictStats()
                 ++stats[owner].wins;
             else
                 ++stats[owner].losses;
+
+            QStringList otherMods;
+            for (const int other : fileOwners)
+            {
+                if (other == owner)
+                    continue;
+
+                QString modName = QFileInfo(directories.at(other)).fileName();
+                if (modName.isEmpty())
+                    modName = directories.at(other);
+                otherMods.push_back(modName);
+            }
+            otherMods.removeDuplicates();
+
+            const QString key = normalizedAbsolutePath(directories.at(owner));
+            mAssetConflictDetails[key].push_back(
+                AssetConflictDetail{ it.key(), otherMods, owner == winner });
         }
+    }
+
+    for (auto detailsIt = mAssetConflictDetails.begin(); detailsIt != mAssetConflictDetails.end(); ++detailsIt)
+    {
+        auto& details = detailsIt.value();
+        std::sort(details.begin(), details.end(),
+            [](const AssetConflictDetail& lhs, const AssetConflictDetail& rhs) {
+                return lhs.mRelativePath.compare(rhs.mRelativePath, Qt::CaseInsensitive) < 0;
+            });
     }
 
     mSelector->clearConflictStats();
@@ -897,6 +934,114 @@ void Launcher::DataFilesPage::updateAssetConflictStats()
         mSelector->setDirectoryConflictStats(
             directories.at(i), stats[i].conflicts, stats[i].wins, stats[i].losses);
     }
+}
+
+void Launcher::DataFilesPage::showAssetConflictDetails(const QString& path)
+{
+    const QString key = normalizedAbsolutePath(path);
+    const auto it = mAssetConflictDetails.constFind(key);
+
+    if (it == mAssetConflictDetails.cend() || it.value().isEmpty())
+    {
+        QMessageBox::information(this, tr("Asset Conflicts"),
+            tr("No asset conflicts were found for this mod."));
+        return;
+    }
+
+    const QVector<AssetConflictDetail>& details = it.value();
+
+    int wins = 0;
+    int losses = 0;
+    for (const AssetConflictDetail& detail : details)
+    {
+        if (detail.mWins)
+            ++wins;
+        else
+            ++losses;
+    }
+
+    QString modName = QFileInfo(path).fileName();
+    if (modName.isEmpty())
+        modName = path;
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Asset Conflicts — %1").arg(modName));
+    dialog.resize(960, 620);
+
+    auto* layout = new QVBoxLayout(&dialog);
+
+    auto* summary = new QLabel(
+        tr("Conflicts: %1    Wins: %2    Loses: %3")
+            .arg(details.size())
+            .arg(wins)
+            .arg(losses),
+        &dialog);
+    layout->addWidget(summary);
+
+    auto* filter = new QLineEdit(&dialog);
+    filter->setPlaceholderText(tr("Filter conflicts..."));
+    layout->addWidget(filter);
+
+    auto* table = new QTableWidget(details.size(), 3, &dialog);
+    table->setHorizontalHeaderLabels({ tr("File"), tr("Result"), tr("Conflicts With") });
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->setSelectionMode(QAbstractItemView::SingleSelection);
+    table->setAlternatingRowColors(true);
+    table->setSortingEnabled(false);
+
+    for (int row = 0; row < details.size(); ++row)
+    {
+        const AssetConflictDetail& detail = details.at(row);
+
+        auto* fileItem = new QTableWidgetItem(detail.mRelativePath);
+        auto* resultItem = new QTableWidgetItem(detail.mWins ? tr("Wins") : tr("Loses"));
+        auto* modsItem = new QTableWidgetItem(detail.mOtherMods.join(", "));
+
+        fileItem->setToolTip(detail.mRelativePath);
+        modsItem->setToolTip(detail.mOtherMods.join("\n"));
+
+        table->setItem(row, 0, fileItem);
+        table->setItem(row, 1, resultItem);
+        table->setItem(row, 2, modsItem);
+    }
+
+    auto* header = table->horizontalHeader();
+    header->setSectionResizeMode(0, QHeaderView::Stretch);
+    header->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(2, QHeaderView::Stretch);
+
+    table->setSortingEnabled(true);
+    layout->addWidget(table);
+
+    connect(filter, &QLineEdit::textChanged, &dialog, [table](const QString& text) {
+        const QString needle = text.trimmed();
+
+        for (int row = 0; row < table->rowCount(); ++row)
+        {
+            bool match = needle.isEmpty();
+            if (!match)
+            {
+                for (int column = 0; column < table->columnCount(); ++column)
+                {
+                    const QTableWidgetItem* item = table->item(row, column);
+                    if (item && item->text().contains(needle, Qt::CaseInsensitive))
+                    {
+                        match = true;
+                        break;
+                    }
+                }
+            }
+
+            table->setRowHidden(row, !match);
+        }
+    });
+
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+
+    dialog.exec();
 }
 
 void Launcher::DataFilesPage::saveSettings(const QString& profile)

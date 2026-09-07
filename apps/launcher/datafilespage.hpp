@@ -7,8 +7,10 @@
 #include <components/process/processinvoker.hpp>
 
 #include <QDir>
+#include <QHash>
 #include <QMenu>
 #include <QStringList>
+#include <QVector>
 #include <QWidget>
 
 #include <condition_variable>
@@ -108,6 +110,13 @@ namespace Launcher
         const static char* mDefaultContentListName;
 
     private:
+        struct AssetConflictDetail
+        {
+            QString mRelativePath;
+            QStringList mOtherMods;
+            bool mWins = false;
+        };
+
         struct NavMeshToolProgress
         {
             bool mEnabled = true;
@@ -132,6 +141,7 @@ namespace Launcher
         QString mDataLocal;
         QStringList mKnownArchives;
         QStringList mNewDataDirs;
+        QHash<QString, QVector<AssetConflictDetail>> mAssetConflictDetails;
 
         Process::ProcessInvoker* mNavMeshToolInvoker;
         NavMeshToolProgress mNavMeshToolProgress;
@@ -164,6 +174,7 @@ namespace Launcher
         void removeManagedModsDirectoryEntries(const QString& rootPath);
         void applyAssetDirectoryOrder(const QStringList& paths);
         void updateAssetConflictStats();
+        void showAssetConflictDetails(const QString& path);
         void onReloadCellsTimerTimeout();
         void reloadCells();
         void refreshDataFilesView();

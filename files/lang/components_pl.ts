@@ -132,6 +132,10 @@
         <source>Unmark Selected as Groundcover</source>
         <translation>Odznacz wybrane jako roślinność</translation>
     </message>
+    <message>
+        <source>Show Asset Conflicts...</source>
+        <translation>Pokaż konflikty zasobów...</translation>
+    </message>
 </context>
 <context>
     <name>Process::ProcessInvoker</name>

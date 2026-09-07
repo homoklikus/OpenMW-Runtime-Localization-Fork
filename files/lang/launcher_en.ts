@@ -422,6 +422,46 @@ to default Morrowind fonts. Check this box if you still prefer original fonts ov
         <source>&amp;Open Path in File Explorer</source>
         <translation></translation>
     </message>
+    <message>
+        <source>Asset Conflicts</source>
+        <translation>Asset Conflicts</translation>
+    </message>
+    <message>
+        <source>No asset conflicts were found for this mod.</source>
+        <translation>No asset conflicts were found for this mod.</translation>
+    </message>
+    <message>
+        <source>Asset Conflicts — %1</source>
+        <translation>Asset Conflicts — %1</translation>
+    </message>
+    <message>
+        <source>Conflicts: %1    Wins: %2    Loses: %3</source>
+        <translation>Conflicts: %1    Wins: %2    Loses: %3</translation>
+    </message>
+    <message>
+        <source>Filter conflicts...</source>
+        <translation>Filter conflicts...</translation>
+    </message>
+    <message>
+        <source>File</source>
+        <translation>File</translation>
+    </message>
+    <message>
+        <source>Result</source>
+        <translation>Result</translation>
+    </message>
+    <message>
+        <source>Conflicts With</source>
+        <translation>Conflicts With</translation>
+    </message>
+    <message>
+        <source>Wins</source>
+        <translation>Wins</translation>
+    </message>
+    <message>
+        <source>Loses</source>
+        <translation>Loses</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

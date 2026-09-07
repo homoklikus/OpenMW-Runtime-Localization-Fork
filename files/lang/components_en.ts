@@ -132,6 +132,10 @@
         <source>Unmark Selected as Groundcover</source>
         <translation></translation>
     </message>
+    <message>
+        <source>Show Asset Conflicts...</source>
+        <translation>Show Asset Conflicts...</translation>
+    </message>
 </context>
 <context>
     <name>Process::ProcessInvoker</name>

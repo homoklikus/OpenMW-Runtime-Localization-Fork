@@ -426,6 +426,46 @@ do domyślnych czcionek Morrowind. Zaznacz to pole, jeśli nadal wolisz oryginal
         <source>&amp;Open Path in File Explorer</source>
         <translation>&amp;Otwórz ścieżkę w Eksploratorze plików</translation>
     </message>
+    <message>
+        <source>Asset Conflicts</source>
+        <translation>Konflikty zasobów</translation>
+    </message>
+    <message>
+        <source>No asset conflicts were found for this mod.</source>
+        <translation>Nie znaleziono konfliktów zasobów dla tego moda.</translation>
+    </message>
+    <message>
+        <source>Asset Conflicts — %1</source>
+        <translation>Konflikty zasobów — %1</translation>
+    </message>
+    <message>
+        <source>Conflicts: %1    Wins: %2    Loses: %3</source>
+        <translation>Konflikty: %1    Wygrywa: %2    Przegrywa: %3</translation>
+    </message>
+    <message>
+        <source>Filter conflicts...</source>
+        <translation>Filtruj konflikty...</translation>
+    </message>
+    <message>
+        <source>File</source>
+        <translation>Plik</translation>
+    </message>
+    <message>
+        <source>Result</source>
+        <translation>Wynik</translation>
+    </message>
+    <message>
+        <source>Conflicts With</source>
+        <translation>Konflikt z</translation>
+    </message>
+    <message>
+        <source>Wins</source>
+        <translation>Wygrywa</translation>
+    </message>
+    <message>
+        <source>Loses</source>
+        <translation>Przegrywa</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

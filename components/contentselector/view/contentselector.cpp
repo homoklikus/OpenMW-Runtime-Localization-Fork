@@ -11,6 +11,8 @@
 #include <QStyledItemDelegate>
 #include <QStyleOptionViewItem>
 #include <QClipboard>
+#include <QDir>
+#include <QFileInfo>
 #include <QHeaderView>
 #include <QMenu>
 #include <QModelIndex>
@@ -191,6 +193,8 @@ void ContentSelectorView::ContentSelector::buildContextMenu()
     mContextMenu->addAction(tr("&Check Selected"), this, SLOT(slotCheckMultiSelectedItems()));
     mContextMenu->addAction(tr("&Uncheck Selected"), this, SLOT(slotUncheckMultiSelectedItems()));
     mContextMenu->addAction(tr("&Copy Path(s) to Clipboard"), this, SLOT(slotCopySelectedItemsPaths()));
+    mShowAssetConflictsAction
+        = mContextMenu->addAction(tr("Show Asset Conflicts..."), this, SLOT(slotShowAssetConflicts()));
 
     mContextMenu->addSeparator();
     mContextMenu->addAction(tr("Mark Selected as Groundcover"), this,
@@ -397,10 +401,39 @@ void ContentSelectorView::ContentSelector::slotAddonTableItemActivated(const QMo
     mContentModel->setData(sourceIndex, checkState, Qt::CheckStateRole);
 }
 
+QString ContentSelectorView::ContentSelector::selectedConflictDirectoryPath() const
+{
+    const QModelIndexList selectedIndexes
+        = ui->addonView->selectionModel()->selectedRows(ContentSelectorModel::ContentModel::Column_FileName);
+
+    if (selectedIndexes.size() != 1)
+        return {};
+
+    const QModelIndex sourceIndex = mAddonProxyModel->mapToSource(selectedIndexes.constFirst());
+    const ContentSelectorModel::EsmFile* file = mContentModel->item(sourceIndex.row());
+    if (!file || file->conflictCount() <= 0 || file->filePath().isEmpty())
+        return {};
+
+    if (file->isAssetDirectory())
+        return QDir::cleanPath(QFileInfo(file->filePath()).absoluteFilePath());
+
+    return QDir::cleanPath(QFileInfo(file->filePath()).absolutePath());
+}
+
 void ContentSelectorView::ContentSelector::slotShowContextMenu(const QPoint& pos)
 {
+    if (mShowAssetConflictsAction)
+        mShowAssetConflictsAction->setEnabled(!selectedConflictDirectoryPath().isEmpty());
+
     QPoint globalPos = ui->addonView->viewport()->mapToGlobal(pos);
     mContextMenu->exec(globalPos);
+}
+
+void ContentSelectorView::ContentSelector::slotShowAssetConflicts()
+{
+    const QString path = selectedConflictDirectoryPath();
+    if (!path.isEmpty())
+        emit signalShowAssetConflicts(path);
 }
 
 void ContentSelectorView::ContentSelector::setCheckStateForMultiSelectedItems(Qt::CheckState checkState)
