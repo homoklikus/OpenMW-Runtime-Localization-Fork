@@ -90,7 +90,7 @@ namespace ContentSelectorModel
         void refreshModel(std::initializer_list<int> roles = {});
 
     signals:
-        void signalAssetDirectoryOrderChanged(QStringList paths);
+        void signalDataDirectoryOrderChanged(QStringList paths);
 
     private:
         void addFile(EsmFile* file);

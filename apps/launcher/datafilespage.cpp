@@ -441,12 +441,14 @@ Launcher::DataFilesPage::DataFilesPage(const Files::ConfigurationManager& cfg, C
     connect(mSelector, &ContentSelectorView::ContentSelector::signalLoadOrderChanged, this,
         [this]() { mMainDialog->writeSettings(); });
 
-    // Dragging an asset-only row changes the real data= priority, not the
-    // plugin content= order. Mirror the order to Data Directories, recalculate
-    // conflict winners/losers and persist immediately.
-    connect(mSelector, &ContentSelectorView::ContentSelector::signalAssetDirectoryOrderChanged, this,
+    // The combined Mods / Plugins table shows both plug-in mods and
+    // asset-only mods. A drag can therefore change two independent orders:
+    // plug-in-to-plug-in order controls content=, while the relative position
+    // of their owning directories controls data= asset priority. Mirror the
+    // directory order, refresh conflicts and persist both immediately.
+    connect(mSelector, &ContentSelectorView::ContentSelector::signalDataDirectoryOrderChanged, this,
         [this](const QStringList& paths) {
-            applyAssetDirectoryOrder(paths);
+            applyDataDirectoryOrder(paths);
             updateAssetConflictStats();
             mMainDialog->writeSettings();
         });
@@ -2336,7 +2338,7 @@ void Launcher::DataFilesPage::populateFileViews(const QString& contentModelName)
     mSelector->setGroundcoverFiles(groundcoverFiles);
 }
 
-void Launcher::DataFilesPage::applyAssetDirectoryOrder(const QStringList& paths)
+void Launcher::DataFilesPage::applyDataDirectoryOrder(const QStringList& paths)
 {
     if (paths.size() < 2)
         return;
@@ -2352,8 +2354,8 @@ void Launcher::DataFilesPage::applyAssetDirectoryOrder(const QStringList& paths)
     while (ui.directoryListWidget->count() > 0)
         allItems.push_back(ui.directoryListWidget->takeItem(0));
 
-    QVector<int> assetSlots;
-    QHash<QString, QListWidgetItem*> assetItems;
+    QVector<int> directorySlots;
+    QHash<QString, QListWidgetItem*> directoryItems;
 
     for (int i = 0; i < allItems.size(); ++i)
     {
@@ -2363,18 +2365,18 @@ void Launcher::DataFilesPage::applyAssetDirectoryOrder(const QStringList& paths)
 
         if (normalizedOrder.contains(normalizedPath, Qt::CaseInsensitive))
         {
-            assetSlots.push_back(i);
-            assetItems.insert(normalizedPath.toLower(), item);
+            directorySlots.push_back(i);
+            directoryItems.insert(normalizedPath.toLower(), item);
         }
     }
 
-    if (assetSlots.size() == normalizedOrder.size())
+    if (directorySlots.size() == normalizedOrder.size())
     {
-        for (int i = 0; i < assetSlots.size(); ++i)
+        for (int i = 0; i < directorySlots.size(); ++i)
         {
-            QListWidgetItem* item = assetItems.value(normalizedOrder.at(i).toLower(), nullptr);
+            QListWidgetItem* item = directoryItems.value(normalizedOrder.at(i).toLower(), nullptr);
             if (item)
-                allItems[assetSlots.at(i)] = item;
+                allItems[directorySlots.at(i)] = item;
         }
     }
 

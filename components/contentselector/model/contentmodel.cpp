@@ -618,73 +618,15 @@ bool ContentSelectorModel::ContentModel::dropMimeData(
 
     const bool containsAssetDirectory = std::any_of(toMove.begin(), toMove.end(),
         [](const EsmFile* file) { return file && file->isAssetDirectory(); });
-    const bool movingOnlyAssetDirectories = std::all_of(toMove.begin(), toMove.end(),
-        [](const EsmFile* file) { return file && file->isAssetDirectory(); });
+    const bool containsPlugin = std::any_of(toMove.begin(), toMove.end(),
+        [](const EsmFile* file) { return file && !file->isAssetDirectory(); });
 
-    // Do not mix the two independent orders in one drag operation:
-    // plugin rows control content= load order, while asset-only rows control
-    // data= priority.
-    if (containsAssetDirectory && !movingOnlyAssetDirectories)
+    // Keep mixed multi-selection simple, but allow either kind of row to cross
+    // the other kind. The combined table is allowed to express data= priority
+    // between plug-in mods and asset-only mods; plug-in-to-plug-in order still
+    // controls content= load order independently.
+    if (containsAssetDirectory && containsPlugin)
         return false;
-
-    if (movingOnlyAssetDirectories)
-    {
-        // Keep the physical slots occupied by asset rows in the combined
-        // Mods / Plugins table. Only reorder the asset entries among those
-        // slots. This avoids pretending that data= and content= are one
-        // shared load order.
-        std::vector<EsmFile*> assetFiles;
-        assetFiles.reserve(mFiles.size());
-        for (EsmFile* file : mFiles)
-        {
-            if (file->isAssetDirectory())
-                assetFiles.push_back(file);
-        }
-
-        // Preserve current visual order for multi-selection.
-        std::sort(toMove.begin(), toMove.end(), [this](const EsmFile* lhs, const EsmFile* rhs) {
-            return mFiles.indexOf(const_cast<EsmFile*>(lhs)) < mFiles.indexOf(const_cast<EsmFile*>(rhs));
-        });
-
-        std::vector<EsmFile*> remaining;
-        remaining.reserve(assetFiles.size());
-        for (EsmFile* file : assetFiles)
-        {
-            if (std::find(toMove.begin(), toMove.end(), file) == toMove.end())
-                remaining.push_back(file);
-        }
-
-        // Translate the table drop row to an insertion position in the
-        // asset-only sequence. Moved rows themselves do not count.
-        int insertPosition = 0;
-        const int boundedBeginRow = std::clamp(beginRow, 0, static_cast<int>(mFiles.size()));
-        for (int i = 0; i < boundedBeginRow; ++i)
-        {
-            EsmFile* file = mFiles.at(i);
-            if (file->isAssetDirectory()
-                && std::find(toMove.begin(), toMove.end(), file) == toMove.end())
-                ++insertPosition;
-        }
-        insertPosition = std::clamp(insertPosition, 0, static_cast<int>(remaining.size()));
-
-        remaining.insert(remaining.begin() + insertPosition, toMove.begin(), toMove.end());
-
-        emit layoutAboutToBeChanged();
-        std::size_t assetIndex = 0;
-        for (int i = 0; i < mFiles.size(); ++i)
-        {
-            if (mFiles.at(i)->isAssetDirectory())
-                mFiles[i] = remaining.at(assetIndex++);
-        }
-        emit layoutChanged();
-
-        QStringList directoryOrder;
-        for (const EsmFile* file : remaining)
-            directoryOrder.push_back(file->filePath());
-
-        emit signalAssetDirectoryOrderChanged(directoryOrder);
-        return true;
-    }
 
     int minRow = mFiles.size();
     int maxRow = 0;
@@ -702,7 +644,47 @@ bool ContentSelectorModel::ContentModel::dropMimeData(
     }
 
     dataChanged(index(minRow, 0), index(maxRow, 0));
-    // at this point we know that drag and drop has finished.
+    // At this point drag-and-drop has finished. Rebuild the order of mod
+    // directories represented by the combined Mods / Plugins table so the
+    // real data= priority follows the visible cross-type ordering as well.
+    //
+    // A data directory can contain more than one plug-in. In that case use
+    // its last visible occurrence, because later data= entries have higher
+    // asset priority in OpenMW.
+    QString gameDataDirectory;
+    if (mGameFile && !mGameFile->filePath().isEmpty())
+        gameDataDirectory = QDir::cleanPath(QFileInfo(mGameFile->filePath()).absolutePath());
+
+    QStringList directoryOrder;
+    QStringList directoryKeys;
+    for (const EsmFile* file : mFiles)
+    {
+        if (!file || file == mGameFile || file->builtIn() || file->fromAnotherConfigFile()
+            || file->filePath().isEmpty())
+            continue;
+
+        QString directory = file->isAssetDirectory()
+            ? QDir::cleanPath(QFileInfo(file->filePath()).absoluteFilePath())
+            : QDir::cleanPath(QFileInfo(file->filePath()).absolutePath());
+
+        if (!gameDataDirectory.isEmpty()
+            && directory.compare(gameDataDirectory, Qt::CaseInsensitive) == 0)
+            continue;
+
+        const QString key = directory.toLower();
+        const int previous = directoryKeys.indexOf(key);
+        if (previous >= 0)
+        {
+            directoryKeys.removeAt(previous);
+            directoryOrder.removeAt(previous);
+        }
+
+        directoryKeys.push_back(key);
+        directoryOrder.push_back(directory);
+    }
+
+    if (!directoryOrder.isEmpty())
+        emit signalDataDirectoryOrderChanged(directoryOrder);
 
     return true;
 }

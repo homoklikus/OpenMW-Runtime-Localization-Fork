@@ -93,7 +93,7 @@ namespace ContentSelectorView
         void signalSelectedFilesChanged(QStringList selectedFiles);
         void signalGroundcoverChanged(bool enabled);
         void signalLoadOrderChanged();
-        void signalAssetDirectoryOrderChanged(QStringList paths);
+        void signalDataDirectoryOrderChanged(QStringList paths);
         void signalShowAssetConflicts(QString path);
         void signalDeleteModRequested(QString path);
 

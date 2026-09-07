@@ -178,8 +178,8 @@ void ContentSelectorView::ContentSelector::buildAddonView()
     connect(ui->addonView, &QTableView::activated, this, &ContentSelector::slotAddonTableItemActivated);
     connect(mContentModel, &ContentSelectorModel::ContentModel::dataChanged, this,
         &ContentSelector::signalAddonDataChanged);
-    connect(mContentModel, &ContentSelectorModel::ContentModel::signalAssetDirectoryOrderChanged, this,
-        &ContentSelector::signalAssetDirectoryOrderChanged);
+    connect(mContentModel, &ContentSelectorModel::ContentModel::signalDataDirectoryOrderChanged, this,
+        &ContentSelector::signalDataDirectoryOrderChanged);
     connect(mContentModel, &ContentSelectorModel::ContentModel::dataChanged, this, &ContentSelector::slotRowsMoved);
     buildContextMenu();
 }

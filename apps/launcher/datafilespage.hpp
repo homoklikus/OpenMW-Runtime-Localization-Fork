@@ -184,7 +184,7 @@ namespace Launcher
         void lookupNexusMod();
         void downloadNexusFile(int modId, qint64 fileId, const QString& fileName, const QString& modName);
         void removeManagedModsDirectoryEntries(const QString& rootPath);
-        void applyAssetDirectoryOrder(const QStringList& paths);
+        void applyDataDirectoryOrder(const QStringList& paths);
         void updateAssetConflictStats();
         void showAssetConflictDetails(const QString& path);
         void deleteManagedMod(const QString& path);
