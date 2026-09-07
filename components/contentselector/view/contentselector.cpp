@@ -197,6 +197,9 @@ void ContentSelectorView::ContentSelector::buildContextMenu()
         = mContextMenu->addAction(tr("Show Asset Conflicts..."), this, SLOT(slotShowAssetConflicts()));
 
     mContextMenu->addSeparator();
+    mDeleteModAction = mContextMenu->addAction(tr("Delete Mod..."), this, SLOT(slotDeleteMod()));
+
+    mContextMenu->addSeparator();
     mContextMenu->addAction(tr("Mark Selected as Groundcover"), this,
         [this]() { setGroundcoverForSelectedItems(true); });
     mContextMenu->addAction(tr("Unmark Selected as Groundcover"), this,
@@ -340,6 +343,17 @@ bool ContentSelectorView::ContentSelector::containsAssetFiles(const QString& pat
     return mContentModel->containsAssetFiles(path);
 }
 
+void ContentSelectorView::ContentSelector::setManagedModsDirectory(const QString& path)
+{
+    if (path.isEmpty())
+    {
+        mManagedModsDirectory.clear();
+        return;
+    }
+
+    mManagedModsDirectory = QDir::cleanPath(QFileInfo(path).absoluteFilePath());
+}
+
 void ContentSelectorView::ContentSelector::clearConflictStats()
 {
     mContentModel->clearConflictStats();
@@ -416,6 +430,58 @@ void ContentSelectorView::ContentSelector::slotAddonTableItemActivated(const QMo
     mContentModel->setData(sourceIndex, checkState, Qt::CheckStateRole);
 }
 
+QString ContentSelectorView::ContentSelector::selectedManagedModDirectory() const
+{
+    if (mManagedModsDirectory.isEmpty())
+        return {};
+
+    const QModelIndexList selectedIndexes
+        = ui->addonView->selectionModel()->selectedRows(ContentSelectorModel::ContentModel::Column_FileName);
+
+    if (selectedIndexes.size() != 1)
+        return {};
+
+    const QModelIndex sourceIndex = mAddonProxyModel->mapToSource(selectedIndexes.constFirst());
+    const ContentSelectorModel::EsmFile* file = mContentModel->item(sourceIndex.row());
+
+    if (!file || file->filePath().isEmpty() || file->builtIn() || file->fromAnotherConfigFile())
+        return {};
+
+    QString currentPath = file->isAssetDirectory()
+        ? QFileInfo(file->filePath()).absoluteFilePath()
+        : QFileInfo(file->filePath()).absolutePath();
+
+    currentPath = QDir::cleanPath(currentPath);
+    const QString rootPath = QDir::cleanPath(QFileInfo(mManagedModsDirectory).absoluteFilePath());
+
+#ifdef Q_OS_WINDOWS
+    constexpr Qt::CaseSensitivity caseSensitivity = Qt::CaseInsensitive;
+#else
+    constexpr Qt::CaseSensitivity caseSensitivity = Qt::CaseSensitive;
+#endif
+
+    while (!currentPath.isEmpty())
+    {
+        if (currentPath.compare(rootPath, caseSensitivity) == 0)
+            return {};
+
+        const QString parentPath = QDir::cleanPath(QFileInfo(currentPath).absolutePath());
+
+        if (parentPath.compare(rootPath, caseSensitivity) == 0)
+        {
+            const QFileInfo info(currentPath);
+            return info.exists() && info.isDir() ? currentPath : QString();
+        }
+
+        if (parentPath.compare(currentPath, caseSensitivity) == 0)
+            return {};
+
+        currentPath = parentPath;
+    }
+
+    return {};
+}
+
 QString ContentSelectorView::ContentSelector::selectedConflictDirectoryPath() const
 {
     const QModelIndexList selectedIndexes
@@ -439,9 +505,18 @@ void ContentSelectorView::ContentSelector::slotShowContextMenu(const QPoint& pos
 {
     if (mShowAssetConflictsAction)
         mShowAssetConflictsAction->setEnabled(!selectedConflictDirectoryPath().isEmpty());
+    if (mDeleteModAction)
+        mDeleteModAction->setEnabled(!selectedManagedModDirectory().isEmpty());
 
     QPoint globalPos = ui->addonView->viewport()->mapToGlobal(pos);
     mContextMenu->exec(globalPos);
+}
+
+void ContentSelectorView::ContentSelector::slotDeleteMod()
+{
+    const QString path = selectedManagedModDirectory();
+    if (!path.isEmpty())
+        emit signalDeleteModRequested(path);
 }
 
 void ContentSelectorView::ContentSelector::slotShowAssetConflicts()

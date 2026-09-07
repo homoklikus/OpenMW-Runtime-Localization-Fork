@@ -26,10 +26,12 @@ namespace ContentSelectorView
 
         QMenu* mContextMenu;
         QAction* mShowAssetConflictsAction = nullptr;
+        QAction* mDeleteModAction = nullptr;
 
     protected:
         ContentSelectorModel::ContentModel* mContentModel;
         QSortFilterProxyModel* mAddonProxyModel;
+        QString mManagedModsDirectory;
 
     public:
         explicit ContentSelector(QWidget* parent = nullptr, bool showOMWScripts = false);
@@ -45,6 +47,7 @@ namespace ContentSelectorView
         bool containsAssetFiles(const QString& path) const;
         void clearConflictStats();
         void setDirectoryConflictStats(const QString& path, int conflicts, int wins, int losses);
+        void setManagedModsDirectory(const QString& path);
         void clearFiles();
         void setNonUserContent(const QStringList& fileList);
         void setProfileContent(const QStringList& fileList);
@@ -81,6 +84,7 @@ namespace ContentSelectorView
         void setCheckStateForMultiSelectedItems(Qt::CheckState checkState);
         void setGroundcoverForSelectedItems(bool enabled);
         QString selectedConflictDirectoryPath() const;
+        QString selectedManagedModDirectory() const;
 
     signals:
         void signalCurrentGamefileIndexChanged(int);
@@ -91,6 +95,7 @@ namespace ContentSelectorView
         void signalLoadOrderChanged();
         void signalAssetDirectoryOrderChanged(QStringList paths);
         void signalShowAssetConflicts(QString path);
+        void signalDeleteModRequested(QString path);
 
     private slots:
 
@@ -101,6 +106,7 @@ namespace ContentSelectorView
         void slotUncheckMultiSelectedItems();
         void slotCopySelectedItemsPaths();
         void slotShowAssetConflicts();
+        void slotDeleteMod();
         void slotSearchFilterTextChanged(const QString& newText);
         void slotSortFiles();
         void slotRowsMoved();

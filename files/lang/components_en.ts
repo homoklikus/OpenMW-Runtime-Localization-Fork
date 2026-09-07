@@ -136,6 +136,10 @@
         <source>Show Asset Conflicts...</source>
         <translation>Show Asset Conflicts...</translation>
     </message>
+    <message>
+        <source>Delete Mod...</source>
+        <translation>Delete Mod...</translation>
+    </message>
 </context>
 <context>
     <name>Process::ProcessInvoker</name>

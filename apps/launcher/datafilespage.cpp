@@ -454,6 +454,9 @@ Launcher::DataFilesPage::DataFilesPage(const Files::ConfigurationManager& cfg, C
     connect(mSelector, &ContentSelectorView::ContentSelector::signalShowAssetConflicts, this,
         [this](const QString& path) { showAssetConflictDetails(path); });
 
+    connect(mSelector, &ContentSelectorView::ContentSelector::signalDeleteModRequested, this,
+        [this](const QString& path) { deleteManagedMod(path); });
+
     mReloadCellsTimer = new QTimer(this);
     mReloadCellsTimer->setSingleShot(true);
     mReloadCellsTimer->setInterval(200);
@@ -2138,6 +2141,7 @@ void Launcher::DataFilesPage::populateFileViews(const QString& contentModelName)
     ui.modsDirectoryLineEdit->setText(mLauncherSettings.getModsDirectory());
 
     const QString modsRoot = mLauncherSettings.getModsDirectory();
+    mSelector->setManagedModsDirectory(modsRoot);
     const QStringList automaticMods = modsDirectoryChildren();
 
     if (!modsRoot.isEmpty())
@@ -2499,6 +2503,87 @@ void Launcher::DataFilesPage::updateAssetConflictStats()
         mSelector->setDirectoryConflictStats(
             directories.at(i), stats[i].conflicts, stats[i].wins, stats[i].losses);
     }
+}
+
+void Launcher::DataFilesPage::deleteManagedMod(const QString& path)
+{
+    const QString modsRoot = mLauncherSettings.getModsDirectory();
+    if (modsRoot.isEmpty() || !QDir(modsRoot).exists())
+        return;
+
+    const QString normalizedRoot = normalizedAbsolutePath(modsRoot);
+    const QString normalizedPath = normalizedAbsolutePath(path);
+
+    // Defense in depth: ContentSelector already resolves the row to a direct
+    // child of Mods Directory, but never trust a destructive request without
+    // validating it again here.
+    if (!isDirectChildPath(normalizedPath, normalizedRoot))
+    {
+        QMessageBox::warning(this, tr("Delete Mod"),
+            tr("Only mods stored directly inside the configured Mods Directory can be deleted here."));
+        return;
+    }
+
+    const QFileInfo modInfo(normalizedPath);
+    if (!modInfo.exists() || !modInfo.isDir() || modInfo.isSymLink())
+    {
+        QMessageBox::warning(this, tr("Delete Mod"),
+            tr("The selected mod directory cannot be deleted safely."));
+        return;
+    }
+
+    QMessageBox confirmation(QMessageBox::Warning, tr("Delete Mod"),
+        tr("Delete mod \"%1\"?\n\n%2\n\nThis will permanently delete the entire mod directory from disk.")
+            .arg(modInfo.fileName(), normalizedPath),
+        QMessageBox::NoButton, this);
+
+    QPushButton* deleteButton = confirmation.addButton(tr("Delete"), QMessageBox::DestructiveRole);
+    QPushButton* cancelButton = confirmation.addButton(QMessageBox::Cancel);
+    confirmation.setDefaultButton(cancelButton);
+    confirmation.exec();
+
+    if (confirmation.clickedButton() != deleteButton)
+        return;
+
+    // Groundcover entries are intentionally preserved across temporary scan
+    // failures elsewhere in the launcher. An explicit uninstall is different:
+    // remove groundcover assignments belonging to this mod before refreshing.
+    QSet<QString> removedContentNames;
+    QDirIterator contentIt(normalizedPath, QDir::Files | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+    while (contentIt.hasNext())
+    {
+        const QFileInfo fileInfo(contentIt.next());
+        const QString suffix = fileInfo.suffix().toLower();
+        if (suffix == QLatin1String("esm")
+            || suffix == QLatin1String("esp")
+            || suffix == QLatin1String("omwaddon")
+            || suffix == QLatin1String("omwgame")
+            || suffix == QLatin1String("omwscripts"))
+        {
+            removedContentNames.insert(fileInfo.fileName().toLower());
+        }
+    }
+
+    QStringList remainingGroundcover;
+    for (const QString& fileName : mSelector->groundcoverFiles())
+    {
+        if (!removedContentNames.contains(fileName.toLower()))
+            remainingGroundcover.push_back(fileName);
+    }
+
+    if (!QDir(normalizedPath).removeRecursively())
+    {
+        QMessageBox::critical(this, tr("Delete Mod"),
+            tr("Could not delete the mod directory:\n%1").arg(normalizedPath));
+        return;
+    }
+
+    mGameSettings.remove(QStringLiteral("groundcover"));
+    for (const QString& fileName : remainingGroundcover)
+        mGameSettings.setMultiValue(QStringLiteral("groundcover"), { fileName });
+
+    refreshDataFilesView();
+    mMainDialog->writeSettings();
 }
 
 void Launcher::DataFilesPage::showAssetConflictDetails(const QString& path)

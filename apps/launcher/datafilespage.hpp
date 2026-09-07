@@ -187,6 +187,7 @@ namespace Launcher
         void applyAssetDirectoryOrder(const QStringList& paths);
         void updateAssetConflictStats();
         void showAssetConflictDetails(const QString& path);
+        void deleteManagedMod(const QString& path);
         void onReloadCellsTimerTimeout();
         void reloadCells();
         void refreshDataFilesView();

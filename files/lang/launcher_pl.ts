@@ -1112,6 +1112,36 @@ HTTP status: %1
 Status HTTP: %1
 %2</translation>
     </message>
+    <message>
+        <source>Delete Mod</source>
+        <translation>Usuń mod</translation>
+    </message>
+    <message>
+        <source>Only mods stored directly inside the configured Mods Directory can be deleted here.</source>
+        <translation>W tym miejscu można usuwać tylko mody znajdujące się bezpośrednio w skonfigurowanym Katalogu modów.</translation>
+    </message>
+    <message>
+        <source>The selected mod directory cannot be deleted safely.</source>
+        <translation>Wybranego katalogu moda nie można bezpiecznie usunąć.</translation>
+    </message>
+    <message>
+        <source>Delete mod "%1"?
+
+%2
+
+This will permanently delete the entire mod directory from disk.</source>
+        <translation>Usunąć mod „%1”?
+
+%2
+
+Ta operacja trwale usunie cały katalog moda z dysku.</translation>
+    </message>
+    <message>
+        <source>Could not delete the mod directory:
+%1</source>
+        <translation>Nie można usunąć katalogu moda:
+%1</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>
