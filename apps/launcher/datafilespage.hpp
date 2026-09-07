@@ -67,6 +67,7 @@ namespace Launcher
         // void writeConfig(QString profile = QString());
         void saveSettings(const QString& profile = "");
         bool loadSettings();
+        void handleNxmUrl(const QString& url);
 
     signals:
         void signalProfileChanged(int index);
@@ -165,6 +166,10 @@ namespace Launcher
         QString mNexusUserName;
         bool mNexusPremium = false;
         qint64 mNexusUserId = 0;
+        int mPendingNxmModId = 0;
+        qint64 mPendingNxmFileId = 0;
+        QString mReceivedNxmUrl;
+        QDialog* mNxmWaitDialog = nullptr;
 
         Process::ProcessInvoker* mNavMeshToolInvoker;
         NavMeshToolProgress mNavMeshToolProgress;

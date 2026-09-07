@@ -92,6 +92,18 @@ Launcher::MainDialog::~MainDialog()
     delete mWizardInvoker;
 }
 
+void Launcher::MainDialog::handleNxmUrl(const QString& url)
+{
+    if (!mDataFilesPage)
+        return;
+
+    show();
+    raise();
+    activateWindow();
+    enableDataPage();
+    mDataFilesPage->handleNxmUrl(url);
+}
+
 bool Launcher::MainDialog::event(QEvent* event)
 {
     // Apply style sheet again if style was changed

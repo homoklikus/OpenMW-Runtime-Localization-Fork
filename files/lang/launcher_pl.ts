@@ -1160,6 +1160,38 @@ Ta operacja trwale usunie cały katalog moda z dysku.</translation>
         <source>Could not open the Nexus Mods page.</source>
         <translation>Nie można otworzyć strony Nexus Mods.</translation>
     </message>
+    <message>
+        <source>Nexus Mods - NXM Link</source>
+        <translation>Nexus Mods - link NXM</translation>
+    </message>
+    <message>
+        <source>The received URL is not a valid Morrowind NXM link.</source>
+        <translation>Odebrany adres nie jest prawidłowym linkiem NXM dla Morrowinda.</translation>
+    </message>
+    <message>
+        <source>No Nexus Mods download is currently waiting for an NXM link.</source>
+        <translation>Żadne pobieranie z Nexus Mods nie oczekuje obecnie na link NXM.</translation>
+    </message>
+    <message>
+        <source>The received NXM link does not match the selected Morrowind file.</source>
+        <translation>Odebrany link NXM nie odpowiada wybranemu plikowi Morrowinda.</translation>
+    </message>
+    <message>
+        <source>The Nexus Mods download page has been opened in your browser.
+
+Choose Slow Download. The launcher will receive the NXM link automatically.</source>
+        <translation>Strona pobierania Nexus Mods została otwarta w przeglądarce.
+
+Wybierz Slow Download. Launcher automatycznie odbierze link NXM.</translation>
+    </message>
+    <message>
+        <source>Waiting for the NXM download link...</source>
+        <translation>Oczekiwanie na link pobierania NXM...</translation>
+    </message>
+    <message>
+        <source>Could not open the Nexus Mods download page.</source>
+        <translation>Nie można otworzyć strony pobierania Nexus Mods.</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

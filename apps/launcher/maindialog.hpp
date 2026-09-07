@@ -52,6 +52,7 @@ namespace Launcher
         bool reloadSettings();
         bool writeSettings();
         void setGroundcoverEnabled(bool enabled);
+        void handleNxmUrl(const QString& url);
 
     public slots:
         void enableDataPage();
@@ -93,7 +94,7 @@ namespace Launcher
         void closeEvent(QCloseEvent* event) override;
 
         GraphicsPage* mGraphicsPage;
-        DataFilesPage* mDataFilesPage;
+        DataFilesPage* mDataFilesPage = nullptr;
         ImportPage* mImportPage;
         SettingsPage* mSettingsPage;
 
