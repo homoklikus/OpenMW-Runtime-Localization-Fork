@@ -178,6 +178,7 @@ namespace Launcher
         void clearModsDirectory();
         void analyzeModArchive();
         void connectNexusMods();
+        void lookupNexusMod();
         void removeManagedModsDirectoryEntries(const QString& rootPath);
         void applyAssetDirectoryOrder(const QStringList& paths);
         void updateAssetConflictStats();

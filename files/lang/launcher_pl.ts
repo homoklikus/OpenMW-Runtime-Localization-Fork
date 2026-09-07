@@ -902,6 +902,120 @@ Osobisty klucz API jest przechowywany tylko na czas tej sesji launchera.</transl
         <source>Free</source>
         <translation>Darmowe</translation>
     </message>
+    <message>
+        <source>Nexus Mods - Find Mod</source>
+        <translation>Nexus Mods - Znajdź mod</translation>
+    </message>
+    <message>
+        <source>Morrowind Mod ID or Nexus Mods URL:</source>
+        <translation>ID moda Morrowinda lub adres URL Nexus Mods:</translation>
+    </message>
+    <message>
+        <source>Enter a valid Morrowind Mod ID or a Nexus Mods Morrowind mod URL.</source>
+        <translation>Wprowadź prawidłowe ID moda Morrowinda lub adres URL moda Morrowinda z Nexus Mods.</translation>
+    </message>
+    <message>
+        <source>HTTP status: %1
+%2</source>
+        <translation>Status HTTP: %1
+%2</translation>
+    </message>
+    <message>
+        <source>Nexus Mods returned an invalid JSON response.</source>
+        <translation>Nexus Mods zwrócił nieprawidłową odpowiedź JSON.</translation>
+    </message>
+    <message>
+        <source>Could not retrieve mod information.
+%1</source>
+        <translation>Nie można pobrać informacji o modzie.
+%1</translation>
+    </message>
+    <message>
+        <source>Could not retrieve the mod file list.
+%1</source>
+        <translation>Nie można pobrać listy plików moda.
+%1</translation>
+    </message>
+    <message>
+        <source>Nexus Mods - Mod Details</source>
+        <translation>Nexus Mods - Szczegóły moda</translation>
+    </message>
+    <message>
+        <source>Name: %1</source>
+        <translation>Nazwa: %1</translation>
+    </message>
+    <message>
+        <source>Author: %1</source>
+        <translation>Autor: %1</translation>
+    </message>
+    <message>
+        <source>Version: %1</source>
+        <translation>Wersja: %1</translation>
+    </message>
+    <message>
+        <source>Mod ID: %1</source>
+        <translation>ID moda: %1</translation>
+    </message>
+    <message>
+        <source>Status: %1</source>
+        <translation>Status: %1</translation>
+    </message>
+    <message>
+        <source>Updated: %1</source>
+        <translation>Aktualizacja: %1</translation>
+    </message>
+    <message>
+        <source>Downloads: %1 (%2 unique)</source>
+        <translation>Pobrania: %1 (%2 unikalnych)</translation>
+    </message>
+    <message>
+        <source>Summary: %1</source>
+        <translation>Opis: %1</translation>
+    </message>
+    <message>
+        <source>Files: %1</source>
+        <translation>Pliki: %1</translation>
+    </message>
+    <message>
+        <source>Category</source>
+        <translation>Kategoria</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation>Nazwa</translation>
+    </message>
+    <message>
+        <source>Version</source>
+        <translation>Wersja</translation>
+    </message>
+    <message>
+        <source>Archive</source>
+        <translation>Archiwum</translation>
+    </message>
+    <message>
+        <source>Size</source>
+        <translation>Rozmiar</translation>
+    </message>
+    <message>
+        <source>Uploaded</source>
+        <translation>Dodano</translation>
+    </message>
+    <message>
+        <source>File ID</source>
+        <translation>ID pliku</translation>
+    </message>
+    <message>
+        <source>hourly: %1</source>
+        <translation>godzina: %1</translation>
+    </message>
+    <message>
+        <source>daily: %1</source>
+        <translation>dzień: %1</translation>
+    </message>
+    <message>
+        <source>API requests remaining - %1</source>
+        <translation>Pozostałe zapytania API - %1</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

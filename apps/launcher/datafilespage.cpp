@@ -10,6 +10,7 @@
 #include <QAbstractItemView>
 #include <QDebug>
 #include <QDesktopServices>
+#include <QDateTime>
 #include <QDialogButtonBox>
 #include <QEventLoop>
 #include <QDirIterator>
@@ -20,12 +21,14 @@
 #include <QImageReader>
 #include <QInputDialog>
 #include <QJsonDocument>
+#include <QJsonArray>
 #include <QJsonObject>
 #include <QJsonParseError>
 #include <QLabel>
 #include <QHeaderView>
 #include <QList>
 #include <QLineEdit>
+#include <QLocale>
 #include <QMessageBox>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
@@ -1388,6 +1391,12 @@ void Launcher::DataFilesPage::analyzeModArchive()
 
 void Launcher::DataFilesPage::connectNexusMods()
 {
+    if (!mNexusApiKey.isEmpty())
+    {
+        lookupNexusMod();
+        return;
+    }
+
     bool accepted = false;
     const QString enteredKey = QInputDialog::getText(this, tr("Connect to Nexus Mods"),
         tr("Personal API key:"), QLineEdit::Password, mNexusApiKey, &accepted).trimmed();
@@ -1461,6 +1470,248 @@ void Launcher::DataFilesPage::connectNexusMods()
            "The Personal API key is kept only for this launcher session.")
             .arg(mNexusUserName)
             .arg(mNexusPremium ? tr("Premium") : tr("Free")));
+
+    lookupNexusMod();
+}
+
+void Launcher::DataFilesPage::lookupNexusMod()
+{
+    if (mNexusApiKey.isEmpty())
+    {
+        connectNexusMods();
+        return;
+    }
+
+    bool accepted = false;
+    const QString input = QInputDialog::getText(this, tr("Nexus Mods - Find Mod"),
+        tr("Morrowind Mod ID or Nexus Mods URL:"), QLineEdit::Normal,
+        QStringLiteral("60029"), &accepted).trimmed();
+
+    if (!accepted)
+        return;
+
+    int modId = 0;
+    bool idOk = false;
+
+    const QRegularExpression idExpression(QStringLiteral(R"(^\s*(\d+)\s*$)"));
+    const QRegularExpression urlExpression(
+        QStringLiteral(R"(nexusmods\.com/morrowind/mods/(\d+))"),
+        QRegularExpression::CaseInsensitiveOption);
+
+    const QRegularExpressionMatch idMatch = idExpression.match(input);
+    if (idMatch.hasMatch())
+        modId = idMatch.captured(1).toInt(&idOk);
+    else
+    {
+        const QRegularExpressionMatch urlMatch = urlExpression.match(input);
+        if (urlMatch.hasMatch())
+            modId = urlMatch.captured(1).toInt(&idOk);
+    }
+
+    if (!idOk || modId <= 0)
+    {
+        QMessageBox::warning(this, tr("Nexus Mods"),
+            tr("Enter a valid Morrowind Mod ID or a Nexus Mods Morrowind mod URL."));
+        return;
+    }
+
+    QNetworkAccessManager networkManager;
+
+    auto getJson = [&](const QUrl& url, QJsonDocument& document, QString& errorText,
+                       QByteArray* hourlyRemaining = nullptr, QByteArray* dailyRemaining = nullptr) -> bool
+    {
+        QNetworkRequest request(url);
+        request.setRawHeader("apikey", mNexusApiKey.toUtf8());
+        request.setRawHeader("Application-Name", QByteArrayLiteral("OpenMW-Runtime-Localization-Fork"));
+        request.setRawHeader("Application-Version", QByteArrayLiteral("0.4-dev"));
+
+        QNetworkReply* reply = networkManager.get(request);
+        QEventLoop eventLoop;
+        connect(reply, &QNetworkReply::finished, &eventLoop, &QEventLoop::quit);
+        eventLoop.exec();
+
+        if (hourlyRemaining)
+            *hourlyRemaining = reply->rawHeader("x-rl-hourly-remaining");
+        if (dailyRemaining)
+            *dailyRemaining = reply->rawHeader("x-rl-daily-remaining");
+
+        const QByteArray responseData = reply->readAll();
+        const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const QNetworkReply::NetworkError networkErrorCode = reply->error();
+        const QString networkError = reply->errorString();
+        reply->deleteLater();
+
+        QJsonParseError parseError;
+        document = QJsonDocument::fromJson(responseData, &parseError);
+
+        if (networkErrorCode != QNetworkReply::NoError || httpStatus < 200 || httpStatus >= 300)
+        {
+            QString apiMessage;
+            if (document.isObject())
+                apiMessage = document.object().value(QStringLiteral("message")).toString();
+
+            errorText = tr("HTTP status: %1\n%2")
+                            .arg(httpStatus)
+                            .arg(apiMessage.isEmpty() ? networkError : apiMessage);
+            return false;
+        }
+
+        if (parseError.error != QJsonParseError::NoError)
+        {
+            errorText = tr("Nexus Mods returned an invalid JSON response.");
+            return false;
+        }
+
+        return true;
+    };
+
+    QJsonDocument modDocument;
+    QString errorText;
+    QByteArray hourlyRemaining;
+    QByteArray dailyRemaining;
+
+    const QUrl modUrl(QStringLiteral("https://api.nexusmods.com/v1/games/morrowind/mods/%1.json").arg(modId));
+    if (!getJson(modUrl, modDocument, errorText, &hourlyRemaining, &dailyRemaining)
+        || !modDocument.isObject())
+    {
+        QMessageBox::critical(this, tr("Nexus Mods"),
+            tr("Could not retrieve mod information.\n%1").arg(errorText));
+        return;
+    }
+
+    QJsonDocument filesDocument;
+    const QUrl filesUrl(
+        QStringLiteral("https://api.nexusmods.com/v1/games/morrowind/mods/%1/files.json").arg(modId));
+    if (!getJson(filesUrl, filesDocument, errorText, &hourlyRemaining, &dailyRemaining)
+        || !filesDocument.isObject())
+    {
+        QMessageBox::critical(this, tr("Nexus Mods"),
+            tr("Could not retrieve the mod file list.\n%1").arg(errorText));
+        return;
+    }
+
+    const QJsonObject mod = modDocument.object();
+    const QJsonArray files = filesDocument.object().value(QStringLiteral("files")).toArray();
+
+    const auto formatTimestamp = [](qint64 timestamp) -> QString
+    {
+        if (timestamp <= 0)
+            return QStringLiteral("-");
+        return QDateTime::fromSecsSinceEpoch(timestamp)
+            .toLocalTime()
+            .toString(QStringLiteral("yyyy-MM-dd HH:mm"));
+    };
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Nexus Mods - Mod Details"));
+    dialog.resize(1000, 650);
+
+    auto* layout = new QVBoxLayout(&dialog);
+
+    QStringList infoLines;
+    infoLines << tr("Name: %1").arg(mod.value(QStringLiteral("name")).toString(QStringLiteral("-")));
+    infoLines << tr("Author: %1").arg(mod.value(QStringLiteral("author")).toString(QStringLiteral("-")));
+    infoLines << tr("Version: %1").arg(mod.value(QStringLiteral("version")).toString(QStringLiteral("-")));
+    infoLines << tr("Mod ID: %1").arg(modId);
+    infoLines << tr("Status: %1").arg(mod.value(QStringLiteral("status")).toString(QStringLiteral("-")));
+    infoLines << tr("Updated: %1").arg(
+        formatTimestamp(mod.value(QStringLiteral("updated_timestamp")).toVariant().toLongLong()));
+
+    const qint64 downloads = mod.value(QStringLiteral("mod_downloads")).toVariant().toLongLong();
+    const qint64 uniqueDownloads = mod.value(QStringLiteral("mod_unique_downloads")).toVariant().toLongLong();
+    if (downloads > 0 || uniqueDownloads > 0)
+        infoLines << tr("Downloads: %1 (%2 unique)")
+                         .arg(QLocale().toString(downloads))
+                         .arg(QLocale().toString(uniqueDownloads));
+
+    auto* infoLabel = new QLabel(infoLines.join('\n'), &dialog);
+    infoLabel->setTextFormat(Qt::PlainText);
+    infoLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    layout->addWidget(infoLabel);
+
+    const QString summary = mod.value(QStringLiteral("summary")).toString().trimmed();
+    if (!summary.isEmpty())
+    {
+        auto* summaryLabel = new QLabel(tr("Summary: %1").arg(summary), &dialog);
+        summaryLabel->setTextFormat(Qt::PlainText);
+        summaryLabel->setWordWrap(true);
+        summaryLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        layout->addWidget(summaryLabel);
+    }
+
+    auto* filesLabel = new QLabel(tr("Files: %1").arg(files.size()), &dialog);
+    layout->addWidget(filesLabel);
+
+    auto* table = new QTableWidget(files.size(), 7, &dialog);
+    table->setHorizontalHeaderLabels({
+        tr("Category"),
+        tr("Name"),
+        tr("Version"),
+        tr("Archive"),
+        tr("Size"),
+        tr("Uploaded"),
+        tr("File ID"),
+    });
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->setSelectionMode(QAbstractItemView::SingleSelection);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setAlternatingRowColors(true);
+
+    for (int row = 0; row < files.size(); ++row)
+    {
+        const QJsonObject file = files.at(row).toObject();
+
+        const qint64 sizeKb = file.value(QStringLiteral("size_kb")).toVariant().toLongLong();
+        QString sizeText = QStringLiteral("-");
+        if (sizeKb > 0)
+            sizeText = QLocale().formattedDataSize(sizeKb * 1024);
+
+        const QString uploaded = formatTimestamp(
+            file.value(QStringLiteral("uploaded_timestamp")).toVariant().toLongLong());
+
+        const QStringList values{
+            file.value(QStringLiteral("category_name")).toString(QStringLiteral("-")),
+            file.value(QStringLiteral("name")).toString(QStringLiteral("-")),
+            file.value(QStringLiteral("version")).toString(QStringLiteral("-")),
+            file.value(QStringLiteral("file_name")).toString(QStringLiteral("-")),
+            sizeText,
+            uploaded,
+            QString::number(file.value(QStringLiteral("file_id")).toVariant().toLongLong()),
+        };
+
+        for (int column = 0; column < values.size(); ++column)
+            table->setItem(row, column, new QTableWidgetItem(values.at(column)));
+    }
+
+    auto* header = table->horizontalHeader();
+    header->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(1, QHeaderView::Stretch);
+    header->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(3, QHeaderView::Stretch);
+    header->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(5, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(6, QHeaderView::ResizeToContents);
+
+    layout->addWidget(table, 1);
+
+    QStringList apiLimitParts;
+    if (!hourlyRemaining.isEmpty())
+        apiLimitParts << tr("hourly: %1").arg(QString::fromLatin1(hourlyRemaining));
+    if (!dailyRemaining.isEmpty())
+        apiLimitParts << tr("daily: %1").arg(QString::fromLatin1(dailyRemaining));
+
+    if (!apiLimitParts.isEmpty())
+    {
+        auto* limitLabel = new QLabel(
+            tr("API requests remaining - %1").arg(apiLimitParts.join(QStringLiteral(", "))), &dialog);
+        layout->addWidget(limitLabel);
+    }
+
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+
+    dialog.exec();
 }
 
 void Launcher::DataFilesPage::chooseModsDirectory()

@@ -898,6 +898,120 @@ The Personal API key is kept only for this launcher session.</translation>
         <source>Free</source>
         <translation>Free</translation>
     </message>
+    <message>
+        <source>Nexus Mods - Find Mod</source>
+        <translation>Nexus Mods - Find Mod</translation>
+    </message>
+    <message>
+        <source>Morrowind Mod ID or Nexus Mods URL:</source>
+        <translation>Morrowind Mod ID or Nexus Mods URL:</translation>
+    </message>
+    <message>
+        <source>Enter a valid Morrowind Mod ID or a Nexus Mods Morrowind mod URL.</source>
+        <translation>Enter a valid Morrowind Mod ID or a Nexus Mods Morrowind mod URL.</translation>
+    </message>
+    <message>
+        <source>HTTP status: %1
+%2</source>
+        <translation>HTTP status: %1
+%2</translation>
+    </message>
+    <message>
+        <source>Nexus Mods returned an invalid JSON response.</source>
+        <translation>Nexus Mods returned an invalid JSON response.</translation>
+    </message>
+    <message>
+        <source>Could not retrieve mod information.
+%1</source>
+        <translation>Could not retrieve mod information.
+%1</translation>
+    </message>
+    <message>
+        <source>Could not retrieve the mod file list.
+%1</source>
+        <translation>Could not retrieve the mod file list.
+%1</translation>
+    </message>
+    <message>
+        <source>Nexus Mods - Mod Details</source>
+        <translation>Nexus Mods - Mod Details</translation>
+    </message>
+    <message>
+        <source>Name: %1</source>
+        <translation>Name: %1</translation>
+    </message>
+    <message>
+        <source>Author: %1</source>
+        <translation>Author: %1</translation>
+    </message>
+    <message>
+        <source>Version: %1</source>
+        <translation>Version: %1</translation>
+    </message>
+    <message>
+        <source>Mod ID: %1</source>
+        <translation>Mod ID: %1</translation>
+    </message>
+    <message>
+        <source>Status: %1</source>
+        <translation>Status: %1</translation>
+    </message>
+    <message>
+        <source>Updated: %1</source>
+        <translation>Updated: %1</translation>
+    </message>
+    <message>
+        <source>Downloads: %1 (%2 unique)</source>
+        <translation>Downloads: %1 (%2 unique)</translation>
+    </message>
+    <message>
+        <source>Summary: %1</source>
+        <translation>Summary: %1</translation>
+    </message>
+    <message>
+        <source>Files: %1</source>
+        <translation>Files: %1</translation>
+    </message>
+    <message>
+        <source>Category</source>
+        <translation>Category</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation>Name</translation>
+    </message>
+    <message>
+        <source>Version</source>
+        <translation>Version</translation>
+    </message>
+    <message>
+        <source>Archive</source>
+        <translation>Archive</translation>
+    </message>
+    <message>
+        <source>Size</source>
+        <translation>Size</translation>
+    </message>
+    <message>
+        <source>Uploaded</source>
+        <translation>Uploaded</translation>
+    </message>
+    <message>
+        <source>File ID</source>
+        <translation>File ID</translation>
+    </message>
+    <message>
+        <source>hourly: %1</source>
+        <translation>hourly: %1</translation>
+    </message>
+    <message>
+        <source>daily: %1</source>
+        <translation>daily: %1</translation>
+    </message>
+    <message>
+        <source>API requests remaining - %1</source>
+        <translation>API requests remaining - %1</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>
