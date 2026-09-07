@@ -7,6 +7,7 @@
 #include <QDesktopServices>
 #include <QDialogButtonBox>
 #include <QDirIterator>
+#include <QFile>
 #include <QFileDialog>
 #include <QHash>
 #include <QLabel>
@@ -18,11 +19,13 @@
 #include <QProgressDialog>
 #include <QPushButton>
 #include <QSet>
+#include <QSize>
 #include <QTableWidget>
 #include <QTimer>
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <limits>
 #include <mutex>
 #include <thread>
 #include <unordered_set>
@@ -97,7 +100,7 @@ namespace
             contentSubdirs(subdir.canonicalFilePath(), dirs);
     }
 
-    QSet<QString> looseAssetPaths(const QString& rootPath)
+    QHash<QString, QString> looseAssetFiles(const QString& rootPath)
     {
         static const QStringList assetDirectories{
             QStringLiteral("animations"),
@@ -119,15 +122,11 @@ namespace
             QStringLiteral("video"),
         };
 
-        QSet<QString> result;
+        QHash<QString, QString> result;
         const QDir root(rootPath);
         if (!root.exists())
             return result;
 
-        // Use the real directory names found on disk and compare them
-        // case-insensitively. Morrowind VFS paths are case-insensitive, but
-        // Linux filesystems usually are not. Mods commonly ship "Textures",
-        // "Meshes", etc. instead of lowercase directory names.
         const QFileInfoList rootSubdirectories
             = root.entryInfoList(QDir::Dirs | QDir::NoDotAndDotDot | QDir::Readable);
 
@@ -145,14 +144,49 @@ namespace
                 QString relativePath = root.relativeFilePath(absolutePath);
                 relativePath.replace('\\', '/');
 
-                // Conflict keys follow VFS semantics rather than host
-                // filesystem casing, so Textures/foo.dds and
-                // textures/Foo.dds are the same resource.
-                result.insert(relativePath.toLower());
+                result.insert(relativePath.toLower(), absolutePath);
             }
         }
 
         return result;
+    }
+
+    QSize readDdsSize(const QString& filePath)
+    {
+        QFile file(filePath);
+        if (!file.open(QIODevice::ReadOnly))
+            return {};
+
+        const QByteArray header = file.read(20);
+        if (header.size() < 20 || header.left(4) != QByteArrayLiteral("DDS "))
+            return {};
+
+        const auto readLittleEndian32 = [](const char* data) -> quint32 {
+            const auto* bytes = reinterpret_cast<const unsigned char*>(data);
+            return static_cast<quint32>(bytes[0])
+                | (static_cast<quint32>(bytes[1]) << 8)
+                | (static_cast<quint32>(bytes[2]) << 16)
+                | (static_cast<quint32>(bytes[3]) << 24);
+        };
+
+        const quint32 headerSize = readLittleEndian32(header.constData() + 4);
+        const quint32 height = readLittleEndian32(header.constData() + 12);
+        const quint32 width = readLittleEndian32(header.constData() + 16);
+
+        if (headerSize != 124 || width == 0 || height == 0
+            || width > static_cast<quint32>(std::numeric_limits<int>::max())
+            || height > static_cast<quint32>(std::numeric_limits<int>::max()))
+            return {};
+
+        return QSize(static_cast<int>(width), static_cast<int>(height));
+    }
+
+    QString textureSizeText(const QSize& size)
+    {
+        if (!size.isValid() || size.isEmpty())
+            return {};
+
+        return QStringLiteral("%1×%2").arg(size.width()).arg(size.height());
     }
 
     QString normalizedAbsolutePath(const QString& path)
@@ -913,9 +947,9 @@ void Launcher::DataFilesPage::updateAssetConflictStats()
 
     for (int i = 0; i < directories.size(); ++i)
     {
-        const QSet<QString> files = looseAssetPaths(directories.at(i));
-        for (const QString& relativePath : files)
-            owners[relativePath].push_back(i);
+        const QHash<QString, QString> files = looseAssetFiles(directories.at(i));
+        for (auto fileIt = files.cbegin(); fileIt != files.cend(); ++fileIt)
+            owners[fileIt.key()].push_back(i);
     }
 
     for (auto it = owners.cbegin(); it != owners.cend(); ++it)
@@ -937,6 +971,7 @@ void Launcher::DataFilesPage::updateAssetConflictStats()
                 ++stats[owner].losses;
 
             QStringList otherMods;
+            QStringList otherModPaths;
             for (const int other : fileOwners)
             {
                 if (other == owner)
@@ -946,8 +981,8 @@ void Launcher::DataFilesPage::updateAssetConflictStats()
                 if (modName.isEmpty())
                     modName = directories.at(other);
                 otherMods.push_back(modName);
+                otherModPaths.push_back(directories.at(other));
             }
-            otherMods.removeDuplicates();
 
             QString winnerMod = QFileInfo(directories.at(winner)).fileName();
             if (winnerMod.isEmpty())
@@ -955,7 +990,7 @@ void Launcher::DataFilesPage::updateAssetConflictStats()
 
             const QString key = normalizedAbsolutePath(directories.at(owner));
             mAssetConflictDetails[key].push_back(
-                AssetConflictDetail{ it.key(), otherMods, winnerMod, owner == winner });
+                AssetConflictDetail{ it.key(), otherMods, otherModPaths, winnerMod, owner == winner });
         }
     }
 
@@ -1018,17 +1053,71 @@ void Launcher::DataFilesPage::showAssetConflictDetails(const QString& path)
         &dialog);
     layout->addWidget(summary);
 
+    auto* resolutionTitle = new QLabel(tr("DDS resolution comparison against %1:").arg(modName), &dialog);
+    layout->addWidget(resolutionTitle);
+
+    auto* resolutionTable = new QTableWidget(&dialog);
+    resolutionTable->setColumnCount(6);
+    resolutionTable->setHorizontalHeaderLabels(
+        { tr("No."), tr("Mod"), tr("Higher"), tr("Lower"), tr("Equal"), tr("Suggestion") });
+    resolutionTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    resolutionTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    resolutionTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    resolutionTable->setAlternatingRowColors(true);
+    resolutionTable->verticalHeader()->setVisible(false);
+    // Height is calculated after rows are populated so this compact
+    // summary does not consume unnecessary vertical space.
+    layout->addWidget(resolutionTable);
+
+    auto* resolutionNote = new QLabel(
+        tr("Higher resolution does not always mean higher image quality. This is only a suggestion; load order is never changed automatically."),
+        &dialog);
+    resolutionNote->setWordWrap(true);
+    layout->addWidget(resolutionNote);
+
     auto* filter = new QLineEdit(&dialog);
     filter->setPlaceholderText(tr("Filter conflicts..."));
     layout->addWidget(filter);
 
-    auto* table = new QTableWidget(details.size(), 4, &dialog);
-    table->setHorizontalHeaderLabels({ tr("File"), tr("Result"), tr("Winner"), tr("Conflicts With") });
+    auto* table = new QTableWidget(details.size(), 5, &dialog);
+    table->setHorizontalHeaderLabels(
+        { tr("File"), tr("Result"), tr("Winner"), tr("Resolution"), tr("Conflicts With") });
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table->setSelectionBehavior(QAbstractItemView::SelectRows);
     table->setSelectionMode(QAbstractItemView::SingleSelection);
     table->setAlternatingRowColors(true);
     table->setSortingEnabled(false);
+
+    struct ResolutionComparison
+    {
+        QString mModName;
+        int mHigher = 0;
+        int mLower = 0;
+        int mEqual = 0;
+    };
+
+    QHash<QString, QHash<QString, QString>> looseFilesByDirectory;
+    auto filesForDirectory = [&](const QString& directory) -> const QHash<QString, QString>& {
+        const QString directoryKey = normalizedAbsolutePath(directory);
+        auto filesIt = looseFilesByDirectory.find(directoryKey);
+        if (filesIt == looseFilesByDirectory.end())
+            filesIt = looseFilesByDirectory.insert(directoryKey, looseAssetFiles(directory));
+        return filesIt.value();
+    };
+
+    auto ddsSizeFor = [&](const QString& directory, const QString& relativePath) -> QSize {
+        if (!relativePath.endsWith(QLatin1String(".dds"), Qt::CaseInsensitive))
+            return {};
+
+        const QHash<QString, QString>& files = filesForDirectory(directory);
+        const auto fileIt = files.constFind(relativePath.toLower());
+        if (fileIt == files.cend())
+            return {};
+
+        return readDdsSize(fileIt.value());
+    };
+
+    QHash<QString, ResolutionComparison> comparisons;
 
     for (int row = 0; row < details.size(); ++row)
     {
@@ -1037,23 +1126,135 @@ void Launcher::DataFilesPage::showAssetConflictDetails(const QString& path)
         auto* fileItem = new QTableWidgetItem(detail.mRelativePath);
         auto* resultItem = new QTableWidgetItem(detail.mWins ? tr("Wins") : tr("Loses"));
         auto* winnerItem = new QTableWidgetItem(detail.mWins ? tr("This mod") : detail.mWinnerMod);
+        auto* resolutionItem = new QTableWidgetItem();
         auto* modsItem = new QTableWidgetItem(detail.mOtherMods.join(", "));
 
         fileItem->setToolTip(detail.mRelativePath);
         winnerItem->setToolTip(detail.mWinnerMod);
         modsItem->setToolTip(detail.mOtherMods.join("\n"));
 
+        const QSize currentSize = ddsSizeFor(path, detail.mRelativePath);
+        if (currentSize.isValid() && !currentSize.isEmpty())
+        {
+            resolutionItem->setText(textureSizeText(currentSize));
+
+            QStringList resolutionTooltip;
+            resolutionTooltip.push_back(
+                QStringLiteral("%1: %2").arg(modName, textureSizeText(currentSize)));
+
+            const qint64 currentPixels
+                = static_cast<qint64>(currentSize.width()) * static_cast<qint64>(currentSize.height());
+
+            const int competitorCount = std::min(detail.mOtherMods.size(), detail.mOtherModPaths.size());
+            for (int competitor = 0; competitor < competitorCount; ++competitor)
+            {
+                const QString& otherName = detail.mOtherMods.at(competitor);
+                const QString& otherPath = detail.mOtherModPaths.at(competitor);
+                const QSize otherSize = ddsSizeFor(otherPath, detail.mRelativePath);
+                if (!otherSize.isValid() || otherSize.isEmpty())
+                    continue;
+
+                resolutionTooltip.push_back(
+                    QStringLiteral("%1: %2").arg(otherName, textureSizeText(otherSize)));
+
+                const qint64 otherPixels
+                    = static_cast<qint64>(otherSize.width()) * static_cast<qint64>(otherSize.height());
+
+                const QString comparisonKey = normalizedAbsolutePath(otherPath);
+                ResolutionComparison& comparison = comparisons[comparisonKey];
+                comparison.mModName = otherName;
+
+                if (otherPixels > currentPixels)
+                    ++comparison.mHigher;
+                else if (otherPixels < currentPixels)
+                    ++comparison.mLower;
+                else
+                    ++comparison.mEqual;
+            }
+
+            resolutionItem->setToolTip(resolutionTooltip.join("\n"));
+        }
+
         table->setItem(row, 0, fileItem);
         table->setItem(row, 1, resultItem);
         table->setItem(row, 2, winnerItem);
-        table->setItem(row, 3, modsItem);
+        table->setItem(row, 3, resolutionItem);
+        table->setItem(row, 4, modsItem);
     }
+
+    QStringList comparisonKeys = comparisons.keys();
+    std::sort(comparisonKeys.begin(), comparisonKeys.end(),
+        [&](const QString& lhs, const QString& rhs) {
+            return comparisons.value(lhs).mModName.compare(
+                       comparisons.value(rhs).mModName, Qt::CaseInsensitive)
+                < 0;
+        });
+
+    resolutionTable->setRowCount(comparisonKeys.size());
+
+    for (int row = 0; row < comparisonKeys.size(); ++row)
+    {
+        const ResolutionComparison& comparison = comparisons.value(comparisonKeys.at(row));
+
+        QString suggestion;
+        if (comparison.mHigher > comparison.mLower)
+            suggestion = tr("Higher priority");
+        else if (comparison.mLower > comparison.mHigher)
+            suggestion = tr("Lower priority");
+        else
+            suggestion = tr("No clear suggestion");
+
+        resolutionTable->setItem(row, 0, new QTableWidgetItem(QString::number(row + 1)));
+        resolutionTable->setItem(row, 1, new QTableWidgetItem(comparison.mModName));
+        resolutionTable->setItem(row, 2, new QTableWidgetItem(QString::number(comparison.mHigher)));
+        resolutionTable->setItem(row, 3, new QTableWidgetItem(QString::number(comparison.mLower)));
+        resolutionTable->setItem(row, 4, new QTableWidgetItem(QString::number(comparison.mEqual)));
+        resolutionTable->setItem(row, 5, new QTableWidgetItem(suggestion));
+    }
+
+    if (comparisonKeys.isEmpty())
+    {
+        resolutionTable->setRowCount(1);
+        auto* noDataItem = new QTableWidgetItem(tr("No comparable DDS texture resolutions were found."));
+        resolutionTable->setSpan(0, 0, 1, 6);
+        resolutionTable->setItem(0, 0, noDataItem);
+    }
+
+    auto* resolutionHeader = resolutionTable->horizontalHeader();
+    resolutionHeader->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    resolutionHeader->setSectionResizeMode(1, QHeaderView::Stretch);
+    resolutionHeader->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    resolutionHeader->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    resolutionHeader->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    resolutionHeader->setSectionResizeMode(5, QHeaderView::ResizeToContents);
+    // Use the same compact row height as the detailed conflict table below.
+    // resizeRowsToContents() made the summary rows noticeably too tall.
+    const int compactRowHeight = table->rowCount() > 0
+        ? table->rowHeight(0)
+        : table->verticalHeader()->defaultSectionSize();
+
+    auto* resolutionVerticalHeader = resolutionTable->verticalHeader();
+    resolutionVerticalHeader->setSectionResizeMode(QHeaderView::Fixed);
+    resolutionVerticalHeader->setDefaultSectionSize(compactRowHeight);
+    resolutionVerticalHeader->setMinimumSectionSize(compactRowHeight);
+
+    // Keep the summary compact vertically as well. Show at most six rows;
+    // additional competitors remain accessible with a scrollbar.
+    const int visibleResolutionRows = std::min(resolutionTable->rowCount(), 6);
+    int resolutionTableHeight
+        = resolutionTable->horizontalHeader()->height() + 2 * resolutionTable->frameWidth() + 2;
+    resolutionTableHeight += visibleResolutionRows * compactRowHeight;
+
+    resolutionTable->setFixedHeight(resolutionTableHeight);
+    resolutionTable->setVerticalScrollBarPolicy(
+        resolutionTable->rowCount() > visibleResolutionRows ? Qt::ScrollBarAlwaysOn : Qt::ScrollBarAlwaysOff);
 
     auto* header = table->horizontalHeader();
     header->setSectionResizeMode(0, QHeaderView::Stretch);
     header->setSectionResizeMode(1, QHeaderView::ResizeToContents);
     header->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-    header->setSectionResizeMode(3, QHeaderView::Stretch);
+    header->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(4, QHeaderView::Stretch);
 
     table->setSortingEnabled(true);
     layout->addWidget(table);

@@ -470,6 +470,74 @@ to default Morrowind fonts. Check this box if you still prefer original fonts ov
         <source>This mod</source>
         <translation>This mod</translation>
     </message>
+    <message>
+        <source>Resolution</source>
+        <translation>Resolution</translation>
+    </message>
+    <message>
+        <source>DDS resolution comparison:</source>
+        <translation>DDS resolution comparison:</translation>
+    </message>
+    <message>
+        <source>Compared with %1: higher %2, lower %3, equal %4 — suggest higher priority for this mod.</source>
+        <translation>Compared with %1: higher %2, lower %3, equal %4 — suggest higher priority for this mod.</translation>
+    </message>
+    <message>
+        <source>Compared with %1: higher %2, lower %3, equal %4 — suggest lower priority for this mod.</source>
+        <translation>Compared with %1: higher %2, lower %3, equal %4 — suggest lower priority for this mod.</translation>
+    </message>
+    <message>
+        <source>Compared with %1: higher %2, lower %3, equal %4 — no clear priority suggestion.</source>
+        <translation>Compared with %1: higher %2, lower %3, equal %4 — no clear priority suggestion.</translation>
+    </message>
+    <message>
+        <source>Higher resolution does not always mean higher image quality. This is only a suggestion; load order is never changed automatically.</source>
+        <translation>Higher resolution does not always mean higher image quality. This is only a suggestion; load order is never changed automatically.</translation>
+    </message>
+    <message>
+        <source>No comparable DDS texture resolutions were found.</source>
+        <translation>No comparable DDS texture resolutions were found.</translation>
+    </message>
+    <message>
+        <source>Mod</source>
+        <translation>Mod</translation>
+    </message>
+    <message>
+        <source>Higher</source>
+        <translation>Higher</translation>
+    </message>
+    <message>
+        <source>Lower</source>
+        <translation>Lower</translation>
+    </message>
+    <message>
+        <source>Equal</source>
+        <translation>Equal</translation>
+    </message>
+    <message>
+        <source>Suggestion</source>
+        <translation>Suggestion</translation>
+    </message>
+    <message>
+        <source>Higher priority</source>
+        <translation>Higher priority</translation>
+    </message>
+    <message>
+        <source>Lower priority</source>
+        <translation>Lower priority</translation>
+    </message>
+    <message>
+        <source>No clear suggestion</source>
+        <translation>No clear suggestion</translation>
+    </message>
+    <message>
+        <source>No.</source>
+        <translation>No.</translation>
+    </message>
+    <message>
+        <source>DDS resolution comparison against %1:</source>
+        <translation>DDS resolution comparison against %1:</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>
