@@ -1016,6 +1016,102 @@ Osobisty klucz API jest przechowywany tylko na czas tej sesji launchera.</transl
         <source>API requests remaining - %1</source>
         <translation>Pozostałe zapytania API - %1</translation>
     </message>
+    <message>
+        <source>The downloaded archive does not exist.</source>
+        <translation>Pobrane archiwum nie istnieje.</translation>
+    </message>
+    <message>
+        <source>Download / Install</source>
+        <translation>Pobierz / Zainstaluj</translation>
+    </message>
+    <message>
+        <source>Select a file to download.</source>
+        <translation>Wybierz plik do pobrania.</translation>
+    </message>
+    <message>
+        <source>The selected Nexus Mods file does not contain valid download information.</source>
+        <translation>Wybrany plik Nexus Mods nie zawiera prawidłowych informacji potrzebnych do pobrania.</translation>
+    </message>
+    <message>
+        <source>Connect to Nexus Mods first.</source>
+        <translation>Najpierw połącz się z Nexus Mods.</translation>
+    </message>
+    <message>
+        <source>Nexus Mods - Free Download</source>
+        <translation>Nexus Mods - Pobieranie darmowe</translation>
+    </message>
+    <message>
+        <source>The Nexus Mods download page has been opened in your browser.
+
+Choose Mod Manager Download / Slow Download, copy the generated nxm:// link, then paste it here:</source>
+        <translation>Strona pobierania Nexus Mods została otwarta w przeglądarce.
+
+Wybierz Mod Manager Download / Slow Download, skopiuj wygenerowany link nxm://, a następnie wklej go tutaj:</translation>
+    </message>
+    <message>
+        <source>The pasted NXM link does not match the selected Morrowind file.</source>
+        <translation>Wklejony link NXM nie odpowiada wybranemu plikowi moda Morrowinda.</translation>
+    </message>
+    <message>
+        <source>The NXM download link is missing its authorization data or has expired.</source>
+        <translation>Link pobierania NXM nie zawiera danych autoryzacyjnych albo już wygasł.</translation>
+    </message>
+    <message>
+        <source>The NXM link was generated for a different Nexus Mods account.</source>
+        <translation>Link NXM został wygenerowany dla innego konta Nexus Mods.</translation>
+    </message>
+    <message>
+        <source>Could not obtain a download link.
+HTTP status: %1
+%2</source>
+        <translation>Nie można uzyskać linku pobierania.
+Status HTTP: %1
+%2</translation>
+    </message>
+    <message>
+        <source>Nexus Mods returned an invalid download-link response.</source>
+        <translation>Nexus Mods zwrócił nieprawidłową odpowiedź z linkiem pobierania.</translation>
+    </message>
+    <message>
+        <source>Nexus Mods did not return a valid HTTPS download URL.</source>
+        <translation>Nexus Mods nie zwrócił prawidłowego adresu HTTPS do pobrania.</translation>
+    </message>
+    <message>
+        <source>Could not create a temporary file for the Nexus Mods download.</source>
+        <translation>Nie można utworzyć pliku tymczasowego dla pobierania z Nexus Mods.</translation>
+    </message>
+    <message>
+        <source>Downloading %1...</source>
+        <translation>Pobieranie %1...</translation>
+    </message>
+    <message>
+        <source>Nexus Mods Download</source>
+        <translation>Pobieranie z Nexus Mods</translation>
+    </message>
+    <message>
+        <source>Downloading %1... %2 / %3</source>
+        <translation>Pobieranie %1... %2 / %3</translation>
+    </message>
+    <message>
+        <source>Downloading %1... %2</source>
+        <translation>Pobieranie %1... %2</translation>
+    </message>
+    <message>
+        <source>Download canceled.</source>
+        <translation>Pobieranie anulowane.</translation>
+    </message>
+    <message>
+        <source>Could not write the downloaded archive to disk.</source>
+        <translation>Nie można zapisać pobranego archiwum na dysku.</translation>
+    </message>
+    <message>
+        <source>Download failed.
+HTTP status: %1
+%2</source>
+        <translation>Pobieranie nie powiodło się.
+Status HTTP: %1
+%2</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

@@ -1012,6 +1012,102 @@ The Personal API key is kept only for this launcher session.</translation>
         <source>API requests remaining - %1</source>
         <translation>API requests remaining - %1</translation>
     </message>
+    <message>
+        <source>The downloaded archive does not exist.</source>
+        <translation>The downloaded archive does not exist.</translation>
+    </message>
+    <message>
+        <source>Download / Install</source>
+        <translation>Download / Install</translation>
+    </message>
+    <message>
+        <source>Select a file to download.</source>
+        <translation>Select a file to download.</translation>
+    </message>
+    <message>
+        <source>The selected Nexus Mods file does not contain valid download information.</source>
+        <translation>The selected Nexus Mods file does not contain valid download information.</translation>
+    </message>
+    <message>
+        <source>Connect to Nexus Mods first.</source>
+        <translation>Connect to Nexus Mods first.</translation>
+    </message>
+    <message>
+        <source>Nexus Mods - Free Download</source>
+        <translation>Nexus Mods - Free Download</translation>
+    </message>
+    <message>
+        <source>The Nexus Mods download page has been opened in your browser.
+
+Choose Mod Manager Download / Slow Download, copy the generated nxm:// link, then paste it here:</source>
+        <translation>The Nexus Mods download page has been opened in your browser.
+
+Choose Mod Manager Download / Slow Download, copy the generated nxm:// link, then paste it here:</translation>
+    </message>
+    <message>
+        <source>The pasted NXM link does not match the selected Morrowind file.</source>
+        <translation>The pasted NXM link does not match the selected Morrowind file.</translation>
+    </message>
+    <message>
+        <source>The NXM download link is missing its authorization data or has expired.</source>
+        <translation>The NXM download link is missing its authorization data or has expired.</translation>
+    </message>
+    <message>
+        <source>The NXM link was generated for a different Nexus Mods account.</source>
+        <translation>The NXM link was generated for a different Nexus Mods account.</translation>
+    </message>
+    <message>
+        <source>Could not obtain a download link.
+HTTP status: %1
+%2</source>
+        <translation>Could not obtain a download link.
+HTTP status: %1
+%2</translation>
+    </message>
+    <message>
+        <source>Nexus Mods returned an invalid download-link response.</source>
+        <translation>Nexus Mods returned an invalid download-link response.</translation>
+    </message>
+    <message>
+        <source>Nexus Mods did not return a valid HTTPS download URL.</source>
+        <translation>Nexus Mods did not return a valid HTTPS download URL.</translation>
+    </message>
+    <message>
+        <source>Could not create a temporary file for the Nexus Mods download.</source>
+        <translation>Could not create a temporary file for the Nexus Mods download.</translation>
+    </message>
+    <message>
+        <source>Downloading %1...</source>
+        <translation>Downloading %1...</translation>
+    </message>
+    <message>
+        <source>Nexus Mods Download</source>
+        <translation>Nexus Mods Download</translation>
+    </message>
+    <message>
+        <source>Downloading %1... %2 / %3</source>
+        <translation>Downloading %1... %2 / %3</translation>
+    </message>
+    <message>
+        <source>Downloading %1... %2</source>
+        <translation>Downloading %1... %2</translation>
+    </message>
+    <message>
+        <source>Download canceled.</source>
+        <translation>Download canceled.</translation>
+    </message>
+    <message>
+        <source>Could not write the downloaded archive to disk.</source>
+        <translation>Could not write the downloaded archive to disk.</translation>
+    </message>
+    <message>
+        <source>Download failed.
+HTTP status: %1
+%2</source>
+        <translation>Download failed.
+HTTP status: %1
+%2</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

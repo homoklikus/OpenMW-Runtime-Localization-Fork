@@ -42,8 +42,10 @@
 #include <QSize>
 #include <QTableWidget>
 #include <QTemporaryDir>
+#include <QTemporaryFile>
 #include <QTimer>
 #include <QUrl>
+#include <QUrlQuery>
 #include <QUuid>
 #include <QVBoxLayout>
 
@@ -636,6 +638,31 @@ void Launcher::DataFilesPage::analyzeModArchive()
     if (archivePath.isEmpty())
         return;
 
+    installModArchive(archivePath);
+}
+
+void Launcher::DataFilesPage::installModArchive(
+    const QString& archivePath, const QString& suggestedModName, const QString& archiveDisplayName)
+{
+    const QString modsDirectory = mLauncherSettings.getModsDirectory();
+    if (modsDirectory.isEmpty() || !QDir(modsDirectory).exists())
+    {
+        QMessageBox::warning(this, tr("Install Mod"),
+            tr("Select a valid Mods Directory before installing a mod from an archive."));
+        return;
+    }
+
+    if (archivePath.isEmpty() || !QFileInfo::exists(archivePath))
+    {
+        QMessageBox::critical(this, tr("Install Mod"), tr("The downloaded archive does not exist."));
+        return;
+    }
+
+    const QString displayArchiveName
+        = archiveDisplayName.isEmpty() ? QFileInfo(archivePath).fileName() : archiveDisplayName;
+    const QString initialModName
+        = suggestedModName.isEmpty() ? QFileInfo(archivePath).completeBaseName() : suggestedModName;
+
     struct archive* archiveHandle = archive_read_new();
     if (!archiveHandle)
     {
@@ -818,14 +845,14 @@ void Launcher::DataFilesPage::analyzeModArchive()
         layoutType = tr("Multiple possible data roots");
 
     QDialog dialog(this);
-    dialog.setWindowTitle(tr("Archive Analysis — %1").arg(QFileInfo(archivePath).fileName()));
+    dialog.setWindowTitle(tr("Archive Analysis — %1").arg(displayArchiveName));
     dialog.resize(850, 520);
 
     auto* layout = new QVBoxLayout(&dialog);
 
     auto* summary = new QLabel(
         tr("Archive: %1\nFormat: %2\nFiles: %3\nDetected layout: %4")
-            .arg(QFileInfo(archivePath).fileName())
+            .arg(displayArchiveName)
             .arg(archiveFormat.isEmpty() ? tr("Unknown") : archiveFormat)
             .arg(filePaths.size())
             .arg(layoutType),
@@ -843,7 +870,7 @@ void Launcher::DataFilesPage::analyzeModArchive()
 
     auto* modNameLayout = new QHBoxLayout;
     auto* modNameLabel = new QLabel(tr("Mod name:"), &dialog);
-    auto* modNameEdit = new QLineEdit(QFileInfo(archivePath).completeBaseName(), &dialog);
+    auto* modNameEdit = new QLineEdit(initialModName, &dialog);
     modNameEdit->setToolTip(tr("The mod will be installed as one subdirectory of the configured Mods Directory."));
     modNameLayout->addWidget(modNameLabel);
     modNameLayout->addWidget(modNameEdit, 1);
@@ -1464,6 +1491,7 @@ void Launcher::DataFilesPage::connectNexusMods()
     mNexusApiKey = enteredKey;
     mNexusUserName = userName;
     mNexusPremium = object.value(QStringLiteral("is_premium")).toBool(false);
+    mNexusUserId = object.value(QStringLiteral("user_id")).toVariant().toLongLong();
 
     QMessageBox::information(this, tr("Nexus Mods Connected"),
         tr("Connected to Nexus Mods as: %1\nAccount: %2\n\n"
@@ -1708,10 +1736,289 @@ void Launcher::DataFilesPage::lookupNexusMod()
     }
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+    QPushButton* downloadButton = buttons->addButton(tr("Download / Install"), QDialogButtonBox::ActionRole);
+    connect(downloadButton, &QPushButton::clicked, &dialog,
+        [this, &dialog, table, files, modId, modName = mod.value(QStringLiteral("name")).toString()]() {
+            const int row = table->currentRow();
+            if (row < 0 || row >= files.size())
+            {
+                QMessageBox::warning(this, tr("Nexus Mods"), tr("Select a file to download."));
+                return;
+            }
+
+            const QJsonObject file = files.at(row).toObject();
+            const qint64 fileId = file.value(QStringLiteral("file_id")).toVariant().toLongLong();
+            const QString fileName = file.value(QStringLiteral("file_name")).toString();
+
+            if (fileId <= 0 || fileName.isEmpty())
+            {
+                QMessageBox::warning(this, tr("Nexus Mods"),
+                    tr("The selected Nexus Mods file does not contain valid download information."));
+                return;
+            }
+
+            // Close the modal Nexus details dialog before starting the download.
+            // Otherwise the archive analysis/installer dialog can be opened behind
+            // the still-active modal window and appear as if nothing happened.
+            dialog.accept();
+
+            downloadNexusFile(modId, fileId, fileName, modName);
+        });
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout->addWidget(buttons);
 
     dialog.exec();
+}
+
+void Launcher::DataFilesPage::downloadNexusFile(
+    int modId, qint64 fileId, const QString& fileName, const QString& modName)
+{
+    if (mNexusApiKey.isEmpty())
+    {
+        QMessageBox::warning(this, tr("Nexus Mods"), tr("Connect to Nexus Mods first."));
+        return;
+    }
+
+    QString nxmKey;
+    QString nxmExpires;
+
+    if (!mNexusPremium)
+    {
+        const QUrl downloadPage(
+            QStringLiteral("https://www.nexusmods.com/morrowind/mods/%1?tab=files&file_id=%2&nmm=1")
+                .arg(modId)
+                .arg(fileId));
+        QDesktopServices::openUrl(downloadPage);
+
+        bool accepted = false;
+        const QString nxmText = QInputDialog::getText(this, tr("Nexus Mods - Free Download"),
+            tr("The Nexus Mods download page has been opened in your browser.\n\n"
+               "Choose Mod Manager Download / Slow Download, copy the generated nxm:// link, "
+               "then paste it here:"), QLineEdit::Normal, QString(), &accepted).trimmed();
+
+        if (!accepted)
+            return;
+
+        const QUrl nxmUrl(nxmText);
+        const QString expectedPath = QStringLiteral("/mods/%1/files/%2").arg(modId).arg(fileId);
+
+        if (!nxmUrl.isValid()
+            || nxmUrl.scheme().compare(QStringLiteral("nxm"), Qt::CaseInsensitive) != 0
+            || nxmUrl.host().compare(QStringLiteral("morrowind"), Qt::CaseInsensitive) != 0
+            || nxmUrl.path().compare(expectedPath, Qt::CaseInsensitive) != 0)
+        {
+            QMessageBox::warning(this, tr("Nexus Mods"),
+                tr("The pasted NXM link does not match the selected Morrowind file."));
+            return;
+        }
+
+        const QUrlQuery query(nxmUrl);
+        nxmKey = query.queryItemValue(QStringLiteral("key"));
+        nxmExpires = query.queryItemValue(QStringLiteral("expires"));
+
+        bool expiresOk = false;
+        const qint64 expires = nxmExpires.toLongLong(&expiresOk);
+        bool userIdOk = false;
+        const qint64 linkUserId = query.queryItemValue(QStringLiteral("user_id")).toLongLong(&userIdOk);
+
+        if (nxmKey.isEmpty() || !expiresOk || expires <= QDateTime::currentSecsSinceEpoch())
+        {
+            QMessageBox::warning(this, tr("Nexus Mods"),
+                tr("The NXM download link is missing its authorization data or has expired."));
+            return;
+        }
+
+        if (mNexusUserId > 0 && userIdOk && linkUserId != mNexusUserId)
+        {
+            QMessageBox::warning(this, tr("Nexus Mods"),
+                tr("The NXM link was generated for a different Nexus Mods account."));
+            return;
+        }
+    }
+
+    QUrl apiUrl(QStringLiteral(
+        "https://api.nexusmods.com/v1/games/morrowind/mods/%1/files/%2/download_link.json")
+                    .arg(modId)
+                    .arg(fileId));
+
+    if (!mNexusPremium)
+    {
+        QUrlQuery query;
+        query.addQueryItem(QStringLiteral("key"), nxmKey);
+        query.addQueryItem(QStringLiteral("expires"), nxmExpires);
+        apiUrl.setQuery(query);
+    }
+
+    QNetworkRequest apiRequest(apiUrl);
+    apiRequest.setRawHeader("apikey", mNexusApiKey.toUtf8());
+    apiRequest.setRawHeader("Application-Name", QByteArrayLiteral("OpenMW-Runtime-Localization-Fork"));
+    apiRequest.setRawHeader("Application-Version", QByteArrayLiteral("0.4-dev"));
+
+    QNetworkAccessManager networkManager;
+    QNetworkReply* apiReply = networkManager.get(apiRequest);
+
+    QEventLoop apiLoop;
+    connect(apiReply, &QNetworkReply::finished, &apiLoop, &QEventLoop::quit);
+    apiLoop.exec();
+
+    const QByteArray apiData = apiReply->readAll();
+    const int apiStatus = apiReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    const QString apiNetworkError = apiReply->errorString();
+    const QNetworkReply::NetworkError apiErrorCode = apiReply->error();
+    apiReply->deleteLater();
+
+    QJsonParseError parseError;
+    const QJsonDocument downloadDocument = QJsonDocument::fromJson(apiData, &parseError);
+
+    if (apiErrorCode != QNetworkReply::NoError || apiStatus < 200 || apiStatus >= 300)
+    {
+        QString message;
+        if (downloadDocument.isObject())
+            message = downloadDocument.object().value(QStringLiteral("message")).toString();
+        if (message.isEmpty())
+            message = apiNetworkError;
+
+        QMessageBox::critical(this, tr("Nexus Mods"),
+            tr("Could not obtain a download link.\nHTTP status: %1\n%2").arg(apiStatus).arg(message));
+        return;
+    }
+
+    if (parseError.error != QJsonParseError::NoError || !downloadDocument.isArray()
+        || downloadDocument.array().isEmpty())
+    {
+        QMessageBox::critical(this, tr("Nexus Mods"),
+            tr("Nexus Mods returned an invalid download-link response."));
+        return;
+    }
+
+    const QJsonObject downloadServer = downloadDocument.array().at(0).toObject();
+    QString uri = downloadServer.value(QStringLiteral("URI")).toString();
+    if (uri.isEmpty())
+        uri = downloadServer.value(QStringLiteral("uri")).toString();
+
+    const QUrl downloadUrl(uri);
+    if (!downloadUrl.isValid() || downloadUrl.scheme().toLower() != QLatin1String("https"))
+    {
+        QMessageBox::critical(this, tr("Nexus Mods"),
+            tr("Nexus Mods did not return a valid HTTPS download URL."));
+        return;
+    }
+
+    const QString modsDirectory = mLauncherSettings.getModsDirectory();
+    if (modsDirectory.isEmpty() || !QDir(modsDirectory).exists())
+    {
+        QMessageBox::warning(this, tr("Install Mod"),
+            tr("Select a valid Mods Directory before installing a mod from an archive."));
+        return;
+    }
+
+    const QString suffix = QFileInfo(fileName).suffix();
+    const QString temporaryTemplate = QDir(modsDirectory).filePath(
+        QStringLiteral(".openmw-nexus-XXXXXX%1")
+            .arg(suffix.isEmpty() ? QString() : QStringLiteral(".") + suffix));
+
+    QTemporaryFile temporaryArchive(temporaryTemplate);
+    temporaryArchive.setAutoRemove(true);
+    if (!temporaryArchive.open())
+    {
+        QMessageBox::critical(this, tr("Nexus Mods"),
+            tr("Could not create a temporary file for the Nexus Mods download."));
+        return;
+    }
+
+    QNetworkRequest downloadRequest(downloadUrl);
+    downloadRequest.setAttribute(
+        QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+
+    QNetworkReply* downloadReply = networkManager.get(downloadRequest);
+
+    QProgressDialog progress(tr("Downloading %1...").arg(fileName), tr("Cancel"), 0, 1000, this);
+    progress.setWindowTitle(tr("Nexus Mods Download"));
+    progress.setWindowModality(Qt::WindowModal);
+    progress.setMinimumDuration(0);
+
+    bool canceled = false;
+    bool writeFailed = false;
+
+    connect(&progress, &QProgressDialog::canceled, downloadReply, [&]() {
+        canceled = true;
+        downloadReply->abort();
+    });
+
+    connect(downloadReply, &QNetworkReply::readyRead, downloadReply, [&]() {
+        const QByteArray chunk = downloadReply->readAll();
+        if (!chunk.isEmpty() && temporaryArchive.write(chunk) != chunk.size())
+        {
+            writeFailed = true;
+            downloadReply->abort();
+        }
+    });
+
+    connect(downloadReply, &QNetworkReply::downloadProgress, &progress,
+        [&](qint64 received, qint64 total) {
+            if (total > 0)
+            {
+                const int value = static_cast<int>(
+                    std::clamp<qint64>((received * 1000) / total, 0, 1000));
+                progress.setValue(value);
+                progress.setLabelText(
+                    tr("Downloading %1... %2 / %3")
+                        .arg(fileName)
+                        .arg(QLocale().formattedDataSize(received))
+                        .arg(QLocale().formattedDataSize(total)));
+            }
+            else
+            {
+                progress.setLabelText(
+                    tr("Downloading %1... %2")
+                        .arg(fileName)
+                        .arg(QLocale().formattedDataSize(received)));
+            }
+        });
+
+    QEventLoop downloadLoop;
+    connect(downloadReply, &QNetworkReply::finished, &downloadLoop, &QEventLoop::quit);
+    downloadLoop.exec();
+
+    const QByteArray remainingData = downloadReply->readAll();
+    if (!remainingData.isEmpty() && temporaryArchive.write(remainingData) != remainingData.size())
+        writeFailed = true;
+
+    const int downloadStatus
+        = downloadReply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    const QString downloadError = downloadReply->errorString();
+    const QNetworkReply::NetworkError downloadErrorCode = downloadReply->error();
+    downloadReply->deleteLater();
+
+    // Do not call close() here: QProgressDialog can treat closing as a cancel
+    // action and emit canceled(), which would mark a completed download as canceled.
+    progress.hide();
+    temporaryArchive.flush();
+
+    if (canceled)
+    {
+        QMessageBox::information(this, tr("Nexus Mods Download"), tr("Download canceled."));
+        return;
+    }
+
+    if (writeFailed)
+    {
+        QMessageBox::critical(this, tr("Nexus Mods Download"),
+            tr("Could not write the downloaded archive to disk."));
+        return;
+    }
+
+    if (downloadErrorCode != QNetworkReply::NoError
+        || downloadStatus < 200 || downloadStatus >= 300)
+    {
+        QMessageBox::critical(this, tr("Nexus Mods Download"),
+            tr("Download failed.\nHTTP status: %1\n%2").arg(downloadStatus).arg(downloadError));
+        return;
+    }
+
+    temporaryArchive.close();
+
+    installModArchive(temporaryArchive.fileName(), modName, fileName);
 }
 
 void Launcher::DataFilesPage::chooseModsDirectory()

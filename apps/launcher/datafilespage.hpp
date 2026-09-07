@@ -147,6 +147,7 @@ namespace Launcher
         QString mNexusApiKey;
         QString mNexusUserName;
         bool mNexusPremium = false;
+        qint64 mNexusUserId = 0;
 
         Process::ProcessInvoker* mNavMeshToolInvoker;
         NavMeshToolProgress mNavMeshToolProgress;
@@ -177,8 +178,11 @@ namespace Launcher
         void chooseModsDirectory();
         void clearModsDirectory();
         void analyzeModArchive();
+        void installModArchive(const QString& archivePath, const QString& suggestedModName = QString(),
+            const QString& archiveDisplayName = QString());
         void connectNexusMods();
         void lookupNexusMod();
+        void downloadNexusFile(int modId, qint64 fileId, const QString& fileName, const QString& modName);
         void removeManagedModsDirectoryEntries(const QString& rootPath);
         void applyAssetDirectoryOrder(const QStringList& paths);
         void updateAssetConflictStats();
