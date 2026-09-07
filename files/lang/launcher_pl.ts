@@ -1142,6 +1142,24 @@ Ta operacja trwale usunie cały katalog moda z dysku.</translation>
         <translation>Nie można usunąć katalogu moda:
 %1</translation>
     </message>
+    <message>
+        <source>Nexus Mods Metadata</source>
+        <translation>Metadane Nexus Mods</translation>
+    </message>
+    <message>
+        <source>Could not save Nexus Mods metadata to:
+%1</source>
+        <translation>Nie można zapisać metadanych Nexus Mods do:
+%1</translation>
+    </message>
+    <message>
+        <source>Could not read a valid Nexus Mods page from this mod's metadata.</source>
+        <translation>Nie można odczytać prawidłowej strony Nexus Mods z metadanych tego moda.</translation>
+    </message>
+    <message>
+        <source>Could not open the Nexus Mods page.</source>
+        <translation>Nie można otworzyć strony Nexus Mods.</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

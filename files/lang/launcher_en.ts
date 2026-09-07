@@ -1138,6 +1138,24 @@ This will permanently delete the entire mod directory from disk.</translation>
         <translation>Could not delete the mod directory:
 %1</translation>
     </message>
+    <message>
+        <source>Nexus Mods Metadata</source>
+        <translation>Nexus Mods Metadata</translation>
+    </message>
+    <message>
+        <source>Could not save Nexus Mods metadata to:
+%1</source>
+        <translation>Could not save Nexus Mods metadata to:
+%1</translation>
+    </message>
+    <message>
+        <source>Could not read a valid Nexus Mods page from this mod's metadata.</source>
+        <translation>Could not read a valid Nexus Mods page from this mod's metadata.</translation>
+    </message>
+    <message>
+        <source>Could not open the Nexus Mods page.</source>
+        <translation>Could not open the Nexus Mods page.</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

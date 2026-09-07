@@ -140,6 +140,10 @@
         <source>Delete Mod...</source>
         <translation>Delete Mod...</translation>
     </message>
+    <message>
+        <source>Show on Nexus Mods</source>
+        <translation>Show on Nexus Mods</translation>
+    </message>
 </context>
 <context>
     <name>Process::ProcessInvoker</name>

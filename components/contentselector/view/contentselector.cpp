@@ -197,6 +197,9 @@ void ContentSelectorView::ContentSelector::buildContextMenu()
         = mContextMenu->addAction(tr("Show Asset Conflicts..."), this, SLOT(slotShowAssetConflicts()));
 
     mContextMenu->addSeparator();
+    mShowNexusModAction
+        = mContextMenu->addAction(tr("Show on Nexus Mods"), this, SLOT(slotShowNexusMod()));
+    mShowNexusModAction->setVisible(false);
     mDeleteModAction = mContextMenu->addAction(tr("Delete Mod..."), this, SLOT(slotDeleteMod()));
 
     mContextMenu->addSeparator();
@@ -482,6 +485,22 @@ QString ContentSelectorView::ContentSelector::selectedManagedModDirectory() cons
     return {};
 }
 
+QString ContentSelectorView::ContentSelector::selectedNexusModDirectory() const
+{
+    const QString modDirectory = selectedManagedModDirectory();
+    if (modDirectory.isEmpty())
+        return {};
+
+    const QDir dir(modDirectory);
+    const QFileInfo openMwMetadata(dir.filePath(QStringLiteral("openmw-meta.ini")));
+    const QFileInfo ametystMetadata(dir.filePath(QStringLiteral("meta.ini")));
+
+    if (openMwMetadata.isFile() || ametystMetadata.isFile())
+        return modDirectory;
+
+    return {};
+}
+
 QString ContentSelectorView::ContentSelector::selectedConflictDirectoryPath() const
 {
     const QModelIndexList selectedIndexes
@@ -505,11 +524,26 @@ void ContentSelectorView::ContentSelector::slotShowContextMenu(const QPoint& pos
 {
     if (mShowAssetConflictsAction)
         mShowAssetConflictsAction->setEnabled(!selectedConflictDirectoryPath().isEmpty());
+
+    const QString nexusModDirectory = selectedNexusModDirectory();
+    if (mShowNexusModAction)
+    {
+        mShowNexusModAction->setVisible(!nexusModDirectory.isEmpty());
+        mShowNexusModAction->setEnabled(!nexusModDirectory.isEmpty());
+    }
+
     if (mDeleteModAction)
         mDeleteModAction->setEnabled(!selectedManagedModDirectory().isEmpty());
 
     QPoint globalPos = ui->addonView->viewport()->mapToGlobal(pos);
     mContextMenu->exec(globalPos);
+}
+
+void ContentSelectorView::ContentSelector::slotShowNexusMod()
+{
+    const QString path = selectedNexusModDirectory();
+    if (!path.isEmpty())
+        emit signalShowNexusModRequested(path);
 }
 
 void ContentSelectorView::ContentSelector::slotDeleteMod()

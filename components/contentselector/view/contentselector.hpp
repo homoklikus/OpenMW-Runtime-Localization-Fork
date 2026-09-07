@@ -26,6 +26,7 @@ namespace ContentSelectorView
 
         QMenu* mContextMenu;
         QAction* mShowAssetConflictsAction = nullptr;
+        QAction* mShowNexusModAction = nullptr;
         QAction* mDeleteModAction = nullptr;
 
     protected:
@@ -85,6 +86,7 @@ namespace ContentSelectorView
         void setGroundcoverForSelectedItems(bool enabled);
         QString selectedConflictDirectoryPath() const;
         QString selectedManagedModDirectory() const;
+        QString selectedNexusModDirectory() const;
 
     signals:
         void signalCurrentGamefileIndexChanged(int);
@@ -95,6 +97,7 @@ namespace ContentSelectorView
         void signalLoadOrderChanged();
         void signalDataDirectoryOrderChanged(QStringList paths);
         void signalShowAssetConflicts(QString path);
+        void signalShowNexusModRequested(QString path);
         void signalDeleteModRequested(QString path);
 
     private slots:
@@ -106,6 +109,7 @@ namespace ContentSelectorView
         void slotUncheckMultiSelectedItems();
         void slotCopySelectedItemsPaths();
         void slotShowAssetConflicts();
+        void slotShowNexusMod();
         void slotDeleteMod();
         void slotSearchFilterTextChanged(const QString& newText);
         void slotSortFiles();

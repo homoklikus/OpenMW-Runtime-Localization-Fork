@@ -38,6 +38,7 @@
 #include <QRegularExpression>
 #include <QPushButton>
 #include <QSet>
+#include <QSettings>
 #include <QSignalBlocker>
 #include <QSize>
 #include <QTableWidget>
@@ -456,6 +457,9 @@ Launcher::DataFilesPage::DataFilesPage(const Files::ConfigurationManager& cfg, C
     connect(mSelector, &ContentSelectorView::ContentSelector::signalShowAssetConflicts, this,
         [this](const QString& path) { showAssetConflictDetails(path); });
 
+    connect(mSelector, &ContentSelectorView::ContentSelector::signalShowNexusModRequested, this,
+        [this](const QString& path) { showNexusModPage(path); });
+
     connect(mSelector, &ContentSelectorView::ContentSelector::signalDeleteModRequested, this,
         [this](const QString& path) { deleteManagedMod(path); });
 
@@ -646,8 +650,8 @@ void Launcher::DataFilesPage::analyzeModArchive()
     installModArchive(archivePath);
 }
 
-void Launcher::DataFilesPage::installModArchive(
-    const QString& archivePath, const QString& suggestedModName, const QString& archiveDisplayName)
+void Launcher::DataFilesPage::installModArchive(const QString& archivePath, const QString& suggestedModName,
+    const QString& archiveDisplayName, const NexusModMetadata* nexusMetadata)
 {
     const QString modsDirectory = mLauncherSettings.getModsDirectory();
     if (modsDirectory.isEmpty() || !QDir(modsDirectory).exists())
@@ -1400,6 +1404,45 @@ void Launcher::DataFilesPage::installModArchive(
     if (replaceExisting)
         backupRemoved = QDir(backupPath).removeRecursively();
 
+    QString nexusMetadataError;
+    if (nexusMetadata)
+    {
+        const QString metadataPath = QDir(destinationPath).filePath(QStringLiteral("openmw-meta.ini"));
+        QSettings metadata(metadataPath, QSettings::IniFormat);
+        metadata.setValue(QStringLiteral("gamename"), QStringLiteral("morrowind"));
+        metadata.setValue(QStringLiteral("modid"), nexusMetadata->mModId);
+        metadata.setValue(QStringLiteral("fileid"), nexusMetadata->mFileId);
+        metadata.setValue(QStringLiteral("version"), nexusMetadata->mVersion);
+        metadata.setValue(QStringLiteral("author"), nexusMetadata->mAuthor);
+        metadata.setValue(QStringLiteral("uploadedby"), nexusMetadata->mUploadedBy);
+        metadata.setValue(QStringLiteral("nexusname"), nexusMetadata->mNexusName);
+        metadata.setValue(QStringLiteral("nexusfilename"), nexusMetadata->mNexusFileName);
+        metadata.setValue(QStringLiteral("installationfile"), nexusMetadata->mInstallationFile);
+        metadata.setValue(QStringLiteral("filesize"), nexusMetadata->mFileSize);
+        metadata.setValue(QStringLiteral("installed"), QDateTime::currentDateTime().toString(Qt::ISODate));
+        metadata.setValue(QStringLiteral("nexusurl"),
+            QStringLiteral("https://www.nexusmods.com/morrowind/mods/%1").arg(nexusMetadata->mModId));
+        metadata.setValue(QStringLiteral("description"), nexusMetadata->mDescription);
+        metadata.setValue(QStringLiteral("categoryid"), nexusMetadata->mCategoryId);
+        metadata.setValue(QStringLiteral("categoryname"), nexusMetadata->mCategoryName);
+        metadata.setValue(QStringLiteral("filecategory"), nexusMetadata->mFileCategory);
+        metadata.setValue(QStringLiteral("endorsed"), false);
+        metadata.setValue(QStringLiteral("latestfileid"), nexusMetadata->mFileId);
+        metadata.setValue(QStringLiteral("latestversion"), nexusMetadata->mVersion);
+        metadata.setValue(QStringLiteral("hasupdate"), false);
+        metadata.setValue(QStringLiteral("ignoreupdate"), false);
+        metadata.setValue(QStringLiteral("ignoredversion"), QString());
+        metadata.setValue(QStringLiteral("missingrequirements"), QString());
+        metadata.setValue(QStringLiteral("nexusrequirements"), QString());
+        metadata.setValue(QStringLiteral("ignoredrequirements"), QString());
+        metadata.setValue(QStringLiteral("rootfolder"), false);
+        metadata.setValue(QStringLiteral("fromcollection"), false);
+        metadata.sync();
+
+        if (metadata.status() != QSettings::NoError)
+            nexusMetadataError = metadataPath;
+    }
+
     refreshDataFilesView();
     mMainDialog->writeSettings();
 
@@ -1418,6 +1461,12 @@ void Launcher::DataFilesPage::installModArchive(
     {
         QMessageBox::information(this, tr("Mod Installed"),
             tr("Installed %1 files to:\n%2").arg(installedFiles).arg(destinationPath));
+    }
+
+    if (!nexusMetadataError.isEmpty())
+    {
+        QMessageBox::warning(this, tr("Nexus Mods Metadata"),
+            tr("Could not save Nexus Mods metadata to:\n%1").arg(nexusMetadataError));
     }
 }
 
@@ -1743,7 +1792,7 @@ void Launcher::DataFilesPage::lookupNexusMod()
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
     QPushButton* downloadButton = buttons->addButton(tr("Download / Install"), QDialogButtonBox::ActionRole);
     connect(downloadButton, &QPushButton::clicked, &dialog,
-        [this, &dialog, table, files, modId, modName = mod.value(QStringLiteral("name")).toString()]() {
+        [this, &dialog, table, files, mod, modId]() {
             const int row = table->currentRow();
             if (row < 0 || row >= files.size())
             {
@@ -1752,10 +1801,26 @@ void Launcher::DataFilesPage::lookupNexusMod()
             }
 
             const QJsonObject file = files.at(row).toObject();
-            const qint64 fileId = file.value(QStringLiteral("file_id")).toVariant().toLongLong();
-            const QString fileName = file.value(QStringLiteral("file_name")).toString();
 
-            if (fileId <= 0 || fileName.isEmpty())
+            NexusModMetadata metadata;
+            metadata.mModId = modId;
+            metadata.mFileId = file.value(QStringLiteral("file_id")).toVariant().toLongLong();
+            metadata.mVersion = file.value(QStringLiteral("version")).toString().trimmed();
+            if (metadata.mVersion.isEmpty())
+                metadata.mVersion = mod.value(QStringLiteral("version")).toString().trimmed();
+            metadata.mAuthor = mod.value(QStringLiteral("author")).toString().trimmed();
+            metadata.mUploadedBy = file.value(QStringLiteral("uploaded_by")).toString().trimmed();
+            metadata.mNexusName = mod.value(QStringLiteral("name")).toString().trimmed();
+            metadata.mNexusFileName = file.value(QStringLiteral("name")).toString().trimmed();
+            metadata.mInstallationFile = file.value(QStringLiteral("file_name")).toString().trimmed();
+            metadata.mFileSize
+                = file.value(QStringLiteral("size_kb")).toVariant().toLongLong() * 1024;
+            metadata.mDescription = mod.value(QStringLiteral("summary")).toString().trimmed();
+            metadata.mCategoryId = mod.value(QStringLiteral("category_id")).toInt();
+            metadata.mCategoryName = mod.value(QStringLiteral("category_name")).toString().trimmed();
+            metadata.mFileCategory = file.value(QStringLiteral("category_name")).toString().trimmed();
+
+            if (metadata.mFileId <= 0 || metadata.mInstallationFile.isEmpty())
             {
                 QMessageBox::warning(this, tr("Nexus Mods"),
                     tr("The selected Nexus Mods file does not contain valid download information."));
@@ -1767,7 +1832,7 @@ void Launcher::DataFilesPage::lookupNexusMod()
             // the still-active modal window and appear as if nothing happened.
             dialog.accept();
 
-            downloadNexusFile(modId, fileId, fileName, modName);
+            downloadNexusFile(metadata);
         });
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout->addWidget(buttons);
@@ -1775,9 +1840,13 @@ void Launcher::DataFilesPage::lookupNexusMod()
     dialog.exec();
 }
 
-void Launcher::DataFilesPage::downloadNexusFile(
-    int modId, qint64 fileId, const QString& fileName, const QString& modName)
+void Launcher::DataFilesPage::downloadNexusFile(const NexusModMetadata& metadata)
 {
+    const int modId = metadata.mModId;
+    const qint64 fileId = metadata.mFileId;
+    const QString& fileName = metadata.mInstallationFile;
+    const QString& modName = metadata.mNexusName;
+
     if (mNexusApiKey.isEmpty())
     {
         QMessageBox::warning(this, tr("Nexus Mods"), tr("Connect to Nexus Mods first."));
@@ -2021,9 +2090,11 @@ void Launcher::DataFilesPage::downloadNexusFile(
         return;
     }
 
+    NexusModMetadata installedMetadata = metadata;
+    installedMetadata.mFileSize = temporaryArchive.size();
     temporaryArchive.close();
 
-    installModArchive(temporaryArchive.fileName(), modName, fileName);
+    installModArchive(temporaryArchive.fileName(), modName, fileName, &installedMetadata);
 }
 
 void Launcher::DataFilesPage::chooseModsDirectory()
@@ -2504,6 +2575,67 @@ void Launcher::DataFilesPage::updateAssetConflictStats()
     {
         mSelector->setDirectoryConflictStats(
             directories.at(i), stats[i].conflicts, stats[i].wins, stats[i].losses);
+    }
+}
+
+void Launcher::DataFilesPage::showNexusModPage(const QString& path)
+{
+    const QDir modDirectory(path);
+    QString metadataPath = modDirectory.filePath(QStringLiteral("openmw-meta.ini"));
+
+    if (!QFileInfo::exists(metadataPath))
+        metadataPath = modDirectory.filePath(QStringLiteral("meta.ini"));
+
+    if (!QFileInfo(metadataPath).isFile())
+        return;
+
+    QSettings metadata(metadataPath, QSettings::IniFormat);
+
+    // QSettings exposes a literal [General] section as root-level keys.
+    const QString gameName = metadata.value(QStringLiteral("gamename")).toString().trimmed();
+    const qint64 modId = metadata.value(QStringLiteral("modid")).toLongLong();
+    const QString storedUrl = metadata.value(QStringLiteral("nexusurl")).toString().trimmed();
+
+    QUrl nexusUrl;
+
+    // Prefer the structured identifiers. This also avoids opening an arbitrary
+    // URL if a mod ships a malicious or malformed metadata file.
+    if (gameName.compare(QStringLiteral("morrowind"), Qt::CaseInsensitive) == 0 && modId > 0)
+    {
+        nexusUrl = QUrl(
+            QStringLiteral("https://www.nexusmods.com/morrowind/mods/%1").arg(modId));
+    }
+    else
+    {
+        const QUrl candidate(storedUrl);
+        const QRegularExpression nexusPath(
+            QStringLiteral(R"(^/morrowind/mods/\d+/?$)"),
+            QRegularExpression::CaseInsensitiveOption);
+
+        const bool trustedHost
+            = candidate.host().compare(QStringLiteral("www.nexusmods.com"), Qt::CaseInsensitive) == 0
+            || candidate.host().compare(QStringLiteral("nexusmods.com"), Qt::CaseInsensitive) == 0;
+
+        if (candidate.isValid()
+            && candidate.scheme().compare(QStringLiteral("https"), Qt::CaseInsensitive) == 0
+            && trustedHost
+            && nexusPath.match(candidate.path()).hasMatch())
+        {
+            nexusUrl = candidate;
+        }
+    }
+
+    if (!nexusUrl.isValid() || nexusUrl.isEmpty())
+    {
+        QMessageBox::warning(this, tr("Nexus Mods Metadata"),
+            tr("Could not read a valid Nexus Mods page from this mod's metadata."));
+        return;
+    }
+
+    if (!QDesktopServices::openUrl(nexusUrl))
+    {
+        QMessageBox::warning(this, tr("Nexus Mods Metadata"),
+            tr("Could not open the Nexus Mods page."));
     }
 }
 

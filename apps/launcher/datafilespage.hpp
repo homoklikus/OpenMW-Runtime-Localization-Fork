@@ -119,6 +119,23 @@ namespace Launcher
             bool mWins = false;
         };
 
+        struct NexusModMetadata
+        {
+            int mModId = 0;
+            qint64 mFileId = 0;
+            QString mVersion;
+            QString mAuthor;
+            QString mUploadedBy;
+            QString mNexusName;
+            QString mNexusFileName;
+            QString mInstallationFile;
+            qint64 mFileSize = 0;
+            QString mDescription;
+            int mCategoryId = 0;
+            QString mCategoryName;
+            QString mFileCategory;
+        };
+
         struct NavMeshToolProgress
         {
             bool mEnabled = true;
@@ -179,14 +196,15 @@ namespace Launcher
         void clearModsDirectory();
         void analyzeModArchive();
         void installModArchive(const QString& archivePath, const QString& suggestedModName = QString(),
-            const QString& archiveDisplayName = QString());
+            const QString& archiveDisplayName = QString(), const NexusModMetadata* nexusMetadata = nullptr);
         void connectNexusMods();
         void lookupNexusMod();
-        void downloadNexusFile(int modId, qint64 fileId, const QString& fileName, const QString& modName);
+        void downloadNexusFile(const NexusModMetadata& metadata);
         void removeManagedModsDirectoryEntries(const QString& rootPath);
         void applyDataDirectoryOrder(const QStringList& paths);
         void updateAssetConflictStats();
         void showAssetConflictDetails(const QString& path);
+        void showNexusModPage(const QString& path);
         void deleteManagedMod(const QString& path);
         void onReloadCellsTimerTimeout();
         void reloadCells();
