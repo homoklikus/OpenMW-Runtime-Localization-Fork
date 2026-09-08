@@ -386,7 +386,10 @@ QString ContentSelectorView::ContentSelector::currentFile() const
 
     QModelIndex idx = mContentModel->index(mAddonProxyModel->mapToSource(currentIdx).row(),
         ContentSelectorModel::ContentModel::Column_FileName, QModelIndex());
-    return mContentModel->data(idx, Qt::DisplayRole).toString();
+
+    // DisplayRole may include launcher-only package metadata such as the
+    // managed mod version. Keep currentFile() as the real plugin identifier.
+    return mContentModel->data(idx, Qt::EditRole).toString();
 }
 
 void ContentSelectorView::ContentSelector::slotCurrentGameFileIndexChanged(int index)

@@ -17,6 +17,7 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QProgressDialog>
+#include <QSettings>
 
 #include <components/esm/format.hpp>
 #include <components/esm3/esmreader.hpp>
@@ -26,6 +27,53 @@
 
 namespace
 {
+    QString managedPackageVersion(const QString& dataDirectory)
+    {
+        // Prefer metadata written by this launcher, but keep compatibility
+        // with existing managed mods that still use the older meta.ini name.
+        const QStringList metadataNames{
+            QStringLiteral("openmw-meta.ini"),
+            QStringLiteral("meta.ini"),
+        };
+
+        const QDir directory(dataDirectory);
+
+        for (const QString& metadataName : metadataNames)
+        {
+            const QString metadataPath = directory.filePath(metadataName);
+            if (!QFileInfo(metadataPath).isFile())
+                continue;
+
+            QSettings metadata(metadataPath, QSettings::IniFormat);
+
+            const QString gameName
+                = metadata.value(QStringLiteral("gamename")).toString().trimmed();
+            if (!gameName.isEmpty()
+                && gameName.compare(QStringLiteral("morrowind"),
+                       Qt::CaseInsensitive) != 0)
+            {
+                continue;
+            }
+
+            const QString version
+                = metadata.value(QStringLiteral("version")).toString().trimmed();
+
+            if (metadata.status() == QSettings::NoError && !version.isEmpty())
+                return version;
+        }
+
+        return {};
+    }
+
+    QString managedDisplayName(
+        const QString& baseName, const QString& packageVersion)
+    {
+        if (packageVersion.isEmpty())
+            return baseName;
+
+        return QStringLiteral("%1 - %2").arg(baseName, packageVersion);
+    }
+
     const QIcon& groundcoverStatusIcon()
     {
         static const QIcon icon = []() {
@@ -428,9 +476,16 @@ QVariant ContentSelectorModel::ContentModel::data(const QModelIndex& index, int 
         }
 
         case Qt::EditRole:
+        {
+            if (column >= 0 && column <= EsmFile::FileProperty_GameFile)
+                return file->fileProperty(static_cast<EsmFile::FileProperty>(column));
+
+            return QVariant();
+        }
+
         case Qt::DisplayRole:
         {
-            if (file->isAssetDirectory() && column == Column_FileName)
+            if (column == Column_FileName)
                 return file->displayName();
 
             if (column >= 0 && column <= EsmFile::FileProperty_GameFile)
@@ -703,6 +758,8 @@ void ContentSelectorModel::ContentModel::addFile(EsmFile* file)
 void ContentSelectorModel::ContentModel::addFiles(const QString& path, bool newfiles)
 {
     QDir dir(path);
+    const QString packageVersion = managedPackageVersion(dir.absolutePath());
+
     QStringList filters;
     filters << "*.esp"
             << "*.esm"
@@ -735,6 +792,8 @@ void ContentSelectorModel::ContentModel::addFiles(const QString& path, bool newf
         if (info.fileName().compare("builtin.omwscripts", Qt::CaseInsensitive) == 0)
             file->setBuiltIn(true);
 
+        file->setDisplayName(
+            managedDisplayName(file->fileName(), packageVersion));
         file->setFromAnotherConfigFile(mNonUserContent.contains(info.fileName().toLower()));
 
         if (info.fileName().endsWith(".omwscripts", Qt::CaseInsensitive))
@@ -827,6 +886,9 @@ void ContentSelectorModel::ContentModel::addAssetDirectory(const QString& path, 
     QString displayName = QFileInfo(absolutePath).fileName();
     if (displayName.isEmpty())
         displayName = absolutePath;
+
+    displayName = managedDisplayName(
+        displayName, managedPackageVersion(absolutePath));
 
     auto asset = std::make_unique<EsmFile>(QStringLiteral("@assetdir:%1#").arg(absolutePath));
     asset->setAssetDirectory(true);
