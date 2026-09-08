@@ -1949,6 +1949,201 @@ void Launcher::DataFilesPage::installModArchive(const QString& archivePath, cons
         }
     }
 
+    // Preserve managed overlay packages across base-mod replacement.
+    //
+    // Package.* groups are path-ownership records. Before replacing a managed
+    // base directory, validate every owned file while the old installation is
+    // still intact and keep an exact copy of package metadata. After the new
+    // base has been staged, those files are layered back on top and the package
+    // groups are restored. Compatibility uses the same exact version check
+    // as overlay installation: Package.version versus the newly installed base
+    // version. When they match exactly, targetversion is advanced to that known
+    // compatible base version. On mismatch it stays unchanged.
+    QHash<QString, QVariantMap> preservedOverlayPackages;
+    QHash<QString, QString> preservedOverlayPathsByKey;
+    QVariantMap preservedBaseMetadata;
+    bool preservedOverlayVersionMismatch = false;
+
+    if (replaceExisting)
+    {
+        const QString existingMetadataPath
+            = QDir(destinationPath).filePath(QStringLiteral("openmw-meta.ini"));
+
+        if (QFileInfo(existingMetadataPath).isFile())
+        {
+            QSettings existingMetadata(existingMetadataPath, QSettings::IniFormat);
+            const int existingBaseModId
+                = existingMetadata.value(QStringLiteral("modid")).toInt();
+
+            if (nexusMetadata && existingBaseModId > 0
+                && nexusMetadata->mModId > 0
+                && existingBaseModId != nexusMetadata->mModId)
+            {
+                QMessageBox::warning(this, tr("Mod Already Exists"),
+                    tr("The existing managed mod belongs to Nexus Mod ID %1, "
+                       "but the replacement belongs to Mod ID %2. "
+                       "Replacement was cancelled so managed overlays cannot "
+                       "be attached to the wrong base mod.")
+                        .arg(existingBaseModId)
+                        .arg(nexusMetadata->mModId));
+                return;
+            }
+
+            for (const QString& key : existingMetadata.childKeys())
+                preservedBaseMetadata.insert(key, existingMetadata.value(key));
+
+            const QStringList metadataGroups = existingMetadata.childGroups();
+            for (const QString& group : metadataGroups)
+            {
+                if (!group.startsWith(
+                        QStringLiteral("Package."), Qt::CaseInsensitive))
+                {
+                    continue;
+                }
+
+                existingMetadata.beginGroup(group);
+
+                QVariantMap packageValues;
+                for (const QString& key : existingMetadata.childKeys())
+                    packageValues.insert(key, existingMetadata.value(key));
+
+                const int targetModId
+                    = existingMetadata.value(QStringLiteral("targetmodid")).toInt();
+                const QStringList ownedFiles
+                    = existingMetadata.value(QStringLiteral("files")).toStringList();
+                const QString packageVersion
+                    = existingMetadata.value(QStringLiteral("version"))
+                          .toString()
+                          .trimmed();
+                const QString targetVersion
+                    = existingMetadata.value(QStringLiteral("targetversion"))
+                          .toString()
+                          .trimmed();
+
+                existingMetadata.endGroup();
+
+                if (existingBaseModId > 0 && targetModId > 0
+                    && targetModId != existingBaseModId)
+                {
+                    QMessageBox::warning(this, tr("Mod Already Exists"),
+                        tr("Managed overlay metadata is inconsistent. "
+                           "Replacement was cancelled to protect the current installation.\n\n"
+                           "Problematic package or file:\n%1")
+                            .arg(group));
+                    return;
+                }
+
+                if (nexusMetadata
+                    && !nexusMetadata->mVersion.trimmed().isEmpty())
+                {
+                    const QString newBaseVersion
+                        = nexusMetadata->mVersion.trimmed();
+
+                    if (!packageVersion.isEmpty())
+                    {
+                        if (packageVersion.compare(
+                                newBaseVersion,
+                                Qt::CaseSensitive) == 0)
+                        {
+                            // The overlay package version now exactly matches
+                            // the installed base version. Record this as the
+                            // current known-compatible target.
+                            packageValues.insert(
+                                QStringLiteral("targetversion"),
+                                newBaseVersion);
+                        }
+                        else
+                        {
+                            preservedOverlayVersionMismatch = true;
+                        }
+                    }
+                    else if (!targetVersion.isEmpty()
+                        && targetVersion.compare(
+                               newBaseVersion,
+                               Qt::CaseSensitive) != 0)
+                    {
+                        // Legacy/fallback metadata without Package.version.
+                        preservedOverlayVersionMismatch = true;
+                    }
+                }
+
+                for (QString relativePath : ownedFiles)
+                {
+                    relativePath = relativePath.trimmed();
+                    relativePath.replace('\\', '/');
+
+                    const QStringList parts
+                        = relativePath.split('/', Qt::KeepEmptyParts);
+                    bool unsafePath = relativePath.isEmpty()
+                        || QDir::isAbsolutePath(relativePath)
+                        || relativePath.compare(
+                               QStringLiteral("openmw-meta.ini"),
+                               Qt::CaseInsensitive) == 0
+                        || relativePath.compare(
+                               QStringLiteral("meta.ini"),
+                               Qt::CaseInsensitive) == 0;
+
+                    for (const QString& part : parts)
+                    {
+                        if (part.isEmpty()
+                            || part == QLatin1String(".")
+                            || part == QLatin1String("..")
+                            || part.contains(':'))
+                        {
+                            unsafePath = true;
+                            break;
+                        }
+                    }
+
+                    const QString ownershipKey = relativePath.toLower();
+                    const QFileInfo ownedInfo(
+                        QDir(destinationPath).filePath(relativePath));
+
+                    if (unsafePath || !ownedInfo.isFile()
+                        || ownedInfo.isSymLink()
+                        || preservedOverlayPathsByKey.contains(ownershipKey))
+                    {
+                        QMessageBox::warning(this, tr("Mod Already Exists"),
+                            tr("Managed overlay metadata is inconsistent. "
+                               "Replacement was cancelled to protect the current installation.\n\n"
+                               "Problematic package or file:\n%1")
+                                .arg(relativePath.isEmpty() ? group : relativePath));
+                        return;
+                    }
+
+                    preservedOverlayPathsByKey.insert(
+                        ownershipKey, relativePath);
+                }
+
+                preservedOverlayPackages.insert(group, packageValues);
+            }
+
+            if (existingMetadata.status() != QSettings::NoError)
+            {
+                QMessageBox::warning(this, tr("Mod Already Exists"),
+                    tr("Managed overlay metadata is inconsistent. "
+                       "Replacement was cancelled to protect the current installation.\n\n"
+                       "Problematic package or file:\n%1")
+                        .arg(existingMetadataPath));
+                return;
+            }
+        }
+    }
+
+    if (replaceExisting && preservedOverlayVersionMismatch
+        && !preservedOverlayPackages.isEmpty())
+    {
+        const QMessageBox::StandardButton answer = QMessageBox::warning(
+            this, tr("Overlay Version Mismatch"),
+            tr("One or more installed overlay package versions do not match the new base mod version. "
+               "The overlay files will be preserved and remain active after the update, "
+               "but compatibility is not guaranteed. Continue with the base mod update?"),
+            QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
+
+        if (answer != QMessageBox::Yes)
+            return;
+    }
+
     QList<int> selectedRows;
     QHash<QString, int> finalOwner;
 
@@ -2783,8 +2978,95 @@ void Launcher::DataFilesPage::installModArchive(const QString& archivePath, cons
     }
 
     bool backupRemoved = true;
-    if (replaceExisting)
-        backupRemoved = QDir(backupPath).removeRecursively();
+    int restoredOverlayFiles = 0;
+
+    const auto rollbackBaseReplacement = [&]() -> bool
+    {
+        if (!replaceExisting)
+            return false;
+
+        bool removedNewInstallation = true;
+        if (QFileInfo::exists(destinationPath))
+            removedNewInstallation = QDir(destinationPath).removeRecursively();
+
+        if (!removedNewInstallation)
+            return false;
+
+        return modsRoot.rename(backupLeafName, modName);
+    };
+
+    if (replaceExisting && !preservedOverlayPathsByKey.isEmpty())
+    {
+        QStringList preservedOverlayPaths
+            = preservedOverlayPathsByKey.values();
+        std::sort(preservedOverlayPaths.begin(), preservedOverlayPaths.end(),
+            [](const QString& lhs, const QString& rhs) {
+                return lhs.compare(rhs, Qt::CaseInsensitive) < 0;
+            });
+
+        bool restoreFailed = false;
+        QString restoreErrorPath;
+
+        for (const QString& relativePath : preservedOverlayPaths)
+        {
+            const QString sourcePath
+                = QDir(backupPath).filePath(relativePath);
+            const QString destinationFilePath
+                = QDir(destinationPath).filePath(relativePath);
+
+            const QFileInfo sourceInfo(sourcePath);
+            const QFileInfo destinationInfo(destinationFilePath);
+
+            if (!sourceInfo.isFile() || sourceInfo.isSymLink()
+                || (destinationInfo.exists()
+                    && (!destinationInfo.isFile()
+                        || destinationInfo.isSymLink())))
+            {
+                restoreFailed = true;
+                restoreErrorPath = relativePath;
+                break;
+            }
+
+            if (!QDir().mkpath(
+                    QFileInfo(destinationFilePath).absolutePath()))
+            {
+                restoreFailed = true;
+                restoreErrorPath = relativePath;
+                break;
+            }
+
+            if (destinationInfo.exists()
+                && !QFile::remove(destinationFilePath))
+            {
+                restoreFailed = true;
+                restoreErrorPath = relativePath;
+                break;
+            }
+
+            if (!QFile::copy(sourcePath, destinationFilePath))
+            {
+                restoreFailed = true;
+                restoreErrorPath = relativePath;
+                break;
+            }
+
+            ++restoredOverlayFiles;
+        }
+
+        if (restoreFailed)
+        {
+            const bool rollbackOk = rollbackBaseReplacement();
+            QMessageBox::critical(this, tr("Mod Replaced"),
+                rollbackOk
+                    ? tr("Managed overlays could not be restored after replacing "
+                         "the base mod. The previous installation was restored.\n\n%1")
+                          .arg(restoreErrorPath)
+                    : tr("Managed overlays could not be restored after replacing "
+                         "the base mod and automatic rollback was incomplete.\n\n%1")
+                          .arg(restoreErrorPath));
+            return;
+        }
+    }
 
     QString nexusMetadataError;
     if (nexusMetadata)
@@ -2825,6 +3107,64 @@ void Launcher::DataFilesPage::installModArchive(const QString& archivePath, cons
             nexusMetadataError = metadataPath;
     }
 
+    if (replaceExisting && !preservedOverlayPackages.isEmpty())
+    {
+        const QString metadataPath
+            = QDir(destinationPath).filePath(QStringLiteral("openmw-meta.ini"));
+        QSettings metadata(metadataPath, QSettings::IniFormat);
+
+        if (!nexusMetadata)
+        {
+            for (auto it = preservedBaseMetadata.cbegin();
+                 it != preservedBaseMetadata.cend(); ++it)
+            {
+                metadata.setValue(it.key(), it.value());
+            }
+        }
+
+        // Never trust Package.* groups that may have arrived inside a new base
+        // archive. Managed package ownership comes only from the old manager
+        // metadata captured before replacement.
+        const QStringList newGroups = metadata.childGroups();
+        for (const QString& group : newGroups)
+        {
+            if (group.startsWith(
+                    QStringLiteral("Package."), Qt::CaseInsensitive))
+            {
+                metadata.remove(group);
+            }
+        }
+
+        for (auto packageIt = preservedOverlayPackages.cbegin();
+             packageIt != preservedOverlayPackages.cend(); ++packageIt)
+        {
+            metadata.beginGroup(packageIt.key());
+            const QVariantMap& values = packageIt.value();
+            for (auto valueIt = values.cbegin();
+                 valueIt != values.cend(); ++valueIt)
+            {
+                metadata.setValue(valueIt.key(), valueIt.value());
+            }
+            metadata.endGroup();
+        }
+
+        metadata.sync();
+        if (metadata.status() != QSettings::NoError)
+        {
+            const bool rollbackOk = rollbackBaseReplacement();
+            QMessageBox::critical(this, tr("Mod Replaced"),
+                rollbackOk
+                    ? tr("Managed overlay metadata could not be restored after "
+                         "replacing the base mod. The previous installation was restored.")
+                    : tr("Managed overlay metadata could not be restored after "
+                         "replacing the base mod and automatic rollback was incomplete."));
+            return;
+        }
+    }
+
+    if (replaceExisting)
+        backupRemoved = QDir(backupPath).removeRecursively();
+
     if (installedPathOut)
         *installedPathOut = destinationPath;
 
@@ -2839,8 +3179,23 @@ void Launcher::DataFilesPage::installModArchive(const QString& archivePath, cons
     }
     else if (replaceExisting)
     {
-        QMessageBox::information(this, tr("Mod Replaced"),
-            tr("Replaced the existing mod with %1 files in:\n%2").arg(installedFiles).arg(destinationPath));
+        if (!preservedOverlayPackages.isEmpty())
+        {
+            QMessageBox::information(this, tr("Mod Replaced"),
+                tr("Replaced the existing mod with %1 base files and preserved "
+                   "%2 managed overlay package(s) (%3 files) in:\n%4")
+                    .arg(installedFiles)
+                    .arg(preservedOverlayPackages.size())
+                    .arg(restoredOverlayFiles)
+                    .arg(destinationPath));
+        }
+        else
+        {
+            QMessageBox::information(this, tr("Mod Replaced"),
+                tr("Replaced the existing mod with %1 files in:\n%2")
+                    .arg(installedFiles)
+                    .arg(destinationPath));
+        }
     }
     else
     {
@@ -2853,6 +3208,7 @@ void Launcher::DataFilesPage::installModArchive(const QString& archivePath, cons
         QMessageBox::warning(this, tr("Nexus Mods Metadata"),
             tr("Could not save Nexus Mods metadata to:\n%1").arg(nexusMetadataError));
     }
+
 }
 
 void Launcher::DataFilesPage::showNxmHandlerSettings()

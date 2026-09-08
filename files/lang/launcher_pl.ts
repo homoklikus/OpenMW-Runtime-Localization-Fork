@@ -1564,6 +1564,62 @@ Launcher rozpocznie instalację dopiero po odebraniu obu linków NXM i zawsze za
         <translation>7-Zip nie utworzył oczekiwanego pliku podczas rozpakowywania:
 %1</translation>
     </message>
+    <message>
+        <source>The existing managed mod belongs to Nexus Mod ID %1, but the replacement belongs to Mod ID %2. Replacement was cancelled so managed overlays cannot be attached to the wrong base mod.</source>
+        <translation>Istniejący zarządzany mod należy do Nexus Mod ID %1, ale zastępujący go mod ma ID %2. Zastępowanie anulowano, aby zarządzane nakładki nie zostały przypisane do niewłaściwego moda bazowego.</translation>
+    </message>
+    <message>
+        <source>Managed overlay metadata is inconsistent. Replacement was cancelled to protect the current installation.
+
+Problematic package or file:
+%1</source>
+        <translation>Metadane zarządzanej nakładki są niespójne. Zastępowanie anulowano, aby chronić bieżącą instalację.
+
+Problematyczna paczka lub plik:
+%1</translation>
+    </message>
+    <message>
+        <source>Managed overlays could not be restored after replacing the base mod. The previous installation was restored.
+
+%1</source>
+        <translation>Nie udało się przywrócić zarządzanych nakładek po zastąpieniu moda bazowego. Poprzednia instalacja została przywrócona.
+
+%1</translation>
+    </message>
+    <message>
+        <source>Managed overlays could not be restored after replacing the base mod and automatic rollback was incomplete.
+
+%1</source>
+        <translation>Nie udało się przywrócić zarządzanych nakładek po zastąpieniu moda bazowego, a automatyczne wycofanie zmian było niepełne.
+
+%1</translation>
+    </message>
+    <message>
+        <source>Managed overlay metadata could not be restored after replacing the base mod. The previous installation was restored.</source>
+        <translation>Nie udało się przywrócić metadanych zarządzanych nakładek po zastąpieniu moda bazowego. Poprzednia instalacja została przywrócona.</translation>
+    </message>
+    <message>
+        <source>Managed overlay metadata could not be restored after replacing the base mod and automatic rollback was incomplete.</source>
+        <translation>Nie udało się przywrócić metadanych zarządzanych nakładek po zastąpieniu moda bazowego, a automatyczne wycofanie zmian było niepełne.</translation>
+    </message>
+    <message>
+        <source>Replaced the existing mod with %1 base files and preserved %2 managed overlay package(s) (%3 files) in:
+%4</source>
+        <translation>Zastąpiono istniejący mod %1 plikami bazowymi i zachowano %2 zarządzane paczki nakładek (%3 plików) w:
+%4</translation>
+    </message>
+    <message>
+        <source>Overlay Version Mismatch</source>
+        <translation>Niezgodność wersji nakładki</translation>
+    </message>
+    <message>
+        <source>One or more preserved overlay packages target a different base version than the newly installed mod. Their files remain active. Update the translation or overlay if a compatible version is available.</source>
+        <translation>Co najmniej jedna zachowana paczka nakładki jest przeznaczona dla innej wersji moda bazowego niż nowo zainstalowana. Jej pliki pozostają aktywne. Zaktualizuj tłumaczenie lub nakładkę, jeśli dostępna jest zgodna wersja.</translation>
+    </message>
+    <message>
+        <source>One or more installed overlay package versions do not match the new base mod version. The overlay files will be preserved and remain active after the update, but compatibility is not guaranteed. Continue with the base mod update?</source>
+        <translation>Co najmniej jedna zainstalowana paczka nakładki ma wersję inną niż nowa wersja moda bazowego. Pliki nakładki zostaną zachowane i pozostaną aktywne po aktualizacji, ale zgodność nie jest gwarantowana. Kontynuować aktualizację moda bazowego?</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

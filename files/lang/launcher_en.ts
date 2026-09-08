@@ -1560,6 +1560,62 @@ The launcher will start installation only after both NXM links are received and 
         <translation>7-Zip extraction did not produce the expected file:
 %1</translation>
     </message>
+    <message>
+        <source>The existing managed mod belongs to Nexus Mod ID %1, but the replacement belongs to Mod ID %2. Replacement was cancelled so managed overlays cannot be attached to the wrong base mod.</source>
+        <translation>The existing managed mod belongs to Nexus Mod ID %1, but the replacement belongs to Mod ID %2. Replacement was cancelled so managed overlays cannot be attached to the wrong base mod.</translation>
+    </message>
+    <message>
+        <source>Managed overlay metadata is inconsistent. Replacement was cancelled to protect the current installation.
+
+Problematic package or file:
+%1</source>
+        <translation>Managed overlay metadata is inconsistent. Replacement was cancelled to protect the current installation.
+
+Problematic package or file:
+%1</translation>
+    </message>
+    <message>
+        <source>Managed overlays could not be restored after replacing the base mod. The previous installation was restored.
+
+%1</source>
+        <translation>Managed overlays could not be restored after replacing the base mod. The previous installation was restored.
+
+%1</translation>
+    </message>
+    <message>
+        <source>Managed overlays could not be restored after replacing the base mod and automatic rollback was incomplete.
+
+%1</source>
+        <translation>Managed overlays could not be restored after replacing the base mod and automatic rollback was incomplete.
+
+%1</translation>
+    </message>
+    <message>
+        <source>Managed overlay metadata could not be restored after replacing the base mod. The previous installation was restored.</source>
+        <translation>Managed overlay metadata could not be restored after replacing the base mod. The previous installation was restored.</translation>
+    </message>
+    <message>
+        <source>Managed overlay metadata could not be restored after replacing the base mod and automatic rollback was incomplete.</source>
+        <translation>Managed overlay metadata could not be restored after replacing the base mod and automatic rollback was incomplete.</translation>
+    </message>
+    <message>
+        <source>Replaced the existing mod with %1 base files and preserved %2 managed overlay package(s) (%3 files) in:
+%4</source>
+        <translation>Replaced the existing mod with %1 base files and preserved %2 managed overlay package(s) (%3 files) in:
+%4</translation>
+    </message>
+    <message>
+        <source>Overlay Version Mismatch</source>
+        <translation>Overlay Version Mismatch</translation>
+    </message>
+    <message>
+        <source>One or more preserved overlay packages target a different base version than the newly installed mod. Their files remain active. Update the translation or overlay if a compatible version is available.</source>
+        <translation>One or more preserved overlay packages target a different base version than the newly installed mod. Their files remain active. Update the translation or overlay if a compatible version is available.</translation>
+    </message>
+    <message>
+        <source>One or more installed overlay package versions do not match the new base mod version. The overlay files will be preserved and remain active after the update, but compatibility is not guaranteed. Continue with the base mod update?</source>
+        <translation>One or more installed overlay package versions do not match the new base mod version. The overlay files will be preserved and remain active after the update, but compatibility is not guaranteed. Continue with the base mod update?</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>
