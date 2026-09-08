@@ -1322,6 +1322,248 @@ Aby odebrać to pobieranie, OpenMW Launcher musi być domyślnym programem obsł
         <source>Nexus Mods GraphQL did not return the Morrowind game ID.</source>
         <translation>GraphQL Nexus Mods nie zwrócił identyfikatora gry Morrowind.</translation>
     </message>
+    <message>
+        <source>Translation Overlay</source>
+        <translation>Nakładka tłumaczenia</translation>
+    </message>
+    <message>
+        <source>Translation Installed</source>
+        <translation>Tłumaczenie zainstalowane</translation>
+    </message>
+    <message>
+        <source>Translation Version</source>
+        <translation>Wersja tłumaczenia</translation>
+    </message>
+    <message>
+        <source>Target mod:</source>
+        <translation>Mod docelowy:</translation>
+    </message>
+    <message>
+        <source>Translation files will be layered into this managed mod directory.</source>
+        <translation>Pliki tłumaczenia zostaną nałożone na ten zarządzany katalog moda.</translation>
+    </message>
+    <message>
+        <source>The selected translation does not have a valid current Nexus file.</source>
+        <translation>Wybrane tłumaczenie nie ma prawidłowego bieżącego pliku na Nexus Mods.</translation>
+    </message>
+    <message>
+        <source>Select a valid Mods Directory before installing a translation.</source>
+        <translation>Wybierz prawidłowy Katalog modów przed instalacją tłumaczenia.</translation>
+    </message>
+    <message>
+        <source>Install the base mod with this launcher before installing its translation.</source>
+        <translation>Najpierw zainstaluj mod bazowy za pomocą tego launchera, a dopiero potem jego tłumaczenie.</translation>
+    </message>
+    <message>
+        <source>Select the installed base mod to translate:</source>
+        <translation>Wybierz zainstalowany mod bazowy, który ma zostać przetłumaczony:</translation>
+    </message>
+    <message>
+        <source>This translation package is already installed in the selected base mod.</source>
+        <translation>Ten pakiet tłumaczenia jest już zainstalowany w wybranym modzie bazowym.</translation>
+    </message>
+    <message>
+        <source>Installed base mod version: %1
+Translation package version: %2
+
+The version strings do not match. The translation may be outdated or may use a different versioning scheme.
+
+Install it anyway?</source>
+        <translation>Wersja zainstalowanego moda bazowego: %1
+Wersja pakietu tłumaczenia: %2
+
+Numery wersji nie są zgodne. Tłumaczenie może być nieaktualne albo używać innego schematu wersjonowania.
+
+Zainstalować mimo to?</translation>
+    </message>
+    <message>
+        <source>The selected base mod directory is not a safe managed mod target.</source>
+        <translation>Wybrany katalog moda bazowego nie jest bezpiecznym zarządzanym celem instalacji.</translation>
+    </message>
+    <message>
+        <source>Translation overlays require a base mod installed and managed by this launcher.</source>
+        <translation>Nakładki tłumaczeń wymagają moda bazowego zainstalowanego i zarządzanego przez ten launcher.</translation>
+    </message>
+    <message>
+        <source>The translation package metadata is incomplete.</source>
+        <translation>Metadane pakietu tłumaczenia są niekompletne.</translation>
+    </message>
+    <message>
+        <source>The selected translation package did not contain installable files.</source>
+        <translation>Wybrany pakiet tłumaczenia nie zawiera plików możliwych do zainstalowania.</translation>
+    </message>
+    <message>
+        <source>Could not create a temporary backup for the translation overlay.</source>
+        <translation>Nie udało się utworzyć tymczasowej kopii zapasowej dla nakładki tłumaczenia.</translation>
+    </message>
+    <message>
+        <source>Could not back up the managed mod metadata before applying the translation.</source>
+        <translation>Nie udało się wykonać kopii metadanych zarządzanego moda przed nałożeniem tłumaczenia.</translation>
+    </message>
+    <message>
+        <source>The staged translation file is not a safe regular file:
+%1</source>
+        <translation>Przygotowany plik tłumaczenia nie jest bezpiecznym zwykłym plikiem:
+%1</translation>
+    </message>
+    <message>
+        <source>The translation would replace a non-regular file:
+%1</source>
+        <translation>Tłumaczenie zastąpiłoby obiekt, który nie jest zwykłym plikiem:
+%1</translation>
+    </message>
+    <message>
+        <source>Could not back up a file before applying the translation:
+%1</source>
+        <translation>Nie udało się wykonać kopii pliku przed nałożeniem tłumaczenia:
+%1</translation>
+    </message>
+    <message>
+        <source>Could not create a directory for the translation file:
+%1</source>
+        <translation>Nie udało się utworzyć katalogu dla pliku tłumaczenia:
+%1</translation>
+    </message>
+    <message>
+        <source>Could not replace a base mod file with the translation:
+%1</source>
+        <translation>Nie udało się zastąpić pliku moda bazowego tłumaczeniem:
+%1</translation>
+    </message>
+    <message>
+        <source>Could not install the translation file:
+%1</source>
+        <translation>Nie udało się zainstalować pliku tłumaczenia:
+%1</translation>
+    </message>
+    <message>
+        <source>The translation could not be installed. The base mod was restored.
+%1</source>
+        <translation>Nie udało się zainstalować tłumaczenia. Mod bazowy został przywrócony.
+%1</translation>
+    </message>
+    <message>
+        <source>The translation could not be installed and automatic rollback was incomplete.
+%1</source>
+        <translation>Nie udało się zainstalować tłumaczenia, a automatyczne przywracanie nie zakończyło się w pełni.
+%1</translation>
+    </message>
+    <message>
+        <source>Could not save translation package metadata. The base mod was restored.</source>
+        <translation>Nie udało się zapisać metadanych pakietu tłumaczenia. Mod bazowy został przywrócony.</translation>
+    </message>
+    <message>
+        <source>Could not save translation package metadata and automatic rollback was incomplete.</source>
+        <translation>Nie udało się zapisać metadanych pakietu tłumaczenia, a automatyczne przywracanie nie zakończyło się w pełni.</translation>
+    </message>
+    <message>
+        <source>Installed %1 translation files into:
+%2</source>
+        <translation>Zainstalowano %1 plików tłumaczenia do:
+%2</translation>
+    </message>
+    <message>
+        <source>Installation plan: select a mod file and/or a translation.</source>
+        <translation>Plan instalacji: wybierz plik moda i/lub tłumaczenie.</translation>
+    </message>
+    <message>
+        <source>To download and install:
+1. Mod: %1 [%2]</source>
+        <translation>Do pobrania i zainstalowania:
+1. Mod: %1 [%2]</translation>
+    </message>
+    <message>
+        <source>To download and install:
+1. Translation: %1 [%2]
+
+The translation will be added to an already installed base mod.</source>
+        <translation>Do pobrania i zainstalowania:
+1. Tłumaczenie: %1 [%2]
+
+Tłumaczenie zostanie dodane do już zainstalowanego moda bazowego.</translation>
+    </message>
+    <message>
+        <source>To download and install:
+1. Mod: %1 [%2]
+2. Translation: %3 [%4]
+
+Installation order: base mod → translation.</source>
+        <translation>Do pobrania i zainstalowania:
+1. Mod: %1 [%2]
+2. Tłumaczenie: %3 [%4]
+
+Kolejność instalacji: mod bazowy → tłumaczenie.</translation>
+    </message>
+    <message>
+        <source>Select a mod file and/or a translation.</source>
+        <translation>Wybierz plik moda i/lub tłumaczenie.</translation>
+    </message>
+    <message>
+        <source>Selected base mod version: %1
+Translation package version: %2
+
+The version strings do not match. The translation may be outdated or may use a different versioning scheme.
+
+Continue with this installation plan?</source>
+        <translation>Wybrana wersja moda bazowego: %1
+Wersja pakietu tłumaczenia: %2
+
+Numery wersji nie są zgodne. Tłumaczenie może być nieaktualne albo używać innego schematu wersjonowania.
+
+Kontynuować ten plan instalacji?</translation>
+    </message>
+    <message>
+        <source>Could not open both Nexus Mods download tabs.</source>
+        <translation>Nie udało się otworzyć obu kart pobierania Nexus Mods.</translation>
+    </message>
+    <message>
+        <source>Installation Plan</source>
+        <translation>Plan instalacji</translation>
+    </message>
+    <message>
+        <source>The base mod installation did not complete. The translation was not installed.</source>
+        <translation>Instalacja moda bazowego nie została ukończona. Tłumaczenie nie zostało zainstalowane.</translation>
+    </message>
+    <message>
+        <source>The received NXM link does not match any file in the current installation plan.</source>
+        <translation>Odebrany link NXM nie pasuje do żadnego pliku w bieżącym planie instalacji.</translation>
+    </message>
+    <message>
+        <source>Nexus Mods - Free Download (2 files)</source>
+        <translation>Nexus Mods - Darmowe pobieranie (2 pliki)</translation>
+    </message>
+    <message>
+        <source>Two Nexus Mods download tabs are open.
+
+Choose Slow Download on both tabs. The order of clicks does not matter.
+
+The launcher will start installation only after both NXM links are received and will always install the base mod first, then the translation.</source>
+        <translation>Otwarto dwie karty pobierania Nexus Mods.
+
+Wybierz Slow Download na obu kartach. Kolejność kliknięć nie ma znaczenia.
+
+Launcher rozpocznie instalację dopiero po odebraniu obu linków NXM i zawsze zainstaluje najpierw mod bazowy, a następnie tłumaczenie.</translation>
+    </message>
+    <message>
+        <source>Received download links: %1 / 2</source>
+        <translation>Odebrane linki pobierania: %1 / 2</translation>
+    </message>
+    <message>
+        <source>No 7-Zip executable (7zz, 7z or 7za) was found in PATH.</source>
+        <translation>Nie znaleziono programu 7-Zip (7zz, 7z ani 7za) w PATH.</translation>
+    </message>
+    <message>
+        <source>7-Zip fallback failed:
+%1</source>
+        <translation>Awaryjna obsługa przez 7-Zip nie powiodła się:
+%1</translation>
+    </message>
+    <message>
+        <source>7-Zip extraction did not produce the expected file:
+%1</source>
+        <translation>7-Zip nie utworzył oczekiwanego pliku podczas rozpakowywania:
+%1</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

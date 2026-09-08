@@ -1318,6 +1318,248 @@ OpenMW Launcher must be the default NXM handler to receive this download. Set Op
         <source>Nexus Mods GraphQL did not return the Morrowind game ID.</source>
         <translation>Nexus Mods GraphQL did not return the Morrowind game ID.</translation>
     </message>
+    <message>
+        <source>Translation Overlay</source>
+        <translation>Translation Overlay</translation>
+    </message>
+    <message>
+        <source>Translation Installed</source>
+        <translation>Translation Installed</translation>
+    </message>
+    <message>
+        <source>Translation Version</source>
+        <translation>Translation Version</translation>
+    </message>
+    <message>
+        <source>Target mod:</source>
+        <translation>Target mod:</translation>
+    </message>
+    <message>
+        <source>Translation files will be layered into this managed mod directory.</source>
+        <translation>Translation files will be layered into this managed mod directory.</translation>
+    </message>
+    <message>
+        <source>The selected translation does not have a valid current Nexus file.</source>
+        <translation>The selected translation does not have a valid current Nexus file.</translation>
+    </message>
+    <message>
+        <source>Select a valid Mods Directory before installing a translation.</source>
+        <translation>Select a valid Mods Directory before installing a translation.</translation>
+    </message>
+    <message>
+        <source>Install the base mod with this launcher before installing its translation.</source>
+        <translation>Install the base mod with this launcher before installing its translation.</translation>
+    </message>
+    <message>
+        <source>Select the installed base mod to translate:</source>
+        <translation>Select the installed base mod to translate:</translation>
+    </message>
+    <message>
+        <source>This translation package is already installed in the selected base mod.</source>
+        <translation>This translation package is already installed in the selected base mod.</translation>
+    </message>
+    <message>
+        <source>Installed base mod version: %1
+Translation package version: %2
+
+The version strings do not match. The translation may be outdated or may use a different versioning scheme.
+
+Install it anyway?</source>
+        <translation>Installed base mod version: %1
+Translation package version: %2
+
+The version strings do not match. The translation may be outdated or may use a different versioning scheme.
+
+Install it anyway?</translation>
+    </message>
+    <message>
+        <source>The selected base mod directory is not a safe managed mod target.</source>
+        <translation>The selected base mod directory is not a safe managed mod target.</translation>
+    </message>
+    <message>
+        <source>Translation overlays require a base mod installed and managed by this launcher.</source>
+        <translation>Translation overlays require a base mod installed and managed by this launcher.</translation>
+    </message>
+    <message>
+        <source>The translation package metadata is incomplete.</source>
+        <translation>The translation package metadata is incomplete.</translation>
+    </message>
+    <message>
+        <source>The selected translation package did not contain installable files.</source>
+        <translation>The selected translation package did not contain installable files.</translation>
+    </message>
+    <message>
+        <source>Could not create a temporary backup for the translation overlay.</source>
+        <translation>Could not create a temporary backup for the translation overlay.</translation>
+    </message>
+    <message>
+        <source>Could not back up the managed mod metadata before applying the translation.</source>
+        <translation>Could not back up the managed mod metadata before applying the translation.</translation>
+    </message>
+    <message>
+        <source>The staged translation file is not a safe regular file:
+%1</source>
+        <translation>The staged translation file is not a safe regular file:
+%1</translation>
+    </message>
+    <message>
+        <source>The translation would replace a non-regular file:
+%1</source>
+        <translation>The translation would replace a non-regular file:
+%1</translation>
+    </message>
+    <message>
+        <source>Could not back up a file before applying the translation:
+%1</source>
+        <translation>Could not back up a file before applying the translation:
+%1</translation>
+    </message>
+    <message>
+        <source>Could not create a directory for the translation file:
+%1</source>
+        <translation>Could not create a directory for the translation file:
+%1</translation>
+    </message>
+    <message>
+        <source>Could not replace a base mod file with the translation:
+%1</source>
+        <translation>Could not replace a base mod file with the translation:
+%1</translation>
+    </message>
+    <message>
+        <source>Could not install the translation file:
+%1</source>
+        <translation>Could not install the translation file:
+%1</translation>
+    </message>
+    <message>
+        <source>The translation could not be installed. The base mod was restored.
+%1</source>
+        <translation>The translation could not be installed. The base mod was restored.
+%1</translation>
+    </message>
+    <message>
+        <source>The translation could not be installed and automatic rollback was incomplete.
+%1</source>
+        <translation>The translation could not be installed and automatic rollback was incomplete.
+%1</translation>
+    </message>
+    <message>
+        <source>Could not save translation package metadata. The base mod was restored.</source>
+        <translation>Could not save translation package metadata. The base mod was restored.</translation>
+    </message>
+    <message>
+        <source>Could not save translation package metadata and automatic rollback was incomplete.</source>
+        <translation>Could not save translation package metadata and automatic rollback was incomplete.</translation>
+    </message>
+    <message>
+        <source>Installed %1 translation files into:
+%2</source>
+        <translation>Installed %1 translation files into:
+%2</translation>
+    </message>
+    <message>
+        <source>Installation plan: select a mod file and/or a translation.</source>
+        <translation>Installation plan: select a mod file and/or a translation.</translation>
+    </message>
+    <message>
+        <source>To download and install:
+1. Mod: %1 [%2]</source>
+        <translation>To download and install:
+1. Mod: %1 [%2]</translation>
+    </message>
+    <message>
+        <source>To download and install:
+1. Translation: %1 [%2]
+
+The translation will be added to an already installed base mod.</source>
+        <translation>To download and install:
+1. Translation: %1 [%2]
+
+The translation will be added to an already installed base mod.</translation>
+    </message>
+    <message>
+        <source>To download and install:
+1. Mod: %1 [%2]
+2. Translation: %3 [%4]
+
+Installation order: base mod → translation.</source>
+        <translation>To download and install:
+1. Mod: %1 [%2]
+2. Translation: %3 [%4]
+
+Installation order: base mod → translation.</translation>
+    </message>
+    <message>
+        <source>Select a mod file and/or a translation.</source>
+        <translation>Select a mod file and/or a translation.</translation>
+    </message>
+    <message>
+        <source>Selected base mod version: %1
+Translation package version: %2
+
+The version strings do not match. The translation may be outdated or may use a different versioning scheme.
+
+Continue with this installation plan?</source>
+        <translation>Selected base mod version: %1
+Translation package version: %2
+
+The version strings do not match. The translation may be outdated or may use a different versioning scheme.
+
+Continue with this installation plan?</translation>
+    </message>
+    <message>
+        <source>Could not open both Nexus Mods download tabs.</source>
+        <translation>Could not open both Nexus Mods download tabs.</translation>
+    </message>
+    <message>
+        <source>Installation Plan</source>
+        <translation>Installation Plan</translation>
+    </message>
+    <message>
+        <source>The base mod installation did not complete. The translation was not installed.</source>
+        <translation>The base mod installation did not complete. The translation was not installed.</translation>
+    </message>
+    <message>
+        <source>The received NXM link does not match any file in the current installation plan.</source>
+        <translation>The received NXM link does not match any file in the current installation plan.</translation>
+    </message>
+    <message>
+        <source>Nexus Mods - Free Download (2 files)</source>
+        <translation>Nexus Mods - Free Download (2 files)</translation>
+    </message>
+    <message>
+        <source>Two Nexus Mods download tabs are open.
+
+Choose Slow Download on both tabs. The order of clicks does not matter.
+
+The launcher will start installation only after both NXM links are received and will always install the base mod first, then the translation.</source>
+        <translation>Two Nexus Mods download tabs are open.
+
+Choose Slow Download on both tabs. The order of clicks does not matter.
+
+The launcher will start installation only after both NXM links are received and will always install the base mod first, then the translation.</translation>
+    </message>
+    <message>
+        <source>Received download links: %1 / 2</source>
+        <translation>Received download links: %1 / 2</translation>
+    </message>
+    <message>
+        <source>No 7-Zip executable (7zz, 7z or 7za) was found in PATH.</source>
+        <translation>No 7-Zip executable (7zz, 7z or 7za) was found in PATH.</translation>
+    </message>
+    <message>
+        <source>7-Zip fallback failed:
+%1</source>
+        <translation>7-Zip fallback failed:
+%1</translation>
+    </message>
+    <message>
+        <source>7-Zip extraction did not produce the expected file:
+%1</source>
+        <translation>7-Zip extraction did not produce the expected file:
+%1</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

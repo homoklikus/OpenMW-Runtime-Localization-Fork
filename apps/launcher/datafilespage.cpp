@@ -1106,8 +1106,12 @@ void Launcher::DataFilesPage::analyzeModArchive()
 }
 
 void Launcher::DataFilesPage::installModArchive(const QString& archivePath, const QString& suggestedModName,
-    const QString& archiveDisplayName, const NexusModMetadata* nexusMetadata)
+    const QString& archiveDisplayName, const NexusModMetadata* nexusMetadata,
+    const QString& overlayTargetPath, QString* installedPathOut)
 {
+    if (installedPathOut)
+        installedPathOut->clear();
+
     const QString modsDirectory = mLauncherSettings.getModsDirectory();
     if (modsDirectory.isEmpty() || !QDir(modsDirectory).exists())
     {
@@ -1122,84 +1126,295 @@ void Launcher::DataFilesPage::installModArchive(const QString& archivePath, cons
         return;
     }
 
+    const bool overlayInstall = !overlayTargetPath.trimmed().isEmpty();
+    QString normalizedOverlayTargetPath;
+
+    if (overlayInstall)
+    {
+        normalizedOverlayTargetPath = normalizedAbsolutePath(overlayTargetPath);
+        const QString normalizedModsRoot = normalizedAbsolutePath(modsDirectory);
+        const QFileInfo targetInfo(normalizedOverlayTargetPath);
+
+        if (!isDirectChildPath(normalizedOverlayTargetPath, normalizedModsRoot)
+            || !targetInfo.exists() || !targetInfo.isDir() || targetInfo.isSymLink())
+        {
+            QMessageBox::critical(this, tr("Translation Overlay"),
+                tr("The selected base mod directory is not a safe managed mod target."));
+            return;
+        }
+
+        const QString metadataPath
+            = QDir(normalizedOverlayTargetPath).filePath(QStringLiteral("openmw-meta.ini"));
+        if (!QFileInfo(metadataPath).isFile())
+        {
+            QMessageBox::critical(this, tr("Translation Overlay"),
+                tr("Translation overlays require a base mod installed and managed by this launcher."));
+            return;
+        }
+    }
+
     const QString displayArchiveName
         = archiveDisplayName.isEmpty() ? QFileInfo(archivePath).fileName() : archiveDisplayName;
-    const QString initialModName
-        = suggestedModName.isEmpty() ? QFileInfo(archivePath).completeBaseName() : suggestedModName;
+    const QString initialModName = overlayInstall
+        ? QFileInfo(normalizedOverlayTargetPath).fileName()
+        : (suggestedModName.isEmpty() ? QFileInfo(archivePath).completeBaseName() : suggestedModName);
+
+    QString sevenZipExecutable;
+
+    const auto findSevenZipExecutable = [&sevenZipExecutable]() -> QString {
+        if (!sevenZipExecutable.isEmpty())
+            return sevenZipExecutable;
+
+        static const QStringList candidates{
+            QStringLiteral("7zz"),
+            QStringLiteral("7z"),
+            QStringLiteral("7za"),
+        };
+
+        for (const QString& candidate : candidates)
+        {
+            const QString executable = QStandardPaths::findExecutable(candidate);
+            if (!executable.isEmpty())
+            {
+                sevenZipExecutable = executable;
+                break;
+            }
+        }
+
+        return sevenZipExecutable;
+    };
+
+    const auto listArchiveWithSevenZip
+        = [this, &archivePath, &findSevenZipExecutable](
+              QStringList& listedPaths, QString& listedFormat,
+              QString& fallbackError) -> bool {
+            listedPaths.clear();
+            listedFormat.clear();
+            fallbackError.clear();
+
+            const QString executable = findSevenZipExecutable();
+            if (executable.isEmpty())
+            {
+                fallbackError = tr(
+                    "No 7-Zip executable (7zz, 7z or 7za) was found in PATH.");
+                return false;
+            }
+
+            QProcess process;
+            process.setProcessChannelMode(QProcess::SeparateChannels);
+            process.start(executable,
+                { QStringLiteral("l"), QStringLiteral("-slt"),
+                    QStringLiteral("-sccUTF-8"), archivePath });
+
+            if (!process.waitForStarted(5000))
+            {
+                fallbackError = process.errorString();
+                return false;
+            }
+
+            process.closeWriteChannel();
+            process.waitForFinished(-1);
+
+            const QString standardOutput
+                = QString::fromUtf8(process.readAllStandardOutput());
+            const QString standardError
+                = QString::fromUtf8(process.readAllStandardError()).trimmed();
+
+            if (process.exitStatus() != QProcess::NormalExit
+                || process.exitCode() != 0)
+            {
+                fallbackError = standardError;
+                if (fallbackError.isEmpty())
+                    fallbackError = standardOutput.trimmed();
+                if (fallbackError.isEmpty())
+                    fallbackError = process.errorString();
+                return false;
+            }
+
+            QString currentPath;
+            QString currentFolder;
+            bool hasFolderField = false;
+
+            const auto flushRecord
+                = [&listedPaths, &currentPath, &currentFolder,
+                      &hasFolderField]() {
+                    if (!currentPath.isEmpty()
+                        && hasFolderField
+                        && currentFolder == QLatin1String("-"))
+                    {
+                        QString path = currentPath.trimmed();
+                        path.replace('\\', '/');
+
+                        while (path.startsWith(QLatin1String("./")))
+                            path.remove(0, 2);
+                        while (path.startsWith('/'))
+                            path.remove(0, 1);
+
+                        if (!path.isEmpty())
+                            listedPaths.push_back(path);
+                    }
+
+                    currentPath.clear();
+                    currentFolder.clear();
+                    hasFolderField = false;
+                };
+
+            const QStringList lines
+                = standardOutput.split(QLatin1Char('\n'), Qt::KeepEmptyParts);
+
+            for (QString line : lines)
+            {
+                if (line.endsWith(QLatin1Char('\r')))
+                    line.chop(1);
+
+                if (line.isEmpty())
+                {
+                    flushRecord();
+                    continue;
+                }
+
+                if (line.startsWith(QLatin1String("Path = ")))
+                {
+                    if (!currentPath.isEmpty())
+                        flushRecord();
+
+                    currentPath = line.mid(7);
+                    continue;
+                }
+
+                if (line.startsWith(QLatin1String("Folder = ")))
+                {
+                    currentFolder = line.mid(9).trimmed();
+                    hasFolderField = true;
+                    continue;
+                }
+
+                if (listedFormat.isEmpty()
+                    && line.startsWith(QLatin1String("Type = ")))
+                {
+                    listedFormat = line.mid(7).trimmed();
+                }
+            }
+
+            flushRecord();
+            listedPaths.removeDuplicates();
+
+            if (listedPaths.isEmpty())
+            {
+                fallbackError = standardOutput.trimmed();
+                if (fallbackError.isEmpty())
+                    fallbackError = standardError;
+                return false;
+            }
+
+            if (listedFormat.isEmpty())
+                listedFormat = QStringLiteral("7-Zip");
+            else
+                listedFormat += QStringLiteral(" (7-Zip)");
+
+            return true;
+        };
+
+    QStringList filePaths;
+    QString archiveFormat;
+    QString archiveError;
+    bool use7ZipFallback = false;
+
+    const QByteArray encodedPath = QFile::encodeName(archivePath);
 
     struct archive* archiveHandle = archive_read_new();
     if (!archiveHandle)
     {
-        QMessageBox::critical(this, tr("Archive Analysis"), tr("Could not initialize the archive reader."));
-        return;
+        archiveError = tr("Could not initialize the archive reader.");
     }
-
-    archive_read_support_filter_all(archiveHandle);
-    archive_read_support_format_all(archiveHandle);
-
-    const QByteArray encodedPath = QFile::encodeName(archivePath);
-    if (archive_read_open_filename(archiveHandle, encodedPath.constData(), 10240) != ARCHIVE_OK)
+    else
     {
-        const char* error = archive_error_string(archiveHandle);
-        const QString errorText = error ? QString::fromUtf8(error) : tr("Unknown error");
+        archive_read_support_filter_all(archiveHandle);
+        archive_read_support_format_all(archiveHandle);
+
+        if (archive_read_open_filename(
+                archiveHandle, encodedPath.constData(), 10240) != ARCHIVE_OK)
+        {
+            const char* error = archive_error_string(archiveHandle);
+            archiveError
+                = error ? QString::fromUtf8(error) : tr("Unknown error");
+        }
+        else
+        {
+            struct archive_entry* entry = nullptr;
+            int readResult = ARCHIVE_OK;
+
+            while ((readResult
+                       = archive_read_next_header(archiveHandle, &entry))
+                == ARCHIVE_OK)
+            {
+                if (archiveFormat.isEmpty())
+                {
+                    const char* formatName = archive_format_name(archiveHandle);
+                    if (formatName)
+                        archiveFormat = QString::fromUtf8(formatName);
+                }
+
+                if (archive_entry_filetype(entry) == AE_IFDIR)
+                {
+                    archive_read_data_skip(archiveHandle);
+                    continue;
+                }
+
+                const char* rawPath = archive_entry_pathname_utf8(entry);
+                if (!rawPath)
+                    rawPath = archive_entry_pathname(entry);
+                if (!rawPath)
+                {
+                    archive_read_data_skip(archiveHandle);
+                    continue;
+                }
+
+                QString path = QString::fromUtf8(rawPath).trimmed();
+                path.replace('\\', '/');
+
+                while (path.startsWith(QLatin1String("./")))
+                    path.remove(0, 2);
+                while (path.startsWith('/'))
+                    path.remove(0, 1);
+
+                if (!path.isEmpty())
+                    filePaths.push_back(path);
+
+                archive_read_data_skip(archiveHandle);
+            }
+
+            if (readResult != ARCHIVE_EOF)
+            {
+                const char* error = archive_error_string(archiveHandle);
+                archiveError
+                    = error ? QString::fromUtf8(error) : tr("Unknown error");
+            }
+        }
+
         archive_read_free(archiveHandle);
-        QMessageBox::critical(this, tr("Archive Analysis"),
-            tr("Could not open the archive:\n%1").arg(errorText));
-        return;
     }
 
-    QStringList filePaths;
-    QString archiveFormat;
-    struct archive_entry* entry = nullptr;
-    int readResult = ARCHIVE_OK;
-
-    while ((readResult = archive_read_next_header(archiveHandle, &entry)) == ARCHIVE_OK)
+    if (!archiveError.isEmpty())
     {
-        if (archiveFormat.isEmpty())
+        QStringList fallbackPaths;
+        QString fallbackFormat;
+        QString fallbackError;
+
+        if (listArchiveWithSevenZip(
+                fallbackPaths, fallbackFormat, fallbackError))
         {
-            const char* formatName = archive_format_name(archiveHandle);
-            if (formatName)
-                archiveFormat = QString::fromUtf8(formatName);
+            filePaths = fallbackPaths;
+            archiveFormat = fallbackFormat;
+            archiveError.clear();
+            use7ZipFallback = true;
         }
-
-        if (archive_entry_filetype(entry) == AE_IFDIR)
+        else
         {
-            archive_read_data_skip(archiveHandle);
-            continue;
+            archiveError += QStringLiteral("\n\n")
+                + tr("7-Zip fallback failed:\n%1").arg(fallbackError);
         }
-
-        const char* rawPath = archive_entry_pathname_utf8(entry);
-        if (!rawPath)
-            rawPath = archive_entry_pathname(entry);
-        if (!rawPath)
-        {
-            archive_read_data_skip(archiveHandle);
-            continue;
-        }
-
-        QString path = QString::fromUtf8(rawPath).trimmed();
-        path.replace('\\', '/');
-
-        while (path.startsWith(QLatin1String("./")))
-            path.remove(0, 2);
-        while (path.startsWith('/'))
-            path.remove(0, 1);
-
-        if (!path.isEmpty())
-            filePaths.push_back(path);
-
-        archive_read_data_skip(archiveHandle);
     }
-
-    QString archiveError;
-    if (readResult != ARCHIVE_EOF)
-    {
-        const char* error = archive_error_string(archiveHandle);
-        if (error)
-            archiveError = QString::fromUtf8(error);
-    }
-
-    archive_read_free(archiveHandle);
 
     if (!archiveError.isEmpty())
     {
@@ -1207,15 +1422,29 @@ void Launcher::DataFilesPage::installModArchive(const QString& archivePath, cons
             tr("The archive was only partially read:\n%1").arg(archiveError));
     }
 
+    // Archive layout detection follows the same general rule used by
+    // BAIN-style managers: first decide whether the current level is already a
+    // valid/simple Morrowind data root. Only when it is not, inspect its DIRECT
+    // child directories for wrapped roots or parallel subpackages.
+    //
+    // Never search asset directory names recursively. A normal mod may contain
+    // paths such as mwse/config/foo/animations; that does not make
+    // mwse/config/foo a separate package.
     static const QStringList assetDirectories{
         QStringLiteral("animations"),
         QStringLiteral("bookart"),
+        QStringLiteral("distantland"),
+        QStringLiteral("distantlod"),
         QStringLiteral("fonts"),
         QStringLiteral("icons"),
         QStringLiteral("interface"),
+        QStringLiteral("iwy"),
+        QStringLiteral("kw"),
         QStringLiteral("l10n"),
+        QStringLiteral("localization"),
         QStringLiteral("meshes"),
         QStringLiteral("music"),
+        QStringLiteral("mwse"),
         QStringLiteral("mygui"),
         QStringLiteral("scripts"),
         QStringLiteral("shaders"),
@@ -1232,43 +1461,162 @@ void Launcher::DataFilesPage::installModArchive(const QString& archivePath, cons
         QStringLiteral("esp"),
         QStringLiteral("bsa"),
         QStringLiteral("ba2"),
+        QStringLiteral("ini"),
         QStringLiteral("omwgame"),
         QStringLiteral("omwaddon"),
         QStringLiteral("omwscripts"),
     };
 
-    QSet<QString> candidateRoots;
+    const auto joinArchiveRoot = [](const QString& parent, const QString& child) {
+        return parent.isEmpty() ? child : parent + '/' + child;
+    };
 
-    for (const QString& path : filePaths)
-    {
-        const QStringList parts = path.split('/', Qt::SkipEmptyParts);
-        if (parts.isEmpty())
-            continue;
+    const auto relativePathFromRoot = [](const QString& path, const QString& root) {
+        if (root.isEmpty())
+            return path;
 
-        bool foundRoot = false;
-        for (int i = 0; i < parts.size(); ++i)
-        {
-            if (assetDirectories.contains(parts.at(i), Qt::CaseInsensitive))
+        const QString prefix = root + '/';
+        if (!path.startsWith(prefix, Qt::CaseInsensitive))
+            return QString();
+
+        return path.mid(prefix.size());
+    };
+
+    const auto directChildDirectories
+        = [&filePaths, &relativePathFromRoot](const QString& root) {
+            QSet<QString> childSet;
+
+            for (const QString& path : filePaths)
             {
-                candidateRoots.insert(parts.mid(0, i).join('/'));
-                foundRoot = true;
-                break;
+                const QString relativePath = relativePathFromRoot(path, root);
+                if (relativePath.isEmpty())
+                    continue;
+
+                const QStringList parts
+                    = relativePath.split('/', Qt::SkipEmptyParts);
+                if (parts.size() >= 2)
+                    childSet.insert(parts.constFirst());
             }
+
+            QStringList children = childSet.values();
+            std::sort(children.begin(), children.end(),
+                [](const QString& lhs, const QString& rhs) {
+                    return lhs.compare(rhs, Qt::CaseInsensitive) < 0;
+                });
+            return children;
+        };
+
+    const auto isRecognizableDataRoot
+        = [&filePaths, &relativePathFromRoot](const QString& root) {
+            for (const QString& path : filePaths)
+            {
+                const QString relativePath = relativePathFromRoot(path, root);
+                if (relativePath.isEmpty())
+                    continue;
+
+                const QStringList parts
+                    = relativePath.split('/', Qt::SkipEmptyParts);
+                if (parts.isEmpty())
+                    continue;
+
+                // A recognised asset directory must be an IMMEDIATE child of
+                // this candidate root.
+                if (parts.size() >= 2
+                    && assetDirectories.contains(
+                        parts.constFirst(), Qt::CaseInsensitive))
+                {
+                    return true;
+                }
+
+                // Plugins/configs count only when they are loose files directly
+                // in the candidate root.
+                if (parts.size() == 1)
+                {
+                    const QString extension
+                        = QFileInfo(parts.constFirst()).suffix().toLower();
+                    if (rootFileExtensions.contains(extension))
+                        return true;
+                }
+            }
+
+            return false;
+        };
+
+    const auto resolveDirectPackageRoot
+        = [&directChildDirectories, &isRecognizableDataRoot,
+              &joinArchiveRoot](const QString& candidateRoot) {
+            if (isRecognizableDataRoot(candidateRoot))
+                return candidateRoot;
+
+            // "Data Files" is a conventional transparent wrapper for Morrowind.
+            const QStringList childDirectories
+                = directChildDirectories(candidateRoot);
+            if (childDirectories.size() == 1
+                && childDirectories.constFirst().compare(
+                       QStringLiteral("Data Files"), Qt::CaseInsensitive) == 0)
+            {
+                const QString dataFilesRoot
+                    = joinArchiveRoot(
+                        candidateRoot, childDirectories.constFirst());
+                if (isRecognizableDataRoot(dataFilesRoot))
+                    return dataFilesRoot;
+            }
+
+            return QString();
+        };
+
+    QStringList roots;
+    QString layoutType;
+
+    // Peel neutral single-folder wrappers only while the current level itself
+    // is not already a valid data root. Twenty levels is intentionally far
+    // beyond any sane archive layout while still bounding malformed input.
+    QString scanRoot;
+    for (int depth = 0; depth < 20; ++depth)
+    {
+        if (isRecognizableDataRoot(scanRoot))
+        {
+            roots.push_back(scanRoot);
+            layoutType = scanRoot.isEmpty()
+                ? tr("Simple mod (data files at archive root)")
+                : tr("Single wrapped data root");
+            break;
         }
 
-        if (foundRoot)
-            continue;
+        const QStringList children = directChildDirectories(scanRoot);
+        QStringList directPackageRoots;
 
-        const QString extension = QFileInfo(parts.constLast()).suffix().toLower();
-        if (rootFileExtensions.contains(extension))
-            candidateRoots.insert(parts.mid(0, parts.size() - 1).join('/'));
+        for (const QString& child : children)
+        {
+            const QString candidateRoot = joinArchiveRoot(scanRoot, child);
+            const QString resolvedRoot
+                = resolveDirectPackageRoot(candidateRoot);
+            if (!resolvedRoot.isEmpty())
+                directPackageRoots.push_back(resolvedRoot);
+        }
+
+        if (directPackageRoots.size() >= 2)
+        {
+            roots = directPackageRoots;
+            layoutType = tr("BAIN-like package with multiple subpackages");
+            break;
+        }
+
+        if (directPackageRoots.size() == 1)
+        {
+            roots = directPackageRoots;
+            layoutType = tr("Single wrapped data root");
+            break;
+        }
+
+        if (children.size() != 1)
+            break;
+
+        scanRoot = joinArchiveRoot(scanRoot, children.constFirst());
     }
 
-    QStringList roots = candidateRoots.values();
-    std::sort(roots.begin(), roots.end(),
-        [](const QString& lhs, const QString& rhs) {
-            return lhs.compare(rhs, Qt::CaseInsensitive) < 0;
-        });
+    if (roots.isEmpty())
+        layoutType = tr("No recognizable Morrowind data root");
 
     QHash<QString, int> filesPerRoot;
     for (const QString& root : roots)
@@ -1278,35 +1626,15 @@ void Launcher::DataFilesPage::installModArchive(const QString& archivePath, cons
 
         for (const QString& path : filePaths)
         {
-            if (root.isEmpty() || path.startsWith(prefix, Qt::CaseInsensitive))
+            if (root.isEmpty()
+                || path.startsWith(prefix, Qt::CaseInsensitive))
+            {
                 ++count;
+            }
         }
 
         filesPerRoot.insert(root, count);
     }
-
-    int numberedRoots = 0;
-    for (const QString& root : roots)
-    {
-        const QString firstSegment = root.section('/', 0, 0).trimmed();
-        if (firstSegment.size() >= 2 && firstSegment.at(0).isDigit() && firstSegment.at(1).isDigit())
-            ++numberedRoots;
-    }
-
-    QString layoutType;
-    if (roots.isEmpty())
-        layoutType = tr("No recognizable Morrowind data root");
-    else if (roots.size() == 1)
-    {
-        if (roots.constFirst().isEmpty())
-            layoutType = tr("Simple mod (data files at archive root)");
-        else
-            layoutType = tr("Single wrapped data root");
-    }
-    else if (numberedRoots >= 2)
-        layoutType = tr("BAIN-like package with multiple subpackages");
-    else
-        layoutType = tr("Multiple possible data roots");
 
     QDialog dialog(this);
     dialog.setWindowTitle(tr("Archive Analysis — %1").arg(displayArchiveName));
@@ -1333,9 +1661,13 @@ void Launcher::DataFilesPage::installModArchive(const QString& archivePath, cons
     layout->addWidget(note);
 
     auto* modNameLayout = new QHBoxLayout;
-    auto* modNameLabel = new QLabel(tr("Mod name:"), &dialog);
+    auto* modNameLabel = new QLabel(
+        overlayInstall ? tr("Target mod:") : tr("Mod name:"), &dialog);
     auto* modNameEdit = new QLineEdit(initialModName, &dialog);
-    modNameEdit->setToolTip(tr("The mod will be installed as one subdirectory of the configured Mods Directory."));
+    modNameEdit->setReadOnly(overlayInstall);
+    modNameEdit->setToolTip(overlayInstall
+        ? tr("Translation files will be layered into this managed mod directory.")
+        : tr("The mod will be installed as one subdirectory of the configured Mods Directory."));
     modNameLayout->addWidget(modNameLabel);
     modNameLayout->addWidget(modNameEdit, 1);
     layout->addLayout(modNameLayout);
@@ -1559,10 +1891,12 @@ void Launcher::DataFilesPage::installModArchive(const QString& archivePath, cons
         return;
     }
 
-    QString destinationPath = QDir(modsDirectory).filePath(modName);
+    QString destinationPath = overlayInstall
+        ? normalizedOverlayTargetPath
+        : QDir(modsDirectory).filePath(modName);
     bool replaceExisting = false;
 
-    if (QFileInfo::exists(destinationPath))
+    if (!overlayInstall && QFileInfo::exists(destinationPath))
     {
         QMessageBox collisionBox(QMessageBox::Question, tr("Mod Already Exists"),
             tr("A mod directory named \"%1\" already exists.\n\n"
@@ -1645,174 +1979,767 @@ void Launcher::DataFilesPage::installModArchive(const QString& archivePath, cons
         return;
     }
 
-    struct archive* installArchive = archive_read_new();
-    if (!installArchive)
-    {
-        QMessageBox::critical(this, tr("Install Mod"), tr("Could not initialize the archive reader."));
-        return;
-    }
-
-    archive_read_support_filter_all(installArchive);
-    archive_read_support_format_all(installArchive);
-
-    if (archive_read_open_filename(installArchive, encodedPath.constData(), 10240) != ARCHIVE_OK)
-    {
-        const char* error = archive_error_string(installArchive);
-        const QString errorText = error ? QString::fromUtf8(error) : tr("Unknown error");
-        archive_read_free(installArchive);
-        QMessageBox::critical(this, tr("Install Mod"),
-            tr("Could not reopen the archive for installation:\n%1").arg(errorText));
-        return;
-    }
-
     bool installFailed = false;
     QString installError;
     int installedFiles = 0;
+    QStringList installedRelativePaths;
 
-    struct archive_entry* installEntry = nullptr;
-    int installReadResult = ARCHIVE_OK;
+    const auto extractSelectedWithSevenZip = [&]() -> bool {
+        const QString executable = findSevenZipExecutable();
+        if (executable.isEmpty())
+        {
+            installError = tr("Could not read archive data:\n%1")
+                .arg(tr(
+                    "No 7-Zip executable (7zz, 7z or 7za) was found in PATH."));
+            return false;
+        }
 
-    while ((installReadResult = archive_read_next_header(installArchive, &installEntry)) == ARCHIVE_OK)
+        QTemporaryDir extractedDir(
+            QDir(modsDirectory).filePath(
+                QStringLiteral(".openmw-7z-XXXXXX")));
+        if (!extractedDir.isValid())
+        {
+            installError = tr(
+                "Could not create a temporary installation directory inside the Mods Directory.");
+            return false;
+        }
+
+        QProcess process;
+        process.setProcessChannelMode(QProcess::SeparateChannels);
+        process.start(executable,
+            { QStringLiteral("x"), QStringLiteral("-y"),
+                QStringLiteral("-bd"), QStringLiteral("-bb0"),
+                QStringLiteral("-sccUTF-8"),
+                QStringLiteral("-o%1").arg(extractedDir.path()),
+                archivePath });
+
+        if (!process.waitForStarted(5000))
+        {
+            installError = tr("Could not read archive data:\n%1")
+                .arg(process.errorString());
+            return false;
+        }
+
+        process.closeWriteChannel();
+        process.waitForFinished(-1);
+
+        const QString standardOutput
+            = QString::fromUtf8(process.readAllStandardOutput()).trimmed();
+        const QString standardError
+            = QString::fromUtf8(process.readAllStandardError()).trimmed();
+
+        if (process.exitStatus() != QProcess::NormalExit
+            || process.exitCode() != 0)
+        {
+            QString details = standardError;
+            if (details.isEmpty())
+                details = standardOutput;
+            if (details.isEmpty())
+                details = process.errorString();
+
+            installError = tr("Could not read archive data:\n%1")
+                .arg(details);
+            return false;
+        }
+
+        const QString canonicalExtractRoot
+            = QFileInfo(extractedDir.path()).canonicalFilePath();
+        if (canonicalExtractRoot.isEmpty())
+        {
+            installError = tr("Could not read archive data:\n%1")
+                .arg(extractedDir.path());
+            return false;
+        }
+
+        const QString extractRootPrefix
+            = QDir::cleanPath(canonicalExtractRoot)
+                + QLatin1Char('/');
+
+        for (const QString& archiveEntryPath : filePaths)
+        {
+            bool extractedThisEntry = false;
+
+            for (const int row : selectedRows)
+            {
+                const QString& root = roots.at(row);
+                const QString prefix
+                    = root.isEmpty() ? QString() : root + '/';
+
+                QString relativePath;
+                if (root.isEmpty())
+                    relativePath = archiveEntryPath;
+                else if (archiveEntryPath.startsWith(
+                             prefix, Qt::CaseInsensitive))
+                    relativePath = archiveEntryPath.mid(prefix.size());
+                else
+                    continue;
+
+                relativePath.replace('\\', '/');
+                while (relativePath.startsWith(
+                    QLatin1String("./")))
+                {
+                    relativePath.remove(0, 2);
+                }
+
+                if (overlayInstall
+                    && (relativePath.compare(
+                            QStringLiteral("openmw-meta.ini"),
+                            Qt::CaseInsensitive) == 0
+                        || relativePath.compare(
+                               QStringLiteral("meta.ini"),
+                               Qt::CaseInsensitive) == 0))
+                {
+                    extractedThisEntry = true;
+                    break;
+                }
+
+                const QString normalizedRelativePath
+                    = relativePath.toLower();
+                if (!filesByRoot.value(root).contains(
+                        normalizedRelativePath)
+                    || finalOwner.value(
+                           normalizedRelativePath, -1) != row)
+                {
+                    continue;
+                }
+
+                const QStringList pathParts
+                    = relativePath.split(
+                        '/', Qt::KeepEmptyParts);
+                bool unsafePath = relativePath.isEmpty()
+                    || QDir::isAbsolutePath(relativePath);
+
+                for (const QString& part : pathParts)
+                {
+                    if (part.isEmpty()
+                        || part == QLatin1String(".")
+                        || part == QLatin1String("..")
+                        || part.contains(':'))
+                    {
+                        unsafePath = true;
+                        break;
+                    }
+                }
+
+                if (unsafePath)
+                {
+                    installError = tr(
+                        "The archive contains an unsafe path:\n%1")
+                        .arg(relativePath);
+                    return false;
+                }
+
+                QString sourceRelativePath = archiveEntryPath;
+                sourceRelativePath.replace('\\', '/');
+
+                const QString sourcePath
+                    = QDir(extractedDir.path())
+                          .filePath(sourceRelativePath);
+                const QFileInfo sourceInfo(sourcePath);
+
+                if (!sourceInfo.exists()
+                    || !sourceInfo.isFile()
+                    || sourceInfo.isSymLink())
+                {
+                    installError = tr(
+                        "7-Zip extraction did not produce the expected file:\n%1")
+                        .arg(sourceRelativePath);
+                    return false;
+                }
+
+                const QString canonicalSource
+                    = QDir::cleanPath(
+                        sourceInfo.canonicalFilePath());
+
+                if (canonicalSource.isEmpty()
+                    || !canonicalSource.startsWith(
+                        extractRootPrefix))
+                {
+                    installError = tr(
+                        "The archive contains an unsafe path:\n%1")
+                        .arg(sourceRelativePath);
+                    return false;
+                }
+
+                const QString outputPath
+                    = QDir(stagingDir.path())
+                          .filePath(relativePath);
+                const QString outputDirectory
+                    = QFileInfo(outputPath).absolutePath();
+
+                if (!QDir().mkpath(outputDirectory))
+                {
+                    installError = tr(
+                        "Could not create directory:\n%1")
+                        .arg(outputDirectory);
+                    return false;
+                }
+
+                if (QFileInfo::exists(outputPath)
+                    && !QFile::remove(outputPath))
+                {
+                    installError = tr(
+                        "Could not write file:\n%1")
+                        .arg(outputPath);
+                    return false;
+                }
+
+                if (!QFile::copy(sourcePath, outputPath))
+                {
+                    installError = tr(
+                        "Could not write file:\n%1")
+                        .arg(outputPath);
+                    return false;
+                }
+
+                ++installedFiles;
+                installedRelativePaths.push_back(relativePath);
+                extractedThisEntry = true;
+                break;
+            }
+
+            Q_UNUSED(extractedThisEntry);
+        }
+
+        return true;
+    };
+
+    if (use7ZipFallback)
     {
-        if (archive_entry_filetype(installEntry) != AE_IFREG
-            || archive_entry_symlink(installEntry) != nullptr
-            || archive_entry_hardlink(installEntry) != nullptr)
+        if (!extractSelectedWithSevenZip())
+            installFailed = true;
+    }
+    else
+    {
+        struct archive* installArchive = archive_read_new();
+        if (!installArchive)
         {
-            archive_read_data_skip(installArchive);
-            continue;
+            installFailed = true;
+            installError = tr("Could not initialize the archive reader.");
         }
-
-        const char* rawPath = archive_entry_pathname_utf8(installEntry);
-        if (!rawPath)
-            rawPath = archive_entry_pathname(installEntry);
-        if (!rawPath)
+        else
         {
-            archive_read_data_skip(installArchive);
-            continue;
-        }
+            archive_read_support_filter_all(installArchive);
+            archive_read_support_format_all(installArchive);
 
-        QString archiveEntryPath = QString::fromUtf8(rawPath).trimmed();
-        archiveEntryPath.replace('\\', '/');
-        while (archiveEntryPath.startsWith(QLatin1String("./")))
-            archiveEntryPath.remove(0, 2);
-        while (archiveEntryPath.startsWith('/'))
-            archiveEntryPath.remove(0, 1);
-
-        bool extractedThisEntry = false;
-
-        for (const int row : selectedRows)
-        {
-            const QString& root = roots.at(row);
-            const QString prefix = root.isEmpty() ? QString() : root + '/';
-
-            QString relativePath;
-            if (root.isEmpty())
-                relativePath = archiveEntryPath;
-            else if (archiveEntryPath.startsWith(prefix, Qt::CaseInsensitive))
-                relativePath = archiveEntryPath.mid(prefix.size());
+            if (archive_read_open_filename(
+                    installArchive, encodedPath.constData(),
+                    10240) != ARCHIVE_OK)
+            {
+                const char* error
+                    = archive_error_string(installArchive);
+                installFailed = true;
+                installError
+                    = tr("Could not reopen the archive for installation:\n%1")
+                          .arg(error
+                                  ? QString::fromUtf8(error)
+                                  : tr("Unknown error"));
+            }
             else
-                continue;
-
-            relativePath.replace('\\', '/');
-            while (relativePath.startsWith(QLatin1String("./")))
-                relativePath.remove(0, 2);
-
-            const QString normalizedRelativePath = relativePath.toLower();
-            if (!filesByRoot.value(root).contains(normalizedRelativePath)
-                || finalOwner.value(normalizedRelativePath, -1) != row)
-                continue;
-
-            const QStringList pathParts = relativePath.split('/', Qt::KeepEmptyParts);
-            bool unsafePath = relativePath.isEmpty() || QDir::isAbsolutePath(relativePath);
-            for (const QString& part : pathParts)
             {
-                if (part.isEmpty() || part == QLatin1String(".") || part == QLatin1String("..")
-                    || part.contains(':'))
+                struct archive_entry* installEntry = nullptr;
+                int installReadResult = ARCHIVE_OK;
+
+                while ((installReadResult
+                           = archive_read_next_header(
+                               installArchive, &installEntry))
+                    == ARCHIVE_OK)
                 {
-                    unsafePath = true;
-                    break;
+                    if (archive_entry_filetype(installEntry)
+                            != AE_IFREG
+                        || archive_entry_symlink(installEntry)
+                            != nullptr
+                        || archive_entry_hardlink(installEntry)
+                            != nullptr)
+                    {
+                        archive_read_data_skip(installArchive);
+                        continue;
+                    }
+
+                    const char* rawPath
+                        = archive_entry_pathname_utf8(installEntry);
+                    if (!rawPath)
+                        rawPath
+                            = archive_entry_pathname(installEntry);
+                    if (!rawPath)
+                    {
+                        archive_read_data_skip(installArchive);
+                        continue;
+                    }
+
+                    QString archiveEntryPath
+                        = QString::fromUtf8(rawPath).trimmed();
+                    archiveEntryPath.replace('\\', '/');
+                    while (archiveEntryPath.startsWith(
+                        QLatin1String("./")))
+                    {
+                        archiveEntryPath.remove(0, 2);
+                    }
+                    while (archiveEntryPath.startsWith('/'))
+                        archiveEntryPath.remove(0, 1);
+
+                    bool extractedThisEntry = false;
+
+                    for (const int row : selectedRows)
+                    {
+                        const QString& root = roots.at(row);
+                        const QString prefix
+                            = root.isEmpty()
+                            ? QString()
+                            : root + '/';
+
+                        QString relativePath;
+                        if (root.isEmpty())
+                            relativePath = archiveEntryPath;
+                        else if (archiveEntryPath.startsWith(
+                                     prefix,
+                                     Qt::CaseInsensitive))
+                        {
+                            relativePath
+                                = archiveEntryPath.mid(
+                                    prefix.size());
+                        }
+                        else
+                        {
+                            continue;
+                        }
+
+                        relativePath.replace('\\', '/');
+                        while (relativePath.startsWith(
+                            QLatin1String("./")))
+                        {
+                            relativePath.remove(0, 2);
+                        }
+
+                        if (overlayInstall
+                            && (relativePath.compare(
+                                    QStringLiteral(
+                                        "openmw-meta.ini"),
+                                    Qt::CaseInsensitive)
+                                    == 0
+                                || relativePath.compare(
+                                       QStringLiteral(
+                                           "meta.ini"),
+                                       Qt::CaseInsensitive)
+                                    == 0))
+                        {
+                            archive_read_data_skip(
+                                installArchive);
+                            extractedThisEntry = true;
+                            break;
+                        }
+
+                        const QString normalizedRelativePath
+                            = relativePath.toLower();
+                        if (!filesByRoot.value(root).contains(
+                                normalizedRelativePath)
+                            || finalOwner.value(
+                                   normalizedRelativePath,
+                                   -1) != row)
+                        {
+                            continue;
+                        }
+
+                        const QStringList pathParts
+                            = relativePath.split(
+                                '/', Qt::KeepEmptyParts);
+                        bool unsafePath
+                            = relativePath.isEmpty()
+                            || QDir::isAbsolutePath(
+                                relativePath);
+                        for (const QString& part : pathParts)
+                        {
+                            if (part.isEmpty()
+                                || part
+                                    == QLatin1String(".")
+                                || part
+                                    == QLatin1String("..")
+                                || part.contains(':'))
+                            {
+                                unsafePath = true;
+                                break;
+                            }
+                        }
+
+                        if (unsafePath)
+                        {
+                            installFailed = true;
+                            installError = tr(
+                                "The archive contains an unsafe path:\n%1")
+                                .arg(relativePath);
+                            break;
+                        }
+
+                        const QString outputPath
+                            = QDir(stagingDir.path())
+                                  .filePath(relativePath);
+                        const QString outputDirectory
+                            = QFileInfo(outputPath)
+                                  .absolutePath();
+
+                        if (!QDir().mkpath(outputDirectory))
+                        {
+                            installFailed = true;
+                            installError = tr(
+                                "Could not create directory:\n%1")
+                                .arg(outputDirectory);
+                            break;
+                        }
+
+                        QFile outputFile(outputPath);
+                        if (!outputFile.open(
+                                QIODevice::WriteOnly
+                                | QIODevice::Truncate))
+                        {
+                            installFailed = true;
+                            installError = tr(
+                                "Could not write file:\n%1")
+                                .arg(outputPath);
+                            break;
+                        }
+
+                        char buffer[64 * 1024];
+                        while (true)
+                        {
+                            const la_ssize_t bytesRead
+                                = archive_read_data(
+                                    installArchive,
+                                    buffer,
+                                    sizeof(buffer));
+                            if (bytesRead == 0)
+                                break;
+
+                            if (bytesRead < 0)
+                            {
+                                const char* error
+                                    = archive_error_string(
+                                        installArchive);
+                                installFailed = true;
+                                installError = tr(
+                                    "Could not read archive data:\n%1")
+                                    .arg(error
+                                            ? QString::fromUtf8(
+                                                  error)
+                                            : tr(
+                                                  "Unknown error"));
+                                break;
+                            }
+
+                            if (outputFile.write(
+                                    buffer, bytesRead)
+                                != bytesRead)
+                            {
+                                installFailed = true;
+                                installError = tr(
+                                    "Could not write file:\n%1")
+                                    .arg(outputPath);
+                                break;
+                            }
+                        }
+
+                        outputFile.close();
+
+                        if (installFailed)
+                            break;
+
+                        ++installedFiles;
+                        installedRelativePaths.push_back(
+                            relativePath);
+                        extractedThisEntry = true;
+                        break;
+                    }
+
+                    if (installFailed)
+                        break;
+
+                    if (!extractedThisEntry)
+                        archive_read_data_skip(
+                            installArchive);
                 }
-            }
 
-            if (unsafePath)
-            {
-                installFailed = true;
-                installError = tr("The archive contains an unsafe path:\n%1").arg(relativePath);
-                break;
-            }
-
-            const QString outputPath = QDir(stagingDir.path()).filePath(relativePath);
-            const QString outputDirectory = QFileInfo(outputPath).absolutePath();
-
-            if (!QDir().mkpath(outputDirectory))
-            {
-                installFailed = true;
-                installError = tr("Could not create directory:\n%1").arg(outputDirectory);
-                break;
-            }
-
-            QFile outputFile(outputPath);
-            if (!outputFile.open(QIODevice::WriteOnly | QIODevice::Truncate))
-            {
-                installFailed = true;
-                installError = tr("Could not write file:\n%1").arg(outputPath);
-                break;
-            }
-
-            char buffer[64 * 1024];
-            while (true)
-            {
-                const la_ssize_t bytesRead = archive_read_data(installArchive, buffer, sizeof(buffer));
-                if (bytesRead == 0)
-                    break;
-
-                if (bytesRead < 0)
+                if (!installFailed
+                    && installReadResult != ARCHIVE_EOF)
                 {
-                    const char* error = archive_error_string(installArchive);
+                    const char* error
+                        = archive_error_string(installArchive);
                     installFailed = true;
-                    installError = tr("Could not read archive data:\n%1")
-                        .arg(error ? QString::fromUtf8(error) : tr("Unknown error"));
-                    break;
-                }
-
-                if (outputFile.write(buffer, bytesRead) != bytesRead)
-                {
-                    installFailed = true;
-                    installError = tr("Could not write file:\n%1").arg(outputPath);
-                    break;
+                    installError = tr(
+                        "Could not finish reading the archive:\n%1")
+                        .arg(error
+                                ? QString::fromUtf8(error)
+                                : tr("Unknown error"));
                 }
             }
 
-            outputFile.close();
-
-            if (installFailed)
-                break;
-
-            ++installedFiles;
-            extractedThisEntry = true;
-            break;
+            archive_read_free(installArchive);
         }
-
-        if (installFailed)
-            break;
-
-        if (!extractedThisEntry)
-            archive_read_data_skip(installArchive);
     }
-
-    if (!installFailed && installReadResult != ARCHIVE_EOF)
-    {
-        const char* error = archive_error_string(installArchive);
-        installFailed = true;
-        installError = tr("Could not finish reading the archive:\n%1")
-            .arg(error ? QString::fromUtf8(error) : tr("Unknown error"));
-    }
-
-    archive_read_free(installArchive);
 
     if (installFailed)
     {
         QMessageBox::critical(this, tr("Install Mod"), installError);
+        return;
+    }
+
+    if (overlayInstall)
+    {
+        if (!nexusMetadata || !nexusMetadata->mIsOverlay
+            || nexusMetadata->mModId <= 0 || nexusMetadata->mTargetModId <= 0)
+        {
+            QMessageBox::critical(this, tr("Translation Overlay"),
+                tr("The translation package metadata is incomplete."));
+            return;
+        }
+
+        if (installedRelativePaths.isEmpty())
+        {
+            QMessageBox::warning(this, tr("Translation Overlay"),
+                tr("The selected translation package did not contain installable files."));
+            return;
+        }
+
+        const QString managerMetadataPath
+            = QDir(destinationPath).filePath(QStringLiteral("openmw-meta.ini"));
+        QSettings existingMetadata(managerMetadataPath, QSettings::IniFormat);
+        const QString packageGroup
+            = QStringLiteral("Package.%1").arg(nexusMetadata->mModId);
+
+        if (existingMetadata.childGroups().contains(packageGroup, Qt::CaseInsensitive))
+        {
+            QMessageBox::information(this, tr("Translation Overlay"),
+                tr("This translation package is already installed in the selected base mod."));
+            return;
+        }
+
+        QHash<QString, QString> overlayPathsByKey;
+        for (const QString& relativePath : installedRelativePaths)
+            overlayPathsByKey.insert(relativePath.toLower(), relativePath);
+
+        QStringList overlayRelativePaths = overlayPathsByKey.values();
+        std::sort(overlayRelativePaths.begin(), overlayRelativePaths.end(),
+            [](const QString& lhs, const QString& rhs) {
+                return lhs.compare(rhs, Qt::CaseInsensitive) < 0;
+            });
+
+        QTemporaryDir overlayBackup(
+            QDir(modsDirectory).filePath(QStringLiteral(".openmw-overlay-backup-XXXXXX")));
+        if (!overlayBackup.isValid())
+        {
+            QMessageBox::critical(this, tr("Translation Overlay"),
+                tr("Could not create a temporary backup for the translation overlay."));
+            return;
+        }
+
+        const QString metadataBackupPath
+            = QDir(overlayBackup.path()).filePath(QStringLiteral("__openmw-meta.ini"));
+        if (!QFile::copy(managerMetadataPath, metadataBackupPath))
+        {
+            QMessageBox::critical(this, tr("Translation Overlay"),
+                tr("Could not back up the managed mod metadata before applying the translation."));
+            return;
+        }
+
+        bool overlayFailed = false;
+        QString overlayError;
+
+        for (const QString& relativePath : overlayRelativePaths)
+        {
+            const QString sourcePath = QDir(stagingDir.path()).filePath(relativePath);
+            const QFileInfo sourceInfo(sourcePath);
+            if (!sourceInfo.isFile() || sourceInfo.isSymLink())
+            {
+                overlayFailed = true;
+                overlayError = tr("The staged translation file is not a safe regular file:\n%1")
+                                   .arg(relativePath);
+                break;
+            }
+
+            const QString destinationFilePath = QDir(destinationPath).filePath(relativePath);
+            const QFileInfo destinationInfo(destinationFilePath);
+            if (!destinationInfo.exists())
+                continue;
+
+            if (!destinationInfo.isFile() || destinationInfo.isSymLink())
+            {
+                overlayFailed = true;
+                overlayError = tr("The translation would replace a non-regular file:\n%1")
+                                   .arg(relativePath);
+                break;
+            }
+
+            const QString backupFilePath
+                = QDir(overlayBackup.path()).filePath(relativePath);
+            if (!QDir().mkpath(QFileInfo(backupFilePath).absolutePath())
+                || !QFile::copy(destinationFilePath, backupFilePath))
+            {
+                overlayFailed = true;
+                overlayError = tr("Could not back up a file before applying the translation:\n%1")
+                                   .arg(relativePath);
+                break;
+            }
+        }
+
+        if (overlayFailed)
+        {
+            QMessageBox::critical(this, tr("Translation Overlay"), overlayError);
+            return;
+        }
+
+        const auto rollbackOverlay = [&]() -> bool
+        {
+            bool restored = true;
+
+            for (const QString& relativePath : overlayRelativePaths)
+            {
+                const QString destinationFilePath
+                    = QDir(destinationPath).filePath(relativePath);
+                if (QFileInfo::exists(destinationFilePath)
+                    && !QFile::remove(destinationFilePath))
+                {
+                    restored = false;
+                }
+
+                const QString backupFilePath
+                    = QDir(overlayBackup.path()).filePath(relativePath);
+                if (QFileInfo(backupFilePath).isFile())
+                {
+                    if (!QDir().mkpath(QFileInfo(destinationFilePath).absolutePath())
+                        || !QFile::copy(backupFilePath, destinationFilePath))
+                    {
+                        restored = false;
+                    }
+                }
+            }
+
+            if (QFileInfo::exists(managerMetadataPath)
+                && !QFile::remove(managerMetadataPath))
+            {
+                restored = false;
+            }
+
+            if (!QFile::copy(metadataBackupPath, managerMetadataPath))
+                restored = false;
+
+            return restored;
+        };
+
+        for (const QString& relativePath : overlayRelativePaths)
+        {
+            const QString sourcePath = QDir(stagingDir.path()).filePath(relativePath);
+            const QString destinationFilePath
+                = QDir(destinationPath).filePath(relativePath);
+
+            if (!QDir().mkpath(QFileInfo(destinationFilePath).absolutePath()))
+            {
+                overlayFailed = true;
+                overlayError = tr("Could not create a directory for the translation file:\n%1")
+                                   .arg(relativePath);
+                break;
+            }
+
+            if (QFileInfo::exists(destinationFilePath)
+                && !QFile::remove(destinationFilePath))
+            {
+                overlayFailed = true;
+                overlayError = tr("Could not replace a base mod file with the translation:\n%1")
+                                   .arg(relativePath);
+                break;
+            }
+
+            if (!QFile::copy(sourcePath, destinationFilePath))
+            {
+                overlayFailed = true;
+                overlayError = tr("Could not install the translation file:\n%1")
+                                   .arg(relativePath);
+                break;
+            }
+        }
+
+        if (overlayFailed)
+        {
+            const bool rollbackOk = rollbackOverlay();
+            QMessageBox::critical(this, tr("Translation Overlay"),
+                rollbackOk
+                    ? tr("The translation could not be installed. The base mod was restored.\n%1")
+                          .arg(overlayError)
+                    : tr("The translation could not be installed and automatic rollback was incomplete.\n%1")
+                          .arg(overlayError));
+            return;
+        }
+
+        QSettings overlayMetadata(managerMetadataPath, QSettings::IniFormat);
+        QSet<QString> newOwnedKeys;
+        for (auto it = overlayPathsByKey.cbegin(); it != overlayPathsByKey.cend(); ++it)
+            newOwnedKeys.insert(it.key());
+
+        const QStringList existingGroups = overlayMetadata.childGroups();
+        for (const QString& group : existingGroups)
+        {
+            if (!group.startsWith(QStringLiteral("Package."), Qt::CaseInsensitive)
+                || group.compare(packageGroup, Qt::CaseInsensitive) == 0)
+            {
+                continue;
+            }
+
+            overlayMetadata.beginGroup(group);
+            const QStringList ownedFiles
+                = overlayMetadata.value(QStringLiteral("files")).toStringList();
+            QStringList filteredFiles;
+            for (const QString& path : ownedFiles)
+            {
+                if (!newOwnedKeys.contains(path.toLower()))
+                    filteredFiles.push_back(path);
+            }
+            overlayMetadata.setValue(QStringLiteral("files"), filteredFiles);
+            overlayMetadata.endGroup();
+        }
+
+        overlayMetadata.beginGroup(packageGroup);
+        overlayMetadata.setValue(QStringLiteral("type"),
+            nexusMetadata->mPackageType.isEmpty()
+                ? QStringLiteral("overlay")
+                : nexusMetadata->mPackageType);
+        overlayMetadata.setValue(QStringLiteral("gamename"), QStringLiteral("morrowind"));
+        overlayMetadata.setValue(QStringLiteral("modid"), nexusMetadata->mModId);
+        overlayMetadata.setValue(QStringLiteral("fileid"), nexusMetadata->mFileId);
+        overlayMetadata.setValue(QStringLiteral("version"), nexusMetadata->mVersion);
+        overlayMetadata.setValue(QStringLiteral("author"), nexusMetadata->mAuthor);
+        overlayMetadata.setValue(QStringLiteral("uploadedby"), nexusMetadata->mUploadedBy);
+        overlayMetadata.setValue(QStringLiteral("nexusname"), nexusMetadata->mNexusName);
+        overlayMetadata.setValue(QStringLiteral("nexusfilename"), nexusMetadata->mNexusFileName);
+        overlayMetadata.setValue(QStringLiteral("installationfile"), nexusMetadata->mInstallationFile);
+        overlayMetadata.setValue(QStringLiteral("filesize"), nexusMetadata->mFileSize);
+        overlayMetadata.setValue(QStringLiteral("installed"),
+            QDateTime::currentDateTime().toString(Qt::ISODate));
+        overlayMetadata.setValue(QStringLiteral("nexusurl"),
+            QStringLiteral("https://www.nexusmods.com/morrowind/mods/%1")
+                .arg(nexusMetadata->mModId));
+        overlayMetadata.setValue(QStringLiteral("targetmodid"), nexusMetadata->mTargetModId);
+        overlayMetadata.setValue(QStringLiteral("targetversion"), nexusMetadata->mTargetVersion);
+        overlayMetadata.setValue(QStringLiteral("files"), overlayRelativePaths);
+        overlayMetadata.endGroup();
+        overlayMetadata.sync();
+
+        if (overlayMetadata.status() != QSettings::NoError)
+        {
+            const bool rollbackOk = rollbackOverlay();
+            QMessageBox::critical(this, tr("Translation Overlay"),
+                rollbackOk
+                    ? tr("Could not save translation package metadata. The base mod was restored.")
+                    : tr("Could not save translation package metadata and automatic rollback was incomplete."));
+            return;
+        }
+
+        if (installedPathOut)
+            *installedPathOut = destinationPath;
+
+        refreshDataFilesView();
+        mMainDialog->writeSettings();
+
+        QMessageBox::information(this, tr("Translation Installed"),
+            tr("Installed %1 translation files into:\n%2")
+                .arg(overlayRelativePaths.size())
+                .arg(destinationPath));
         return;
     }
 
@@ -1897,6 +2824,9 @@ void Launcher::DataFilesPage::installModArchive(const QString& archivePath, cons
         if (metadata.status() != QSettings::NoError)
             nexusMetadataError = metadataPath;
     }
+
+    if (installedPathOut)
+        *installedPathOut = destinationPath;
 
     refreshDataFilesView();
     mMainDialog->writeSettings();
@@ -2828,6 +3758,7 @@ query TranslationCandidateRequirements(
         // Cache results for the launcher session so reopening mod details does not
         // repeat one REST request per detected translation.
         static QHash<qint64, QString> translationFileVersionCache;
+        static QHash<qint64, qint64> translationFileIdCache;
         static QSet<qint64> translationFileVersionLookupComplete;
 
         for (QJsonObject& translation : translations)
@@ -2840,6 +3771,7 @@ query TranslationCandidateRequirements(
             if (!translationFileVersionLookupComplete.contains(translationModId))
             {
                 QString resolvedVersion;
+                qint64 resolvedFileId = 0;
 
                 QJsonDocument translationFilesDocument;
                 QString translationFilesError;
@@ -2914,6 +3846,9 @@ query TranslationCandidateRequirements(
                     else
                         selectedFile = newestFallbackFile;
 
+                    resolvedFileId
+                        = selectedFile.value(QStringLiteral("file_id"))
+                              .toVariant().toLongLong();
                     resolvedVersion
                         = selectedFile.value(QStringLiteral("version"))
                               .toString().trimmed();
@@ -2928,15 +3863,25 @@ query TranslationCandidateRequirements(
 
                 translationFileVersionCache.insert(
                     translationModId, resolvedVersion);
+                translationFileIdCache.insert(
+                    translationModId, resolvedFileId);
                 translationFileVersionLookupComplete.insert(translationModId);
             }
 
             const QString resolvedVersion
                 = translationFileVersionCache.value(translationModId).trimmed();
+            const qint64 resolvedFileId
+                = translationFileIdCache.value(translationModId, 0);
             if (!resolvedVersion.isEmpty())
             {
                 translation.insert(
                     QStringLiteral("_resolvedFileVersion"), resolvedVersion);
+            }
+            if (resolvedFileId > 0)
+            {
+                translation.insert(
+                    QStringLiteral("_resolvedFileId"),
+                    QJsonValue::fromVariant(resolvedFileId));
             }
         }
 
@@ -2997,8 +3942,9 @@ query TranslationCandidateRequirements(
     auto* filesLabel = new QLabel(tr("Files: %1").arg(files.size()), &dialog);
     layout->addWidget(filesLabel);
 
-    auto* table = new QTableWidget(files.size(), 7, &dialog);
+    auto* table = new QTableWidget(files.size(), 8, &dialog);
     table->setHorizontalHeaderLabels({
+        tr("Use"),
         tr("Category"),
         tr("Name"),
         tr("Version"),
@@ -3008,7 +3954,7 @@ query TranslationCandidateRequirements(
         tr("File ID"),
     });
     table->setSelectionBehavior(QAbstractItemView::SelectRows);
-    table->setSelectionMode(QAbstractItemView::SingleSelection);
+    table->setSelectionMode(QAbstractItemView::NoSelection);
     table->setEditTriggers(QAbstractItemView::NoEditTriggers);
     table->setAlternatingRowColors(true);
 
@@ -3024,6 +3970,13 @@ query TranslationCandidateRequirements(
         const QString uploaded = formatTimestamp(
             file.value(QStringLiteral("uploaded_timestamp")).toVariant().toLongLong());
 
+        auto* useItem = new QTableWidgetItem;
+        useItem->setFlags(
+            (useItem->flags() | Qt::ItemIsUserCheckable) & ~Qt::ItemIsEditable);
+        useItem->setCheckState(Qt::Unchecked);
+        useItem->setTextAlignment(Qt::AlignCenter);
+        table->setItem(row, 0, useItem);
+
         const QStringList values{
             file.value(QStringLiteral("category_name")).toString(QStringLiteral("-")),
             file.value(QStringLiteral("name")).toString(QStringLiteral("-")),
@@ -3035,17 +3988,18 @@ query TranslationCandidateRequirements(
         };
 
         for (int column = 0; column < values.size(); ++column)
-            table->setItem(row, column, new QTableWidgetItem(values.at(column)));
+            table->setItem(row, column + 1, new QTableWidgetItem(values.at(column)));
     }
 
     auto* header = table->horizontalHeader();
     header->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-    header->setSectionResizeMode(1, QHeaderView::Stretch);
-    header->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-    header->setSectionResizeMode(3, QHeaderView::Stretch);
-    header->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(2, QHeaderView::Stretch);
+    header->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(4, QHeaderView::Stretch);
     header->setSectionResizeMode(5, QHeaderView::ResizeToContents);
     header->setSectionResizeMode(6, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(7, QHeaderView::ResizeToContents);
 
     layout->addWidget(table, 1);
 
@@ -3058,11 +4012,13 @@ query TranslationCandidateRequirements(
         translationsLabel->setToolTip(translationsError);
     layout->addWidget(translationsLabel);
 
+    QTableWidget* translationsTable = nullptr;
     if (translationsLookupOk && !translations.isEmpty())
     {
-        auto* translationsTable
-            = new QTableWidget(static_cast<int>(translations.size()), 5, &dialog);
+        translationsTable
+            = new QTableWidget(static_cast<int>(translations.size()), 6, &dialog);
         translationsTable->setHorizontalHeaderLabels({
+            tr("Use"),
             tr("Name"),
             tr("Author"),
             tr("Version"),
@@ -3070,7 +4026,7 @@ query TranslationCandidateRequirements(
             tr("Mod ID"),
         });
         translationsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-        translationsTable->setSelectionMode(QAbstractItemView::SingleSelection);
+        translationsTable->setSelectionMode(QAbstractItemView::NoSelection);
         translationsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
         translationsTable->setAlternatingRowColors(true);
         translationsTable->verticalHeader()->setVisible(false);
@@ -3090,6 +4046,13 @@ query TranslationCandidateRequirements(
         for (int row = 0; row < static_cast<int>(translations.size()); ++row)
         {
             const QJsonObject translation = translations.at(row);
+            auto* useItem = new QTableWidgetItem;
+            useItem->setFlags(
+                (useItem->flags() | Qt::ItemIsUserCheckable) & ~Qt::ItemIsEditable);
+            useItem->setCheckState(Qt::Unchecked);
+            useItem->setTextAlignment(Qt::AlignCenter);
+            translationsTable->setItem(row, 0, useItem);
+
             const QStringList values{
                 translation.value(QStringLiteral("name")).toString(QStringLiteral("-")),
                 translation.value(QStringLiteral("author")).toString(QStringLiteral("-")),
@@ -3105,15 +4068,16 @@ query TranslationCandidateRequirements(
 
             for (int column = 0; column < values.size(); ++column)
                 translationsTable->setItem(
-                    row, column, new QTableWidgetItem(values.at(column)));
+                    row, column + 1, new QTableWidgetItem(values.at(column)));
         }
 
         auto* translationsHeader = translationsTable->horizontalHeader();
-        translationsHeader->setSectionResizeMode(0, QHeaderView::Stretch);
-        translationsHeader->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+        translationsHeader->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+        translationsHeader->setSectionResizeMode(1, QHeaderView::Stretch);
         translationsHeader->setSectionResizeMode(2, QHeaderView::ResizeToContents);
         translationsHeader->setSectionResizeMode(3, QHeaderView::ResizeToContents);
         translationsHeader->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+        translationsHeader->setSectionResizeMode(5, QHeaderView::ResizeToContents);
 
         const int visibleRows
             = std::min(static_cast<int>(translations.size()), 5);
@@ -3123,6 +4087,154 @@ query TranslationCandidateRequirements(
             + 8);
         layout->addWidget(translationsTable);
     }
+
+    const auto checkedPlanRow = [](const QTableWidget* planTable) -> int {
+        if (!planTable)
+            return -1;
+
+        for (int row = 0; row < planTable->rowCount(); ++row)
+        {
+            const QTableWidgetItem* useItem = planTable->item(row, 0);
+            if (useItem && useItem->checkState() == Qt::Checked)
+                return row;
+        }
+        return -1;
+    };
+
+    const auto setupPlanTable = [&dialog](QTableWidget* planTable) {
+        if (!planTable)
+            return;
+
+        connect(planTable, &QTableWidget::itemChanged, &dialog,
+            [planTable](QTableWidgetItem* item) {
+                if (!item || item->column() != 0
+                    || item->checkState() != Qt::Checked)
+                {
+                    return;
+                }
+
+                QSignalBlocker blocker(planTable);
+                for (int row = 0; row < planTable->rowCount(); ++row)
+                {
+                    QTableWidgetItem* other = planTable->item(row, 0);
+                    if (other && other != item)
+                        other->setCheckState(Qt::Unchecked);
+                }
+            });
+
+        connect(planTable, &QTableWidget::cellClicked, &dialog,
+            [planTable](int row, int column) {
+                if (column == 0)
+                    return;
+
+                QTableWidgetItem* useItem = planTable->item(row, 0);
+                if (!useItem)
+                    return;
+
+                useItem->setCheckState(
+                    useItem->checkState() == Qt::Checked
+                        ? Qt::Unchecked
+                        : Qt::Checked);
+            });
+    };
+
+    setupPlanTable(table);
+    setupPlanTable(translationsTable);
+
+    auto* installPlanLabel = new QLabel(&dialog);
+    installPlanLabel->setWordWrap(true);
+    installPlanLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    layout->addWidget(installPlanLabel);
+
+    const auto updateInstallPlan =
+        [this, installPlanLabel, table, translationsTable, files, translations, mod,
+            checkedPlanRow]() {
+            const int mainRow = checkedPlanRow(table);
+            const int translationRow = checkedPlanRow(translationsTable);
+
+            if (mainRow < 0 && translationRow < 0)
+            {
+                installPlanLabel->setText(
+                    tr("Installation plan: select a mod file and/or a translation."));
+                return;
+            }
+
+            QString mainName;
+            QString mainVersion;
+            if (mainRow >= 0 && mainRow < files.size())
+            {
+                const QJsonObject file = files.at(mainRow).toObject();
+                mainName = file.value(QStringLiteral("name")).toString().trimmed();
+                mainVersion = file.value(QStringLiteral("version")).toString().trimmed();
+                if (mainName.isEmpty())
+                    mainName = file.value(QStringLiteral("file_name")).toString().trimmed();
+                if (mainVersion.isEmpty())
+                    mainVersion = mod.value(QStringLiteral("version")).toString().trimmed();
+                if (mainName.isEmpty())
+                    mainName = QStringLiteral("-");
+                if (mainVersion.isEmpty())
+                    mainVersion = QStringLiteral("-");
+            }
+
+            QString translationName;
+            QString translationVersion;
+            if (translationRow >= 0
+                && translationRow < static_cast<int>(translations.size()))
+            {
+                const QJsonObject translation = translations.at(translationRow);
+                translationName
+                    = translation.value(QStringLiteral("name")).toString().trimmed();
+                translationVersion
+                    = translation.value(QStringLiteral("_resolvedFileVersion"))
+                          .toString().trimmed();
+                if (translationVersion.isEmpty())
+                    translationVersion
+                        = translation.value(QStringLiteral("version")).toString().trimmed();
+                if (translationName.isEmpty())
+                    translationName = QStringLiteral("-");
+                if (translationVersion.isEmpty())
+                    translationVersion = QStringLiteral("-");
+            }
+
+            if (mainRow >= 0 && translationRow >= 0)
+            {
+                installPlanLabel->setText(
+                    tr("To download and install:\n"
+                       "1. Mod: %1 [%2]\n"
+                       "2. Translation: %3 [%4]\n\n"
+                       "Installation order: base mod → translation.")
+                        .arg(mainName, mainVersion, translationName, translationVersion));
+            }
+            else if (mainRow >= 0)
+            {
+                installPlanLabel->setText(
+                    tr("To download and install:\n1. Mod: %1 [%2]")
+                        .arg(mainName, mainVersion));
+            }
+            else
+            {
+                installPlanLabel->setText(
+                    tr("To download and install:\n"
+                       "1. Translation: %1 [%2]\n\n"
+                       "The translation will be added to an already installed base mod.")
+                        .arg(translationName, translationVersion));
+            }
+        };
+
+    connect(table, &QTableWidget::itemChanged, &dialog,
+        [updateInstallPlan](QTableWidgetItem* item) {
+            if (item && item->column() == 0)
+                updateInstallPlan();
+        });
+    if (translationsTable)
+    {
+        connect(translationsTable, &QTableWidget::itemChanged, &dialog,
+            [updateInstallPlan](QTableWidgetItem* item) {
+                if (item && item->column() == 0)
+                    updateInstallPlan();
+            });
+    }
+    updateInstallPlan();
 
     QStringList apiLimitParts;
     if (!hourlyRemaining.isEmpty())
@@ -3138,49 +4250,399 @@ query TranslationCandidateRequirements(
     }
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
-    QPushButton* downloadButton = buttons->addButton(tr("Download / Install"), QDialogButtonBox::ActionRole);
+    QPushButton* downloadButton
+        = buttons->addButton(tr("Download / Install"), QDialogButtonBox::ActionRole);
+
+    const auto updateDownloadButton
+        = [downloadButton, table, translationsTable, checkedPlanRow]() {
+            downloadButton->setEnabled(
+                checkedPlanRow(table) >= 0
+                || checkedPlanRow(translationsTable) >= 0);
+        };
+
+    connect(table, &QTableWidget::itemChanged, &dialog,
+        [updateDownloadButton](QTableWidgetItem* item) {
+            if (item && item->column() == 0)
+                updateDownloadButton();
+        });
+    if (translationsTable)
+    {
+        connect(translationsTable, &QTableWidget::itemChanged, &dialog,
+            [updateDownloadButton](QTableWidgetItem* item) {
+                if (item && item->column() == 0)
+                    updateDownloadButton();
+            });
+    }
+    updateDownloadButton();
+
     connect(downloadButton, &QPushButton::clicked, &dialog,
-        [this, &dialog, table, files, mod, modId]() {
-            const int row = table->currentRow();
-            if (row < 0 || row >= files.size())
-            {
-                QMessageBox::warning(this, tr("Nexus Mods"), tr("Select a file to download."));
-                return;
-            }
+        [this, &dialog, table, translationsTable, files, translations, mod, modId,
+            checkedPlanRow]() {
+            const int mainRow = checkedPlanRow(table);
+            const int translationRow = checkedPlanRow(translationsTable);
 
-            const QJsonObject file = files.at(row).toObject();
-
-            NexusModMetadata metadata;
-            metadata.mModId = modId;
-            metadata.mFileId = file.value(QStringLiteral("file_id")).toVariant().toLongLong();
-            metadata.mVersion = file.value(QStringLiteral("version")).toString().trimmed();
-            if (metadata.mVersion.isEmpty())
-                metadata.mVersion = mod.value(QStringLiteral("version")).toString().trimmed();
-            metadata.mAuthor = mod.value(QStringLiteral("author")).toString().trimmed();
-            metadata.mUploadedBy = file.value(QStringLiteral("uploaded_by")).toString().trimmed();
-            metadata.mNexusName = mod.value(QStringLiteral("name")).toString().trimmed();
-            metadata.mNexusFileName = file.value(QStringLiteral("name")).toString().trimmed();
-            metadata.mInstallationFile = file.value(QStringLiteral("file_name")).toString().trimmed();
-            metadata.mFileSize
-                = file.value(QStringLiteral("size_kb")).toVariant().toLongLong() * 1024;
-            metadata.mDescription = mod.value(QStringLiteral("summary")).toString().trimmed();
-            metadata.mCategoryId = mod.value(QStringLiteral("category_id")).toInt();
-            metadata.mCategoryName = mod.value(QStringLiteral("category_name")).toString().trimmed();
-            metadata.mFileCategory = file.value(QStringLiteral("category_name")).toString().trimmed();
-
-            if (metadata.mFileId <= 0 || metadata.mInstallationFile.isEmpty())
+            if (mainRow < 0 && translationRow < 0)
             {
                 QMessageBox::warning(this, tr("Nexus Mods"),
-                    tr("The selected Nexus Mods file does not contain valid download information."));
+                    tr("Select a mod file and/or a translation."));
                 return;
             }
 
-            // Close the modal Nexus details dialog before starting the download.
-            // Otherwise the archive analysis/installer dialog can be opened behind
-            // the still-active modal window and appear as if nothing happened.
+            const QString modsDirectory = mLauncherSettings.getModsDirectory();
+            if (modsDirectory.isEmpty() || !QDir(modsDirectory).exists())
+            {
+                QMessageBox::warning(this, tr("Install Mod"),
+                    tr("Select a valid Mods Directory before installing a mod from an archive."));
+                return;
+            }
+
+            NexusModMetadata mainMetadata;
+            if (mainRow >= 0)
+            {
+                if (mainRow >= files.size())
+                    return;
+
+                const QJsonObject file = files.at(mainRow).toObject();
+
+                mainMetadata.mModId = modId;
+                mainMetadata.mFileId
+                    = file.value(QStringLiteral("file_id")).toVariant().toLongLong();
+                mainMetadata.mVersion
+                    = file.value(QStringLiteral("version")).toString().trimmed();
+                if (mainMetadata.mVersion.isEmpty())
+                    mainMetadata.mVersion
+                        = mod.value(QStringLiteral("version")).toString().trimmed();
+                mainMetadata.mAuthor
+                    = mod.value(QStringLiteral("author")).toString().trimmed();
+                mainMetadata.mUploadedBy
+                    = file.value(QStringLiteral("uploaded_by")).toString().trimmed();
+                mainMetadata.mNexusName
+                    = mod.value(QStringLiteral("name")).toString().trimmed();
+                mainMetadata.mNexusFileName
+                    = file.value(QStringLiteral("name")).toString().trimmed();
+                mainMetadata.mInstallationFile
+                    = file.value(QStringLiteral("file_name")).toString().trimmed();
+                mainMetadata.mFileSize
+                    = file.value(QStringLiteral("size_kb")).toVariant().toLongLong() * 1024;
+                mainMetadata.mDescription
+                    = mod.value(QStringLiteral("summary")).toString().trimmed();
+                mainMetadata.mCategoryId
+                    = mod.value(QStringLiteral("category_id")).toInt();
+                mainMetadata.mCategoryName
+                    = mod.value(QStringLiteral("category_name")).toString().trimmed();
+                mainMetadata.mFileCategory
+                    = file.value(QStringLiteral("category_name")).toString().trimmed();
+
+                if (mainMetadata.mFileId <= 0
+                    || mainMetadata.mInstallationFile.isEmpty())
+                {
+                    QMessageBox::warning(this, tr("Nexus Mods"),
+                        tr("The selected Nexus Mods file does not contain valid download information."));
+                    return;
+                }
+            }
+
+            qint64 translationModId = 0;
+            qint64 translationFileId = 0;
+            NexusModMetadata translationMetadata;
+
+            if (translationRow >= 0)
+            {
+                if (translationRow >= static_cast<int>(translations.size()))
+                    return;
+
+                const QJsonObject translation = translations.at(translationRow);
+                translationModId
+                    = translation.value(QStringLiteral("modId")).toVariant().toLongLong();
+                translationFileId
+                    = translation.value(QStringLiteral("_resolvedFileId"))
+                          .toVariant().toLongLong();
+
+                if (translationModId <= 0 || translationFileId <= 0
+                    || translationModId > std::numeric_limits<int>::max())
+                {
+                    QMessageBox::warning(this, tr("Nexus Mods"),
+                        tr("The selected translation does not have a valid current Nexus file."));
+                    return;
+                }
+
+                if (!fetchNexusFileMetadata(
+                        static_cast<int>(translationModId),
+                        translationFileId, translationMetadata))
+                {
+                    return;
+                }
+
+                translationMetadata.mIsOverlay = true;
+                translationMetadata.mPackageType = QStringLiteral("translation");
+                translationMetadata.mTargetModId = modId;
+            }
+
+            if (mainRow >= 0 && translationRow < 0)
+            {
+                dialog.accept();
+                downloadNexusFile(mainMetadata);
+                return;
+            }
+
+            if (mainRow < 0 && translationRow >= 0)
+            {
+                QStringList targetPaths;
+                QStringList targetLabels;
+
+                for (const QString& candidatePath : modsDirectoryChildren())
+                {
+                    const QString metadataPath
+                        = QDir(candidatePath).filePath(QStringLiteral("openmw-meta.ini"));
+                    if (!QFileInfo(metadataPath).isFile())
+                        continue;
+
+                    QSettings candidateMetadata(metadataPath, QSettings::IniFormat);
+                    const QString gameName
+                        = candidateMetadata.value(QStringLiteral("gamename"))
+                              .toString().trimmed();
+                    const qint64 candidateModId
+                        = candidateMetadata.value(QStringLiteral("modid")).toLongLong();
+
+                    if (gameName.compare(QStringLiteral("morrowind"), Qt::CaseInsensitive) != 0
+                        || candidateModId != modId)
+                    {
+                        continue;
+                    }
+
+                    const QString version
+                        = candidateMetadata.value(QStringLiteral("version"))
+                              .toString().trimmed();
+                    const QString folderName = QFileInfo(candidatePath).fileName();
+
+                    targetPaths.push_back(candidatePath);
+                    targetLabels.push_back(version.isEmpty()
+                        ? folderName
+                        : QStringLiteral("%1  [%2]").arg(folderName, version));
+                }
+
+                if (targetPaths.isEmpty())
+                {
+                    QMessageBox::information(this, tr("Translation Overlay"),
+                        tr("Install the base mod with this launcher before installing its translation."));
+                    return;
+                }
+
+                int targetIndex = 0;
+                if (targetPaths.size() > 1)
+                {
+                    bool targetAccepted = false;
+                    const QString selected = QInputDialog::getItem(
+                        this, tr("Translation Overlay"),
+                        tr("Select the installed base mod to translate:"),
+                        targetLabels, 0, false, &targetAccepted);
+
+                    if (!targetAccepted)
+                        return;
+
+                    targetIndex = targetLabels.indexOf(selected);
+                    if (targetIndex < 0 || targetIndex >= targetPaths.size())
+                        return;
+                }
+
+                const QString targetPath = targetPaths.at(targetIndex);
+                const QString targetMetadataPath
+                    = QDir(targetPath).filePath(QStringLiteral("openmw-meta.ini"));
+                QSettings targetMetadata(targetMetadataPath, QSettings::IniFormat);
+
+                const QString packageGroup
+                    = QStringLiteral("Package.%1").arg(translationModId);
+                if (targetMetadata.childGroups().contains(
+                        packageGroup, Qt::CaseInsensitive))
+                {
+                    QMessageBox::information(this, tr("Translation Overlay"),
+                        tr("This translation package is already installed in the selected base mod."));
+                    return;
+                }
+
+                const QString baseVersion
+                    = targetMetadata.value(QStringLiteral("version")).toString().trimmed();
+                translationMetadata.mTargetVersion = baseVersion;
+
+                if (!baseVersion.isEmpty() && !translationMetadata.mVersion.isEmpty()
+                    && baseVersion.compare(
+                           translationMetadata.mVersion, Qt::CaseInsensitive) != 0)
+                {
+                    const QMessageBox::StandardButton answer = QMessageBox::warning(
+                        this, tr("Translation Version"),
+                        tr("Installed base mod version: %1\n"
+                           "Translation package version: %2\n\n"
+                           "The version strings do not match. The translation may be outdated "
+                           "or may use a different versioning scheme.\n\n"
+                           "Install it anyway?")
+                            .arg(baseVersion, translationMetadata.mVersion),
+                        QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+
+                    if (answer != QMessageBox::Yes)
+                        return;
+                }
+
+                dialog.accept();
+                downloadNexusFile(
+                    translationMetadata, QString(), targetPath);
+                return;
+            }
+
+            if (!mainMetadata.mVersion.isEmpty()
+                && !translationMetadata.mVersion.isEmpty()
+                && mainMetadata.mVersion.compare(
+                       translationMetadata.mVersion, Qt::CaseInsensitive) != 0)
+            {
+                const QMessageBox::StandardButton answer = QMessageBox::warning(
+                    this, tr("Translation Version"),
+                    tr("Selected base mod version: %1\n"
+                       "Translation package version: %2\n\n"
+                       "The version strings do not match. The translation may be outdated "
+                       "or may use a different versioning scheme.\n\n"
+                       "Continue with this installation plan?")
+                        .arg(mainMetadata.mVersion, translationMetadata.mVersion),
+                    QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+
+                if (answer != QMessageBox::Yes)
+                    return;
+            }
+
+            if (!mNexusPremium && !ensureNxmHandlerForDownload())
+                return;
+
             dialog.accept();
 
-            downloadNexusFile(metadata);
+            QString baseNxmUrl;
+            QString translationNxmUrl;
+
+            if (!mNexusPremium)
+            {
+                const auto downloadPageFor = [](const NexusModMetadata& metadata) {
+                    return QUrl(
+                        QStringLiteral(
+                            "https://www.nexusmods.com/morrowind/mods/%1"
+                            "?tab=files&file_id=%2&nmm=1")
+                            .arg(metadata.mModId)
+                            .arg(metadata.mFileId));
+                };
+
+                mPendingNxmModId = mainMetadata.mModId;
+                mPendingNxmFileId = mainMetadata.mFileId;
+                mPendingNxmSecondModId = translationMetadata.mModId;
+                mPendingNxmSecondFileId = translationMetadata.mFileId;
+                mReceivedNxmUrl.clear();
+                mReceivedNxmSecondUrl.clear();
+
+                QDialog waitDialog(this);
+                waitDialog.setWindowTitle(tr("Nexus Mods - Free Download (2 files)"));
+                waitDialog.setModal(true);
+                waitDialog.resize(620, 230);
+
+                auto* waitLayout = new QVBoxLayout(&waitDialog);
+
+                auto* waitLabel = new QLabel(
+                    tr("Two Nexus Mods download tabs are open.\n\n"
+                       "Choose Slow Download on both tabs. The order of clicks does not matter.\n\n"
+                       "The launcher will start installation only after both NXM links are received "
+                       "and will always install the base mod first, then the translation."),
+                    &waitDialog);
+                waitLabel->setWordWrap(true);
+                waitLayout->addWidget(waitLabel);
+
+                auto* statusLabel = new QLabel(&waitDialog);
+                statusLabel->setAlignment(Qt::AlignCenter);
+                waitLayout->addWidget(statusLabel);
+
+                auto* waitButtons = new QDialogButtonBox(
+                    QDialogButtonBox::Cancel, &waitDialog);
+                connect(waitButtons, &QDialogButtonBox::rejected,
+                    &waitDialog, &QDialog::reject);
+                waitLayout->addWidget(waitButtons);
+
+                QTimer statusTimer(&waitDialog);
+                const auto updatePlanDownloadStatus = [this, statusLabel]() {
+                    int received = 0;
+                    if (!mReceivedNxmUrl.isEmpty())
+                        ++received;
+                    if (!mReceivedNxmSecondUrl.isEmpty())
+                        ++received;
+                    statusLabel->setText(
+                        tr("Received download links: %1 / 2").arg(received));
+                };
+                connect(&statusTimer, &QTimer::timeout,
+                    &waitDialog, updatePlanDownloadStatus);
+                statusTimer.start(100);
+                updatePlanDownloadStatus();
+
+                mNxmWaitDialog = &waitDialog;
+
+                // Open the translation first and the base mod second so most
+                // browsers leave the base mod tab active. Link collection is
+                // order-independent, so the user can still click either tab first.
+                const bool translationTabOpened
+                    = QDesktopServices::openUrl(downloadPageFor(translationMetadata));
+                const bool baseTabOpened
+                    = QDesktopServices::openUrl(downloadPageFor(mainMetadata));
+
+                if (!translationTabOpened || !baseTabOpened)
+                {
+                    mNxmWaitDialog = nullptr;
+                    mPendingNxmModId = 0;
+                    mPendingNxmFileId = 0;
+                    mPendingNxmSecondModId = 0;
+                    mPendingNxmSecondFileId = 0;
+                    mReceivedNxmUrl.clear();
+                    mReceivedNxmSecondUrl.clear();
+
+                    QMessageBox::warning(this, tr("Nexus Mods"),
+                        tr("Could not open both Nexus Mods download tabs."));
+                    return;
+                }
+
+                const int waitResult = waitDialog.exec();
+                statusTimer.stop();
+                mNxmWaitDialog = nullptr;
+
+                baseNxmUrl = mReceivedNxmUrl;
+                translationNxmUrl = mReceivedNxmSecondUrl;
+
+                mPendingNxmModId = 0;
+                mPendingNxmFileId = 0;
+                mPendingNxmSecondModId = 0;
+                mPendingNxmSecondFileId = 0;
+                mReceivedNxmUrl.clear();
+                mReceivedNxmSecondUrl.clear();
+
+                if (waitResult != QDialog::Accepted
+                    || baseNxmUrl.isEmpty()
+                    || translationNxmUrl.isEmpty())
+                {
+                    return;
+                }
+            }
+
+            QString installedBasePath;
+            downloadNexusFile(
+                mainMetadata, baseNxmUrl, QString(), &installedBasePath);
+
+            if (installedBasePath.isEmpty())
+            {
+                QMessageBox::information(this, tr("Installation Plan"),
+                    tr("The base mod installation did not complete. "
+                       "The translation was not installed."));
+                return;
+            }
+
+            const QString installedMetadataPath
+                = QDir(installedBasePath).filePath(QStringLiteral("openmw-meta.ini"));
+            QSettings installedBaseMetadata(
+                installedMetadataPath, QSettings::IniFormat);
+            translationMetadata.mTargetVersion
+                = installedBaseMetadata.value(QStringLiteral("version"))
+                      .toString().trimmed();
+
+            downloadNexusFile(
+                translationMetadata, translationNxmUrl, installedBasePath);
         });
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     layout->addWidget(buttons);
@@ -3345,12 +4807,22 @@ void Launcher::DataFilesPage::handleNxmUrl(const QString& urlText)
     const int modId = static_cast<int>(parsedModId);
 
     // Internal launcher flow: preserve the exact pending file handshake.
+    // A combined installation plan may wait for two independent NXM links.
     if (mNxmWaitDialog && mPendingNxmModId > 0 && mPendingNxmFileId > 0)
     {
-        if (modId != mPendingNxmModId || fileId != mPendingNxmFileId)
+        const bool hasSecondExpected
+            = mPendingNxmSecondModId > 0 && mPendingNxmSecondFileId > 0;
+        const bool matchesPrimary
+            = modId == mPendingNxmModId && fileId == mPendingNxmFileId;
+        const bool matchesSecond
+            = hasSecondExpected
+            && modId == mPendingNxmSecondModId
+            && fileId == mPendingNxmSecondFileId;
+
+        if (!matchesPrimary && !matchesSecond)
         {
             QMessageBox::warning(this, tr("Nexus Mods"),
-                tr("The received NXM link does not match the selected Morrowind file."));
+                tr("The received NXM link does not match any file in the current installation plan."));
             return;
         }
 
@@ -3378,8 +4850,17 @@ void Launcher::DataFilesPage::handleNxmUrl(const QString& urlText)
             return;
         }
 
-        mReceivedNxmUrl = nxmUrl.toString(QUrl::FullyEncoded);
-        mNxmWaitDialog->accept();
+        const QString receivedUrl = nxmUrl.toString(QUrl::FullyEncoded);
+        if (matchesPrimary)
+            mReceivedNxmUrl = receivedUrl;
+        else
+            mReceivedNxmSecondUrl = receivedUrl;
+
+        if (!hasSecondExpected
+            || (!mReceivedNxmUrl.isEmpty() && !mReceivedNxmSecondUrl.isEmpty()))
+        {
+            mNxmWaitDialog->accept();
+        }
         return;
     }
 
@@ -3423,8 +4904,12 @@ void Launcher::DataFilesPage::handleNxmUrl(const QString& urlText)
 }
 
 void Launcher::DataFilesPage::downloadNexusFile(
-    const NexusModMetadata& metadata, const QString& receivedNxmUrl)
+    const NexusModMetadata& metadata, const QString& receivedNxmUrl,
+    const QString& overlayTargetPath, QString* installedPathOut)
 {
+    if (installedPathOut)
+        installedPathOut->clear();
+
     const int modId = metadata.mModId;
     const qint64 fileId = metadata.mFileId;
     const QString& fileName = metadata.mInstallationFile;
@@ -3738,7 +5223,9 @@ void Launcher::DataFilesPage::downloadNexusFile(
     installedMetadata.mFileSize = temporaryArchive.size();
     temporaryArchive.close();
 
-    installModArchive(temporaryArchive.fileName(), modName, fileName, &installedMetadata);
+    installModArchive(
+        temporaryArchive.fileName(), modName, fileName,
+        &installedMetadata, overlayTargetPath, installedPathOut);
 }
 
 void Launcher::DataFilesPage::chooseModsDirectory()

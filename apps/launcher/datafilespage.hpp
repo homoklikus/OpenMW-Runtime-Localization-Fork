@@ -135,6 +135,10 @@ namespace Launcher
             int mCategoryId = 0;
             QString mCategoryName;
             QString mFileCategory;
+            bool mIsOverlay = false;
+            QString mPackageType;
+            int mTargetModId = 0;
+            QString mTargetVersion;
         };
 
         struct NavMeshToolProgress
@@ -169,6 +173,9 @@ namespace Launcher
         int mPendingNxmModId = 0;
         qint64 mPendingNxmFileId = 0;
         QString mReceivedNxmUrl;
+        int mPendingNxmSecondModId = 0;
+        qint64 mPendingNxmSecondFileId = 0;
+        QString mReceivedNxmSecondUrl;
         QDialog* mNxmWaitDialog = nullptr;
 
         Process::ProcessInvoker* mNavMeshToolInvoker;
@@ -201,15 +208,18 @@ namespace Launcher
         void clearModsDirectory();
         void analyzeModArchive();
         void installModArchive(const QString& archivePath, const QString& suggestedModName = QString(),
-            const QString& archiveDisplayName = QString(), const NexusModMetadata* nexusMetadata = nullptr);
+            const QString& archiveDisplayName = QString(), const NexusModMetadata* nexusMetadata = nullptr,
+            const QString& overlayTargetPath = QString(), QString* installedPathOut = nullptr);
         void connectNexusMods();
         void showNxmHandlerSettings();
         bool ensureNxmHandlerForDownload();
         bool ensureNexusConnected();
         bool fetchNexusFileMetadata(int modId, qint64 fileId, NexusModMetadata& metadata);
         void lookupNexusMod();
-        void downloadNexusFile(
-            const NexusModMetadata& metadata, const QString& receivedNxmUrl = QString());
+        void downloadNexusFile(const NexusModMetadata& metadata,
+            const QString& receivedNxmUrl = QString(),
+            const QString& overlayTargetPath = QString(),
+            QString* installedPathOut = nullptr);
         void removeManagedModsDirectoryEntries(const QString& rootPath);
         void applyDataDirectoryOrder(const QStringList& paths);
         void updateAssetConflictStats();
