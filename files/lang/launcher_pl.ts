@@ -1662,6 +1662,44 @@ Błędy: %4</translation>
         <source>The selected mod does not have a checked update. Run Check Updates first.</source>
         <translation>Wybrany mod nie ma sprawdzonej aktualizacji. Najpierw użyj przycisku Sprawdź aktualizacje.</translation>
     </message>
+    <message>
+        <source>Nexus Mods connection or Mod ID is invalid.</source>
+        <translation>Połączenie z Nexus Mods lub identyfikator moda jest nieprawidłowy.</translation>
+    </message>
+    <message>
+        <source>Checking for available translations...</source>
+        <translation>Sprawdzanie dostępnych tłumaczeń...</translation>
+    </message>
+    <message>
+        <source>Available Translations</source>
+        <translation>Dostępne tłumaczenia</translation>
+    </message>
+    <message>
+        <source>Could not check for available translations.
+%1</source>
+        <translation>Nie udało się sprawdzić dostępnych tłumaczeń.
+%1</translation>
+    </message>
+    <message>
+        <source>No detected translations.</source>
+        <translation>Brak wykrytych tłumaczeń.</translation>
+    </message>
+    <message>
+        <source>All detected translations are already installed.</source>
+        <translation>Wszystkie wykryte tłumaczenia są już zainstalowane.</translation>
+    </message>
+    <message>
+        <source>Translations were found for the installed mod. Select one to install as an overlay.</source>
+        <translation>Znaleziono tłumaczenia dla zainstalowanego moda. Wybierz jedno, aby zainstalować je jako nakładkę.</translation>
+    </message>
+    <message>
+        <source>Install Translation</source>
+        <translation>Zainstaluj tłumaczenie</translation>
+    </message>
+    <message>
+        <source>Select a translation to install.</source>
+        <translation>Wybierz tłumaczenie do instalacji.</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

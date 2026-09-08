@@ -3872,42 +3872,20 @@ void Launcher::DataFilesPage::updateManagedMod(
         targetName);
 }
 
-void Launcher::DataFilesPage::lookupNexusMod()
+bool Launcher::DataFilesPage::findAvailableNexusTranslations(
+    int modId, QVector<QJsonObject>& translations, QString& translationsError,
+    QByteArray* hourlyRemainingOut, QByteArray* dailyRemainingOut,
+    bool* baseIsTranslationOut)
 {
-    if (!ensureNexusConnected())
-        return;
+    translations.clear();
+    translationsError.clear();
+    if (baseIsTranslationOut)
+        *baseIsTranslationOut = false;
 
-    bool accepted = false;
-    const QString input = QInputDialog::getText(this, tr("Nexus Mods - Find Mod"),
-        tr("Morrowind Mod ID or Nexus Mods URL:"), QLineEdit::Normal,
-        QStringLiteral("60029"), &accepted).trimmed();
-
-    if (!accepted)
-        return;
-
-    int modId = 0;
-    bool idOk = false;
-
-    const QRegularExpression idExpression(QStringLiteral(R"(^\s*(\d+)\s*$)"));
-    const QRegularExpression urlExpression(
-        QStringLiteral(R"(nexusmods\.com/morrowind/mods/(\d+))"),
-        QRegularExpression::CaseInsensitiveOption);
-
-    const QRegularExpressionMatch idMatch = idExpression.match(input);
-    if (idMatch.hasMatch())
-        modId = idMatch.captured(1).toInt(&idOk);
-    else
+    if (mNexusApiKey.isEmpty() || modId <= 0)
     {
-        const QRegularExpressionMatch urlMatch = urlExpression.match(input);
-        if (urlMatch.hasMatch())
-            modId = urlMatch.captured(1).toInt(&idOk);
-    }
-
-    if (!idOk || modId <= 0)
-    {
-        QMessageBox::warning(this, tr("Nexus Mods"),
-            tr("Enter a valid Morrowind Mod ID or a Nexus Mods Morrowind mod URL."));
-        return;
+        translationsError = tr("Nexus Mods connection or Mod ID is invalid.");
+        return false;
     }
 
     QNetworkAccessManager networkManager;
@@ -4042,54 +4020,14 @@ void Launcher::DataFilesPage::lookupNexusMod()
         return true;
     };
 
-    QJsonDocument modDocument;
-    QString errorText;
     QByteArray hourlyRemaining;
     QByteArray dailyRemaining;
-
-    const QUrl modUrl(QStringLiteral("https://api.nexusmods.com/v1/games/morrowind/mods/%1.json").arg(modId));
-    if (!getJson(modUrl, modDocument, errorText, &hourlyRemaining, &dailyRemaining)
-        || !modDocument.isObject())
-    {
-        QMessageBox::critical(this, tr("Nexus Mods"),
-            tr("Could not retrieve mod information.\n%1").arg(errorText));
-        return;
-    }
-
-    QJsonDocument filesDocument;
-    const QUrl filesUrl(
-        QStringLiteral("https://api.nexusmods.com/v1/games/morrowind/mods/%1/files.json").arg(modId));
-    if (!getJson(filesUrl, filesDocument, errorText, &hourlyRemaining, &dailyRemaining)
-        || !filesDocument.isObject())
-    {
-        QMessageBox::critical(this, tr("Nexus Mods"),
-            tr("Could not retrieve the mod file list.\n%1").arg(errorText));
-        return;
-    }
-
-    const QJsonObject mod = modDocument.object();
-    const QJsonArray allFiles = filesDocument.object().value(QStringLiteral("files")).toArray();
-
-    QJsonArray files;
-    for (const QJsonValue& value : allFiles)
-    {
-        const QJsonObject file = value.toObject();
-        const QString categoryName
-            = file.value(QStringLiteral("category_name")).toString().trimmed();
-
-        if (categoryName.compare(QStringLiteral("ARCHIVED"), Qt::CaseInsensitive) == 0)
-            continue;
-
-        files.append(file);
-    }
 
     // Translation discovery intentionally combines two independent Nexus facts:
     // 1) the candidate mod requires this exact base mod;
     // 2) the candidate is tagged globally as "Translation".
     // This avoids language/name heuristics and keeps unrelated patches/add-ons out.
     constexpr int nexusGraphPageSize = 80;
-    QVector<QJsonObject> translations;
-    QString translationsError;
     bool translationsLookupOk = true;
     QSet<qint64> dependentModIds;
 
@@ -4197,7 +4135,7 @@ query AvailableTranslationDependents(
     static bool translationCatalogLoaded = false;
     static QJsonArray translationCatalog;
 
-    if (translationsLookupOk && !dependentModIds.isEmpty() && !translationCatalogLoaded)
+    if (translationsLookupOk && !translationCatalogLoaded)
     {
         const QString translationCatalogQuery = QString::fromLatin1(R"GRAPHQL(
 query AvailableTranslations(
@@ -4648,6 +4586,164 @@ query TranslationCandidateRequirements(
                            Qt::CaseInsensitive) < 0;
             });
     }
+
+
+    if (baseIsTranslationOut && translationCatalogLoaded)
+    {
+        for (const QJsonValue& value : translationCatalog)
+        {
+            if (value.toObject().value(QStringLiteral("modId"))
+                    .toVariant().toLongLong() == modId)
+            {
+                *baseIsTranslationOut = true;
+                break;
+            }
+        }
+    }
+
+    if (hourlyRemainingOut)
+        *hourlyRemainingOut = hourlyRemaining;
+    if (dailyRemainingOut)
+        *dailyRemainingOut = dailyRemaining;
+
+    return translationsLookupOk;
+}
+
+void Launcher::DataFilesPage::lookupNexusMod()
+{
+    if (!ensureNexusConnected())
+        return;
+
+    bool accepted = false;
+    const QString input = QInputDialog::getText(this, tr("Nexus Mods - Find Mod"),
+        tr("Morrowind Mod ID or Nexus Mods URL:"), QLineEdit::Normal,
+        QStringLiteral("60029"), &accepted).trimmed();
+
+    if (!accepted)
+        return;
+
+    int modId = 0;
+    bool idOk = false;
+
+    const QRegularExpression idExpression(QStringLiteral(R"(^\s*(\d+)\s*$)"));
+    const QRegularExpression urlExpression(
+        QStringLiteral(R"(nexusmods\.com/morrowind/mods/(\d+))"),
+        QRegularExpression::CaseInsensitiveOption);
+
+    const QRegularExpressionMatch idMatch = idExpression.match(input);
+    if (idMatch.hasMatch())
+        modId = idMatch.captured(1).toInt(&idOk);
+    else
+    {
+        const QRegularExpressionMatch urlMatch = urlExpression.match(input);
+        if (urlMatch.hasMatch())
+            modId = urlMatch.captured(1).toInt(&idOk);
+    }
+
+    if (!idOk || modId <= 0)
+    {
+        QMessageBox::warning(this, tr("Nexus Mods"),
+            tr("Enter a valid Morrowind Mod ID or a Nexus Mods Morrowind mod URL."));
+        return;
+    }
+
+    QNetworkAccessManager networkManager;
+
+    auto getJson = [&](const QUrl& url, QJsonDocument& document, QString& errorText,
+                       QByteArray* hourlyRemaining = nullptr, QByteArray* dailyRemaining = nullptr) -> bool
+    {
+        QNetworkRequest request(url);
+        request.setRawHeader("apikey", mNexusApiKey.toUtf8());
+        request.setRawHeader("Application-Name", QByteArrayLiteral("OpenMW-Runtime-Localization-Fork"));
+        request.setRawHeader("Application-Version", QByteArrayLiteral("0.4-dev"));
+
+        QNetworkReply* reply = networkManager.get(request);
+        QEventLoop eventLoop;
+        connect(reply, &QNetworkReply::finished, &eventLoop, &QEventLoop::quit);
+        eventLoop.exec();
+
+        if (hourlyRemaining)
+            *hourlyRemaining = reply->rawHeader("x-rl-hourly-remaining");
+        if (dailyRemaining)
+            *dailyRemaining = reply->rawHeader("x-rl-daily-remaining");
+
+        const QByteArray responseData = reply->readAll();
+        const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const QNetworkReply::NetworkError networkErrorCode = reply->error();
+        const QString networkError = reply->errorString();
+        reply->deleteLater();
+
+        QJsonParseError parseError;
+        document = QJsonDocument::fromJson(responseData, &parseError);
+
+        if (networkErrorCode != QNetworkReply::NoError || httpStatus < 200 || httpStatus >= 300)
+        {
+            QString apiMessage;
+            if (document.isObject())
+                apiMessage = document.object().value(QStringLiteral("message")).toString();
+
+            errorText = tr("HTTP status: %1\n%2")
+                            .arg(httpStatus)
+                            .arg(apiMessage.isEmpty() ? networkError : apiMessage);
+            return false;
+        }
+
+        if (parseError.error != QJsonParseError::NoError)
+        {
+            errorText = tr("Nexus Mods returned an invalid JSON response.");
+            return false;
+        }
+
+        return true;
+    };
+
+    QJsonDocument modDocument;
+    QString errorText;
+    QByteArray hourlyRemaining;
+    QByteArray dailyRemaining;
+
+    const QUrl modUrl(QStringLiteral("https://api.nexusmods.com/v1/games/morrowind/mods/%1.json").arg(modId));
+    if (!getJson(modUrl, modDocument, errorText, &hourlyRemaining, &dailyRemaining)
+        || !modDocument.isObject())
+    {
+        QMessageBox::critical(this, tr("Nexus Mods"),
+            tr("Could not retrieve mod information.\n%1").arg(errorText));
+        return;
+    }
+
+    QJsonDocument filesDocument;
+    const QUrl filesUrl(
+        QStringLiteral("https://api.nexusmods.com/v1/games/morrowind/mods/%1/files.json").arg(modId));
+    if (!getJson(filesUrl, filesDocument, errorText, &hourlyRemaining, &dailyRemaining)
+        || !filesDocument.isObject())
+    {
+        QMessageBox::critical(this, tr("Nexus Mods"),
+            tr("Could not retrieve the mod file list.\n%1").arg(errorText));
+        return;
+    }
+
+    const QJsonObject mod = modDocument.object();
+    const QJsonArray allFiles = filesDocument.object().value(QStringLiteral("files")).toArray();
+
+    QJsonArray files;
+    for (const QJsonValue& value : allFiles)
+    {
+        const QJsonObject file = value.toObject();
+        const QString categoryName
+            = file.value(QStringLiteral("category_name")).toString().trimmed();
+
+        if (categoryName.compare(QStringLiteral("ARCHIVED"), Qt::CaseInsensitive) == 0)
+            continue;
+
+        files.append(file);
+    }
+
+    QVector<QJsonObject> translations;
+    QString translationsError;
+    const bool translationsLookupOk
+        = findAvailableNexusTranslations(
+            modId, translations, translationsError,
+            &hourlyRemaining, &dailyRemaining);
 
     const auto formatTimestamp = [](qint64 timestamp) -> QString
     {
@@ -5531,6 +5627,333 @@ bool Launcher::DataFilesPage::fetchNexusFileMetadata(
     return true;
 }
 
+void Launcher::DataFilesPage::offerTranslationsAfterNxmInstall(
+    int baseModId, const QString& installedBasePath)
+{
+    if (baseModId <= 0 || installedBasePath.trimmed().isEmpty())
+        return;
+
+    const QString modsRoot = mLauncherSettings.getModsDirectory();
+    const QString targetPath = normalizedAbsolutePath(installedBasePath);
+    const QFileInfo targetInfo(targetPath);
+
+    if (modsRoot.isEmpty()
+        || !isDirectChildPath(targetPath, modsRoot)
+        || !targetInfo.exists() || !targetInfo.isDir()
+        || targetInfo.isSymLink())
+    {
+        return;
+    }
+
+    QProgressDialog progress(
+        tr("Checking for available translations..."), QString(), 0, 0, this);
+    progress.setWindowTitle(tr("Available Translations"));
+    progress.setWindowModality(Qt::WindowModal);
+    progress.setMinimumDuration(0);
+    progress.setCancelButton(nullptr);
+    progress.show();
+    QCoreApplication::processEvents();
+
+    QVector<QJsonObject> translations;
+    QString translationsError;
+    bool baseIsTranslation = false;
+    const bool lookupOk = findAvailableNexusTranslations(
+        baseModId, translations, translationsError,
+        nullptr, nullptr, &baseIsTranslation);
+
+    progress.hide();
+
+    // A translation downloaded directly from Nexus should not recursively offer
+    // translations for itself.
+    if (baseIsTranslation)
+        return;
+
+    if (!lookupOk)
+    {
+        QMessageBox::warning(this, tr("Available Translations"),
+            tr("Could not check for available translations.\n%1")
+                .arg(translationsError));
+        return;
+    }
+
+    const QString metadataPath
+        = QDir(targetPath).filePath(QStringLiteral("openmw-meta.ini"));
+    if (!QFileInfo(metadataPath).isFile())
+        return;
+
+    QSettings baseMetadata(metadataPath, QSettings::IniFormat);
+    const int installedModId
+        = baseMetadata.value(QStringLiteral("modid")).toInt();
+    const QString baseVersion
+        = baseMetadata.value(QStringLiteral("version")).toString().trimmed();
+
+    if (installedModId != baseModId
+        || baseMetadata.status() != QSettings::NoError)
+    {
+        return;
+    }
+
+    QVector<QJsonObject> installableTranslations;
+    const QStringList packageGroups = baseMetadata.childGroups();
+    for (const QJsonObject& translation : translations)
+    {
+        const qint64 translationModId
+            = translation.value(QStringLiteral("modId"))
+                  .toVariant().toLongLong();
+        if (translationModId <= 0)
+            continue;
+
+        const QString packageGroup
+            = QStringLiteral("Package.%1").arg(translationModId);
+        if (packageGroups.contains(packageGroup, Qt::CaseInsensitive))
+            continue;
+
+        installableTranslations.push_back(translation);
+    }
+
+    if (translations.isEmpty())
+    {
+        QMessageBox::information(
+            this, tr("Available Translations"),
+            tr("No detected translations."));
+        return;
+    }
+
+    if (installableTranslations.isEmpty())
+    {
+        QMessageBox::information(
+            this, tr("Available Translations"),
+            tr("All detected translations are already installed."));
+        return;
+    }
+
+    QDialog dialog(this);
+    dialog.setWindowTitle(tr("Available Translations"));
+    dialog.resize(900, 420);
+
+    auto* layout = new QVBoxLayout(&dialog);
+
+    auto* infoLabel = new QLabel(
+        tr("Translations were found for the installed mod. "
+           "Select one to install as an overlay."),
+        &dialog);
+    infoLabel->setWordWrap(true);
+    layout->addWidget(infoLabel);
+
+    auto* table = new QTableWidget(
+        static_cast<int>(installableTranslations.size()), 6, &dialog);
+    table->setHorizontalHeaderLabels({
+        tr("Use"),
+        tr("Name"),
+        tr("Author"),
+        tr("Version"),
+        tr("Updated"),
+        tr("Mod ID"),
+    });
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->setSelectionMode(QAbstractItemView::NoSelection);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setAlternatingRowColors(true);
+    table->verticalHeader()->setVisible(false);
+
+    const auto formatGraphTimestamp = [](const QString& timestamp) -> QString
+    {
+        if (timestamp.trimmed().isEmpty())
+            return QStringLiteral("-");
+
+        const QDateTime dateTime
+            = QDateTime::fromString(timestamp, Qt::ISODate);
+        if (!dateTime.isValid())
+            return timestamp;
+
+        return dateTime.toLocalTime().toString(
+            QStringLiteral("yyyy-MM-dd HH:mm"));
+    };
+
+    for (int row = 0;
+         row < static_cast<int>(installableTranslations.size()); ++row)
+    {
+        const QJsonObject translation = installableTranslations.at(row);
+
+        auto* useItem = new QTableWidgetItem;
+        useItem->setFlags(
+            (useItem->flags() | Qt::ItemIsUserCheckable)
+            & ~Qt::ItemIsEditable);
+        useItem->setCheckState(Qt::Unchecked);
+        useItem->setTextAlignment(Qt::AlignCenter);
+        table->setItem(row, 0, useItem);
+
+        const QStringList values{
+            translation.value(QStringLiteral("name"))
+                .toString(QStringLiteral("-")),
+            translation.value(QStringLiteral("author"))
+                .toString(QStringLiteral("-")),
+            translation.value(QStringLiteral("_resolvedFileVersion"))
+                .toString(
+                    translation.value(QStringLiteral("version"))
+                        .toString(QStringLiteral("-"))),
+            formatGraphTimestamp(
+                translation.value(QStringLiteral("updatedAt")).toString()),
+            QString::number(
+                translation.value(QStringLiteral("modId"))
+                    .toVariant().toLongLong()),
+        };
+
+        for (int column = 0; column < values.size(); ++column)
+            table->setItem(
+                row, column + 1,
+                new QTableWidgetItem(values.at(column)));
+    }
+
+    auto* header = table->horizontalHeader();
+    header->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(1, QHeaderView::Stretch);
+    header->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(5, QHeaderView::ResizeToContents);
+
+    layout->addWidget(table, 1);
+
+    const auto selectedTranslationRow = [table]() -> int
+    {
+        for (int row = 0; row < table->rowCount(); ++row)
+        {
+            const QTableWidgetItem* useItem = table->item(row, 0);
+            if (useItem && useItem->checkState() == Qt::Checked)
+                return row;
+        }
+        return -1;
+    };
+
+    connect(table, &QTableWidget::itemChanged, &dialog,
+        [table](QTableWidgetItem* item) {
+            if (!item || item->column() != 0
+                || item->checkState() != Qt::Checked)
+            {
+                return;
+            }
+
+            QSignalBlocker blocker(table);
+            for (int row = 0; row < table->rowCount(); ++row)
+            {
+                QTableWidgetItem* other = table->item(row, 0);
+                if (other && other != item)
+                    other->setCheckState(Qt::Unchecked);
+            }
+        });
+
+    connect(table, &QTableWidget::cellClicked, &dialog,
+        [table](int row, int column) {
+            if (column == 0)
+                return;
+
+            QTableWidgetItem* useItem = table->item(row, 0);
+            if (!useItem)
+                return;
+
+            useItem->setCheckState(
+                useItem->checkState() == Qt::Checked
+                    ? Qt::Unchecked
+                    : Qt::Checked);
+        });
+
+    auto* buttons = new QDialogButtonBox(
+        QDialogButtonBox::Close, &dialog);
+    QPushButton* installButton = buttons->addButton(
+        tr("Install Translation"), QDialogButtonBox::ActionRole);
+    installButton->setEnabled(false);
+
+    const auto updateInstallButton
+        = [installButton, selectedTranslationRow]() {
+            installButton->setEnabled(selectedTranslationRow() >= 0);
+        };
+
+    connect(table, &QTableWidget::itemChanged, &dialog,
+        [updateInstallButton](QTableWidgetItem* item) {
+            if (item && item->column() == 0)
+                updateInstallButton();
+        });
+    updateInstallButton();
+
+    connect(installButton, &QPushButton::clicked, &dialog,
+        [this, &dialog, targetPath, baseModId, baseVersion,
+            installableTranslations, selectedTranslationRow]() {
+            const int row = selectedTranslationRow();
+            if (row < 0
+                || row >= static_cast<int>(installableTranslations.size()))
+            {
+                QMessageBox::warning(
+                    this, tr("Available Translations"),
+                    tr("Select a translation to install."));
+                return;
+            }
+
+            const QJsonObject translation
+                = installableTranslations.at(row);
+            const qint64 translationModId
+                = translation.value(QStringLiteral("modId"))
+                      .toVariant().toLongLong();
+            const qint64 translationFileId
+                = translation.value(QStringLiteral("_resolvedFileId"))
+                      .toVariant().toLongLong();
+
+            if (translationModId <= 0 || translationFileId <= 0
+                || translationModId > std::numeric_limits<int>::max())
+            {
+                QMessageBox::warning(this, tr("Nexus Mods"),
+                    tr("The selected translation does not have a valid current Nexus file."));
+                return;
+            }
+
+            NexusModMetadata translationMetadata;
+            if (!fetchNexusFileMetadata(
+                    static_cast<int>(translationModId),
+                    translationFileId, translationMetadata))
+            {
+                return;
+            }
+
+            translationMetadata.mIsOverlay = true;
+            translationMetadata.mPackageType
+                = QStringLiteral("translation");
+            translationMetadata.mTargetModId = baseModId;
+            translationMetadata.mTargetVersion = baseVersion;
+
+            if (!baseVersion.isEmpty()
+                && !translationMetadata.mVersion.isEmpty()
+                && baseVersion.compare(
+                       translationMetadata.mVersion,
+                       Qt::CaseInsensitive) != 0)
+            {
+                const QMessageBox::StandardButton answer
+                    = QMessageBox::warning(
+                        this, tr("Translation Version"),
+                        tr("Installed base mod version: %1\n"
+                           "Translation package version: %2\n\n"
+                           "The version strings do not match. The translation may be outdated "
+                           "or may use a different versioning scheme.\n\n"
+                           "Install it anyway?")
+                            .arg(baseVersion, translationMetadata.mVersion),
+                        QMessageBox::Yes | QMessageBox::No,
+                        QMessageBox::No);
+
+                if (answer != QMessageBox::Yes)
+                    return;
+            }
+
+            dialog.accept();
+            downloadNexusFile(
+                translationMetadata, QString(), targetPath);
+        });
+
+    connect(buttons, &QDialogButtonBox::rejected,
+        &dialog, &QDialog::reject);
+    layout->addWidget(buttons);
+
+    dialog.exec();
+}
+
 void Launcher::DataFilesPage::handleNxmUrl(const QString& urlText)
 {
     const QUrl nxmUrl(urlText.trimmed(), QUrl::StrictMode);
@@ -5656,7 +6079,13 @@ void Launcher::DataFilesPage::handleNxmUrl(const QString& urlText)
     if (!fetchNexusFileMetadata(modId, fileId, metadata))
         return;
 
-    downloadNexusFile(metadata, nxmUrl.toString(QUrl::FullyEncoded));
+    QString installedBasePath;
+    downloadNexusFile(
+        metadata, nxmUrl.toString(QUrl::FullyEncoded),
+        QString(), &installedBasePath);
+
+    if (!installedBasePath.isEmpty())
+        offerTranslationsAfterNxmInstall(modId, installedBasePath);
 }
 
 void Launcher::DataFilesPage::downloadNexusFile(

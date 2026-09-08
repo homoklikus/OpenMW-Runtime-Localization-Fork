@@ -1658,6 +1658,44 @@ Failed: %4</translation>
         <source>The selected mod does not have a checked update. Run Check Updates first.</source>
         <translation>The selected mod does not have a checked update. Run Check Updates first.</translation>
     </message>
+    <message>
+        <source>Nexus Mods connection or Mod ID is invalid.</source>
+        <translation>Nexus Mods connection or Mod ID is invalid.</translation>
+    </message>
+    <message>
+        <source>Checking for available translations...</source>
+        <translation>Checking for available translations...</translation>
+    </message>
+    <message>
+        <source>Available Translations</source>
+        <translation>Available Translations</translation>
+    </message>
+    <message>
+        <source>Could not check for available translations.
+%1</source>
+        <translation>Could not check for available translations.
+%1</translation>
+    </message>
+    <message>
+        <source>No detected translations.</source>
+        <translation>No detected translations.</translation>
+    </message>
+    <message>
+        <source>All detected translations are already installed.</source>
+        <translation>All detected translations are already installed.</translation>
+    </message>
+    <message>
+        <source>Translations were found for the installed mod. Select one to install as an overlay.</source>
+        <translation>Translations were found for the installed mod. Select one to install as an overlay.</translation>
+    </message>
+    <message>
+        <source>Install Translation</source>
+        <translation>Install Translation</translation>
+    </message>
+    <message>
+        <source>Select a translation to install.</source>
+        <translation>Select a translation to install.</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

@@ -8,6 +8,7 @@
 
 #include <QDir>
 #include <QHash>
+#include <QJsonObject>
 #include <QMenu>
 #include <QStringList>
 #include <QVector>
@@ -215,6 +216,10 @@ namespace Launcher
         bool ensureNxmHandlerForDownload();
         bool ensureNexusConnected();
         bool fetchNexusFileMetadata(int modId, qint64 fileId, NexusModMetadata& metadata);
+        bool findAvailableNexusTranslations(int modId, QVector<QJsonObject>& translations,
+            QString& errorText, QByteArray* hourlyRemaining = nullptr,
+            QByteArray* dailyRemaining = nullptr, bool* baseIsTranslation = nullptr);
+        void offerTranslationsAfterNxmInstall(int baseModId, const QString& installedBasePath);
         void checkManagedModUpdates();
         void updateManagedMod(const QString& modDirectory);
         void lookupNexusMod();
