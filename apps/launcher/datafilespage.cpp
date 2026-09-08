@@ -265,6 +265,28 @@ namespace
         return desktopId;
     }
 
+    bool desktopEntryExists(const QString& desktopId)
+    {
+#ifdef Q_OS_LINUX
+        if (desktopId.isEmpty())
+            return false;
+
+        QStringList applicationDirectories
+            = QStandardPaths::standardLocations(QStandardPaths::ApplicationsLocation);
+        const QString userApplications
+            = QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation);
+        if (!userApplications.isEmpty() && !applicationDirectories.contains(userApplications))
+            applicationDirectories.prepend(userApplications);
+
+        for (const QString& directory : applicationDirectories)
+        {
+            if (QFileInfo::exists(QDir(directory).filePath(desktopId)))
+                return true;
+        }
+#endif
+        return false;
+    }
+
     bool writeNxmDesktopEntry(QString& error)
     {
 #ifndef Q_OS_LINUX
@@ -319,7 +341,7 @@ namespace
 #endif
     }
 
-    bool writeMimeappsDefault(QString& error)
+    bool writeMimeappsDefault(const QString& desktopId, QString& error)
     {
 #ifndef Q_OS_LINUX
         error = QStringLiteral("Unsupported platform.");
@@ -346,7 +368,7 @@ namespace
 
         const QString section = QStringLiteral("[Default Applications]");
         const QString association = QStringLiteral(
-            "x-scheme-handler/nxm=%1;").arg(nxmDesktopEntryId());
+            "x-scheme-handler/nxm=%1;").arg(desktopId);
 
         bool inDefaults = false;
         bool foundSection = false;
@@ -449,6 +471,50 @@ namespace
 #endif
     }
 
+    bool setDefaultNxmHandler(const QString& desktopId, QString& error)
+    {
+#ifndef Q_OS_LINUX
+        error = QStringLiteral("Unsupported platform.");
+        return false;
+#else
+        if (desktopId.isEmpty())
+        {
+            error = QStringLiteral("The NXM handler desktop ID is empty.");
+            return false;
+        }
+
+        bool associationWritten = false;
+        const QString gio = QStandardPaths::findExecutable(QStringLiteral("gio"));
+        if (!gio.isEmpty())
+        {
+            QProcess process;
+            process.start(gio,
+                { QStringLiteral("mime"), QStringLiteral("x-scheme-handler/nxm"),
+                    desktopId });
+            associationWritten = process.waitForFinished(3000)
+                && process.exitStatus() == QProcess::NormalExit
+                && process.exitCode() == 0;
+        }
+
+        if (!associationWritten)
+            associationWritten = writeMimeappsDefault(desktopId, error);
+
+        if (!associationWritten)
+            return false;
+
+        refreshDesktopDatabase();
+
+        if (currentNxmHandlerDesktopId().compare(
+                desktopId, Qt::CaseInsensitive) != 0)
+        {
+            error = QStringLiteral("The desktop environment did not accept the new default handler.");
+            return false;
+        }
+
+        return true;
+#endif
+    }
+
     bool setOpenMwAsDefaultNxmHandler(QString& error)
     {
 #ifndef Q_OS_LINUX
@@ -459,36 +525,7 @@ namespace
             return false;
 
         refreshDesktopDatabase();
-
-        bool associationWritten = false;
-        const QString gio = QStandardPaths::findExecutable(QStringLiteral("gio"));
-        if (!gio.isEmpty())
-        {
-            QProcess process;
-            process.start(gio,
-                { QStringLiteral("mime"), QStringLiteral("x-scheme-handler/nxm"),
-                    nxmDesktopEntryId() });
-            associationWritten = process.waitForFinished(3000)
-                && process.exitStatus() == QProcess::NormalExit
-                && process.exitCode() == 0;
-        }
-
-        if (!associationWritten)
-            associationWritten = writeMimeappsDefault(error);
-
-        if (!associationWritten)
-            return false;
-
-        refreshDesktopDatabase();
-
-        if (currentNxmHandlerDesktopId().compare(
-                nxmDesktopEntryId(), Qt::CaseInsensitive) != 0)
-        {
-            error = QStringLiteral("The desktop environment did not accept the new default handler.");
-            return false;
-        }
-
-        return true;
+        return setDefaultNxmHandler(nxmDesktopEntryId(), error);
 #endif
     }
 
@@ -1897,6 +1934,12 @@ void Launcher::DataFilesPage::showNxmHandlerSettings()
     const bool isOpenMw = currentHandler.compare(
         nxmDesktopEntryId(), Qt::CaseInsensitive) == 0;
 
+    const QString previousHandler = mLauncherSettings.getPreviousNxmHandler().trimmed();
+    const bool previousHandlerIsUs = previousHandler.compare(
+        nxmDesktopEntryId(), Qt::CaseInsensitive) == 0;
+    const bool previousHandlerAvailable = !previousHandler.isEmpty()
+        && !previousHandlerIsUs && desktopEntryExists(previousHandler);
+
     QString status;
     if (currentHandler.isEmpty())
     {
@@ -1911,6 +1954,17 @@ void Launcher::DataFilesPage::showNxmHandlerSettings()
         const QString displayName = desktopEntryDisplayName(currentHandler);
         status = tr("Current NXM handler: %1\n%2")
                      .arg(displayName, currentHandler);
+    }
+
+    if (isOpenMw && previousHandlerAvailable)
+    {
+        status += tr("\n\nPrevious NXM handler: %1\n%2")
+                      .arg(desktopEntryDisplayName(previousHandler), previousHandler);
+    }
+    else if (isOpenMw && !previousHandler.isEmpty() && !previousHandlerIsUs)
+    {
+        status += tr("\n\nSaved previous NXM handler is no longer available:\n%1")
+                      .arg(previousHandler);
     }
 
     QMessageBox dialog(this);
@@ -1932,29 +1986,62 @@ void Launcher::DataFilesPage::showNxmHandlerSettings()
     }
 
     QPushButton* setDefaultButton = nullptr;
+    QPushButton* restorePreviousButton = nullptr;
+
     if (!isOpenMw)
     {
         setDefaultButton = dialog.addButton(
             tr("Set OpenMW Launcher as Default"), QMessageBox::AcceptRole);
     }
-    dialog.addButton(QMessageBox::Close);
+    else if (previousHandlerAvailable)
+    {
+        restorePreviousButton = dialog.addButton(
+            tr("Restore Previous Handler"), QMessageBox::AcceptRole);
+    }
 
+    dialog.addButton(QMessageBox::Close);
     dialog.exec();
 
-    if (!setDefaultButton || dialog.clickedButton() != setDefaultButton)
-        return;
-
-    QString error;
-    if (!setOpenMwAsDefaultNxmHandler(error))
+    if (setDefaultButton && dialog.clickedButton() == setDefaultButton)
     {
-        QMessageBox::critical(this, tr("NXM Handler"),
-            tr("Could not set OpenMW Launcher as the default NXM handler.\n%1")
-                .arg(error));
+        QString error;
+        if (!setOpenMwAsDefaultNxmHandler(error))
+        {
+            QMessageBox::critical(this, tr("NXM Handler"),
+                tr("Could not set OpenMW Launcher as the default NXM handler.\n%1")
+                    .arg(error));
+            return;
+        }
+
+        if (!currentHandler.isEmpty()
+            && currentHandler.compare(nxmDesktopEntryId(), Qt::CaseInsensitive) != 0)
+        {
+            mLauncherSettings.setPreviousNxmHandler(currentHandler);
+            mMainDialog->writeSettings();
+        }
+
+        QMessageBox::information(this, tr("NXM Handler"),
+            tr("OpenMW Launcher is now the default application for nxm:// links."));
         return;
     }
 
-    QMessageBox::information(this, tr("NXM Handler"),
-        tr("OpenMW Launcher is now the default application for nxm:// links."));
+    if (restorePreviousButton && dialog.clickedButton() == restorePreviousButton)
+    {
+        QString error;
+        if (!setDefaultNxmHandler(previousHandler, error))
+        {
+            QMessageBox::critical(this, tr("NXM Handler"),
+                tr("Could not restore the previous NXM handler.\n%1").arg(error));
+            return;
+        }
+
+        mLauncherSettings.setPreviousNxmHandler(QString());
+        mMainDialog->writeSettings();
+
+        QMessageBox::information(this, tr("NXM Handler"),
+            tr("The previous NXM handler has been restored: %1")
+                .arg(desktopEntryDisplayName(previousHandler)));
+    }
 #endif
 }
 
@@ -1995,6 +2082,13 @@ bool Launcher::DataFilesPage::ensureNxmHandlerForDownload()
             tr("Could not set OpenMW Launcher as the default NXM handler.\n%1")
                 .arg(error));
         return false;
+    }
+
+    if (!currentHandler.isEmpty()
+        && currentHandler.compare(nxmDesktopEntryId(), Qt::CaseInsensitive) != 0)
+    {
+        mLauncherSettings.setPreviousNxmHandler(currentHandler);
+        mMainDialog->writeSettings();
     }
 
     return true;

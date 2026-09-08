@@ -23,6 +23,7 @@ namespace Config
         constexpr char sImporterSection[] = "Importer";
         constexpr char sLanguageKey[] = "language";
         constexpr char sModsDirectoryKey[] = "modsdirectory";
+        constexpr char sPreviousNxmHandlerKey[] = "previousnxmhandler";
         constexpr char sCurrentProfileKey[] = "currentprofile";
         constexpr char sDataKey[] = "data";
         constexpr char sArchiveKey[] = "fallback-archive";
@@ -121,6 +122,11 @@ namespace Config
                 settings.mModsDirectory = value;
                 return true;
             }
+            if (key == sPreviousNxmHandlerKey)
+            {
+                settings.mPreviousNxmHandler = value;
+                return true;
+            }
 
             return false;
         }
@@ -200,6 +206,8 @@ namespace Config
             writeKeyValue(sLanguageKey, value.mLanguage, stream);
             if (!value.mModsDirectory.isEmpty())
                 writeKeyValue(sModsDirectoryKey, value.mModsDirectory, stream);
+            if (!value.mPreviousNxmHandler.isEmpty())
+                writeKeyValue(sPreviousNxmHandlerKey, value.mPreviousNxmHandler, stream);
         }
 
         void writeProfiles(const LauncherSettings::Profiles& value, QTextStream& stream)

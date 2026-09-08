@@ -21,6 +21,7 @@ namespace Config
         {
             QString mLanguage;
             QString mModsDirectory;
+            QString mPreviousNxmHandler;
         };
 
         struct MainWindow
@@ -93,6 +94,10 @@ namespace Config
         QString getModsDirectory() const { return mSettings.mModsDirectory; }
 
         void setModsDirectory(const QString& value) { mSettings.mModsDirectory = value; }
+
+        QString getPreviousNxmHandler() const { return mSettings.mPreviousNxmHandler; }
+
+        void setPreviousNxmHandler(const QString& value) { mSettings.mPreviousNxmHandler = value; }
 
         MainWindow getMainWindow() const { return mGeneral.mMainWindow; }
 

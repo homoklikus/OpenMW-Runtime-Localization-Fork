@@ -1258,6 +1258,26 @@ OpenMW Launcher must be the default NXM handler to receive this download. Set Op
         <source>OpenMW Launcher is already the default application for nxm:// links. Nexus Mods Mod Manager Download links will be opened in this launcher.</source>
         <translation>OpenMW Launcher is already the default application for nxm:// links. Nexus Mods Mod Manager Download links will be opened in this launcher.</translation>
     </message>
+    <message>
+        <source>\n\nPrevious NXM handler: %1\n%2</source>
+        <translation>\n\nPrevious NXM handler: %1\n%2</translation>
+    </message>
+    <message>
+        <source>\n\nSaved previous NXM handler is no longer available:\n%1</source>
+        <translation>\n\nSaved previous NXM handler is no longer available:\n%1</translation>
+    </message>
+    <message>
+        <source>Restore Previous Handler</source>
+        <translation>Restore Previous Handler</translation>
+    </message>
+    <message>
+        <source>Could not restore the previous NXM handler.\n%1</source>
+        <translation>Could not restore the previous NXM handler.\n%1</translation>
+    </message>
+    <message>
+        <source>The previous NXM handler has been restored: %1</source>
+        <translation>The previous NXM handler has been restored: %1</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>
