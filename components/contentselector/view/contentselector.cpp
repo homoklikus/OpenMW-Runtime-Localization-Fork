@@ -11,6 +11,7 @@
 #include <QStyledItemDelegate>
 #include <QStyleOptionViewItem>
 #include <QClipboard>
+#include <QDesktopServices>
 #include <QDir>
 #include <QFileInfo>
 #include <QHeaderView>
@@ -18,6 +19,7 @@
 #include <QModelIndex>
 #include <QProgressDialog>
 #include <QSortFilterProxyModel>
+#include <QUrl>
 namespace
 {
     class StatusItemDelegate final : public QStyledItemDelegate
@@ -193,6 +195,8 @@ void ContentSelectorView::ContentSelector::buildContextMenu()
     mContextMenu->addAction(tr("&Check Selected"), this, SLOT(slotCheckMultiSelectedItems()));
     mContextMenu->addAction(tr("&Uncheck Selected"), this, SLOT(slotUncheckMultiSelectedItems()));
     mContextMenu->addAction(tr("&Copy Path(s) to Clipboard"), this, SLOT(slotCopySelectedItemsPaths()));
+    mBrowseModFilesAction
+        = mContextMenu->addAction(tr("Browse Mod Files"), this, SLOT(slotBrowseModFiles()));
     mShowAssetConflictsAction
         = mContextMenu->addAction(tr("Show Asset Conflicts..."), this, SLOT(slotShowAssetConflicts()));
 
@@ -522,6 +526,9 @@ QString ContentSelectorView::ContentSelector::selectedConflictDirectoryPath() co
 
 void ContentSelectorView::ContentSelector::slotShowContextMenu(const QPoint& pos)
 {
+    if (mBrowseModFilesAction)
+        mBrowseModFilesAction->setEnabled(!selectedManagedModDirectory().isEmpty());
+
     if (mShowAssetConflictsAction)
         mShowAssetConflictsAction->setEnabled(!selectedConflictDirectoryPath().isEmpty());
 
@@ -537,6 +544,13 @@ void ContentSelectorView::ContentSelector::slotShowContextMenu(const QPoint& pos
 
     QPoint globalPos = ui->addonView->viewport()->mapToGlobal(pos);
     mContextMenu->exec(globalPos);
+}
+
+void ContentSelectorView::ContentSelector::slotBrowseModFiles()
+{
+    const QString path = selectedManagedModDirectory();
+    if (!path.isEmpty())
+        QDesktopServices::openUrl(QUrl::fromLocalFile(path));
 }
 
 void ContentSelectorView::ContentSelector::slotShowNexusMod()

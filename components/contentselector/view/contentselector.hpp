@@ -26,6 +26,7 @@ namespace ContentSelectorView
 
         QMenu* mContextMenu;
         QAction* mShowAssetConflictsAction = nullptr;
+        QAction* mBrowseModFilesAction = nullptr;
         QAction* mShowNexusModAction = nullptr;
         QAction* mDeleteModAction = nullptr;
 
@@ -108,6 +109,7 @@ namespace ContentSelectorView
         void slotCheckMultiSelectedItems();
         void slotUncheckMultiSelectedItems();
         void slotCopySelectedItemsPaths();
+        void slotBrowseModFiles();
         void slotShowAssetConflicts();
         void slotShowNexusMod();
         void slotDeleteMod();

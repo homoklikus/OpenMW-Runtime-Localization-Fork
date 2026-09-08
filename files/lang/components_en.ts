@@ -144,6 +144,10 @@
         <source>Show on Nexus Mods</source>
         <translation>Show on Nexus Mods</translation>
     </message>
+    <message>
+        <source>Browse Mod Files</source>
+        <translation>Browse Mod Files</translation>
+    </message>
 </context>
 <context>
     <name>Process::ProcessInvoker</name>
