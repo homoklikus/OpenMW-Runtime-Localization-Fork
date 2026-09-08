@@ -2300,7 +2300,20 @@ void Launcher::DataFilesPage::lookupNexusMod()
     }
 
     const QJsonObject mod = modDocument.object();
-    const QJsonArray files = filesDocument.object().value(QStringLiteral("files")).toArray();
+    const QJsonArray allFiles = filesDocument.object().value(QStringLiteral("files")).toArray();
+
+    QJsonArray files;
+    for (const QJsonValue& value : allFiles)
+    {
+        const QJsonObject file = value.toObject();
+        const QString categoryName
+            = file.value(QStringLiteral("category_name")).toString().trimmed();
+
+        if (categoryName.compare(QStringLiteral("ARCHIVED"), Qt::CaseInsensitive) == 0)
+            continue;
+
+        files.append(file);
+    }
 
     const auto formatTimestamp = [](qint64 timestamp) -> QString
     {
