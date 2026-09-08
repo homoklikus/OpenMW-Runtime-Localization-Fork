@@ -1282,6 +1282,46 @@ Aby odebrać to pobieranie, OpenMW Launcher musi być domyślnym programem obsł
         <source>The previous NXM handler has been restored: %1</source>
         <translation>Przywrócono poprzedni program obsługujący NXM: %1</translation>
     </message>
+    <message>
+        <source>Available translations: %1</source>
+        <translation>Dostępne tłumaczenia: %1</translation>
+    </message>
+    <message>
+        <source>Available translations: unavailable</source>
+        <translation>Dostępne tłumaczenia: niedostępne</translation>
+    </message>
+    <message>
+        <source>Nexus Mods returned an invalid GraphQL response.</source>
+        <translation>Nexus Mods zwrócił nieprawidłową odpowiedź GraphQL.</translation>
+    </message>
+    <message>
+        <source>Nexus Mods returned a GraphQL error.</source>
+        <translation>Nexus Mods zwrócił błąd GraphQL.</translation>
+    </message>
+    <message>
+        <source>Nexus Mods GraphQL response did not contain data.</source>
+        <translation>Odpowiedź GraphQL Nexus Mods nie zawiera danych.</translation>
+    </message>
+    <message>
+        <source>Author</source>
+        <translation>Autor</translation>
+    </message>
+    <message>
+        <source>Updated</source>
+        <translation>Aktualizacja</translation>
+    </message>
+    <message>
+        <source>Mod ID</source>
+        <translation>ID moda</translation>
+    </message>
+    <message>
+        <source>Nexus Mods GraphQL could not find the base mod.</source>
+        <translation>GraphQL Nexus Mods nie odnalazł moda bazowego.</translation>
+    </message>
+    <message>
+        <source>Nexus Mods GraphQL did not return the Morrowind game ID.</source>
+        <translation>GraphQL Nexus Mods nie zwrócił identyfikatora gry Morrowind.</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

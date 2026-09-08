@@ -2274,6 +2274,88 @@ void Launcher::DataFilesPage::lookupNexusMod()
         return true;
     };
 
+    auto postGraphQl = [&](const QString& query, const QJsonObject& variables,
+                           QJsonObject& graphDataOut, QString& errorText,
+                           QByteArray* hourlyRemaining = nullptr,
+                           QByteArray* dailyRemaining = nullptr) -> bool
+    {
+        QNetworkRequest request(
+            QUrl(QStringLiteral("https://api.nexusmods.com/v2/graphql")));
+        request.setRawHeader("apikey", mNexusApiKey.toUtf8());
+        request.setRawHeader(
+            "Application-Name", QByteArrayLiteral("OpenMW-Runtime-Localization-Fork"));
+        request.setRawHeader("Application-Version", QByteArrayLiteral("0.4-dev"));
+        request.setHeader(
+            QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+
+        QJsonObject body;
+        body.insert(QStringLiteral("query"), query);
+        body.insert(QStringLiteral("variables"), variables);
+
+        QNetworkReply* reply = networkManager.post(
+            request, QJsonDocument(body).toJson(QJsonDocument::Compact));
+
+        QEventLoop eventLoop;
+        connect(reply, &QNetworkReply::finished, &eventLoop, &QEventLoop::quit);
+        eventLoop.exec();
+
+        if (hourlyRemaining)
+            *hourlyRemaining = reply->rawHeader("x-rl-hourly-remaining");
+        if (dailyRemaining)
+            *dailyRemaining = reply->rawHeader("x-rl-daily-remaining");
+
+        const QByteArray responseData = reply->readAll();
+        const int httpStatus
+            = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        const QNetworkReply::NetworkError networkErrorCode = reply->error();
+        const QString networkError = reply->errorString();
+        reply->deleteLater();
+
+        QJsonParseError parseError;
+        const QJsonDocument document = QJsonDocument::fromJson(responseData, &parseError);
+
+        if (parseError.error != QJsonParseError::NoError || !document.isObject())
+        {
+            errorText = tr("Nexus Mods returned an invalid GraphQL response.");
+            return false;
+        }
+
+        const QJsonObject response = document.object();
+        const QJsonArray graphErrors = response.value(QStringLiteral("errors")).toArray();
+
+        if (networkErrorCode != QNetworkReply::NoError || httpStatus < 200 || httpStatus >= 300)
+        {
+            QString apiMessage = response.value(QStringLiteral("message")).toString();
+            if (apiMessage.isEmpty() && !graphErrors.isEmpty())
+                apiMessage = graphErrors.at(0).toObject()
+                                 .value(QStringLiteral("message")).toString();
+            if (apiMessage.isEmpty())
+                apiMessage = networkError;
+
+            errorText = tr("HTTP status: %1\n%2").arg(httpStatus).arg(apiMessage);
+            return false;
+        }
+
+        if (!graphErrors.isEmpty())
+        {
+            errorText = graphErrors.at(0).toObject()
+                            .value(QStringLiteral("message")).toString();
+            if (errorText.isEmpty())
+                errorText = tr("Nexus Mods returned a GraphQL error.");
+            return false;
+        }
+
+        const QJsonValue dataValue = response.value(QStringLiteral("data"));
+        if (!dataValue.isObject())
+        {
+            errorText = tr("Nexus Mods GraphQL response did not contain data.");
+            return false;
+        }
+
+        graphDataOut = dataValue.toObject();
+        return true;
+    };
+
     QJsonDocument modDocument;
     QString errorText;
     QByteArray hourlyRemaining;
@@ -2313,6 +2395,557 @@ void Launcher::DataFilesPage::lookupNexusMod()
             continue;
 
         files.append(file);
+    }
+
+    // Translation discovery intentionally combines two independent Nexus facts:
+    // 1) the candidate mod requires this exact base mod;
+    // 2) the candidate is tagged globally as "Translation".
+    // This avoids language/name heuristics and keeps unrelated patches/add-ons out.
+    constexpr int nexusGraphPageSize = 80;
+    QVector<QJsonObject> translations;
+    QString translationsError;
+    bool translationsLookupOk = true;
+    QSet<qint64> dependentModIds;
+
+    static QString morrowindGraphGameId;
+    if (morrowindGraphGameId.isEmpty())
+    {
+        const QString gameIdQuery = QString::fromLatin1(R"GRAPHQL(
+query MorrowindGameId($domainName: String!) {
+  game(domainName: $domainName) {
+    id
+  }
+}
+)GRAPHQL");
+
+        QJsonObject variables;
+        variables.insert(QStringLiteral("domainName"), QStringLiteral("morrowind"));
+
+        QJsonObject graphData;
+        if (!postGraphQl(gameIdQuery, variables, graphData, translationsError,
+                &hourlyRemaining, &dailyRemaining))
+        {
+            translationsLookupOk = false;
+        }
+        else
+        {
+            morrowindGraphGameId
+                = graphData.value(QStringLiteral("game")).toObject()
+                      .value(QStringLiteral("id")).toVariant().toString().trimmed();
+
+            if (morrowindGraphGameId.isEmpty())
+            {
+                translationsError = tr("Nexus Mods GraphQL did not return the Morrowind game ID.");
+                translationsLookupOk = false;
+            }
+        }
+    }
+
+    const QString requiringModsQuery = QString::fromLatin1(R"GRAPHQL(
+query AvailableTranslationDependents(
+  $modId: ID!,
+  $gameId: ID!,
+  $offset: Int!,
+  $count: Int!
+) {
+  mod(modId: $modId, gameId: $gameId) {
+    modRequirements {
+      modsRequiringThisMod(offset: $offset, count: $count) {
+        totalCount
+        nodes {
+          modId
+        }
+      }
+    }
+  }
+}
+)GRAPHQL");
+
+    int requiringOffset = 0;
+    while (translationsLookupOk)
+    {
+        QJsonObject variables;
+        variables.insert(QStringLiteral("modId"), QString::number(modId));
+        variables.insert(QStringLiteral("gameId"), morrowindGraphGameId);
+        variables.insert(QStringLiteral("offset"), requiringOffset);
+        variables.insert(QStringLiteral("count"), nexusGraphPageSize);
+
+        QJsonObject graphData;
+        if (!postGraphQl(requiringModsQuery, variables, graphData, translationsError,
+                &hourlyRemaining, &dailyRemaining))
+        {
+            translationsLookupOk = false;
+            break;
+        }
+
+        const QJsonObject baseMod = graphData.value(QStringLiteral("mod")).toObject();
+        if (baseMod.isEmpty())
+        {
+            translationsError = tr("Nexus Mods GraphQL could not find the base mod.");
+            translationsLookupOk = false;
+            break;
+        }
+
+        const QJsonObject requiringPage
+            = baseMod.value(QStringLiteral("modRequirements")).toObject()
+                  .value(QStringLiteral("modsRequiringThisMod")).toObject();
+        const QJsonArray nodes = requiringPage.value(QStringLiteral("nodes")).toArray();
+        const int totalCount = requiringPage.value(QStringLiteral("totalCount")).toInt();
+
+        for (const QJsonValue& value : nodes)
+        {
+            const qint64 dependentModId
+                = value.toObject().value(QStringLiteral("modId")).toVariant().toLongLong();
+            if (dependentModId > 0)
+                dependentModIds.insert(dependentModId);
+        }
+
+        requiringOffset += nodes.size();
+        if (nodes.isEmpty() || requiringOffset >= totalCount)
+            break;
+    }
+
+    // The Translation-tag catalog is identical for every opened Morrowind mod,
+    // so fetch it once per launcher session instead of re-querying it for every
+    // dependent mod (important for large bases such as Tamriel Rebuilt).
+    static bool translationCatalogLoaded = false;
+    static QJsonArray translationCatalog;
+
+    if (translationsLookupOk && !dependentModIds.isEmpty() && !translationCatalogLoaded)
+    {
+        const QString translationCatalogQuery = QString::fromLatin1(R"GRAPHQL(
+query AvailableTranslations(
+  $filter: ModsFilter,
+  $offset: Int!,
+  $count: Int!
+) {
+  mods(
+    filter: $filter,
+    offset: $offset,
+    count: $count,
+    viewUserBlockedContent: false
+  ) {
+    totalCount
+    nodes {
+      modId
+      uid
+      name
+      author
+      version
+      updatedAt
+      status
+    }
+  }
+}
+)GRAPHQL");
+
+        QJsonArray tagFacet;
+        tagFacet.append(QStringLiteral("Translation"));
+        QJsonObject facets;
+        facets.insert(QStringLiteral("tag"), tagFacet);
+
+        QJsonObject gameIdCondition;
+        gameIdCondition.insert(QStringLiteral("op"), QStringLiteral("EQUALS"));
+        gameIdCondition.insert(QStringLiteral("value"), morrowindGraphGameId);
+        QJsonArray gameIdFilter;
+        gameIdFilter.append(gameIdCondition);
+
+        QJsonObject statusCondition;
+        statusCondition.insert(QStringLiteral("op"), QStringLiteral("EQUALS"));
+        statusCondition.insert(QStringLiteral("value"), QStringLiteral("published"));
+        QJsonArray statusFilter;
+        statusFilter.append(statusCondition);
+
+        QJsonObject tagCondition;
+        tagCondition.insert(QStringLiteral("op"), QStringLiteral("EQUALS"));
+        tagCondition.insert(QStringLiteral("value"), QStringLiteral("Translation"));
+        QJsonArray tagFilter;
+        tagFilter.append(tagCondition);
+
+        QJsonObject filter;
+        filter.insert(QStringLiteral("gameId"), gameIdFilter);
+        filter.insert(QStringLiteral("status"), statusFilter);
+        filter.insert(QStringLiteral("tag"), tagFilter);
+
+        QJsonArray fetchedCatalog;
+        int catalogOffset = 0;
+
+        while (translationsLookupOk)
+        {
+            QJsonObject variables;
+            variables.insert(QStringLiteral("filter"), filter);
+            variables.insert(QStringLiteral("offset"), catalogOffset);
+            variables.insert(QStringLiteral("count"), nexusGraphPageSize);
+
+            QJsonObject graphData;
+            if (!postGraphQl(translationCatalogQuery, variables, graphData, translationsError,
+                    &hourlyRemaining, &dailyRemaining))
+            {
+                translationsLookupOk = false;
+                break;
+            }
+
+            const QJsonObject modsPage = graphData.value(QStringLiteral("mods")).toObject();
+            const QJsonArray nodes = modsPage.value(QStringLiteral("nodes")).toArray();
+            const int totalCount = modsPage.value(QStringLiteral("totalCount")).toInt();
+
+            for (const QJsonValue& value : nodes)
+                fetchedCatalog.append(value);
+
+            catalogOffset += nodes.size();
+            if (nodes.isEmpty() || catalogOffset >= totalCount)
+                break;
+        }
+
+        if (translationsLookupOk)
+        {
+            translationCatalog = fetchedCatalog;
+            translationCatalogLoaded = true;
+        }
+    }
+
+    if (translationsLookupOk && !dependentModIds.isEmpty())
+    {
+        for (const QJsonValue& value : translationCatalog)
+        {
+            const QJsonObject translation = value.toObject();
+            const qint64 translationModId
+                = translation.value(QStringLiteral("modId")).toVariant().toLongLong();
+            if (dependentModIds.contains(translationModId))
+                translations.push_back(translation);
+        }
+
+        // A Translation-tagged mod can require the current base mod only as a
+        // framework/dependency while actually translating a different add-on.
+        // Example: a translation of "The Ashlanders" can also require Tamriel
+        // Rebuilt and would otherwise appear as a TR translation.
+        //
+        // Resolve ambiguous candidates from their own Nexus requirements. With
+        // more than one requirement, compare the translation title against the
+        // names of its required mods and treat the longest matching mod name as
+        // the translation target. This stays language-neutral: no PL/Polish/etc.
+        if (!translations.isEmpty())
+        {
+            const QString candidateRequirementsQuery = QString::fromLatin1(R"GRAPHQL(
+query TranslationCandidateRequirements(
+  $uids: [ID!]!,
+  $count: Int!
+) {
+  modsByUid(uids: $uids, count: $count) {
+    nodes {
+      modId
+      modRequirements {
+        nexusRequirements(offset: 0, count: 80) {
+          totalCount
+          nodes {
+            modId
+            modName
+          }
+        }
+      }
+    }
+  }
+}
+)GRAPHQL");
+
+            QHash<qint64, QJsonObject> candidateRequirementPages;
+
+            for (int batchStart = 0;
+                 translationsLookupOk
+                     && batchStart < static_cast<int>(translations.size());
+                 batchStart += nexusGraphPageSize)
+            {
+                const int batchEnd = std::min(
+                    batchStart + nexusGraphPageSize,
+                    static_cast<int>(translations.size()));
+
+                QJsonArray candidateUids;
+                for (int index = batchStart; index < batchEnd; ++index)
+                {
+                    const QString uid
+                        = translations.at(index)
+                              .value(QStringLiteral("uid"))
+                              .toVariant().toString().trimmed();
+                    if (!uid.isEmpty())
+                        candidateUids.append(uid);
+                }
+
+                if (candidateUids.isEmpty())
+                    continue;
+
+                QJsonObject variables;
+                variables.insert(QStringLiteral("uids"), candidateUids);
+                variables.insert(QStringLiteral("count"), candidateUids.size());
+
+                QJsonObject graphData;
+                if (!postGraphQl(candidateRequirementsQuery, variables, graphData,
+                        translationsError, &hourlyRemaining, &dailyRemaining))
+                {
+                    translationsLookupOk = false;
+                    break;
+                }
+
+                const QJsonArray candidateNodes
+                    = graphData.value(QStringLiteral("modsByUid")).toObject()
+                          .value(QStringLiteral("nodes")).toArray();
+
+                for (const QJsonValue& candidateValue : candidateNodes)
+                {
+                    const QJsonObject candidate = candidateValue.toObject();
+                    const qint64 candidateModId
+                        = candidate.value(QStringLiteral("modId"))
+                              .toVariant().toLongLong();
+                    if (candidateModId <= 0)
+                        continue;
+
+                    candidateRequirementPages.insert(
+                        candidateModId,
+                        candidate.value(QStringLiteral("modRequirements")).toObject()
+                            .value(QStringLiteral("nexusRequirements")).toObject());
+                }
+            }
+
+            const auto normalizeModName = [](const QString& value) -> QString
+            {
+                const QString folded = value.toCaseFolded();
+                QString normalized;
+                normalized.reserve(folded.size());
+
+                for (const QChar character : folded)
+                {
+                    if (character.isLetterOrNumber())
+                        normalized.append(character);
+                }
+
+                return normalized;
+            };
+
+            if (translationsLookupOk)
+            {
+                QVector<QJsonObject> directTranslations;
+
+                for (const QJsonObject& translation : translations)
+                {
+                    const qint64 translationModId
+                        = translation.value(QStringLiteral("modId"))
+                              .toVariant().toLongLong();
+                    const QJsonObject requirementPage
+                        = candidateRequirementPages.value(translationModId);
+
+                    // We know from modsRequiringThisMod that the base relation
+                    // exists, so missing details here mean the candidate could not
+                    // be classified reliably. Be conservative rather than show a
+                    // possibly unrelated translation.
+                    if (requirementPage.isEmpty())
+                        continue;
+
+                    const QJsonArray requirements
+                        = requirementPage.value(QStringLiteral("nodes")).toArray();
+                    const int totalRequirements
+                        = requirementPage.value(QStringLiteral("totalCount")).toInt();
+
+                    // The query asks for at most 80 requirements. Do not classify
+                    // from incomplete data.
+                    if (totalRequirements > requirements.size())
+                        continue;
+
+                    bool requiresBaseMod = false;
+                    int validRequirementCount = 0;
+
+                    for (const QJsonValue& requirementValue : requirements)
+                    {
+                        const qint64 requiredModId
+                            = requirementValue.toObject()
+                                  .value(QStringLiteral("modId"))
+                                  .toVariant().toLongLong();
+                        if (requiredModId <= 0)
+                            continue;
+
+                        ++validRequirementCount;
+                        if (requiredModId == modId)
+                            requiresBaseMod = true;
+                    }
+
+                    if (!requiresBaseMod)
+                        continue;
+
+                    // One Nexus requirement and it is our base mod: unambiguous.
+                    if (validRequirementCount == 1)
+                    {
+                        directTranslations.push_back(translation);
+                        continue;
+                    }
+
+                    const QString normalizedTranslationName
+                        = normalizeModName(
+                            translation.value(QStringLiteral("name")).toString());
+
+                    qint64 bestMatchedTargetModId = 0;
+                    int bestMatchedNameLength = 0;
+
+                    for (const QJsonValue& requirementValue : requirements)
+                    {
+                        const QJsonObject requirement = requirementValue.toObject();
+                        const qint64 requiredModId
+                            = requirement.value(QStringLiteral("modId"))
+                                  .toVariant().toLongLong();
+                        const QString normalizedRequiredName
+                            = normalizeModName(
+                                requirement.value(QStringLiteral("modName")).toString());
+
+                        if (requiredModId <= 0
+                            || normalizedRequiredName.isEmpty()
+                            || !normalizedTranslationName.contains(
+                                normalizedRequiredName))
+                        {
+                            continue;
+                        }
+
+                        // Prefer the longest matched required-mod name. This makes
+                        // "The Ashlanders - Polish Translation" resolve to
+                        // The Ashlanders rather than to a framework it also needs.
+                        if (normalizedRequiredName.size() > bestMatchedNameLength)
+                        {
+                            bestMatchedNameLength = normalizedRequiredName.size();
+                            bestMatchedTargetModId = requiredModId;
+                        }
+                    }
+
+                    if (bestMatchedTargetModId == modId)
+                        directTranslations.push_back(translation);
+                }
+
+                translations = directTranslations;
+            }
+        }
+
+        // Nexus Mod.version can lag behind the actual downloadable file version.
+        // Resolve the displayed translation version from the file list instead:
+        // 1) newest non-archived primary file,
+        // 2) newest non-archived MAIN file,
+        // 3) newest remaining non-archived file.
+        //
+        // Cache results for the launcher session so reopening mod details does not
+        // repeat one REST request per detected translation.
+        static QHash<qint64, QString> translationFileVersionCache;
+        static QSet<qint64> translationFileVersionLookupComplete;
+
+        for (QJsonObject& translation : translations)
+        {
+            const qint64 translationModId
+                = translation.value(QStringLiteral("modId")).toVariant().toLongLong();
+            if (translationModId <= 0)
+                continue;
+
+            if (!translationFileVersionLookupComplete.contains(translationModId))
+            {
+                QString resolvedVersion;
+
+                QJsonDocument translationFilesDocument;
+                QString translationFilesError;
+                const QUrl translationFilesUrl(
+                    QStringLiteral(
+                        "https://api.nexusmods.com/v1/games/morrowind/mods/%1/files.json")
+                        .arg(translationModId));
+
+                if (getJson(translationFilesUrl, translationFilesDocument,
+                        translationFilesError, &hourlyRemaining, &dailyRemaining)
+                    && translationFilesDocument.isObject())
+                {
+                    const QJsonArray translationFiles
+                        = translationFilesDocument.object()
+                              .value(QStringLiteral("files")).toArray();
+
+                    QJsonObject newestPrimaryFile;
+                    QJsonObject newestMainFile;
+                    QJsonObject newestFallbackFile;
+                    qint64 newestPrimaryTimestamp = -1;
+                    qint64 newestMainTimestamp = -1;
+                    qint64 newestFallbackTimestamp = -1;
+
+                    for (const QJsonValue& fileValue : translationFiles)
+                    {
+                        const QJsonObject file = fileValue.toObject();
+                        const QString category
+                            = file.value(QStringLiteral("category_name"))
+                                  .toString().trimmed();
+
+                        if (category.compare(
+                                QStringLiteral("ARCHIVED"), Qt::CaseInsensitive) == 0
+                            || category.compare(
+                                QStringLiteral("DELETED"), Qt::CaseInsensitive) == 0
+                            || category.compare(
+                                QStringLiteral("REMOVED"), Qt::CaseInsensitive) == 0)
+                        {
+                            continue;
+                        }
+
+                        const qint64 uploadedTimestamp
+                            = file.value(QStringLiteral("uploaded_timestamp"))
+                                  .toVariant().toLongLong();
+
+                        if (file.value(QStringLiteral("is_primary")).toBool(false)
+                            && uploadedTimestamp >= newestPrimaryTimestamp)
+                        {
+                            newestPrimaryTimestamp = uploadedTimestamp;
+                            newestPrimaryFile = file;
+                        }
+
+                        if (category.compare(
+                                QStringLiteral("MAIN"), Qt::CaseInsensitive) == 0
+                            && uploadedTimestamp >= newestMainTimestamp)
+                        {
+                            newestMainTimestamp = uploadedTimestamp;
+                            newestMainFile = file;
+                        }
+
+                        if (uploadedTimestamp >= newestFallbackTimestamp)
+                        {
+                            newestFallbackTimestamp = uploadedTimestamp;
+                            newestFallbackFile = file;
+                        }
+                    }
+
+                    QJsonObject selectedFile;
+                    if (!newestPrimaryFile.isEmpty())
+                        selectedFile = newestPrimaryFile;
+                    else if (!newestMainFile.isEmpty())
+                        selectedFile = newestMainFile;
+                    else
+                        selectedFile = newestFallbackFile;
+
+                    resolvedVersion
+                        = selectedFile.value(QStringLiteral("version"))
+                              .toString().trimmed();
+
+                    if (resolvedVersion.isEmpty())
+                    {
+                        resolvedVersion
+                            = selectedFile.value(QStringLiteral("mod_version"))
+                                  .toString().trimmed();
+                    }
+                }
+
+                translationFileVersionCache.insert(
+                    translationModId, resolvedVersion);
+                translationFileVersionLookupComplete.insert(translationModId);
+            }
+
+            const QString resolvedVersion
+                = translationFileVersionCache.value(translationModId).trimmed();
+            if (!resolvedVersion.isEmpty())
+            {
+                translation.insert(
+                    QStringLiteral("_resolvedFileVersion"), resolvedVersion);
+            }
+        }
+
+        std::sort(translations.begin(), translations.end(),
+            [](const QJsonObject& lhs, const QJsonObject& rhs) {
+                return lhs.value(QStringLiteral("name")).toString().compare(
+                           rhs.value(QStringLiteral("name")).toString(),
+                           Qt::CaseInsensitive) < 0;
+            });
     }
 
     const auto formatTimestamp = [](qint64 timestamp) -> QString
@@ -2415,6 +3048,81 @@ void Launcher::DataFilesPage::lookupNexusMod()
     header->setSectionResizeMode(6, QHeaderView::ResizeToContents);
 
     layout->addWidget(table, 1);
+
+    auto* translationsLabel = new QLabel(
+        translationsLookupOk
+            ? tr("Available translations: %1").arg(translations.size())
+            : tr("Available translations: unavailable"),
+        &dialog);
+    if (!translationsLookupOk && !translationsError.isEmpty())
+        translationsLabel->setToolTip(translationsError);
+    layout->addWidget(translationsLabel);
+
+    if (translationsLookupOk && !translations.isEmpty())
+    {
+        auto* translationsTable
+            = new QTableWidget(static_cast<int>(translations.size()), 5, &dialog);
+        translationsTable->setHorizontalHeaderLabels({
+            tr("Name"),
+            tr("Author"),
+            tr("Version"),
+            tr("Updated"),
+            tr("Mod ID"),
+        });
+        translationsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+        translationsTable->setSelectionMode(QAbstractItemView::SingleSelection);
+        translationsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        translationsTable->setAlternatingRowColors(true);
+        translationsTable->verticalHeader()->setVisible(false);
+
+        const auto formatGraphTimestamp = [](const QString& timestamp) -> QString
+        {
+            if (timestamp.trimmed().isEmpty())
+                return QStringLiteral("-");
+
+            const QDateTime dateTime = QDateTime::fromString(timestamp, Qt::ISODate);
+            if (!dateTime.isValid())
+                return timestamp;
+
+            return dateTime.toLocalTime().toString(QStringLiteral("yyyy-MM-dd HH:mm"));
+        };
+
+        for (int row = 0; row < static_cast<int>(translations.size()); ++row)
+        {
+            const QJsonObject translation = translations.at(row);
+            const QStringList values{
+                translation.value(QStringLiteral("name")).toString(QStringLiteral("-")),
+                translation.value(QStringLiteral("author")).toString(QStringLiteral("-")),
+                translation.value(QStringLiteral("_resolvedFileVersion"))
+                    .toString(
+                        translation.value(QStringLiteral("version"))
+                            .toString(QStringLiteral("-"))),
+                formatGraphTimestamp(
+                    translation.value(QStringLiteral("updatedAt")).toString()),
+                QString::number(
+                    translation.value(QStringLiteral("modId")).toVariant().toLongLong()),
+            };
+
+            for (int column = 0; column < values.size(); ++column)
+                translationsTable->setItem(
+                    row, column, new QTableWidgetItem(values.at(column)));
+        }
+
+        auto* translationsHeader = translationsTable->horizontalHeader();
+        translationsHeader->setSectionResizeMode(0, QHeaderView::Stretch);
+        translationsHeader->setSectionResizeMode(1, QHeaderView::ResizeToContents);
+        translationsHeader->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+        translationsHeader->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+        translationsHeader->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+
+        const int visibleRows
+            = std::min(static_cast<int>(translations.size()), 5);
+        translationsTable->setMaximumHeight(
+            translationsTable->horizontalHeader()->height()
+            + visibleRows * translationsTable->verticalHeader()->defaultSectionSize()
+            + 8);
+        layout->addWidget(translationsTable);
+    }
 
     QStringList apiLimitParts;
     if (!hourlyRemaining.isEmpty())
