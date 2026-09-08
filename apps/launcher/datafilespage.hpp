@@ -215,11 +215,14 @@ namespace Launcher
         bool ensureNxmHandlerForDownload();
         bool ensureNexusConnected();
         bool fetchNexusFileMetadata(int modId, qint64 fileId, NexusModMetadata& metadata);
+        void checkManagedModUpdates();
+        void updateManagedMod(const QString& modDirectory);
         void lookupNexusMod();
         void downloadNexusFile(const NexusModMetadata& metadata,
             const QString& receivedNxmUrl = QString(),
             const QString& overlayTargetPath = QString(),
-            QString* installedPathOut = nullptr);
+            QString* installedPathOut = nullptr,
+            const QString& suggestedInstallName = QString());
         void removeManagedModsDirectoryEntries(const QString& rootPath);
         void applyDataDirectoryOrder(const QStringList& paths);
         void updateAssetConflictStats();

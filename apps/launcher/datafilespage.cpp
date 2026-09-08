@@ -915,6 +915,9 @@ Launcher::DataFilesPage::DataFilesPage(const Files::ConfigurationManager& cfg, C
     connect(mSelector, &ContentSelectorView::ContentSelector::signalShowNexusModRequested, this,
         [this](const QString& path) { showNexusModPage(path); });
 
+    connect(mSelector, &ContentSelectorView::ContentSelector::signalUpdateModRequested, this,
+        [this](const QString& path) { updateManagedMod(path); });
+
     connect(mSelector, &ContentSelectorView::ContentSelector::signalDeleteModRequested, this,
         [this](const QString& path) { deleteManagedMod(path); });
 
@@ -967,6 +970,8 @@ void Launcher::DataFilesPage::buildView()
         this, &DataFilesPage::slotProfileChangedByUser);
 
     connect(ui.refreshDataFilesAction, &QAction::triggered, this, &DataFilesPage::slotRefreshButtonClicked);
+    connect(mSelector->checkUpdatesButton(), &QToolButton::clicked,
+        this, &DataFilesPage::checkManagedModUpdates);
 
     connect(ui.updateNavMeshButton, &QPushButton::clicked, this, &DataFilesPage::startNavMeshTool);
     connect(ui.cancelNavMeshButton, &QPushButton::clicked, this, &DataFilesPage::killNavMeshTool);
@@ -3472,6 +3477,401 @@ bool Launcher::DataFilesPage::ensureNexusConnected()
     return true;
 }
 
+void Launcher::DataFilesPage::checkManagedModUpdates()
+{
+    if (!ensureNexusConnected())
+        return;
+
+    mSelector->clearUpdateStatus();
+
+    const QStringList modDirectories = modsDirectoryChildren();
+
+    QProgressDialog progress(
+        tr("Checking mod updates..."), tr("Cancel"),
+        0, static_cast<int>(modDirectories.size()), this);
+    progress.setWindowModality(Qt::WindowModal);
+    progress.setMinimumDuration(0);
+
+    QNetworkAccessManager networkManager;
+
+    int checked = 0;
+    int updatesAvailable = 0;
+    int skipped = 0;
+    int failed = 0;
+    bool canceled = false;
+
+    const auto metadataPathForDirectory = [](const QString& modDirectory) -> QString {
+        const QDir directory(modDirectory);
+        for (const QString& fileName :
+            { QStringLiteral("openmw-meta.ini"), QStringLiteral("meta.ini") })
+        {
+            const QString path = directory.filePath(fileName);
+            if (QFileInfo(path).isFile())
+                return path;
+        }
+        return {};
+    };
+
+    const auto fileTimestamp = [](const QJsonObject& file) -> qint64 {
+        qint64 timestamp
+            = file.value(QStringLiteral("uploaded_timestamp"))
+                  .toVariant().toLongLong();
+        if (timestamp > 0)
+            return timestamp;
+
+        const QString uploadedTime
+            = file.value(QStringLiteral("uploaded_time")).toString().trimmed();
+        const QDateTime parsed
+            = QDateTime::fromString(uploadedTime, Qt::ISODate);
+        return parsed.isValid() ? parsed.toSecsSinceEpoch() : 0;
+    };
+
+    const auto isNewerFile
+        = [&fileTimestamp](const QJsonObject& lhs, const QJsonObject& rhs) -> bool {
+        if (rhs.isEmpty())
+            return true;
+
+        const qint64 lhsTime = fileTimestamp(lhs);
+        const qint64 rhsTime = fileTimestamp(rhs);
+        if (lhsTime != rhsTime)
+            return lhsTime > rhsTime;
+
+        const qint64 lhsId
+            = lhs.value(QStringLiteral("file_id")).toVariant().toLongLong();
+        const qint64 rhsId
+            = rhs.value(QStringLiteral("file_id")).toVariant().toLongLong();
+        return lhsId > rhsId;
+    };
+
+    for (int index = 0; index < modDirectories.size(); ++index)
+    {
+        progress.setValue(index);
+        if (progress.wasCanceled())
+        {
+            canceled = true;
+            break;
+        }
+
+        const QString modDirectory = modDirectories.at(index);
+        const QString metadataPath = metadataPathForDirectory(modDirectory);
+        if (metadataPath.isEmpty())
+        {
+            ++skipped;
+            continue;
+        }
+
+        QSettings metadata(metadataPath, QSettings::IniFormat);
+
+        const QString gameName
+            = metadata.value(QStringLiteral("gamename")).toString().trimmed();
+        const int modId = metadata.value(QStringLiteral("modid")).toInt();
+        const qint64 installedFileId
+            = metadata.value(QStringLiteral("fileid")).toLongLong();
+        const QString installedFileCategory
+            = metadata.value(QStringLiteral("filecategory"))
+                  .toString().trimmed();
+
+        if ((!gameName.isEmpty()
+                && gameName.compare(
+                       QStringLiteral("morrowind"),
+                       Qt::CaseInsensitive) != 0)
+            || modId <= 0 || installedFileId <= 0
+            || metadata.value(QStringLiteral("ignoreupdate")).toBool())
+        {
+            ++skipped;
+            continue;
+        }
+
+        // Do not turn OPTIONAL/MISC component files into a different package
+        // merely because a newer MAIN file exists. Empty category is accepted
+        // for older meta.ini files that did not store filecategory.
+        if (!installedFileCategory.isEmpty()
+            && installedFileCategory.compare(
+                   QStringLiteral("MAIN"), Qt::CaseInsensitive) != 0
+            && installedFileCategory.compare(
+                   QStringLiteral("OLD_VERSION"), Qt::CaseInsensitive) != 0
+            && installedFileCategory.compare(
+                   QStringLiteral("ARCHIVED"), Qt::CaseInsensitive) != 0)
+        {
+            ++skipped;
+            continue;
+        }
+
+        const QUrl filesUrl(
+            QStringLiteral(
+                "https://api.nexusmods.com/v1/games/morrowind/mods/%1/files.json")
+                .arg(modId));
+
+        QNetworkRequest request(filesUrl);
+        request.setRawHeader("apikey", mNexusApiKey.toUtf8());
+        request.setRawHeader(
+            "Application-Name",
+            QByteArrayLiteral("OpenMW-Runtime-Localization-Fork"));
+        request.setRawHeader(
+            "Application-Version", QByteArrayLiteral("0.4-dev"));
+
+        QNetworkReply* reply = networkManager.get(request);
+        QEventLoop loop;
+        connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+        loop.exec();
+
+        const QByteArray responseData = reply->readAll();
+        const int httpStatus
+            = reply->attribute(
+                       QNetworkRequest::HttpStatusCodeAttribute)
+                  .toInt();
+        const QNetworkReply::NetworkError networkErrorCode = reply->error();
+        const QString networkError = reply->errorString();
+        reply->deleteLater();
+
+        QJsonParseError parseError;
+        const QJsonDocument document
+            = QJsonDocument::fromJson(responseData, &parseError);
+
+        if (networkErrorCode != QNetworkReply::NoError
+            || httpStatus < 200 || httpStatus >= 300
+            || parseError.error != QJsonParseError::NoError
+            || !document.isObject())
+        {
+            qWarning() << "Nexus update check failed for mod" << modId
+                       << "HTTP" << httpStatus << networkError;
+            ++failed;
+            continue;
+        }
+
+        const QJsonArray allFiles
+            = document.object()
+                  .value(QStringLiteral("files")).toArray();
+
+        QJsonObject newestPrimary;
+        QJsonObject newestMain;
+        QJsonObject installedFile;
+
+        for (const QJsonValue& value : allFiles)
+        {
+            const QJsonObject file = value.toObject();
+            const qint64 fileId
+                = file.value(QStringLiteral("file_id"))
+                      .toVariant().toLongLong();
+
+            if (fileId == installedFileId)
+                installedFile = file;
+
+            const QString category
+                = file.value(QStringLiteral("category_name"))
+                      .toString().trimmed();
+
+            if (category.compare(
+                    QStringLiteral("ARCHIVED"),
+                    Qt::CaseInsensitive) == 0
+                || category.compare(
+                       QStringLiteral("DELETED"),
+                       Qt::CaseInsensitive) == 0
+                || category.compare(
+                       QStringLiteral("REMOVED"),
+                       Qt::CaseInsensitive) == 0)
+            {
+                continue;
+            }
+
+            const QJsonValue primaryValue
+                = file.value(QStringLiteral("is_primary"));
+            const bool isPrimary
+                = primaryValue.isBool()
+                    ? primaryValue.toBool()
+                    : primaryValue.toVariant().toInt() != 0;
+
+            if (isPrimary && isNewerFile(file, newestPrimary))
+                newestPrimary = file;
+
+            if (category.compare(
+                    QStringLiteral("MAIN"),
+                    Qt::CaseInsensitive) == 0
+                && isNewerFile(file, newestMain))
+            {
+                newestMain = file;
+            }
+        }
+
+        const QJsonObject candidate
+            = newestPrimary.isEmpty() ? newestMain : newestPrimary;
+
+        const qint64 candidateFileId
+            = candidate.value(QStringLiteral("file_id"))
+                  .toVariant().toLongLong();
+
+        QString candidateVersion
+            = candidate.value(QStringLiteral("version"))
+                  .toString().trimmed();
+        if (candidateVersion.isEmpty())
+        {
+            candidateVersion
+                = candidate.value(QStringLiteral("mod_version"))
+                      .toString().trimmed();
+        }
+
+        if (candidate.isEmpty()
+            || candidateFileId <= 0
+            || candidateVersion.isEmpty())
+        {
+            ++skipped;
+            continue;
+        }
+
+        bool hasUpdate = candidateFileId != installedFileId;
+
+        // File ID is the identity check. Timestamps are only a downgrade guard:
+        // if Nexus still marks an older file as primary, do not offer it over
+        // a demonstrably newer installed file. No SemVer guessing is used.
+        if (hasUpdate && !installedFile.isEmpty())
+        {
+            const qint64 candidateTime = fileTimestamp(candidate);
+            const qint64 installedTime = fileTimestamp(installedFile);
+
+            if (candidateTime > 0 && installedTime > 0
+                && (candidateTime < installedTime
+                    || (candidateTime == installedTime
+                        && candidateFileId < installedFileId)))
+            {
+                hasUpdate = false;
+            }
+        }
+
+        metadata.setValue(
+            QStringLiteral("latestfileid"), candidateFileId);
+        metadata.setValue(
+            QStringLiteral("latestversion"), candidateVersion);
+        metadata.setValue(QStringLiteral("hasupdate"), hasUpdate);
+        metadata.sync();
+
+        if (metadata.status() != QSettings::NoError)
+        {
+            ++failed;
+            continue;
+        }
+
+        ++checked;
+
+        if (hasUpdate)
+        {
+            ++updatesAvailable;
+            mSelector->setDirectoryUpdateStatus(
+                modDirectory, candidateVersion);
+        }
+    }
+
+    progress.setValue(progress.maximum());
+
+    QString summary
+        = tr("Checked %1 managed Nexus mod(s).\n"
+             "Updates available: %2\n"
+             "Skipped: %3\n"
+             "Failed: %4")
+              .arg(checked)
+              .arg(updatesAvailable)
+              .arg(skipped)
+              .arg(failed);
+
+    if (canceled)
+        summary += QStringLiteral("\n\n") + tr("Update check canceled.");
+
+    QMessageBox::information(
+        this, tr("Mod Update Check"), summary);
+}
+
+void Launcher::DataFilesPage::updateManagedMod(
+    const QString& modDirectory)
+{
+    const QString modsRoot = mLauncherSettings.getModsDirectory();
+    const QString targetPath = normalizedAbsolutePath(modDirectory);
+
+    if (modsRoot.isEmpty()
+        || !isDirectChildPath(targetPath, modsRoot)
+        || !QFileInfo(targetPath).isDir())
+    {
+        QMessageBox::warning(
+            this, tr("Update Mod"),
+            tr("The selected mod directory is not a safe managed mod target."));
+        return;
+    }
+
+    QString metadataPath;
+    const QDir directory(targetPath);
+    for (const QString& fileName :
+        { QStringLiteral("openmw-meta.ini"), QStringLiteral("meta.ini") })
+    {
+        const QString candidate = directory.filePath(fileName);
+        if (QFileInfo(candidate).isFile())
+        {
+            metadataPath = candidate;
+            break;
+        }
+    }
+
+    if (metadataPath.isEmpty())
+    {
+        QMessageBox::warning(
+            this, tr("Update Mod"),
+            tr("The selected managed mod metadata is invalid."));
+        return;
+    }
+
+    QSettings metadata(metadataPath, QSettings::IniFormat);
+
+    const QString gameName
+        = metadata.value(QStringLiteral("gamename")).toString().trimmed();
+    const int modId = metadata.value(QStringLiteral("modid")).toInt();
+    const qint64 installedFileId
+        = metadata.value(QStringLiteral("fileid")).toLongLong();
+    const qint64 latestFileId
+        = metadata.value(QStringLiteral("latestfileid")).toLongLong();
+    const bool hasUpdate
+        = metadata.value(QStringLiteral("hasupdate")).toBool();
+
+    if ((!gameName.isEmpty()
+            && gameName.compare(
+                   QStringLiteral("morrowind"),
+                   Qt::CaseInsensitive) != 0)
+        || modId <= 0 || installedFileId <= 0)
+    {
+        QMessageBox::warning(
+            this, tr("Update Mod"),
+            tr("The selected managed mod metadata is invalid."));
+        return;
+    }
+
+    if (!hasUpdate || latestFileId <= 0
+        || latestFileId == installedFileId)
+    {
+        QMessageBox::information(
+            this, tr("Update Mod"),
+            tr("The selected mod does not have a checked update. "
+               "Run Check Updates first."));
+        return;
+    }
+
+    if (!ensureNexusConnected())
+        return;
+
+    NexusModMetadata latestMetadata;
+    if (!fetchNexusFileMetadata(
+            modId, latestFileId, latestMetadata))
+    {
+        return;
+    }
+
+    // Keep the exact selected managed directory as the default replacement
+    // target without falsifying nexusname in the package metadata.
+    const QString targetName = QFileInfo(targetPath).fileName();
+
+    downloadNexusFile(
+        latestMetadata,
+        QString(),
+        QString(),
+        nullptr,
+        targetName);
+}
+
 void Launcher::DataFilesPage::lookupNexusMod()
 {
     if (!ensureNexusConnected())
@@ -5261,7 +5661,8 @@ void Launcher::DataFilesPage::handleNxmUrl(const QString& urlText)
 
 void Launcher::DataFilesPage::downloadNexusFile(
     const NexusModMetadata& metadata, const QString& receivedNxmUrl,
-    const QString& overlayTargetPath, QString* installedPathOut)
+    const QString& overlayTargetPath, QString* installedPathOut,
+    const QString& suggestedInstallName)
 {
     if (installedPathOut)
         installedPathOut->clear();
@@ -5270,6 +5671,10 @@ void Launcher::DataFilesPage::downloadNexusFile(
     const qint64 fileId = metadata.mFileId;
     const QString& fileName = metadata.mInstallationFile;
     const QString& modName = metadata.mNexusName;
+    const QString installModName
+        = suggestedInstallName.trimmed().isEmpty()
+            ? modName
+            : suggestedInstallName.trimmed();
 
     if (mNexusApiKey.isEmpty())
     {
@@ -5580,7 +5985,7 @@ void Launcher::DataFilesPage::downloadNexusFile(
     temporaryArchive.close();
 
     installModArchive(
-        temporaryArchive.fileName(), modName, fileName,
+        temporaryArchive.fileName(), installModName, fileName,
         &installedMetadata, overlayTargetPath, installedPathOut);
 }
 

@@ -1616,6 +1616,48 @@ Problematic package or file:
         <source>One or more installed overlay package versions do not match the new base mod version. The overlay files will be preserved and remain active after the update, but compatibility is not guaranteed. Continue with the base mod update?</source>
         <translation>One or more installed overlay package versions do not match the new base mod version. The overlay files will be preserved and remain active after the update, but compatibility is not guaranteed. Continue with the base mod update?</translation>
     </message>
+    <message>
+        <source>Checking mod updates...</source>
+        <translation>Checking mod updates...</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Cancel</translation>
+    </message>
+    <message>
+        <source>Mod Update Check</source>
+        <translation>Mod Update Check</translation>
+    </message>
+    <message>
+        <source>Checked %1 managed Nexus mod(s).
+Updates available: %2
+Skipped: %3
+Failed: %4</source>
+        <translation>Checked %1 managed Nexus mod(s).
+Updates available: %2
+Skipped: %3
+Failed: %4</translation>
+    </message>
+    <message>
+        <source>Update check canceled.</source>
+        <translation>Update check canceled.</translation>
+    </message>
+    <message>
+        <source>Update Mod</source>
+        <translation>Update Mod</translation>
+    </message>
+    <message>
+        <source>The selected mod directory is not a safe managed mod target.</source>
+        <translation>The selected mod directory is not a safe managed mod target.</translation>
+    </message>
+    <message>
+        <source>The selected managed mod metadata is invalid.</source>
+        <translation>The selected managed mod metadata is invalid.</translation>
+    </message>
+    <message>
+        <source>The selected mod does not have a checked update. Run Check Updates first.</source>
+        <translation>The selected mod does not have a checked update. Run Check Updates first.</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>

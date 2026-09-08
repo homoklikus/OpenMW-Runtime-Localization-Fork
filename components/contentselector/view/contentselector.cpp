@@ -74,6 +74,7 @@ ContentSelectorView::ContentSelector::ContentSelector(QWidget* parent, bool show
     {
         ui->languageComboBox->setHidden(true);
         ui->sortButton->setHidden(true);
+        ui->checkUpdatesButton->setHidden(true);
         ui->refreshButton->setHidden(true);
     }
 
@@ -143,6 +144,11 @@ QToolButton* ContentSelectorView::ContentSelector::refreshButton() const
     return ui->refreshButton;
 }
 
+QToolButton* ContentSelectorView::ContentSelector::checkUpdatesButton() const
+{
+    return ui->checkUpdatesButton;
+}
+
 QLineEdit* ContentSelectorView::ContentSelector::searchFilter() const
 {
     return ui->searchFilter;
@@ -204,6 +210,9 @@ void ContentSelectorView::ContentSelector::buildContextMenu()
     mShowNexusModAction
         = mContextMenu->addAction(tr("Show on Nexus Mods"), this, SLOT(slotShowNexusMod()));
     mShowNexusModAction->setVisible(false);
+    mUpdateModAction
+        = mContextMenu->addAction(tr("Update Mod"), this, SLOT(slotUpdateMod()));
+    mUpdateModAction->setVisible(false);
     mDeleteModAction = mContextMenu->addAction(tr("Delete Mod..."), this, SLOT(slotDeleteMod()));
 
     mContextMenu->addSeparator();
@@ -372,6 +381,17 @@ void ContentSelectorView::ContentSelector::setDirectoryConflictStats(
     mContentModel->setDirectoryConflictStats(path, conflicts, wins, losses);
 }
 
+void ContentSelectorView::ContentSelector::clearUpdateStatus()
+{
+    mContentModel->clearUpdateStatus();
+}
+
+void ContentSelectorView::ContentSelector::setDirectoryUpdateStatus(
+    const QString& path, const QString& latestVersion)
+{
+    mContentModel->setDirectoryUpdateStatus(path, latestVersion);
+}
+
 void ContentSelectorView::ContentSelector::clearFiles()
 {
     mContentModel->clearFiles();
@@ -508,6 +528,26 @@ QString ContentSelectorView::ContentSelector::selectedNexusModDirectory() const
     return {};
 }
 
+QString ContentSelectorView::ContentSelector::selectedUpdateModDirectory() const
+{
+    const QModelIndexList selectedIndexes
+        = ui->addonView->selectionModel()->selectedRows(
+            ContentSelectorModel::ContentModel::Column_FileName);
+
+    if (selectedIndexes.size() != 1)
+        return {};
+
+    const QModelIndex sourceIndex
+        = mAddonProxyModel->mapToSource(selectedIndexes.constFirst());
+    const ContentSelectorModel::EsmFile* file
+        = mContentModel->item(sourceIndex.row());
+
+    if (!file || !file->updateAvailable())
+        return {};
+
+    return selectedNexusModDirectory();
+}
+
 QString ContentSelectorView::ContentSelector::selectedConflictDirectoryPath() const
 {
     const QModelIndexList selectedIndexes
@@ -542,6 +582,13 @@ void ContentSelectorView::ContentSelector::slotShowContextMenu(const QPoint& pos
         mShowNexusModAction->setEnabled(!nexusModDirectory.isEmpty());
     }
 
+    const QString updateModDirectory = selectedUpdateModDirectory();
+    if (mUpdateModAction)
+    {
+        mUpdateModAction->setVisible(!updateModDirectory.isEmpty());
+        mUpdateModAction->setEnabled(!updateModDirectory.isEmpty());
+    }
+
     if (mDeleteModAction)
         mDeleteModAction->setEnabled(!selectedManagedModDirectory().isEmpty());
 
@@ -561,6 +608,13 @@ void ContentSelectorView::ContentSelector::slotShowNexusMod()
     const QString path = selectedNexusModDirectory();
     if (!path.isEmpty())
         emit signalShowNexusModRequested(path);
+}
+
+void ContentSelectorView::ContentSelector::slotUpdateMod()
+{
+    const QString path = selectedUpdateModDirectory();
+    if (!path.isEmpty())
+        emit signalUpdateModRequested(path);
 }
 
 void ContentSelectorView::ContentSelector::slotDeleteMod()

@@ -68,6 +68,8 @@ namespace ContentSelectorModel
         bool containsAssetFiles(const QString& path) const;
         void clearConflictStats();
         void setDirectoryConflictStats(const QString& path, int conflicts, int wins, int losses);
+        void clearUpdateStatus();
+        void setDirectoryUpdateStatus(const QString& path, const QString& latestVersion);
         void clearFiles();
 
         QModelIndex indexFromItem(const EsmFile* item) const;

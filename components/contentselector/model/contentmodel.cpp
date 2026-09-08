@@ -7,6 +7,8 @@
 #include <stdexcept>
 #include <unordered_set>
 
+#include <QBrush>
+#include <QColor>
 #include <QDataStream>
 #include <QDebug>
 #include <QDir>
@@ -404,6 +406,8 @@ QVariant ContentSelectorModel::ContentModel::data(const QModelIndex& index, int 
                     return tr("Missing");
                 if (isLoadOrderError(file))
                     return tr("Warning");
+                if (file->updateAvailable())
+                    return tr("Update: %1").arg(file->availableUpdateVersion());
                 if (isGroundcover(file))
                     return QString();
                 if (file->conflictCount() > 0)
@@ -426,6 +430,8 @@ QVariant ContentSelectorModel::ContentModel::data(const QModelIndex& index, int 
                 QStringList tooltip;
                 if (file->isAssetDirectory() && file->conflictCount() == 0)
                     tooltip << tr("Asset-only mod");
+                if (file->updateAvailable())
+                    tooltip << tr("Update available: %1").arg(file->availableUpdateVersion());
                 if (isGroundcover(file))
                     tooltip << tr("Groundcover");
                 if (file->isMissing())
@@ -442,6 +448,17 @@ QVariant ContentSelectorModel::ContentModel::data(const QModelIndex& index, int 
 
                 return tooltip.isEmpty() ? QVariant() : QVariant(tooltip.join('\n'));
             }
+
+            case Qt::ForegroundRole:
+                if (file->updateAvailable()
+                    && !file->isMissing()
+                    && !isLoadOrderError(file))
+                {
+                    // Green is intentionally limited to the update state.
+                    // Errors and load-order warnings keep their normal warning colors.
+                    return QBrush(QColor(32, 166, 74));
+                }
+                return QVariant();
 
             case Qt::TextAlignmentRole:
                 return QVariant(Qt::AlignCenter);
@@ -977,6 +994,69 @@ void ContentSelectorModel::ContentModel::setDirectoryConflictStats(
     }
 
     refreshModel({ Qt::DisplayRole, Qt::ToolTipRole });
+}
+
+void ContentSelectorModel::ContentModel::clearUpdateStatus()
+{
+    bool changed = false;
+    for (EsmFile* file : mFiles)
+    {
+        if (!file || !file->updateAvailable())
+            continue;
+
+        file->setAvailableUpdateVersion({});
+        changed = true;
+    }
+
+    if (changed)
+    {
+        refreshModel({
+            Qt::DisplayRole,
+            Qt::ForegroundRole,
+            Qt::ToolTipRole,
+        });
+    }
+}
+
+void ContentSelectorModel::ContentModel::setDirectoryUpdateStatus(
+    const QString& path, const QString& latestVersion)
+{
+    const QString targetDirectory
+        = QDir::cleanPath(QFileInfo(path).absoluteFilePath());
+    bool changed = false;
+
+    for (EsmFile* file : mFiles)
+    {
+        if (!file || file->filePath().isEmpty())
+            continue;
+
+        QString directory;
+        if (file->isAssetDirectory())
+            directory = QDir::cleanPath(QFileInfo(file->filePath()).absoluteFilePath());
+        else
+            directory = QDir::cleanPath(QFileInfo(file->filePath()).absolutePath());
+
+#ifdef Q_OS_WINDOWS
+        constexpr Qt::CaseSensitivity caseSensitivity = Qt::CaseInsensitive;
+#else
+        constexpr Qt::CaseSensitivity caseSensitivity = Qt::CaseSensitive;
+#endif
+
+        if (directory.compare(targetDirectory, caseSensitivity) != 0)
+            continue;
+
+        file->setAvailableUpdateVersion(latestVersion);
+        changed = true;
+    }
+
+    if (changed)
+    {
+        refreshModel({
+            Qt::DisplayRole,
+            Qt::ForegroundRole,
+            Qt::ToolTipRole,
+        });
+    }
 }
 
 void ContentSelectorModel::ContentModel::clearFiles()

@@ -52,6 +52,10 @@ namespace ContentSelectorModel
             mConflictWins = wins;
             mConflictLosses = losses;
         }
+        void setAvailableUpdateVersion(const QString& version)
+        {
+            mAvailableUpdateVersion = version.trimmed();
+        }
 
         void addGameFile(const QString& name) { mGameFiles.append(name); }
         QVariant fileProperty(const FileProperty prop) const;
@@ -68,6 +72,8 @@ namespace ContentSelectorModel
         int conflictCount() const { return mConflictCount; }
         int conflictWins() const { return mConflictWins; }
         int conflictLosses() const { return mConflictLosses; }
+        bool updateAvailable() const { return !mAvailableUpdateVersion.isEmpty(); }
+        const QString& availableUpdateVersion() const { return mAvailableUpdateVersion; }
         bool isMissing() const { return mPath.isEmpty(); }
 
         /// @note Contains file names, not paths.
@@ -114,6 +120,7 @@ namespace ContentSelectorModel
         QString mDescription;
         QString mToolTip;
         QString mDisplayName;
+        QString mAvailableUpdateVersion;
         bool mBuiltIn = false;
         bool mFromAnotherConfigFile = false;
         bool mAssetDirectory = false;

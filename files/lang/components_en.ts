@@ -15,6 +15,14 @@
         <source>Sort plugins by their dependencies.</source>
         <translation></translation>
     </message>
+    <message>
+        <source>Check Updates</source>
+        <translation>Check Updates</translation>
+    </message>
+    <message>
+        <source>Check managed Nexus Mods for newer files.</source>
+        <translation>Check managed Nexus Mods for newer files.</translation>
+    </message>
 </context>
 <context>
     <name>ContentSelectorModel::ContentModel</name>
@@ -86,6 +94,14 @@
         <source>Loses: %1</source>
         <translation>Loses: %1</translation>
     </message>
+    <message>
+        <source>Update: %1</source>
+        <translation>Update: %1</translation>
+    </message>
+    <message>
+        <source>Update available: %1</source>
+        <translation>Update available: %1</translation>
+    </message>
 </context>
 <context>
     <name>ContentSelectorModel::EsmFile</name>
@@ -147,6 +163,10 @@
     <message>
         <source>Browse Mod Files</source>
         <translation>Browse Mod Files</translation>
+    </message>
+    <message>
+        <source>Update Mod</source>
+        <translation>Update Mod</translation>
     </message>
 </context>
 <context>

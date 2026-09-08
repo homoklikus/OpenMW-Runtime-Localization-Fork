@@ -80,6 +80,19 @@
           </widget>
          </item>
          <item>
+          <widget class="QToolButton" name="checkUpdatesButton">
+           <property name="toolTip">
+            <string>Check managed Nexus Mods for newer files.</string>
+           </property>
+           <property name="text">
+            <string>Check Updates</string>
+           </property>
+           <property name="autoRaise">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
           <widget class="QComboBox" name="languageComboBox">
            <property name="minimumSize">
             <size>

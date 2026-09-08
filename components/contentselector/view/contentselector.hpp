@@ -28,6 +28,7 @@ namespace ContentSelectorView
         QAction* mShowAssetConflictsAction = nullptr;
         QAction* mBrowseModFilesAction = nullptr;
         QAction* mShowNexusModAction = nullptr;
+        QAction* mUpdateModAction = nullptr;
         QAction* mDeleteModAction = nullptr;
 
     protected:
@@ -49,6 +50,8 @@ namespace ContentSelectorView
         bool containsAssetFiles(const QString& path) const;
         void clearConflictStats();
         void setDirectoryConflictStats(const QString& path, int conflicts, int wins, int losses);
+        void clearUpdateStatus();
+        void setDirectoryUpdateStatus(const QString& path, const QString& latestVersion);
         void setManagedModsDirectory(const QString& path);
         void clearFiles();
         void setNonUserContent(const QStringList& fileList);
@@ -72,6 +75,7 @@ namespace ContentSelectorView
         QComboBox* languageBox() const;
 
         QToolButton* refreshButton() const;
+        QToolButton* checkUpdatesButton() const;
 
         QLineEdit* searchFilter() const;
 
@@ -88,6 +92,7 @@ namespace ContentSelectorView
         QString selectedConflictDirectoryPath() const;
         QString selectedManagedModDirectory() const;
         QString selectedNexusModDirectory() const;
+        QString selectedUpdateModDirectory() const;
 
     signals:
         void signalCurrentGamefileIndexChanged(int);
@@ -99,6 +104,7 @@ namespace ContentSelectorView
         void signalDataDirectoryOrderChanged(QStringList paths);
         void signalShowAssetConflicts(QString path);
         void signalShowNexusModRequested(QString path);
+        void signalUpdateModRequested(QString path);
         void signalDeleteModRequested(QString path);
 
     private slots:
@@ -112,6 +118,7 @@ namespace ContentSelectorView
         void slotBrowseModFiles();
         void slotShowAssetConflicts();
         void slotShowNexusMod();
+        void slotUpdateMod();
         void slotDeleteMod();
         void slotSearchFilterTextChanged(const QString& newText);
         void slotSortFiles();

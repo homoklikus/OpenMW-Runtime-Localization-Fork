@@ -1620,6 +1620,48 @@ Problematyczna paczka lub plik:
         <source>One or more installed overlay package versions do not match the new base mod version. The overlay files will be preserved and remain active after the update, but compatibility is not guaranteed. Continue with the base mod update?</source>
         <translation>Co najmniej jedna zainstalowana paczka nakładki ma wersję inną niż nowa wersja moda bazowego. Pliki nakładki zostaną zachowane i pozostaną aktywne po aktualizacji, ale zgodność nie jest gwarantowana. Kontynuować aktualizację moda bazowego?</translation>
     </message>
+    <message>
+        <source>Checking mod updates...</source>
+        <translation>Sprawdzanie aktualizacji modów...</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Anuluj</translation>
+    </message>
+    <message>
+        <source>Mod Update Check</source>
+        <translation>Sprawdzanie aktualizacji modów</translation>
+    </message>
+    <message>
+        <source>Checked %1 managed Nexus mod(s).
+Updates available: %2
+Skipped: %3
+Failed: %4</source>
+        <translation>Sprawdzono modów zarządzanych przez Nexus: %1
+Dostępne aktualizacje: %2
+Pominięto: %3
+Błędy: %4</translation>
+    </message>
+    <message>
+        <source>Update check canceled.</source>
+        <translation>Sprawdzanie aktualizacji anulowano.</translation>
+    </message>
+    <message>
+        <source>Update Mod</source>
+        <translation>Aktualizuj mod</translation>
+    </message>
+    <message>
+        <source>The selected mod directory is not a safe managed mod target.</source>
+        <translation>Wybrany katalog moda nie jest bezpiecznym celem zarządzanego moda.</translation>
+    </message>
+    <message>
+        <source>The selected managed mod metadata is invalid.</source>
+        <translation>Metadane wybranego zarządzanego moda są nieprawidłowe.</translation>
+    </message>
+    <message>
+        <source>The selected mod does not have a checked update. Run Check Updates first.</source>
+        <translation>Wybrany mod nie ma sprawdzonej aktualizacji. Najpierw użyj przycisku Sprawdź aktualizacje.</translation>
+    </message>
 </context>
 <context>
     <name>Launcher::GraphicsPage</name>
