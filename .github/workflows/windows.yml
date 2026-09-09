@@ -178,7 +178,7 @@ jobs:
       if: ${{ ! inputs.package }}
       working-directory: ${{ github.workspace }}/deps/Qt/${{ env.QT_VER }}/msvc2019_64
       run: |
-        mkdir ${{ github.workspace }}/install/tls
+        New-Item -ItemType Directory -Force -Path ${{ github.workspace }}/install/tls | Out-Null
         cp plugins/tls/qcertonlybackend.dll ${{ github.workspace }}/install/tls
         cp plugins/tls/qopensslbackend.dll ${{ github.workspace }}/install/tls
         cp plugins/tls/qschannelbackend.dll ${{ github.workspace }}/install/tls
