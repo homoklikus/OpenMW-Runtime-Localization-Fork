@@ -148,6 +148,10 @@ jobs:
         cp plugins/imageformats/qsvg.dll ${{ github.workspace }}/build/imageformats
         mkdir ${{ github.workspace }}/build/iconengines
         cp plugins/iconengines/qsvgicon.dll ${{ github.workspace }}/build/iconengines
+        mkdir ${{ github.workspace }}/build/tls
+        cp plugins/tls/qcertonlybackend.dll ${{ github.workspace }}/build/tls
+        cp plugins/tls/qopensslbackend.dll ${{ github.workspace }}/build/tls
+        cp plugins/tls/qschannelbackend.dll ${{ github.workspace }}/build/tls
 
     - name: Create symbol server directory structure
       working-directory: ${{ github.workspace }}/build
@@ -169,6 +173,15 @@ jobs:
     - name: Copy LibArchive runtime DLLs to portable install
       if: ${{ ! inputs.package }}
       run: cp C:/vcpkg/installed/x64-windows/bin/*.dll ${{ github.workspace }}/install
+
+    - name: Copy Qt TLS plugins to portable install
+      if: ${{ ! inputs.package }}
+      working-directory: ${{ github.workspace }}/deps/Qt/${{ env.QT_VER }}/msvc2019_64
+      run: |
+        mkdir ${{ github.workspace }}/install/tls
+        cp plugins/tls/qcertonlybackend.dll ${{ github.workspace }}/install/tls
+        cp plugins/tls/qopensslbackend.dll ${{ github.workspace }}/install/tls
+        cp plugins/tls/qschannelbackend.dll ${{ github.workspace }}/install/tls
 
     - name: Copy MSVC runtime DLLs to portable install
       if: ${{ ! inputs.package }}
