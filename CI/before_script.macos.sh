@@ -70,12 +70,15 @@ DEPENDENCIES_ROOT_PATH="/tmp/openmw-deps"
 
 if [[ "${MACOS_AMD64}" ]]; then
     QT_PATH=$(arch -x86_64 /bin/bash -c "qmake -v | sed -rn -e 's/Using Qt version [.0-9]+ in //p'")
+    LIBARCHIVE_PATH=$(arch -x86_64 /usr/local/bin/brew --prefix libarchive)
 else
     QT_PATH=$(qmake -v | sed -rn -e "s/Using Qt version [.0-9]+ in //p")
+    LIBARCHIVE_PATH=$(brew --prefix libarchive)
 fi
 
 if [[ -n $VERBOSE ]]; then
     echo "Using Qt path: ${QT_PATH}"
+    echo "Using LibArchive path: ${LIBARCHIVE_PATH}"
 fi
 
 declare -a CMAKE_CONF_OPTS=(
@@ -114,7 +117,7 @@ fi
 DEPENDENCIES_INSTALLED_PATH="$DEPENDENCIES_ROOT_PATH/installed/$VCPKG_TARGET_TRIPLET"
 
 CMAKE_CONF_OPTS+=(
-    -D CMAKE_PREFIX_PATH="$DEPENDENCIES_INSTALLED_PATH;$QT_PATH"
+    -D CMAKE_PREFIX_PATH="$DEPENDENCIES_INSTALLED_PATH;$QT_PATH;$LIBARCHIVE_PATH"
     -D collada_dom_DIR="$DEPENDENCIES_INSTALLED_PATH/share/collada-dom"
     -DVCPKG_HOST_TRIPLET="$VCPKG_TARGET_TRIPLET"
     -DVCPKG_TARGET_TRIPLET="$VCPKG_TARGET_TRIPLET"
