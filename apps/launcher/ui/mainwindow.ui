@@ -17,7 +17,7 @@
    </size>
   </property>
   <property name="windowTitle">
-   <string>OpenMW Launcher</string>
+   <string>OpenMW Runtime Localization Fork</string>
   </property>
   <property name="windowIcon">
    <iconset resource="../../../files/launcher/launcher.qrc">

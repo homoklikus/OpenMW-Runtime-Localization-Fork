@@ -34,7 +34,7 @@ namespace
             = QCryptographicHash::hash(QDir::homePath().toUtf8(), QCryptographicHash::Sha256)
                   .toHex()
                   .left(16);
-        return QStringLiteral("openmw-morrowindpl-nxm-%1").arg(QString::fromLatin1(userHash));
+        return QStringLiteral("openmw-runtime-localization-fork-nxm-%1").arg(QString::fromLatin1(userHash));
     }
 
     QString nxmArgument(int argc, char* argv[])

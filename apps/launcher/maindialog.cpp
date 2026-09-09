@@ -184,7 +184,7 @@ Launcher::FirstRunDialogResult Launcher::MainDialog::showFirstRunDialog()
         msgBox.setIcon(QMessageBox::Question);
         msgBox.setStandardButtons(QMessageBox::NoButton);
         msgBox.setText(
-            tr("<html><head/><body><p><b>Welcome to OpenMW!</b></p>"
+            tr("<html><head/><body><p><b>Welcome to OpenMW Runtime Localization Fork!</b></p>"
                "<p>It is recommended to run the Installation Wizard.</p>"
                "<p>The Wizard will let you select an existing Morrowind installation, "
                "or install Morrowind for OpenMW to use.</p></body></html>"));
@@ -218,16 +218,16 @@ Launcher::FirstRunDialogResult Launcher::MainDialog::showFirstRunDialog()
 
 void Launcher::MainDialog::setVersionLabel()
 {
-    // Add version information to bottom of the window
-    QString revision(QString::fromUtf8(Version::getCommitHash().data(), Version::getCommitHash().size()));
-    QString tag(QString::fromUtf8(Version::getTagHash().data(), Version::getTagHash().size()));
-
+    // Add upstream OpenMW version and fork version to the bottom of the window.
     versionLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    if (!Version::getVersion().empty() && (revision.isEmpty() || revision == tag))
+    if (!Version::getVersion().empty())
+    {
         versionLabel->setText(
-            tr("OpenMW %1 release").arg(QString::fromUtf8(Version::getVersion().data(), Version::getVersion().size())));
+            tr("OpenMW %1 Runtime Localization Fork 0.4")
+                .arg(QString::fromUtf8(Version::getVersion().data(), Version::getVersion().size())));
+    }
     else
-        versionLabel->setText(tr("OpenMW development (%1)").arg(revision.left(10)));
+        versionLabel->setText(tr("OpenMW Runtime Localization Fork 0.4"));
 
     // Add the compile date and time
     auto compileDate = QLocale(QLocale::C).toDate(QString(__DATE__).simplified(), QLatin1String("MMM d yyyy"));

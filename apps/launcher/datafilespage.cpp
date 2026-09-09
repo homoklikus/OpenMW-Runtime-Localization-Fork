@@ -88,7 +88,7 @@ namespace
 {
     const QString& nxmDesktopEntryId()
     {
-        static const QString id = QStringLiteral("openmw-morrowindpl-nxm.desktop");
+        static const QString id = QStringLiteral("openmw-runtime-localization-fork-nxm.desktop");
         return id;
     }
 
@@ -219,7 +219,7 @@ namespace
         if (desktopId.isEmpty())
             return {};
         if (desktopId.compare(nxmDesktopEntryId(), Qt::CaseInsensitive) == 0)
-            return QStringLiteral("OpenMW Launcher");
+            return QStringLiteral("OpenMW Runtime Localization Fork");
 
 #ifdef Q_OS_LINUX
         QStringList applicationDirectories
@@ -323,7 +323,7 @@ namespace
         const QString desktopEntry = QStringLiteral(
             "[Desktop Entry]\n"
             "Type=Application\n"
-            "Name=OpenMW Launcher NXM Handler\n"
+            "Name=OpenMW Runtime Localization Fork NXM Handler\n"
             "Exec=%1\n"
             "Terminal=false\n"
             "NoDisplay=true\n"
@@ -3238,7 +3238,7 @@ void Launcher::DataFilesPage::showNxmHandlerSettings()
     }
     else if (isOpenMw)
     {
-        status = tr("Current NXM handler: OpenMW Launcher");
+        status = tr("Current NXM handler: OpenMW Runtime Localization Fork");
     }
     else
     {
@@ -3265,7 +3265,7 @@ void Launcher::DataFilesPage::showNxmHandlerSettings()
     if (isOpenMw)
     {
         dialog.setInformativeText(
-            tr("OpenMW Launcher is already the default application for nxm:// links. "
+            tr("OpenMW Runtime Localization Fork is already the default application for nxm:// links. "
                "Nexus Mods Mod Manager Download links will be opened in this launcher."));
     }
     else
@@ -3273,7 +3273,7 @@ void Launcher::DataFilesPage::showNxmHandlerSettings()
         dialog.setInformativeText(
             tr("Only one application can be the default handler for nxm:// links. "
                "Changing it will send future Nexus Mods Mod Manager Download links "
-               "to OpenMW Launcher."));
+               "to OpenMW Runtime Localization Fork."));
     }
 
     QPushButton* setDefaultButton = nullptr;
@@ -3282,7 +3282,7 @@ void Launcher::DataFilesPage::showNxmHandlerSettings()
     if (!isOpenMw)
     {
         setDefaultButton = dialog.addButton(
-            tr("Set OpenMW Launcher as Default"), QMessageBox::AcceptRole);
+            tr("Set OpenMW Runtime Localization Fork as Default"), QMessageBox::AcceptRole);
     }
     else if (previousHandlerAvailable)
     {
@@ -3299,7 +3299,7 @@ void Launcher::DataFilesPage::showNxmHandlerSettings()
         if (!setOpenMwAsDefaultNxmHandler(error))
         {
             QMessageBox::critical(this, tr("NXM Handler"),
-                tr("Could not set OpenMW Launcher as the default NXM handler.\n%1")
+                tr("Could not set OpenMW Runtime Localization Fork as the default NXM handler.\n%1")
                     .arg(error));
             return;
         }
@@ -3312,7 +3312,7 @@ void Launcher::DataFilesPage::showNxmHandlerSettings()
         }
 
         QMessageBox::information(this, tr("NXM Handler"),
-            tr("OpenMW Launcher is now the default application for nxm:// links."));
+            tr("OpenMW Runtime Localization Fork is now the default application for nxm:// links."));
         return;
     }
 
@@ -3358,8 +3358,8 @@ bool Launcher::DataFilesPage::ensureNxmHandlerForDownload()
 
     const QMessageBox::StandardButton answer = QMessageBox::question(
         this, tr("NXM Handler"),
-        tr("%1\n\nOpenMW Launcher must be the default NXM handler to receive "
-           "this download. Set OpenMW Launcher as default now?")
+        tr("%1\n\nOpenMW Runtime Localization Fork must be the default NXM handler to receive "
+           "this download. Set OpenMW Runtime Localization Fork as default now?")
             .arg(currentText),
         QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
 
@@ -3370,7 +3370,7 @@ bool Launcher::DataFilesPage::ensureNxmHandlerForDownload()
     if (!setOpenMwAsDefaultNxmHandler(error))
     {
         QMessageBox::critical(this, tr("NXM Handler"),
-            tr("Could not set OpenMW Launcher as the default NXM handler.\n%1")
+            tr("Could not set OpenMW Runtime Localization Fork as the default NXM handler.\n%1")
                 .arg(error));
         return false;
     }

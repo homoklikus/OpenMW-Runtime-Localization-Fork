@@ -1217,8 +1217,8 @@ Wybierz Slow Download. Launcher automatycznie odbierze link NXM.</translation>
         <translation>Obecnie nie skonfigurowano domyślnego programu obsługującego linki NXM.</translation>
     </message>
     <message>
-        <source>Current NXM handler: OpenMW Launcher</source>
-        <translation>Aktualny program obsługujący NXM: OpenMW Launcher</translation>
+        <source>Current NXM handler: OpenMW Runtime Localization Fork</source>
+        <translation>Aktualny program obsługujący NXM: OpenMW Runtime Localization Fork</translation>
     </message>
     <message>
         <source>Current NXM handler: %1
@@ -1227,22 +1227,22 @@ Wybierz Slow Download. Launcher automatycznie odbierze link NXM.</translation>
 %2</translation>
     </message>
     <message>
-        <source>Only one application can be the default handler for nxm:// links. Changing it will send future Nexus Mods Mod Manager Download links to OpenMW Launcher.</source>
-        <translation>Tylko jeden program może być domyślnym programem obsługującym linki nxm://. Po zmianie kolejne linki Mod Manager Download z Nexus Mods będą otwierane w OpenMW Launcherze.</translation>
+        <source>Only one application can be the default handler for nxm:// links. Changing it will send future Nexus Mods Mod Manager Download links to OpenMW Runtime Localization Fork.</source>
+        <translation>Tylko jeden program może być domyślnym programem obsługującym linki nxm://. Po zmianie kolejne linki Mod Manager Download z Nexus Mods będą otwierane w OpenMW Runtime Localization Fork.</translation>
     </message>
     <message>
-        <source>Set OpenMW Launcher as Default</source>
-        <translation>Ustaw OpenMW Launcher jako domyślny</translation>
+        <source>Set OpenMW Runtime Localization Fork as Default</source>
+        <translation>Ustaw OpenMW Runtime Localization Fork jako domyślny</translation>
     </message>
     <message>
-        <source>Could not set OpenMW Launcher as the default NXM handler.
+        <source>Could not set OpenMW Runtime Localization Fork as the default NXM handler.
 %1</source>
-        <translation>Nie udało się ustawić OpenMW Launchera jako domyślnego programu obsługującego NXM.
+        <translation>Nie udało się ustawić OpenMW Runtime Localization Fork jako domyślnego programu obsługującego NXM.
 %1</translation>
     </message>
     <message>
-        <source>OpenMW Launcher is now the default application for nxm:// links.</source>
-        <translation>OpenMW Launcher jest teraz domyślnym programem dla linków nxm://.</translation>
+        <source>OpenMW Runtime Localization Fork is now the default application for nxm:// links.</source>
+        <translation>OpenMW Runtime Localization Fork jest teraz domyślnym programem dla linków nxm://.</translation>
     </message>
     <message>
         <source>Mod Manager Download links are currently handled by:
@@ -1253,14 +1253,14 @@ Wybierz Slow Download. Launcher automatycznie odbierze link NXM.</translation>
     <message>
         <source>%1
 
-OpenMW Launcher must be the default NXM handler to receive this download. Set OpenMW Launcher as default now?</source>
+OpenMW Runtime Localization Fork must be the default NXM handler to receive this download. Set OpenMW Runtime Localization Fork as default now?</source>
         <translation>%1
 
-Aby odebrać to pobieranie, OpenMW Launcher musi być domyślnym programem obsługującym NXM. Ustawić teraz OpenMW Launcher jako domyślny?</translation>
+Aby odebrać to pobieranie, OpenMW Runtime Localization Fork musi być domyślnym programem obsługującym NXM. Ustawić teraz OpenMW Runtime Localization Fork jako domyślny?</translation>
     </message>
     <message>
-        <source>OpenMW Launcher is already the default application for nxm:// links. Nexus Mods Mod Manager Download links will be opened in this launcher.</source>
-        <translation>OpenMW Launcher jest już domyślnym programem dla linków nxm://. Linki Mod Manager Download z Nexus Mods będą otwierane w tym launcherze.</translation>
+        <source>OpenMW Runtime Localization Fork is already the default application for nxm:// links. Nexus Mods Mod Manager Download links will be opened in this launcher.</source>
+        <translation>OpenMW Runtime Localization Fork jest już domyślnym programem dla linków nxm://. Linki Mod Manager Download z Nexus Mods będą otwierane w tym launcherze.</translation>
     </message>
     <message>
         <source>\n\nPrevious NXM handler: %1\n%2</source>
@@ -1790,8 +1790,8 @@ Błędy: %4</translation>
         <translation>Pierwsze uruchomienie</translation>
     </message>
     <message>
-        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;b&gt;Welcome to OpenMW!&lt;/b&gt;&lt;/p&gt;&lt;p&gt;It is recommended to run the Installation Wizard.&lt;/p&gt;&lt;p&gt;The Wizard will let you select an existing Morrowind installation, or install Morrowind for OpenMW to use.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;b&gt;Witamy w OpenMW!&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Zalecamy uruchomienie kreatora instalacji.&lt;/p&gt;&lt;p&gt;Kreator umożliwi wybór istniejącej instalacji Morrowinda lub instalację gry do użytku z OpenMW.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;b&gt;Welcome to OpenMW Runtime Localization Fork!&lt;/b&gt;&lt;/p&gt;&lt;p&gt;It is recommended to run the Installation Wizard.&lt;/p&gt;&lt;p&gt;The Wizard will let you select an existing Morrowind installation, or install Morrowind for OpenMW to use.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;b&gt;Witamy w OpenMW Runtime Localization Fork!&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Zalecamy uruchomienie kreatora instalacji.&lt;/p&gt;&lt;p&gt;Kreator umożliwi wybór istniejącej instalacji Morrowinda lub instalację gry do użytku z OpenMW.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <source>Run &amp;Installation Wizard</source>
@@ -1802,8 +1802,8 @@ Błędy: %4</translation>
         <translation>Pomiń</translation>
     </message>
     <message>
-        <source>OpenMW %1 release</source>
-        <translation>Wersja OpenMW %1</translation>
+        <source>OpenMW %1 Runtime Localization Fork 0.4</source>
+        <translation>OpenMW %1 Runtime Localization Fork 0.4</translation>
     </message>
     <message>
         <source>OpenMW development (%1)</source>
@@ -1924,8 +1924,8 @@ Logi i ustawienia zmienione za pomocą programu uruchamiającego i w grze zostan
 <context>
     <name>MainWindow</name>
     <message>
-        <source>OpenMW Launcher</source>
-        <translation>Program uruchamiający OpenMW</translation>
+        <source>OpenMW Runtime Localization Fork</source>
+        <translation>OpenMW Runtime Localization Fork</translation>
     </message>
     <message>
         <source>OpenMW version</source>
