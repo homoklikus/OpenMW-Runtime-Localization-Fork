@@ -841,8 +841,42 @@ The backup is still available at:
         <translation>Nexus Mods...</translation>
     </message>
     <message>
-        <source>Connect to Nexus Mods with a Personal API key for development and testing.</source>
-        <translation>Connect to Nexus Mods with a Personal API key for development and testing.</translation>
+        <source>Connect to Nexus Mods with a Personal API key for development and testing. The key can optionally be kept in an encrypted local test cache.</source>
+        <translation>Connect to Nexus Mods with a Personal API key for development and testing. The key can optionally be kept in an encrypted local test cache.</translation>
+    </message>
+    <message>
+        <source>Remove Nexus API Key...</source>
+        <translation>Remove Nexus API Key...</translation>
+    </message>
+    <message>
+        <source>Remove the saved Nexus Mods Personal API key test cache and clear the current launcher session.</source>
+        <translation>Remove the saved Nexus Mods Personal API key test cache and clear the current launcher session.</translation>
+    </message>
+    <message>
+        <source>No saved or active Nexus Mods Personal API key was found.</source>
+        <translation>No saved or active Nexus Mods Personal API key was found.</translation>
+    </message>
+    <message>
+        <source>Remove the Nexus Mods Personal API key?
+
+This removes the encrypted local test cache files, if present, and clears the key from the current launcher session. You will need to enter the Personal API key again the next time Nexus Mods access is required.</source>
+        <translation>Remove the Nexus Mods Personal API key?
+
+This removes the encrypted local test cache files, if present, and clears the key from the current launcher session. You will need to enter the Personal API key again the next time Nexus Mods access is required.</translation>
+    </message>
+    <message>
+        <source>The current Nexus Mods session was cleared, but the saved Personal API key test cache could not be completely removed.
+%1
+
+The remaining cache files may be loaded again by a later Nexus Mods action until they are removed.</source>
+        <translation>The current Nexus Mods session was cleared, but the saved Personal API key test cache could not be completely removed.
+%1
+
+The remaining cache files may be loaded again by a later Nexus Mods action until they are removed.</translation>
+    </message>
+    <message>
+        <source>The Nexus Mods Personal API key has been removed. The launcher is no longer connected to Nexus Mods.</source>
+        <translation>The Nexus Mods Personal API key has been removed. The launcher is no longer connected to Nexus Mods.</translation>
     </message>
     <message>
         <source>Connect to Nexus Mods</source>
@@ -881,14 +915,110 @@ HTTP status: %1
         <translation>Nexus Mods Connected</translation>
     </message>
     <message>
+        <source>Nexus Mods - Testing only</source>
+        <translation>Nexus Mods - Testing only</translation>
+    </message>
+    <message>
+        <source>The encrypted test API key cache could not be read:
+%1
+
+%2
+
+The launcher will ask for the Personal API key again.</source>
+        <translation>The encrypted test API key cache could not be read:
+%1
+
+%2
+
+The launcher will ask for the Personal API key again.</translation>
+    </message>
+    <message>
+        <source>The Personal API key loaded from the encrypted test cache was rejected by Nexus Mods.
+
+Cache file:
+%1
+
+Remove the saved test key? The launcher will ask for it again on the next Nexus Mods action.</source>
+        <translation>The Personal API key loaded from the encrypted test cache was rejected by Nexus Mods.
+
+Cache file:
+%1
+
+Remove the saved test key? The launcher will ask for it again on the next Nexus Mods action.</translation>
+    </message>
+    <message>
+        <source>Could not remove the saved test API key cache:
+%1</source>
+        <translation>Could not remove the saved test API key cache:
+%1</translation>
+    </message>
+    <message>
+        <source>Temporary development/testing feature
+
+Until OpenMW Runtime Localization Fork receives official Nexus Mods API integration, the launcher can save your Personal API key in an encrypted local cache so you do not have to enter it after every restart.
+
+The encrypted cache uses a separate random local cache key. Both files stay in your OpenMW user configuration directory. On Unix their permissions are restricted to the owner. On Windows the local cache master key is additionally protected with Windows DPAPI for the current user. This is still a temporary test cache, not a replacement for a dedicated credential store. Software running with access to your user account may still be able to recover the key.
+
+Do not distribute or commit these cache files.
+
+Save the key for testing?</source>
+        <translation>Temporary development/testing feature
+
+Until OpenMW Runtime Localization Fork receives official Nexus Mods API integration, the launcher can save your Personal API key in an encrypted local cache so you do not have to enter it after every restart.
+
+The encrypted cache uses a separate random local cache key. Both files stay in your OpenMW user configuration directory. On Unix their permissions are restricted to the owner. On Windows the local cache master key is additionally protected with Windows DPAPI for the current user. This is still a temporary test cache, not a replacement for a dedicated credential store. Software running with access to your user account may still be able to recover the key.
+
+Do not distribute or commit these cache files.
+
+Save the key for testing?</translation>
+    </message>
+    <message>
+        <source>Could not save the encrypted test API key cache:
+%1
+
+%2
+
+The key will be kept only for this launcher session.</source>
+        <translation>Could not save the encrypted test API key cache:
+%1
+
+%2
+
+The key will be kept only for this launcher session.</translation>
+    </message>
+    <message>
+        <source>The Personal API key was loaded from the encrypted local test cache:
+%1
+
+Temporary development/testing feature. Use the "Remove Nexus API Key..." button in the launcher to remove the saved key. This cache option will be removed when official Nexus Mods API integration is available.</source>
+        <translation>The Personal API key was loaded from the encrypted local test cache:
+%1
+
+Temporary development/testing feature. Use the "Remove Nexus API Key..." button in the launcher to remove the saved key. This cache option will be removed when official Nexus Mods API integration is available.</translation>
+    </message>
+    <message>
+        <source>The Personal API key was saved to the encrypted local test cache:
+%1
+
+Temporary development/testing feature. Use the "Remove Nexus API Key..." button in the launcher to remove the saved key. This cache option will be removed when official Nexus Mods API integration is available.</source>
+        <translation>The Personal API key was saved to the encrypted local test cache:
+%1
+
+Temporary development/testing feature. Use the "Remove Nexus API Key..." button in the launcher to remove the saved key. This cache option will be removed when official Nexus Mods API integration is available.</translation>
+    </message>
+    <message>
+        <source>The Personal API key is kept only for this launcher session.</source>
+        <translation>The Personal API key is kept only for this launcher session.</translation>
+    </message>
+    <message>
         <source>Connected to Nexus Mods as: %1
 Account: %2
 
-The Personal API key is kept only for this launcher session.</source>
+%3</source>
         <translation>Connected to Nexus Mods as: %1
 Account: %2
 
-The Personal API key is kept only for this launcher session.</translation>
+%3</translation>
     </message>
     <message>
         <source>Premium</source>

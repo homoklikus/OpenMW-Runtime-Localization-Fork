@@ -845,8 +845,42 @@ Kopia zapasowa nadal znajduje się w:
         <translation>Nexus Mods...</translation>
     </message>
     <message>
-        <source>Connect to Nexus Mods with a Personal API key for development and testing.</source>
-        <translation>Połącz z Nexus Mods za pomocą osobistego klucza API do celów deweloperskich i testowych.</translation>
+        <source>Connect to Nexus Mods with a Personal API key for development and testing. The key can optionally be kept in an encrypted local test cache.</source>
+        <translation>Połącz z Nexus Mods za pomocą osobistego klucza API do celów deweloperskich i testowych. Klucz można opcjonalnie zachować w zaszyfrowanym lokalnym pliku testowym.</translation>
+    </message>
+    <message>
+        <source>Remove Nexus API Key...</source>
+        <translation>Usuń klucz API Nexus...</translation>
+    </message>
+    <message>
+        <source>Remove the saved Nexus Mods Personal API key test cache and clear the current launcher session.</source>
+        <translation>Usuń zapisany testowy cache osobistego klucza API Nexus Mods i wyczyść bieżącą sesję launchera.</translation>
+    </message>
+    <message>
+        <source>No saved or active Nexus Mods Personal API key was found.</source>
+        <translation>Nie znaleziono zapisanego ani aktywnego osobistego klucza API Nexus Mods.</translation>
+    </message>
+    <message>
+        <source>Remove the Nexus Mods Personal API key?
+
+This removes the encrypted local test cache files, if present, and clears the key from the current launcher session. You will need to enter the Personal API key again the next time Nexus Mods access is required.</source>
+        <translation>Usunąć osobisty klucz API Nexus Mods?
+
+Spowoduje to usunięcie zaszyfrowanych lokalnych plików testowego cache, jeśli istnieją, oraz wyczyszczenie klucza z bieżącej sesji launchera. Przy następnej operacji wymagającej dostępu do Nexus Mods trzeba będzie ponownie wprowadzić osobisty klucz API.</translation>
+    </message>
+    <message>
+        <source>The current Nexus Mods session was cleared, but the saved Personal API key test cache could not be completely removed.
+%1
+
+The remaining cache files may be loaded again by a later Nexus Mods action until they are removed.</source>
+        <translation>Bieżąca sesja Nexus Mods została wyczyszczona, ale nie udało się całkowicie usunąć zapisanego testowego cache osobistego klucza API.
+%1
+
+Pozostałe pliki cache mogą zostać ponownie wczytane przy kolejnej operacji Nexus Mods, dopóki nie zostaną usunięte.</translation>
+    </message>
+    <message>
+        <source>The Nexus Mods Personal API key has been removed. The launcher is no longer connected to Nexus Mods.</source>
+        <translation>Osobisty klucz API Nexus Mods został usunięty. Launcher nie jest już połączony z Nexus Mods.</translation>
     </message>
     <message>
         <source>Connect to Nexus Mods</source>
@@ -885,14 +919,110 @@ Status HTTP: %1
         <translation>Połączono z Nexus Mods</translation>
     </message>
     <message>
+        <source>Nexus Mods - Testing only</source>
+        <translation>Nexus Mods — tylko testy</translation>
+    </message>
+    <message>
+        <source>The encrypted test API key cache could not be read:
+%1
+
+%2
+
+The launcher will ask for the Personal API key again.</source>
+        <translation>Nie udało się odczytać zaszyfrowanego testowego pliku z kluczem API:
+%1
+
+%2
+
+Launcher ponownie poprosi o osobisty klucz API.</translation>
+    </message>
+    <message>
+        <source>The Personal API key loaded from the encrypted test cache was rejected by Nexus Mods.
+
+Cache file:
+%1
+
+Remove the saved test key? The launcher will ask for it again on the next Nexus Mods action.</source>
+        <translation>Osobisty klucz API wczytany z zaszyfrowanego testowego pliku został odrzucony przez Nexus Mods.
+
+Plik:
+%1
+
+Usunąć zapisany klucz testowy? Launcher poprosi o niego ponownie przy następnej operacji Nexus Mods.</translation>
+    </message>
+    <message>
+        <source>Could not remove the saved test API key cache:
+%1</source>
+        <translation>Nie udało się usunąć zapisanego testowego pliku z kluczem API:
+%1</translation>
+    </message>
+    <message>
+        <source>Temporary development/testing feature
+
+Until OpenMW Runtime Localization Fork receives official Nexus Mods API integration, the launcher can save your Personal API key in an encrypted local cache so you do not have to enter it after every restart.
+
+The encrypted cache uses a separate random local cache key. Both files stay in your OpenMW user configuration directory. On Unix their permissions are restricted to the owner. On Windows the local cache master key is additionally protected with Windows DPAPI for the current user. This is still a temporary test cache, not a replacement for a dedicated credential store. Software running with access to your user account may still be able to recover the key.
+
+Do not distribute or commit these cache files.
+
+Save the key for testing?</source>
+        <translation>Funkcja tymczasowa — tylko do prac deweloperskich i testów
+
+Do czasu uzyskania przez OpenMW Runtime Localization Fork oficjalnej integracji z API Nexus Mods launcher może zapisać Twój osobisty klucz API w zaszyfrowanym lokalnym pliku, aby nie trzeba było wpisywać go po każdym restarcie.
+
+Zaszyfrowany plik używa osobnego, losowego lokalnego klucza cache. Oba pliki pozostają w katalogu konfiguracji użytkownika OpenMW. W systemach Unix ich uprawnienia są ograniczone do właściciela. W Windows lokalny klucz główny cache jest dodatkowo chroniony przez Windows DPAPI dla bieżącego użytkownika. Nadal jest to tymczasowy mechanizm testowy, a nie zamiennik dedykowanego magazynu poświadczeń. Oprogramowanie mające dostęp do Twojego konta użytkownika może nadal być w stanie odzyskać klucz.
+
+Nie udostępniaj ani nie dodawaj tych plików do repozytorium.
+
+Zapisać klucz na czas testów?</translation>
+    </message>
+    <message>
+        <source>Could not save the encrypted test API key cache:
+%1
+
+%2
+
+The key will be kept only for this launcher session.</source>
+        <translation>Nie udało się zapisać zaszyfrowanego testowego pliku z kluczem API:
+%1
+
+%2
+
+Klucz będzie przechowywany tylko na czas tej sesji launchera.</translation>
+    </message>
+    <message>
+        <source>The Personal API key was loaded from the encrypted local test cache:
+%1
+
+Temporary development/testing feature. Use the "Remove Nexus API Key..." button in the launcher to remove the saved key. This cache option will be removed when official Nexus Mods API integration is available.</source>
+        <translation>Osobisty klucz API został wczytany z zaszyfrowanego lokalnego pliku testowego:
+%1
+
+Funkcja tymczasowa do prac deweloperskich i testów. Użyj przycisku „Usuń klucz API Nexus...” w launcherze, aby usunąć zapisany klucz. Ta opcja zostanie usunięta po uzyskaniu oficjalnej integracji z API Nexus Mods.</translation>
+    </message>
+    <message>
+        <source>The Personal API key was saved to the encrypted local test cache:
+%1
+
+Temporary development/testing feature. Use the "Remove Nexus API Key..." button in the launcher to remove the saved key. This cache option will be removed when official Nexus Mods API integration is available.</source>
+        <translation>Osobisty klucz API został zapisany w zaszyfrowanym lokalnym pliku testowym:
+%1
+
+Funkcja tymczasowa do prac deweloperskich i testów. Użyj przycisku „Usuń klucz API Nexus...” w launcherze, aby usunąć zapisany klucz. Ta opcja zostanie usunięta po uzyskaniu oficjalnej integracji z API Nexus Mods.</translation>
+    </message>
+    <message>
+        <source>The Personal API key is kept only for this launcher session.</source>
+        <translation>Osobisty klucz API jest przechowywany tylko na czas tej sesji launchera.</translation>
+    </message>
+    <message>
         <source>Connected to Nexus Mods as: %1
 Account: %2
 
-The Personal API key is kept only for this launcher session.</source>
+%3</source>
         <translation>Połączono z Nexus Mods jako: %1
 Konto: %2
 
-Osobisty klucz API jest przechowywany tylko na czas tej sesji launchera.</translation>
+%3</translation>
     </message>
     <message>
         <source>Premium</source>

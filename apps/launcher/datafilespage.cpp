@@ -7,6 +7,7 @@
 #include <QBrush>
 #include <QClipboard>
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QColor>
 #include <QAbstractItemView>
 #include <QDebug>
@@ -31,12 +32,14 @@
 #include <QLineEdit>
 #include <QLocale>
 #include <QMessageBox>
+#include <QMessageAuthenticationCode>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QPair>
 #include <QProgressDialog>
 #include <QProcess>
+#include <QRandomGenerator>
 #include <QRegularExpression>
 #include <QSaveFile>
 #include <QPushButton>
@@ -53,6 +56,14 @@
 #include <QUrlQuery>
 #include <QUuid>
 #include <QVBoxLayout>
+
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <dpapi.h>
+#endif
 
 #include <algorithm>
 #include <limits>
@@ -86,6 +97,474 @@ const char* Launcher::DataFilesPage::mDefaultContentListName = "Default";
 
 namespace
 {
+    // TEMPORARY DEVELOPMENT/TESTING FEATURE.
+    // Remove this Personal API key cache when the fork receives official
+    // Nexus Mods API integration. The cache prevents plaintext storage, but
+    // it is not a substitute for an operating-system credential store.
+    enum class NexusApiKeyCacheLoadResult
+    {
+        Missing,
+        Loaded,
+        Error,
+    };
+
+    constexpr qsizetype sNexusApiKeyCacheMasterKeySize = 32;
+    constexpr qsizetype sNexusApiKeyCacheNonceSize = 16;
+    constexpr qsizetype sNexusApiKeyCacheTagSize = 32;
+
+    const QByteArray& nexusApiKeyCacheMagic()
+    {
+        static const QByteArray magic = QByteArrayLiteral("OMWRLF-NEXUS-TEST-v1\n");
+        return magic;
+    }
+
+    QString nexusApiKeyCachePath(const Files::ConfigurationManager& cfg)
+    {
+        return Files::pathToQString(cfg.getUserConfigPath() / "nexus-api-key-test.dat");
+    }
+
+    QString nexusApiKeyCacheMasterKeyPath(const Files::ConfigurationManager& cfg)
+    {
+        return Files::pathToQString(cfg.getUserConfigPath() / ".nexus-api-key-test.key");
+    }
+
+    QByteArray secureRandomBytes(qsizetype size)
+    {
+        QByteArray result;
+        result.reserve(size);
+
+        QRandomGenerator* random = QRandomGenerator::system();
+        while (result.size() < size)
+        {
+            quint32 value = random->generate();
+            for (int byte = 0; byte < 4 && result.size() < size; ++byte)
+            {
+                result.append(static_cast<char>(value & 0xff));
+                value >>= 8;
+            }
+        }
+
+        return result;
+    }
+
+    bool constantTimeEqual(const QByteArray& left, const QByteArray& right)
+    {
+        if (left.size() != right.size())
+            return false;
+
+        unsigned int difference = 0;
+        for (qsizetype i = 0; i < left.size(); ++i)
+        {
+            difference |= static_cast<unsigned char>(left.at(i))
+                ^ static_cast<unsigned char>(right.at(i));
+        }
+
+        return difference == 0;
+    }
+
+    QByteArray deriveNexusApiKeyCacheSubkey(
+        const QByteArray& masterKey, const QByteArray& purpose)
+    {
+        return QMessageAuthenticationCode::hash(
+            purpose, masterKey, QCryptographicHash::Sha256);
+    }
+
+    QByteArray cryptNexusApiKey(
+        const QByteArray& input, const QByteArray& encryptionKey, const QByteArray& nonce)
+    {
+        QByteArray output = input;
+        qsizetype offset = 0;
+        quint32 counter = 0;
+
+        while (offset < input.size())
+        {
+            QByteArray blockInput = QByteArrayLiteral("OMWRLF-NEXUS-STREAM-v1");
+            blockInput.append(nonce);
+            blockInput.append(static_cast<char>((counter >> 24) & 0xff));
+            blockInput.append(static_cast<char>((counter >> 16) & 0xff));
+            blockInput.append(static_cast<char>((counter >> 8) & 0xff));
+            blockInput.append(static_cast<char>(counter & 0xff));
+
+            const QByteArray stream = QMessageAuthenticationCode::hash(
+                blockInput, encryptionKey, QCryptographicHash::Sha256);
+
+            const qsizetype blockSize
+                = std::min<qsizetype>(stream.size(), input.size() - offset);
+
+            for (qsizetype i = 0; i < blockSize; ++i)
+            {
+                output[offset + i] = static_cast<char>(
+                    static_cast<unsigned char>(input.at(offset + i))
+                    ^ static_cast<unsigned char>(stream.at(i)));
+            }
+
+            offset += blockSize;
+            ++counter;
+        }
+
+        return output;
+    }
+
+#ifdef Q_OS_WIN
+    bool protectNexusApiKeyCacheMasterKeyWindows(
+        const QByteArray& plainText, QByteArray& protectedData, QString& error)
+    {
+        DATA_BLOB input = {};
+        input.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(plainText.constData()));
+        input.cbData = static_cast<DWORD>(plainText.size());
+
+        DATA_BLOB output = {};
+        if (!CryptProtectData(&input,
+                L"OpenMW Runtime Localization Fork Nexus Mods test cache",
+                nullptr, nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN, &output))
+        {
+            error = QStringLiteral(
+                "Windows DPAPI could not protect the local cache master key (error %1).")
+                        .arg(static_cast<qulonglong>(GetLastError()));
+            return false;
+        }
+
+        protectedData = QByteArray(
+            reinterpret_cast<const char*>(output.pbData),
+            static_cast<qsizetype>(output.cbData));
+
+        if (output.pbData)
+            LocalFree(output.pbData);
+
+        if (protectedData.isEmpty())
+        {
+            error = QStringLiteral("Windows DPAPI returned an empty protected master key.");
+            return false;
+        }
+
+        return true;
+    }
+
+    bool unprotectNexusApiKeyCacheMasterKeyWindows(
+        const QByteArray& protectedData, QByteArray& plainText, QString& error)
+    {
+        DATA_BLOB input = {};
+        input.pbData = reinterpret_cast<BYTE*>(const_cast<char*>(protectedData.constData()));
+        input.cbData = static_cast<DWORD>(protectedData.size());
+
+        DATA_BLOB output = {};
+        if (!CryptUnprotectData(&input, nullptr, nullptr, nullptr, nullptr,
+                CRYPTPROTECT_UI_FORBIDDEN, &output))
+        {
+            error = QStringLiteral(
+                "Windows DPAPI could not unlock the local cache master key for this user (error %1).")
+                        .arg(static_cast<qulonglong>(GetLastError()));
+            return false;
+        }
+
+        plainText = QByteArray(
+            reinterpret_cast<const char*>(output.pbData),
+            static_cast<qsizetype>(output.cbData));
+
+        if (output.pbData)
+        {
+            SecureZeroMemory(output.pbData, output.cbData);
+            LocalFree(output.pbData);
+        }
+
+        if (plainText.isEmpty())
+        {
+            error = QStringLiteral("Windows DPAPI returned an empty master key.");
+            return false;
+        }
+
+        return true;
+    }
+#endif
+
+    bool writeOwnerOnlyFile(const QString& path, const QByteArray& data, QString& error)
+    {
+        const QString directory = QFileInfo(path).absolutePath();
+        if (directory.isEmpty() || !QDir().mkpath(directory))
+        {
+            error = QStringLiteral("Could not create the cache directory: %1").arg(directory);
+            return false;
+        }
+
+        QSaveFile file(path);
+        if (!file.open(QIODevice::WriteOnly))
+        {
+            error = file.errorString();
+            return false;
+        }
+
+#ifndef Q_OS_WIN
+        if (!file.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner))
+        {
+            error = QStringLiteral("Could not restrict cache file permissions.");
+            file.cancelWriting();
+            return false;
+        }
+#endif
+
+        if (file.write(data) != data.size())
+        {
+            error = file.errorString();
+            file.cancelWriting();
+            return false;
+        }
+
+        if (!file.commit())
+        {
+            error = file.errorString();
+            return false;
+        }
+
+#ifndef Q_OS_WIN
+        if (!QFile::setPermissions(
+                path, QFileDevice::ReadOwner | QFileDevice::WriteOwner))
+        {
+            QFile::remove(path);
+            error = QStringLiteral("Could not enforce owner-only cache file permissions.");
+            return false;
+        }
+#endif
+
+        return true;
+    }
+
+    bool loadNexusApiKeyCacheMasterKey(
+        const Files::ConfigurationManager& cfg, QByteArray& masterKey,
+        QString& error, bool createIfMissing)
+    {
+        const QString keyPath = nexusApiKeyCacheMasterKeyPath(cfg);
+        QFile keyFile(keyPath);
+
+        if (keyFile.exists())
+        {
+            if (!keyFile.open(QIODevice::ReadOnly))
+            {
+                error = keyFile.errorString();
+                return false;
+            }
+
+            QByteArray storedMasterKey = keyFile.readAll();
+#ifdef Q_OS_WIN
+            if (!unprotectNexusApiKeyCacheMasterKeyWindows(
+                    storedMasterKey, masterKey, error))
+            {
+                storedMasterKey.fill('\0');
+                return false;
+            }
+            storedMasterKey.fill('\0');
+#else
+            masterKey = storedMasterKey;
+            storedMasterKey.fill('\0');
+
+            if (!QFile::setPermissions(
+                    keyPath, QFileDevice::ReadOwner | QFileDevice::WriteOwner))
+            {
+                error = QStringLiteral("Could not restrict the local cache master key permissions.");
+                masterKey.clear();
+                return false;
+            }
+#endif
+
+            if (masterKey.size() != sNexusApiKeyCacheMasterKeySize)
+            {
+                error = QStringLiteral("The local cache master key has an invalid size.");
+                masterKey.fill('\0');
+                masterKey.clear();
+                return false;
+            }
+
+            return true;
+        }
+
+        if (!createIfMissing)
+        {
+            error = QStringLiteral("The local cache master key file is missing.");
+            return false;
+        }
+
+        masterKey = secureRandomBytes(sNexusApiKeyCacheMasterKeySize);
+        if (masterKey.size() != sNexusApiKeyCacheMasterKeySize)
+        {
+            error = QStringLiteral("Could not generate the local cache master key.");
+            masterKey.clear();
+            return false;
+        }
+
+        QByteArray storedMasterKey = masterKey;
+#ifdef Q_OS_WIN
+        storedMasterKey.clear();
+        if (!protectNexusApiKeyCacheMasterKeyWindows(
+                masterKey, storedMasterKey, error))
+        {
+            masterKey.fill('\0');
+            masterKey.clear();
+            return false;
+        }
+#endif
+
+        QString writeError;
+        if (!writeOwnerOnlyFile(keyPath, storedMasterKey, writeError))
+        {
+            error = QStringLiteral("Could not save the local cache master key: %1")
+                        .arg(writeError);
+            storedMasterKey.fill('\0');
+            masterKey.fill('\0');
+            masterKey.clear();
+            return false;
+        }
+
+        storedMasterKey.fill('\0');
+        return true;
+    }
+
+    bool saveNexusApiKeyCache(
+        const Files::ConfigurationManager& cfg, const QString& apiKey, QString& error)
+    {
+        const QByteArray plainText = apiKey.toUtf8();
+        if (plainText.isEmpty())
+        {
+            error = QStringLiteral("The API key is empty.");
+            return false;
+        }
+
+        QByteArray masterKey;
+        if (!loadNexusApiKeyCacheMasterKey(cfg, masterKey, error, true))
+            return false;
+
+        const QByteArray nonce = secureRandomBytes(sNexusApiKeyCacheNonceSize);
+        if (nonce.size() != sNexusApiKeyCacheNonceSize)
+        {
+            error = QStringLiteral("Could not generate the cache nonce.");
+            masterKey.fill('\0');
+            return false;
+        }
+
+        QByteArray encryptionKey = deriveNexusApiKeyCacheSubkey(
+            masterKey, QByteArrayLiteral("OMWRLF-NEXUS-ENC-v1"));
+        QByteArray authenticationKey = deriveNexusApiKeyCacheSubkey(
+            masterKey, QByteArrayLiteral("OMWRLF-NEXUS-MAC-v1"));
+        masterKey.fill('\0');
+
+        const QByteArray cipherText = cryptNexusApiKey(plainText, encryptionKey, nonce);
+        encryptionKey.fill('\0');
+
+        QByteArray authenticatedData = nexusApiKeyCacheMagic();
+        authenticatedData.append(nonce);
+        authenticatedData.append(cipherText);
+
+        const QByteArray tag = QMessageAuthenticationCode::hash(
+            authenticatedData, authenticationKey, QCryptographicHash::Sha256);
+        authenticationKey.fill('\0');
+
+        if (tag.size() != sNexusApiKeyCacheTagSize)
+        {
+            error = QStringLiteral("Could not authenticate the encrypted cache.");
+            return false;
+        }
+
+        QByteArray payload = authenticatedData;
+        payload.append(tag);
+
+        return writeOwnerOnlyFile(nexusApiKeyCachePath(cfg), payload, error);
+    }
+
+    NexusApiKeyCacheLoadResult loadNexusApiKeyCache(
+        const Files::ConfigurationManager& cfg, QString& apiKey, QString& error)
+    {
+        const QString cachePath = nexusApiKeyCachePath(cfg);
+        QFile cacheFile(cachePath);
+        if (!cacheFile.exists())
+            return NexusApiKeyCacheLoadResult::Missing;
+
+        if (!cacheFile.open(QIODevice::ReadOnly))
+        {
+            error = cacheFile.errorString();
+            return NexusApiKeyCacheLoadResult::Error;
+        }
+
+        const QByteArray payload = cacheFile.readAll();
+        const QByteArray& magic = nexusApiKeyCacheMagic();
+        const qsizetype minimumSize
+            = magic.size() + sNexusApiKeyCacheNonceSize + sNexusApiKeyCacheTagSize + 1;
+
+        if (payload.size() < minimumSize || !payload.startsWith(magic))
+        {
+            error = QStringLiteral("The encrypted cache has an invalid format.");
+            return NexusApiKeyCacheLoadResult::Error;
+        }
+
+        QByteArray masterKey;
+        if (!loadNexusApiKeyCacheMasterKey(cfg, masterKey, error, false))
+            return NexusApiKeyCacheLoadResult::Error;
+
+        const qsizetype cipherOffset = magic.size() + sNexusApiKeyCacheNonceSize;
+        const qsizetype cipherSize = payload.size() - cipherOffset - sNexusApiKeyCacheTagSize;
+
+        const QByteArray nonce
+            = payload.mid(magic.size(), sNexusApiKeyCacheNonceSize);
+        const QByteArray cipherText = payload.mid(cipherOffset, cipherSize);
+        const QByteArray storedTag = payload.right(sNexusApiKeyCacheTagSize);
+        const QByteArray authenticatedData
+            = payload.left(payload.size() - sNexusApiKeyCacheTagSize);
+
+        QByteArray encryptionKey = deriveNexusApiKeyCacheSubkey(
+            masterKey, QByteArrayLiteral("OMWRLF-NEXUS-ENC-v1"));
+        QByteArray authenticationKey = deriveNexusApiKeyCacheSubkey(
+            masterKey, QByteArrayLiteral("OMWRLF-NEXUS-MAC-v1"));
+        masterKey.fill('\0');
+
+        const QByteArray expectedTag = QMessageAuthenticationCode::hash(
+            authenticatedData, authenticationKey, QCryptographicHash::Sha256);
+        authenticationKey.fill('\0');
+
+        if (!constantTimeEqual(storedTag, expectedTag))
+        {
+            encryptionKey.fill('\0');
+            error = QStringLiteral(
+                "The encrypted cache failed its integrity check or belongs to another local cache key.");
+            return NexusApiKeyCacheLoadResult::Error;
+        }
+
+        QByteArray plainText = cryptNexusApiKey(cipherText, encryptionKey, nonce);
+        encryptionKey.fill('\0');
+
+        apiKey = QString::fromUtf8(plainText).trimmed();
+        plainText.fill('\0');
+
+        if (apiKey.isEmpty())
+        {
+            error = QStringLiteral("The decrypted API key is empty.");
+            return NexusApiKeyCacheLoadResult::Error;
+        }
+
+        return NexusApiKeyCacheLoadResult::Loaded;
+    }
+
+    bool removeNexusApiKeyCache(
+        const Files::ConfigurationManager& cfg, QString& error)
+    {
+        QStringList failedPaths;
+        const QStringList paths = {
+            nexusApiKeyCachePath(cfg),
+            nexusApiKeyCacheMasterKeyPath(cfg),
+        };
+
+        for (const QString& path : paths)
+        {
+            if (QFileInfo::exists(path) && !QFile::remove(path))
+                failedPaths.append(path);
+        }
+
+        if (!failedPaths.isEmpty())
+        {
+            error = QStringLiteral("Could not remove: %1")
+                        .arg(failedPaths.join(QStringLiteral(", ")));
+            return false;
+        }
+
+        return true;
+    }
+
     const QString& nxmDesktopEntryId()
     {
         static const QString id = QStringLiteral("openmw-runtime-localization-fork-nxm.desktop");
@@ -852,15 +1331,69 @@ Launcher::DataFilesPage::DataFilesPage(const Files::ConfigurationManager& cfg, C
 
     auto* nexusModsButton = new QPushButton(tr("Nexus Mods..."), this);
     nexusModsButton->setToolTip(
-        tr("Connect to Nexus Mods with a Personal API key for development and testing."));
+        tr("Connect to Nexus Mods with a Personal API key for development and testing. "
+           "The key can optionally be kept in an encrypted local test cache."));
     ui.modsDirectoryLayout->insertWidget(4, nexusModsButton);
     connect(nexusModsButton, &QPushButton::released, this, &DataFilesPage::connectNexusMods);
+
+    auto* removeNexusApiKeyButton = new QPushButton(tr("Remove Nexus API Key..."), this);
+    removeNexusApiKeyButton->setToolTip(
+        tr("Remove the saved Nexus Mods Personal API key test cache and clear the current launcher session."));
+    ui.modsDirectoryLayout->insertWidget(5, removeNexusApiKeyButton);
+    connect(removeNexusApiKeyButton, &QPushButton::released, this, [this]() {
+        const QString cachePath = nexusApiKeyCachePath(mCfgMgr);
+        const QString masterKeyPath = nexusApiKeyCacheMasterKeyPath(mCfgMgr);
+        const bool cacheExists = QFileInfo::exists(cachePath) || QFileInfo::exists(masterKeyPath);
+        const bool activeSession = !mNexusApiKey.isEmpty();
+
+        if (!cacheExists && !activeSession)
+        {
+            QMessageBox::information(this, tr("Nexus Mods - Testing only"),
+                tr("No saved or active Nexus Mods Personal API key was found."));
+            return;
+        }
+
+        const QMessageBox::StandardButton answer = QMessageBox::warning(
+            this, tr("Nexus Mods - Testing only"),
+            tr("Remove the Nexus Mods Personal API key?\n\n"
+               "This removes the encrypted local test cache files, if present, and clears the key "
+               "from the current launcher session. You will need to enter the Personal API key again "
+               "the next time Nexus Mods access is required."),
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+
+        if (answer != QMessageBox::Yes)
+            return;
+
+        QString removeError;
+        bool cacheRemoved = true;
+        if (cacheExists)
+            cacheRemoved = removeNexusApiKeyCache(mCfgMgr, removeError);
+
+        mNexusApiKey.clear();
+        mNexusUserName.clear();
+        mNexusPremium = false;
+        mNexusUserId = 0;
+
+        if (!cacheRemoved)
+        {
+            QMessageBox::warning(this, tr("Nexus Mods - Testing only"),
+                tr("The current Nexus Mods session was cleared, but the saved Personal API key test cache "
+                   "could not be completely removed.\n%1\n\n"
+                   "The remaining cache files may be loaded again by a later Nexus Mods action until they are removed.")
+                    .arg(removeError));
+            return;
+        }
+
+        QMessageBox::information(this, tr("Nexus Mods - Testing only"),
+            tr("The Nexus Mods Personal API key has been removed. "
+               "The launcher is no longer connected to Nexus Mods."));
+    });
 
 #ifdef Q_OS_LINUX
     auto* nxmHandlerButton = new QPushButton(tr("NXM Handler..."), this);
     nxmHandlerButton->setToolTip(
         tr("View or change the default application for Nexus Mods Mod Manager Download links."));
-    ui.modsDirectoryLayout->insertWidget(5, nxmHandlerButton);
+    ui.modsDirectoryLayout->insertWidget(6, nxmHandlerButton);
     connect(nxmHandlerButton, &QPushButton::released, this, &DataFilesPage::showNxmHandlerSettings);
 #endif
 
@@ -3399,17 +3932,42 @@ bool Launcher::DataFilesPage::ensureNexusConnected()
     if (!mNexusApiKey.isEmpty())
         return true;
 
-    bool accepted = false;
-    const QString enteredKey = QInputDialog::getText(this, tr("Connect to Nexus Mods"),
-        tr("Personal API key:"), QLineEdit::Password, QString(), &accepted).trimmed();
+    const QString cachePath = nexusApiKeyCachePath(mCfgMgr);
+    QString enteredKey;
+    QString cacheError;
+    bool loadedFromCache = false;
 
-    if (!accepted)
-        return false;
+    const NexusApiKeyCacheLoadResult cacheResult
+        = loadNexusApiKeyCache(mCfgMgr, enteredKey, cacheError);
 
-    if (enteredKey.isEmpty())
+    if (cacheResult == NexusApiKeyCacheLoadResult::Loaded)
     {
-        QMessageBox::warning(this, tr("Nexus Mods"), tr("Enter a Personal API key."));
-        return false;
+        loadedFromCache = true;
+    }
+    else if (cacheResult == NexusApiKeyCacheLoadResult::Error)
+    {
+        QMessageBox::warning(this, tr("Nexus Mods - Testing only"),
+            tr("The encrypted test API key cache could not be read:\n%1\n\n"
+               "%2\n\n"
+               "The launcher will ask for the Personal API key again.")
+                .arg(cachePath)
+                .arg(cacheError));
+    }
+
+    if (!loadedFromCache)
+    {
+        bool accepted = false;
+        enteredKey = QInputDialog::getText(this, tr("Connect to Nexus Mods"),
+            tr("Personal API key:"), QLineEdit::Password, QString(), &accepted).trimmed();
+
+        if (!accepted)
+            return false;
+
+        if (enteredKey.isEmpty())
+        {
+            QMessageBox::warning(this, tr("Nexus Mods"), tr("Enter a Personal API key."));
+            return false;
+        }
     }
 
     QNetworkRequest request(QUrl(QStringLiteral("https://api.nexusmods.com/v1/users/validate.json")));
@@ -3437,6 +3995,30 @@ bool Launcher::DataFilesPage::ensureNexusConnected()
 
     if (!requestSucceeded)
     {
+        if (loadedFromCache && (httpStatus == 401 || httpStatus == 403))
+        {
+            const QMessageBox::StandardButton removeAnswer = QMessageBox::warning(
+                this, tr("Nexus Mods - Testing only"),
+                tr("The Personal API key loaded from the encrypted test cache was rejected by Nexus Mods.\n\n"
+                   "Cache file:\n%1\n\n"
+                   "Remove the saved test key? The launcher will ask for it again on the next Nexus Mods action.")
+                    .arg(cachePath),
+                QMessageBox::Yes | QMessageBox::No, QMessageBox::Yes);
+
+            if (removeAnswer == QMessageBox::Yes)
+            {
+                QString removeError;
+                if (!removeNexusApiKeyCache(mCfgMgr, removeError))
+                {
+                    QMessageBox::warning(this, tr("Nexus Mods - Testing only"),
+                        tr("Could not remove the saved test API key cache:\n%1")
+                            .arg(removeError));
+                }
+            }
+
+            return false;
+        }
+
         QString details = object.value(QStringLiteral("message")).toString();
         if (details.isEmpty())
             details = networkError;
@@ -3468,11 +4050,70 @@ bool Launcher::DataFilesPage::ensureNexusConnected()
     mNexusPremium = object.value(QStringLiteral("is_premium")).toBool(false);
     mNexusUserId = object.value(QStringLiteral("user_id")).toVariant().toLongLong();
 
+    bool savedToCache = loadedFromCache;
+
+    if (!loadedFromCache)
+    {
+        const QMessageBox::StandardButton saveAnswer = QMessageBox::warning(
+            this, tr("Nexus Mods - Testing only"),
+            tr("Temporary development/testing feature\n\n"
+               "Until OpenMW Runtime Localization Fork receives official Nexus Mods API integration, "
+               "the launcher can save your Personal API key in an encrypted local cache so you do not "
+               "have to enter it after every restart.\n\n"
+               "The encrypted cache uses a separate random local cache key. Both files stay in your "
+               "OpenMW user configuration directory. On Unix their permissions are restricted to the owner. "
+               "On Windows the local cache master key is additionally protected with Windows DPAPI for the "
+               "current user. This is still a temporary test cache, not a replacement for a dedicated "
+               "credential store. Software running with access to your user account may still be able to "
+               "recover the key.\n\n"
+               "Do not distribute or commit these cache files.\n\n"
+               "Save the key for testing?"),
+            QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+
+        if (saveAnswer == QMessageBox::Yes)
+        {
+            QString saveError;
+            if (saveNexusApiKeyCache(mCfgMgr, enteredKey, saveError))
+            {
+                savedToCache = true;
+            }
+            else
+            {
+                QMessageBox::warning(this, tr("Nexus Mods - Testing only"),
+                    tr("Could not save the encrypted test API key cache:\n%1\n\n"
+                       "%2\n\n"
+                       "The key will be kept only for this launcher session.")
+                        .arg(cachePath)
+                        .arg(saveError));
+            }
+        }
+    }
+
+    QString storageMessage;
+    if (loadedFromCache)
+    {
+        storageMessage = tr("The Personal API key was loaded from the encrypted local test cache:\n%1\n\n"
+                            "Temporary development/testing feature. Use the \"Remove Nexus API Key...\" button in the launcher to remove the saved key. "
+                            "This cache option will be removed when official Nexus Mods API integration is available.")
+                             .arg(cachePath);
+    }
+    else if (savedToCache)
+    {
+        storageMessage = tr("The Personal API key was saved to the encrypted local test cache:\n%1\n\n"
+                            "Temporary development/testing feature. Use the \"Remove Nexus API Key...\" button in the launcher to remove the saved key. "
+                            "This cache option will be removed when official Nexus Mods API integration is available.")
+                             .arg(cachePath);
+    }
+    else
+    {
+        storageMessage = tr("The Personal API key is kept only for this launcher session.");
+    }
+
     QMessageBox::information(this, tr("Nexus Mods Connected"),
-        tr("Connected to Nexus Mods as: %1\nAccount: %2\n\n"
-           "The Personal API key is kept only for this launcher session.")
+        tr("Connected to Nexus Mods as: %1\nAccount: %2\n\n%3")
             .arg(mNexusUserName)
-            .arg(mNexusPremium ? tr("Premium") : tr("Free")));
+            .arg(mNexusPremium ? tr("Premium") : tr("Free"))
+            .arg(storageMessage));
 
     return true;
 }
