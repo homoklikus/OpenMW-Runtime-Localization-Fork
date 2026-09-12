@@ -186,7 +186,7 @@ namespace MWWorld
     }
 
     World::World(Resource::ResourceSystem* resourceSystem, int activationDistanceOverride, const std::string& startCell,
-        const std::filesystem::path& userDataPath)
+        const std::filesystem::path& userDataPath, const WorldConfig::Settings& worldSettings)
         : mResourceSystem(resourceSystem)
         , mLocalScripts(mStore)
         , mWorldModel(mStore, mReaders)
@@ -196,6 +196,7 @@ namespace MWWorld
         , mScriptsEnabled(true)
         , mDiscardMovements(true)
         , mUserDataPath(userDataPath)
+        , mWorldSettings(worldSettings)
         , mActivationDistanceOverride(activationDistanceOverride)
         , mStartCell(startCell)
         , mSwimHeightScale(0.f)
@@ -254,7 +255,7 @@ namespace MWWorld
         }
 
         mRendering = std::make_unique<MWRender::RenderingManager>(
-            viewer, rootNode, mResourceSystem, workQueue, *mNavigator, mGroundcoverStore, unrefQueue);
+            viewer, rootNode, mResourceSystem, workQueue, *mNavigator, mGroundcoverStore, unrefQueue, mWorldSettings);
         mProjectileManager = std::make_unique<ProjectileManager>(
             mRendering->getLightRoot()->asGroup(), mResourceSystem, mRendering.get(), mPhysics.get());
         mRendering->preloadCommonAssets();

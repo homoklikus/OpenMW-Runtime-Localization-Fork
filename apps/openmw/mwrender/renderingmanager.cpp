@@ -122,7 +122,7 @@ namespace MWRender
     RenderingManager::RenderingManager(osgViewer::Viewer* viewer, osg::ref_ptr<osg::Group> rootNode,
         Resource::ResourceSystem* resourceSystem, SceneUtil::WorkQueue* workQueue,
         DetourNavigator::Navigator& navigator, const MWWorld::GroundcoverStore& groundcoverStore,
-        SceneUtil::UnrefQueue& unrefQueue)
+        SceneUtil::UnrefQueue& unrefQueue, const WorldConfig::Settings& worldSettings)
         : mSkyBlending(Settings::fog().mSkyBlending)
         , mViewer(viewer)
         , mRootNode(rootNode)
@@ -139,6 +139,7 @@ namespace MWRender
         , mFieldOfView(Settings::camera().mFieldOfView)
         , mFirstPersonFieldOfView(Settings::camera().mFirstPersonFieldOfView)
         , mGroundCoverStore(groundcoverStore)
+        , mWorldSettings(worldSettings)
     {
         bool reverseZ = SceneUtil::AutoDepth::isReversed();
 
@@ -1221,7 +1222,19 @@ namespace MWRender
         RenderingManager::WorldspaceChunkMgr newChunkMgr;
 
         const float lodFactor = Settings::terrain().mLodFactor;
-        const bool groundcover = Settings::groundcover().mEnabled && worldspace == ESM::Cell::sDefaultWorldspaceId;
+
+        const bool floraConfigured = mWorldSettings.mFlora.mEnabled;
+        const bool proceduralFlora = floraConfigured
+            && (mWorldSettings.mFlora.mSource == WorldConfig::FloraSource::Automatic
+                || mWorldSettings.mFlora.mSource == WorldConfig::FloraSource::Hybrid);
+        const bool configuredGroundcover = floraConfigured
+            && (mWorldSettings.mFlora.mSource == WorldConfig::FloraSource::Groundcover
+                || mWorldSettings.mFlora.mSource == WorldConfig::FloraSource::Hybrid);
+        const bool legacyGroundcover = !floraConfigured && Settings::groundcover().mEnabled;
+        const bool pluginGroundcover = configuredGroundcover || legacyGroundcover;
+        const bool groundcover
+            = (pluginGroundcover || proceduralFlora) && worldspace == ESM::Cell::sDefaultWorldspaceId;
+
         const bool distantTerrain = Settings::terrain().mDistantTerrain;
         const double expiryDelay = Settings::cells().mCacheExpiryDelay;
         if (distantTerrain || groundcover)
@@ -1245,10 +1258,20 @@ namespace MWRender
             if (groundcover)
             {
                 const float groundcoverDistance = Settings::groundcover().mRenderingDistance;
-                const float density = Settings::groundcover().mDensity;
+                float pluginDensity = Settings::groundcover().mDensity;
+                if (floraConfigured && pluginGroundcover)
+                    pluginDensity = std::clamp(
+                        pluginDensity * mWorldSettings.mFlora.mDensity, 0.f, 1.f);
+
+                Log(Debug::Info) << "World flora renderer: source="
+                                 << WorldConfig::toString(mWorldSettings.mFlora.mSource)
+                                 << ", pluginGroundcover=" << pluginGroundcover
+                                 << ", procedural=" << proceduralFlora
+                                 << ", proceduralDensity=" << mWorldSettings.mFlora.mDensity;
 
                 newChunkMgr.mGroundcover = std::make_unique<Groundcover>(
-                    mResourceSystem->getSceneManager(), density, groundcoverDistance, mGroundCoverStore);
+                    mResourceSystem->getSceneManager(), pluginDensity, groundcoverDistance, mGroundCoverStore,
+                    mTerrainStorage.get(), pluginGroundcover, proceduralFlora, mWorldSettings.mFlora.mDensity);
                 quadTreeWorld->addChunkManager(newChunkMgr.mGroundcover.get());
                 mResourceSystem->addResourceManager(newChunkMgr.mGroundcover.get());
             }

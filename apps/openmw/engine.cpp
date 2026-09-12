@@ -1203,7 +1203,7 @@ void OMW::Engine::prepareEngine()
 
     // Create the world
     mWorld = std::make_unique<MWWorld::World>(
-        mResourceSystem.get(), mActivationDistanceOverride, mCellName, mCfgMgr.getUserDataPath());
+        mResourceSystem.get(), mActivationDistanceOverride, mCellName, mCfgMgr.getUserDataPath(), mWorldSettings);
     mEnvironment.setWorld(*mWorld);
     mEnvironment.setWorldModel(mWorld->getWorldModel());
     mEnvironment.setESMStore(mWorld->getStore());

@@ -18,13 +18,15 @@ namespace osg
 
 namespace MWRender
 {
+    class TerrainStorage;
     typedef std::tuple<osg::Vec2f, float> GroundcoverChunkId; // Center, Size
     class Groundcover : public Resource::GenericResourceManager<GroundcoverChunkId>,
                         public Terrain::QuadTreeWorld::ChunkManager
     {
     public:
         Groundcover(Resource::SceneManager* sceneManager, float density, float viewDistance,
-            const MWWorld::GroundcoverStore& store);
+            const MWWorld::GroundcoverStore& store, TerrainStorage* terrainStorage, bool includePluginGroundcover,
+            bool proceduralEnabled, float proceduralDensity);
         ~Groundcover();
 
         osg::ref_ptr<osg::Node> getChunk(float size, const osg::Vec2f& center, unsigned char lod, unsigned int lodFlags,
@@ -44,6 +46,12 @@ namespace MWRender
                 , mScale(ref.mScale)
             {
             }
+
+            GroundcoverEntry(const ESM::Position& pos, float scale)
+                : mPos(pos)
+                , mScale(scale)
+            {
+            }
         };
 
     private:
@@ -54,6 +62,11 @@ namespace MWRender
         osg::ref_ptr<osg::StateSet> mStateset;
         osg::ref_ptr<osg::Program> mProgramTemplate;
         const MWWorld::GroundcoverStore& mGroundcoverStore;
+        TerrainStorage* mTerrainStorage;
+        bool mIncludePluginGroundcover;
+        bool mProceduralEnabled;
+        float mProceduralDensity;
+        VFS::Path::Normalized mProceduralModel;
 
         osg::ref_ptr<osg::Node> createChunk(InstanceMap& instances, const osg::Vec2f& center);
         void collectInstances(InstanceMap& instances, float size, const osg::Vec2f& center);

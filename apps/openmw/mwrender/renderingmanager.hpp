@@ -7,6 +7,7 @@
 
 #include <components/settings/settings.hpp>
 #include <components/vfs/pathutil.hpp>
+#include <components/worldconfig/worldsettings.hpp>
 
 #include <osg/Light>
 #include <osg/ref_ptr>
@@ -113,7 +114,7 @@ namespace MWRender
         RenderingManager(osgViewer::Viewer* viewer, osg::ref_ptr<osg::Group> rootNode,
             Resource::ResourceSystem* resourceSystem, SceneUtil::WorkQueue* workQueue,
             DetourNavigator::Navigator& navigator, const MWWorld::GroundcoverStore& groundcoverStore,
-            SceneUtil::UnrefQueue& unrefQueue);
+            SceneUtil::UnrefQueue& unrefQueue, const WorldConfig::Settings& worldSettings);
         ~RenderingManager();
 
         osgUtil::IncrementalCompileOperation* getIncrementalCompileOperation();
@@ -363,6 +364,7 @@ namespace MWRender
         bool mNight = false;
         osg::Vec2f mProjectionOffset;
         const MWWorld::GroundcoverStore& mGroundCoverStore;
+        WorldConfig::Settings mWorldSettings;
 
         void operator=(const RenderingManager&);
         RenderingManager(const RenderingManager&);

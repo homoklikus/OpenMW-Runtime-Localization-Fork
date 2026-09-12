@@ -54,6 +54,13 @@ namespace MWWorld
             return it->second;
         }
 
+        VFS::Path::NormalizedView getAnyGroundcoverModel() const
+        {
+            if (mMeshCache.empty())
+                return {};
+            return mMeshCache.begin()->second;
+        }
+
         void initCell(ESM::Cell& cell, int cellX, int cellY) const;
     };
 }

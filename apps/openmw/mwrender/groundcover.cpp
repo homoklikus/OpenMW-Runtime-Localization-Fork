@@ -1,5 +1,8 @@
 #include "groundcover.hpp"
 
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include <span>
 
 #include <osg/AlphaFunc>
@@ -22,6 +25,7 @@
 
 #include "../mwworld/groundcoverstore.hpp"
 
+#include "terrainstorage.hpp"
 #include "vismask.hpp"
 
 namespace MWRender
@@ -343,13 +347,19 @@ namespace MWRender
         }
     }
 
-    Groundcover::Groundcover(
-        Resource::SceneManager* sceneManager, float density, float viewDistance, const MWWorld::GroundcoverStore& store)
+    Groundcover::Groundcover(Resource::SceneManager* sceneManager, float density, float viewDistance,
+        const MWWorld::GroundcoverStore& store, TerrainStorage* terrainStorage, bool includePluginGroundcover,
+        bool proceduralEnabled, float proceduralDensity)
         : GenericResourceManager<GroundcoverChunkId>(nullptr, Settings::cells().mCacheExpiryDelay)
         , mSceneManager(sceneManager)
         , mDensity(density)
         , mStateset(new osg::StateSet)
         , mGroundcoverStore(store)
+        , mTerrainStorage(terrainStorage)
+        , mIncludePluginGroundcover(includePluginGroundcover)
+        , mProceduralEnabled(proceduralEnabled)
+        , mProceduralDensity(std::clamp(proceduralDensity, 0.f, 2.f))
+        , mProceduralModel(store.getAnyGroundcoverModel())
     {
         setViewDistance(viewDistance);
         // MGE uses default alpha settings for groundcover, so we can not rely on alpha properties
@@ -366,64 +376,149 @@ namespace MWRender
             : osg::ref_ptr<osg::Program>(new osg::Program);
         mProgramTemplate->addBindAttribLocation("aOffset", 6);
         mProgramTemplate->addBindAttribLocation("aRotation", 7);
+
+        if (mProceduralEnabled)
+        {
+            if (mProceduralModel.empty())
+            {
+                Log(Debug::Warning) << "Procedural flora PoC: no groundcover mesh is available; "
+                                       "automatic placement is disabled for this run.";
+            }
+            else
+            {
+                Log(Debug::Info) << "Procedural flora PoC: model=" << mProceduralModel
+                                 << ", density=" << mProceduralDensity;
+            }
+        }
     }
 
     Groundcover::~Groundcover() = default;
 
     void Groundcover::collectInstances(InstanceMap& instances, float size, const osg::Vec2f& center)
     {
-        if (mDensity <= 0.f)
-            return;
-
         osg::Vec2f minBound = (center - osg::Vec2f(size / 2.f, size / 2.f));
         osg::Vec2f maxBound = (center + osg::Vec2f(size / 2.f, size / 2.f));
-        DensityCalculator calculator(mDensity);
-        ESM::ReadersCache readers;
         osg::Vec2i startCell = osg::Vec2i(static_cast<int>(std::floor(center.x() - size / 2.f)),
             static_cast<int>(std::floor(center.y() - size / 2.f)));
+
+        if (mIncludePluginGroundcover && mDensity > 0.f)
+        {
+            DensityCalculator calculator(mDensity);
+            ESM::ReadersCache readers;
+
+            for (int cellX = startCell.x(); cellX < startCell.x() + size; ++cellX)
+            {
+                for (int cellY = startCell.y(); cellY < startCell.y() + size; ++cellY)
+                {
+                    ESM::Cell cell;
+                    mGroundcoverStore.initCell(cell, cellX, cellY);
+                    if (cell.mContextList.empty())
+                        continue;
+
+                    calculator.reset();
+                    std::map<ESM::RefNum, ESM::CellRef> refs;
+                    for (size_t i = 0; i < cell.mContextList.size(); ++i)
+                    {
+                        const std::size_t index = static_cast<std::size_t>(cell.mContextList[i].index);
+                        const ESM::ReadersCache::BusyItem reader = readers.get(index);
+                        cell.restore(*reader, i);
+                        ESM::CellRef ref;
+                        bool deleted = false;
+                        while (cell.getNextRef(*reader, ref, deleted))
+                        {
+                            if (!deleted && refs.find(ref.mRefNum) == refs.end() && !calculator.isInstanceEnabled())
+                                deleted = true;
+                            if (!deleted && !isInChunkBorders(ref, minBound, maxBound))
+                                deleted = true;
+
+                            if (deleted)
+                            {
+                                refs.erase(ref.mRefNum);
+                                continue;
+                            }
+                            refs[ref.mRefNum] = std::move(ref);
+                        }
+                    }
+
+                    for (auto& [refNum, cellRef] : refs)
+                    {
+                        const VFS::Path::NormalizedView model = mGroundcoverStore.getGroundcoverModel(cellRef.mRefID);
+                        if (model.empty())
+                            continue;
+                        auto it = instances.find(model);
+                        if (it == instances.end())
+                            it = instances.emplace_hint(
+                                it, VFS::Path::Normalized(model), std::vector<GroundcoverEntry>());
+                        it->second.emplace_back(std::move(cellRef));
+                    }
+                }
+            }
+        }
+
+        if (!mProceduralEnabled || mProceduralDensity <= 0.f || mProceduralModel.empty() || mTerrainStorage == nullptr)
+            return;
+
+        auto hash32 = [](std::uint32_t value) {
+            value ^= value >> 16;
+            value *= 0x7feb352du;
+            value ^= value >> 15;
+            value *= 0x846ca68bu;
+            value ^= value >> 16;
+            return value;
+        };
+
+        auto random01 = [&](std::uint32_t seed) {
+            return static_cast<float>(hash32(seed) & 0x00ffffffu) / static_cast<float>(0x01000000u);
+        };
+
+        auto proceduralIt = instances.find(mProceduralModel);
+        if (proceduralIt == instances.end())
+            proceduralIt = instances.emplace_hint(
+                proceduralIt, mProceduralModel, std::vector<GroundcoverEntry>());
+
+        const int candidatesPerCell
+            = std::max(1, static_cast<int>(std::lround(24.f * mProceduralDensity)));
+        constexpr float margin = 0.06f;
+        constexpr float twoPi = 6.2831853071795864769f;
+
         for (int cellX = startCell.x(); cellX < startCell.x() + size; ++cellX)
         {
             for (int cellY = startCell.y(); cellY < startCell.y() + size; ++cellY)
             {
-                ESM::Cell cell;
-                mGroundcoverStore.initCell(cell, cellX, cellY);
-                if (cell.mContextList.empty())
-                    continue;
-
-                calculator.reset();
-                std::map<ESM::RefNum, ESM::CellRef> refs;
-                for (size_t i = 0; i < cell.mContextList.size(); ++i)
+                for (int index = 0; index < candidatesPerCell; ++index)
                 {
-                    const std::size_t index = static_cast<std::size_t>(cell.mContextList[i].index);
-                    const ESM::ReadersCache::BusyItem reader = readers.get(index);
-                    cell.restore(*reader, i);
-                    ESM::CellRef ref;
-                    bool deleted = false;
-                    while (cell.getNextRef(*reader, ref, deleted))
-                    {
-                        if (!deleted && refs.find(ref.mRefNum) == refs.end() && !calculator.isInstanceEnabled())
-                            deleted = true;
-                        if (!deleted && !isInChunkBorders(ref, minBound, maxBound))
-                            deleted = true;
+                    const std::uint32_t base
+                        = static_cast<std::uint32_t>(cellX) * 0x9e3779b9u
+                        ^ static_cast<std::uint32_t>(cellY) * 0x85ebca6bu
+                        ^ static_cast<std::uint32_t>(index) * 0xc2b2ae35u;
 
-                        if (deleted)
-                        {
-                            refs.erase(ref.mRefNum);
-                            continue;
-                        }
-                        refs[ref.mRefNum] = std::move(ref);
-                    }
-                }
+                    const float fx = margin + (1.f - 2.f * margin) * random01(base ^ 0x68bc21ebu);
+                    const float fy = margin + (1.f - 2.f * margin) * random01(base ^ 0x02e5be93u);
 
-                for (auto& [refNum, cellRef] : refs)
-                {
-                    const VFS::Path::NormalizedView model = mGroundcoverStore.getGroundcoverModel(cellRef.mRefID);
-                    if (model.empty())
+                    const float cellPosX = static_cast<float>(cellX) + fx;
+                    const float cellPosY = static_cast<float>(cellY) + fy;
+                    if (cellPosX < minBound.x() || cellPosX >= maxBound.x()
+                        || cellPosY < minBound.y() || cellPosY >= maxBound.y())
                         continue;
-                    auto it = instances.find(model);
-                    if (it == instances.end())
-                        it = instances.emplace_hint(it, VFS::Path::Normalized(model), std::vector<GroundcoverEntry>());
-                    it->second.emplace_back(std::move(cellRef));
+
+                    ESM::Position position;
+                    position.pos[0] = cellPosX * ESM::Land::REAL_SIZE;
+                    position.pos[1] = cellPosY * ESM::Land::REAL_SIZE;
+                    position.pos[2] = mTerrainStorage->getHeightAt(
+                        osg::Vec3f(position.pos[0], position.pos[1], 0.f),
+                        ESM::Cell::sDefaultWorldspaceId);
+
+                    // PoC rule: avoid sea-level and underwater terrain. LAND texture,
+                    // slope, roads, settlements and exclusion masks come next.
+                    if (position.pos[2] <= 1.f)
+                        continue;
+
+                    position.rot[0] = 0.f;
+                    position.rot[1] = 0.f;
+                    position.rot[2] = random01(base ^ 0xa511e9b3u) * twoPi;
+
+                    const float scale = 0.85f + random01(base ^ 0x63d83595u) * 0.3f;
+                    proceduralIt->second.emplace_back(position, scale);
                 }
             }
         }
