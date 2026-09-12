@@ -27,6 +27,7 @@ namespace Launcher
     class UnshieldThread;
     class ImportPage;
     class SettingsPage;
+    class WorldPage;
 
     enum FirstRunDialogResult
     {
@@ -57,6 +58,7 @@ namespace Launcher
     public slots:
         void enableDataPage();
         void enableGraphicsPage();
+        void enableWorldPage();
         void enableSettingsPage();
         void enableImportPage();
         void play();
@@ -94,6 +96,7 @@ namespace Launcher
         void closeEvent(QCloseEvent* event) override;
 
         GraphicsPage* mGraphicsPage;
+        WorldPage* mWorldPage;
         DataFilesPage* mDataFilesPage = nullptr;
         ImportPage* mImportPage;
         SettingsPage* mSettingsPage;

@@ -2099,6 +2099,14 @@ Logi i ustawienia zmienione za pomocą programu uruchamiającego i w grze zostan
         <source>Allows to import data from original engine</source>
         <translation>Umożliwia importowanie danych z oryginalnego silnika</translation>
     </message>
+    <message>
+        <source>World</source>
+        <translation>Świat</translation>
+    </message>
+    <message>
+        <source>Configure procedural world systems</source>
+        <translation>Konfiguruj proceduralne systemy świata</translation>
+    </message>
 </context>
 <context>
     <name>QObject</name>
@@ -3040,6 +3048,49 @@ Logi i ustawienia zmienione za pomocą programu uruchamiającego i w grze zostan
     <message>
         <source>Allow Groundcover to receive lighting from point lights.</source>
         <translation>Pozwala roślinności odbierać światło ze źródeł punktowych.</translation>
+    </message>
+</context>
+<context>
+    <name>WorldPage</name>
+    <message>
+        <source>World</source>
+        <translation>Świat</translation>
+    </message>
+    <message>
+        <source>World Systems</source>
+        <translation>Systemy świata</translation>
+    </message>
+    <message>
+        <source>This page is the launcher shell for future procedural world features in the fork.</source>
+        <translation>Ta strona launchera jest miejscem dla przyszłych proceduralnych funkcji świata w forku.</translation>
+    </message>
+    <message>
+        <source>Procedural Flora</source>
+        <translation>Proceduralna flora</translation>
+    </message>
+    <message>
+        <source>Planned home for built-in vegetation generation, density controls, terrain rules and other flora-related settings.</source>
+        <translation>Docelowe miejsce dla wbudowanego generowania roślinności, ustawień gęstości, reguł terenu i innych opcji związanych z florą.</translation>
+    </message>
+    <message>
+        <source>Status: placeholder UI for upcoming implementation.</source>
+        <translation>Status: tymczasowy interfejs dla przyszłej implementacji.</translation>
+    </message>
+    <message>
+        <source>Procedural Fauna</source>
+        <translation>Proceduralna fauna</translation>
+    </message>
+    <message>
+        <source>Planned home for fish, birds, insects and other ambient fauna systems, separate from flora.</source>
+        <translation>Docelowe miejsce dla ryb, ptaków, owadów i innych systemów fauny otoczenia, oddzielonych od flory.</translation>
+    </message>
+    <message>
+        <source>Built-in vegetation generation, density controls, terrain rules and other flora-related settings will be configured here.</source>
+        <translation>Tutaj będą konfigurowane wbudowane generowanie roślinności, gęstość, reguły terenu i inne ustawienia związane z florą.</translation>
+    </message>
+    <message>
+        <source>Fish, birds, insects and other ambient fauna systems, separate from flora, will be configured here.</source>
+        <translation>Tutaj będą konfigurowane ryby, ptaki, owady i inne systemy fauny otoczenia, oddzielone od flory.</translation>
     </message>
 </context>
 </TS>

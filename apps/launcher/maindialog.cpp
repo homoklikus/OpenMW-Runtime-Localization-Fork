@@ -21,6 +21,7 @@
 #include "graphicspage.hpp"
 #include "importpage.hpp"
 #include "settingspage.hpp"
+#include "worldpage.hpp"
 
 namespace
 {
@@ -123,6 +124,7 @@ void Launcher::MainDialog::createIcons()
 
     connect(dataAction, &QAction::triggered, this, &MainDialog::enableDataPage);
     connect(graphicsAction, &QAction::triggered, this, &MainDialog::enableGraphicsPage);
+    connect(worldAction, &QAction::triggered, this, &MainDialog::enableWorldPage);
     connect(settingsAction, &QAction::triggered, this, &MainDialog::enableSettingsPage);
     connect(importAction, &QAction::triggered, this, &MainDialog::enableImportPage);
 }
@@ -135,12 +137,14 @@ void Launcher::MainDialog::createPages()
 
     mDataFilesPage = new DataFilesPage(mCfgMgr, mGameSettings, mLauncherSettings, this);
     mGraphicsPage = new GraphicsPage(this);
+    mWorldPage = new WorldPage(this);
     mImportPage = new ImportPage(mCfgMgr, mGameSettings, mLauncherSettings, this);
     mSettingsPage = new SettingsPage(mCfgMgr, mGameSettings, this);
 
     // Add the pages to the stacked widget
     pagesWidget->addWidget(mDataFilesPage);
     pagesWidget->addWidget(mGraphicsPage);
+    pagesWidget->addWidget(mWorldPage);
     pagesWidget->addWidget(mSettingsPage);
     pagesWidget->addWidget(mImportPage);
 
@@ -295,6 +299,7 @@ void Launcher::MainDialog::enableDataPage()
     mImportPage->resetProgressBar();
     dataAction->setChecked(true);
     graphicsAction->setChecked(false);
+    worldAction->setChecked(false);
     importAction->setChecked(false);
     settingsAction->setChecked(false);
 }
@@ -305,26 +310,40 @@ void Launcher::MainDialog::enableGraphicsPage()
     mImportPage->resetProgressBar();
     dataAction->setChecked(false);
     graphicsAction->setChecked(true);
+    worldAction->setChecked(false);
+    settingsAction->setChecked(false);
+    importAction->setChecked(false);
+}
+
+void Launcher::MainDialog::enableWorldPage()
+{
+    pagesWidget->setCurrentIndex(2);
+    mImportPage->resetProgressBar();
+    dataAction->setChecked(false);
+    graphicsAction->setChecked(false);
+    worldAction->setChecked(true);
     settingsAction->setChecked(false);
     importAction->setChecked(false);
 }
 
 void Launcher::MainDialog::enableSettingsPage()
 {
-    pagesWidget->setCurrentIndex(2);
+    pagesWidget->setCurrentIndex(3);
     mImportPage->resetProgressBar();
     dataAction->setChecked(false);
     graphicsAction->setChecked(false);
+    worldAction->setChecked(false);
     settingsAction->setChecked(true);
     importAction->setChecked(false);
 }
 
 void Launcher::MainDialog::enableImportPage()
 {
-    pagesWidget->setCurrentIndex(3);
+    pagesWidget->setCurrentIndex(4);
     mImportPage->resetProgressBar();
     dataAction->setChecked(false);
     graphicsAction->setChecked(false);
+    worldAction->setChecked(false);
     settingsAction->setChecked(false);
     importAction->setChecked(true);
 }

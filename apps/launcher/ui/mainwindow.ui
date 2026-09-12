@@ -98,6 +98,7 @@
    </attribute>
    <addaction name="dataAction"/>
    <addaction name="graphicsAction"/>
+    <addaction name="worldAction"/>
    <addaction name="settingsAction"/>
    <addaction name="importAction"/>
   </widget>
@@ -135,6 +136,21 @@
    </property>
    <property name="toolTip">
     <string>Allows to change display settings</string>
+   </property>
+  </action>
+  <action name="worldAction">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="../../../files/launcher/launcher.qrc">
+     <normaloff>:/images/world.png</normaloff>:/images/world.png</iconset>
+   </property>
+   <property name="text">
+    <string>World</string>
+   </property>
+   <property name="toolTip">
+    <string>Configure procedural world systems</string>
    </property>
   </action>
   <action name="settingsAction">
