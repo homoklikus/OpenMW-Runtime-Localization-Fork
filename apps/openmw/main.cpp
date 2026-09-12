@@ -6,6 +6,7 @@
 #include <components/misc/rng.hpp>
 #include <components/platform/platform.hpp>
 #include <components/version/version.hpp>
+#include <components/worldconfig/worldsettings.hpp>
 
 #include "mwgui/debugwindow.hpp"
 
@@ -69,6 +70,15 @@ bool parseOptions(int argc, char** argv, OMW::Engine& engine, Files::Configurati
     Log(Debug::Info) << Version::getOpenmwVersionDescription();
 
     Settings::Manager::load(cfgMgr);
+
+    WorldConfig::Settings worldSettings
+        = WorldConfig::load(cfgMgr.getUserConfigPath() / "world.cfg");
+    Log(Debug::Info) << "World config: version=" << worldSettings.mVersion
+                     << ", flora.enabled=" << worldSettings.mFlora.mEnabled
+                     << ", flora.source=" << WorldConfig::toString(worldSettings.mFlora.mSource)
+                     << ", flora.density=" << worldSettings.mFlora.mDensity
+                     << ", fauna.enabled=" << worldSettings.mFauna.mEnabled;
+    engine.setWorldSettings(std::move(worldSettings));
 
     MWGui::DebugWindow::startLogRecording();
 

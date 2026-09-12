@@ -9,6 +9,7 @@
 #include <components/files/collections.hpp>
 #include <components/settings/settings.hpp>
 #include <components/translation/translation.hpp>
+#include <components/worldconfig/worldsettings.hpp>
 
 #include <osgViewer/Viewer>
 #include <osgViewer/ViewerEventHandlers>
@@ -156,6 +157,7 @@ namespace OMW
         std::string mCellName;
         std::vector<std::string> mContentFiles;
         std::vector<std::string> mGroundcoverFiles;
+        WorldConfig::Settings mWorldSettings;
 
         std::unique_ptr<Stereo::Manager> mStereoManager;
 
@@ -222,6 +224,7 @@ namespace OMW
          */
         void addContentFile(const std::string& file);
         void addGroundcoverFile(const std::string& file);
+        void setWorldSettings(WorldConfig::Settings settings);
 
         /// Disable or enable all sounds
         void setSoundUsage(bool soundUsage);

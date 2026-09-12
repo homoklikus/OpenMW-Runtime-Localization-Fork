@@ -67,6 +67,10 @@ add_component_dir (l10n
     messagebundles manager
     )
 
+add_component_dir (worldconfig
+    worldsettings
+    )
+
 add_component_dir (settings
     categories
     categories/camera

@@ -833,6 +833,11 @@ void OMW::Engine::addGroundcoverFile(const std::string& file)
     mGroundcoverFiles.emplace_back(file);
 }
 
+void OMW::Engine::setWorldSettings(WorldConfig::Settings settings)
+{
+    mWorldSettings = std::move(settings);
+}
+
 void OMW::Engine::setSkipMenu(bool skipMenu, bool newGame)
 {
     mSkipMenu = skipMenu;
