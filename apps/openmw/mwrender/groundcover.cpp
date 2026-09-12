@@ -1,6 +1,7 @@
 #include "groundcover.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <span>
@@ -326,6 +327,31 @@ namespace MWRender
 
             return true;
         }
+
+        bool isProceduralFloraSurfaceAllowed(VFS::Path::NormalizedView texture)
+        {
+            if (texture.empty() || texture == "_land_default.dds")
+                return false;
+
+            // Conservative first-pass rules. Dirt, grass, moss, mud and sand remain
+            // eligible; obviously hard/artificial surfaces are rejected.
+            constexpr std::array<std::string_view, 6> blockedKeywords = {
+                "rock",
+                "stone",
+                "cliff",
+                "road",
+                "cobble",
+                "lava",
+            };
+
+            for (const std::string_view keyword : blockedKeywords)
+            {
+                if (texture.value().find(keyword) != std::string_view::npos)
+                    return false;
+            }
+
+            return true;
+        }
     }
 
     osg::ref_ptr<osg::Node> Groundcover::getChunk(float size, const osg::Vec2f& center, unsigned char lod,
@@ -387,7 +413,8 @@ namespace MWRender
             else
             {
                 Log(Debug::Info) << "Procedural flora PoC: model=" << mProceduralModel
-                                 << ", density=" << mProceduralDensity;
+                                 << ", density=" << mProceduralDensity
+                                 << ", maxSlope=28deg, LAND texture filtering=on";
             }
         }
     }
@@ -471,10 +498,13 @@ namespace MWRender
             return static_cast<float>(hash32(seed) & 0x00ffffffu) / static_cast<float>(0x01000000u);
         };
 
-        auto proceduralIt = instances.find(mProceduralModel);
-        if (proceduralIt == instances.end())
-            proceduralIt = instances.emplace_hint(
-                proceduralIt, mProceduralModel, std::vector<GroundcoverEntry>());
+        auto addProceduralInstance = [&](const ESM::Position& position, float scale) {
+            auto proceduralIt = instances.find(mProceduralModel);
+            if (proceduralIt == instances.end())
+                proceduralIt = instances.emplace_hint(
+                    proceduralIt, mProceduralModel, std::vector<GroundcoverEntry>());
+            proceduralIt->second.emplace_back(position, scale);
+        };
 
         const int candidatesPerCell
             = std::max(1, static_cast<int>(std::lround(24.f * mProceduralDensity)));
@@ -504,13 +534,26 @@ namespace MWRender
                     ESM::Position position;
                     position.pos[0] = cellPosX * ESM::Land::REAL_SIZE;
                     position.pos[1] = cellPosY * ESM::Land::REAL_SIZE;
+                    const osg::Vec3f samplePos(position.pos[0], position.pos[1], 0.f);
                     position.pos[2] = mTerrainStorage->getHeightAt(
-                        osg::Vec3f(position.pos[0], position.pos[1], 0.f),
-                        ESM::Cell::sDefaultWorldspaceId);
+                        samplePos, ESM::Cell::sDefaultWorldspaceId);
 
-                    // PoC rule: avoid sea-level and underwater terrain. LAND texture,
-                    // slope, roads, settlements and exclusion masks come next.
+                    // Keep the simple water guard from the first PoC.
                     if (position.pos[2] <= 1.f)
+                        continue;
+
+                    // Grass should not grow on steep LAND geometry.
+                    constexpr float maxSlopeDegrees = 28.f;
+                    const float slope = mTerrainStorage->getSlopeDegreesAt(
+                        samplePos, ESM::Cell::sDefaultWorldspaceId);
+                    if (slope > maxSlopeDegrees)
+                        continue;
+
+                    // Use the LAND texture under the candidate as the first biome/surface
+                    // signal. This is deliberately conservative until profile rules land.
+                    const VFS::Path::Normalized landTexture = mTerrainStorage->getLandTextureAt(
+                        samplePos, ESM::Cell::sDefaultWorldspaceId);
+                    if (!isProceduralFloraSurfaceAllowed(landTexture))
                         continue;
 
                     position.rot[0] = 0.f;
@@ -518,7 +561,7 @@ namespace MWRender
                     position.rot[2] = random01(base ^ 0xa511e9b3u) * twoPi;
 
                     const float scale = 0.85f + random01(base ^ 0x63d83595u) * 0.3f;
-                    proceduralIt->second.emplace_back(position, scale);
+                    addProceduralInstance(position, scale);
                 }
             }
         }

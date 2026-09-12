@@ -6,6 +6,7 @@
 #include <components/esmterrain/storage.hpp>
 
 #include <components/resource/resourcesystem.hpp>
+#include <components/vfs/pathutil.hpp>
 
 namespace MWRender
 {
@@ -23,6 +24,9 @@ namespace MWRender
 
         osg::ref_ptr<const ESMTerrain::LandObject> getLand(ESM::ExteriorCellLocation cellLocation) override;
         const std::string* getLandTexture(std::uint16_t index, int plugin) override;
+
+        VFS::Path::Normalized getLandTextureAt(const osg::Vec3f& worldPos, ESM::RefId worldspace);
+        float getSlopeDegreesAt(const osg::Vec3f& worldPos, ESM::RefId worldspace);
 
         const ESM4::LandTexture* getEsm4LandTexture(ESM::RefId ltexId) const override;
         const ESM4::TextureSet* getEsm4TextureSet(ESM::RefId txstId) const override;

@@ -1,5 +1,8 @@
 #include "terrainstorage.hpp"
 
+#include <algorithm>
+#include <cmath>
+
 #include <components/esm3/loadland.hpp>
 #include <components/esm4/loadltex.hpp>
 #include <components/esm4/loadtxst.hpp>
@@ -111,6 +114,70 @@ namespace MWRender
     {
         const MWWorld::ESMStore& esmStore = *MWBase::Environment::get().getESMStore();
         return esmStore.get<ESM::LandTexture>().search(index, plugin);
+    }
+
+    VFS::Path::Normalized TerrainStorage::getLandTextureAt(
+        const osg::Vec3f& worldPos, ESM::RefId worldspace)
+    {
+        if (ESM::isEsm4Ext(worldspace))
+            return {};
+
+        const float cellSize = static_cast<float>(ESM::Land::REAL_SIZE);
+        const int cellX = static_cast<int>(std::floor(worldPos.x() / cellSize));
+        const int cellY = static_cast<int>(std::floor(worldPos.y() / cellSize));
+
+        const osg::ref_ptr<const ESMTerrain::LandObject> land
+            = getLand(ESM::ExteriorCellLocation(cellX, cellY, worldspace));
+        if (!land)
+            return {};
+
+        const ESM::LandData* data = land->getData(ESM::Land::DATA_VTEX);
+        if (data == nullptr)
+            return {};
+
+        const float localX = std::clamp(worldPos.x() / cellSize - static_cast<float>(cellX), 0.f, 0.999999f);
+        const float localY = std::clamp(worldPos.y() / cellSize - static_cast<float>(cellY), 0.f, 0.999999f);
+
+        const int texX = std::clamp(
+            static_cast<int>(localX * ESM::Land::LAND_TEXTURE_SIZE), 0, ESM::Land::LAND_TEXTURE_SIZE - 1);
+        const int texY = std::clamp(
+            static_cast<int>(localY * ESM::Land::LAND_TEXTURE_SIZE), 0, ESM::Land::LAND_TEXTURE_SIZE - 1);
+
+        const std::uint16_t textureIndex
+            = data->getTextures()[texY * ESM::Land::LAND_TEXTURE_SIZE + texX];
+
+        if (textureIndex == 0)
+            return VFS::Path::Normalized("_land_default.dds");
+
+        // LAND VTEX ids are +1 compared to LTEX ids.
+        const std::string* texture = getLandTexture(textureIndex - 1, land->getPlugin());
+        if (texture == nullptr)
+            return {};
+
+        return VFS::Path::Normalized(*texture);
+    }
+
+    float TerrainStorage::getSlopeDegreesAt(const osg::Vec3f& worldPos, ESM::RefId worldspace)
+    {
+        // One vanilla LAND height vertex is 128 world units apart.
+        const float sampleDistance
+            = static_cast<float>(ESM::Land::REAL_SIZE) / static_cast<float>(ESM::Land::LAND_SIZE - 1);
+
+        const float left = getHeightAt(
+            osg::Vec3f(worldPos.x() - sampleDistance, worldPos.y(), 0.f), worldspace);
+        const float right = getHeightAt(
+            osg::Vec3f(worldPos.x() + sampleDistance, worldPos.y(), 0.f), worldspace);
+        const float down = getHeightAt(
+            osg::Vec3f(worldPos.x(), worldPos.y() - sampleDistance, 0.f), worldspace);
+        const float up = getHeightAt(
+            osg::Vec3f(worldPos.x(), worldPos.y() + sampleDistance, 0.f), worldspace);
+
+        const float dzdx = (right - left) / (2.f * sampleDistance);
+        const float dzdy = (up - down) / (2.f * sampleDistance);
+        const float gradient = std::sqrt(dzdx * dzdx + dzdy * dzdy);
+
+        constexpr float radiansToDegrees = 57.29577951308232f;
+        return std::atan(gradient) * radiansToDegrees;
     }
 
     const ESM4::LandTexture* TerrainStorage::getEsm4LandTexture(ESM::RefId ltexId) const
