@@ -3092,5 +3092,41 @@ Logi i ustawienia zmienione za pomocą programu uruchamiającego i w grze zostan
         <source>Fish, birds, insects and other ambient fauna systems, separate from flora, will be configured here.</source>
         <translation>Tutaj będą konfigurowane ryby, ptaki, owady i inne systemy fauny otoczenia, oddzielone od flory.</translation>
     </message>
+    <message>
+        <source>Generate ambient vegetation at runtime from terrain data and configured rules. No generated ESP is required.</source>
+        <translation>Generuj roślinność otoczenia w czasie działania gry na podstawie danych terenu i skonfigurowanych reguł. Nie jest wymagany wygenerowany plik ESP.</translation>
+    </message>
+    <message>
+        <source>Enable procedural flora</source>
+        <translation>Włącz proceduralną florę</translation>
+    </message>
+    <message>
+        <source>Generation</source>
+        <translation>Generowanie</translation>
+    </message>
+    <message>
+        <source>Source:</source>
+        <translation>Źródło:</translation>
+    </message>
+    <message>
+        <source>Automatic (built-in)</source>
+        <translation>Automatyczne (wbudowane)</translation>
+    </message>
+    <message>
+        <source>Groundcover mods</source>
+        <translation>Mody Groundcover</translation>
+    </message>
+    <message>
+        <source>Automatic + Groundcover mods</source>
+        <translation>Automatyczne + mody Groundcover</translation>
+    </message>
+    <message>
+        <source>Density:</source>
+        <translation>Gęstość:</translation>
+    </message>
+    <message>
+        <source>Settings are stored separately in world.cfg. Runtime placement will be connected in the next stage.</source>
+        <translation>Ustawienia są przechowywane oddzielnie w pliku world.cfg. Generowanie roślinności w świecie zostanie podłączone w następnym etapie.</translation>
+    </message>
 </context>
 </TS>

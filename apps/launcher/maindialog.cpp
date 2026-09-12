@@ -137,7 +137,7 @@ void Launcher::MainDialog::createPages()
 
     mDataFilesPage = new DataFilesPage(mCfgMgr, mGameSettings, mLauncherSettings, this);
     mGraphicsPage = new GraphicsPage(this);
-    mWorldPage = new WorldPage(this);
+    mWorldPage = new WorldPage(mCfgMgr, this);
     mImportPage = new ImportPage(mCfgMgr, mGameSettings, mLauncherSettings, this);
     mSettingsPage = new SettingsPage(mCfgMgr, mGameSettings, this);
 
@@ -156,6 +156,9 @@ void Launcher::MainDialog::createPages()
         &SettingsPage::slotLoadedCellsChanged, Qt::QueuedConnection);
 
     connect(mSettingsPage, &SettingsPage::signalGroundcoverSettingsChanged, this,
+        [this]() { writeSettings(); });
+
+    connect(mWorldPage, &WorldPage::signalProceduralFloraSettingsChanged, this,
         [this]() { writeSettings(); });
 
 }
@@ -285,6 +288,9 @@ bool Launcher::MainDialog::reloadSettings()
         return false;
 
     if (!mGraphicsPage->loadSettings())
+        return false;
+
+    if (!mWorldPage->loadSettings())
         return false;
 
     if (!mSettingsPage->loadSettings())
@@ -521,6 +527,7 @@ bool Launcher::MainDialog::writeSettings()
     mDataFilesPage->saveSettings();
     mGraphicsPage->saveSettings();
     mImportPage->saveSettings();
+    mWorldPage->saveSettings();
     mSettingsPage->saveSettings();
 
     const auto& userPath = mCfgMgr.getUserConfigPath();

@@ -30,8 +30,76 @@
           <bool>true</bool>
          </property>
          <property name="text">
-          <string>Built-in vegetation generation, density controls, terrain rules and other flora-related settings will be configured here.</string>
+          <string>Generate ambient vegetation at runtime from terrain data and configured rules. No generated ESP is required.</string>
          </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="proceduralFloraEnabledCheckBox">
+         <property name="text">
+          <string>Enable procedural flora</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="proceduralFloraOptionsWidget">
+         <property name="title">
+          <string>Generation</string>
+         </property>
+         <layout class="QFormLayout" name="proceduralFloraFormLayout">
+          <item row="0" column="0">
+           <widget class="QLabel" name="proceduralFloraSourceLabel">
+            <property name="text">
+             <string>Source:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QComboBox" name="proceduralFloraSourceComboBox">
+            <item>
+             <property name="text">
+              <string>Automatic (built-in)</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Groundcover mods</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Automatic + Groundcover mods</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="proceduralFloraDensityLabel">
+            <property name="text">
+             <string>Density:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QSpinBox" name="proceduralFloraDensitySpinBox">
+            <property name="suffix">
+             <string> %</string>
+            </property>
+            <property name="minimum">
+             <number>0</number>
+            </property>
+            <property name="maximum">
+             <number>200</number>
+            </property>
+            <property name="singleStep">
+             <number>5</number>
+            </property>
+            <property name="value">
+             <number>100</number>
+            </property>
+           </widget>
+          </item>
+         </layout>
         </widget>
        </item>
        <item>
@@ -39,8 +107,11 @@
          <property name="styleSheet">
           <string notr="true">color: #808080;</string>
          </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
          <property name="text">
-          <string>Status: placeholder UI for upcoming implementation.</string>
+          <string>Settings are stored separately in world.cfg. Runtime placement will be connected in the next stage.</string>
          </property>
         </widget>
        </item>
