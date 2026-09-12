@@ -77,6 +77,7 @@ bool parseOptions(int argc, char** argv, OMW::Engine& engine, Files::Configurati
                      << ", flora.enabled=" << worldSettings.mFlora.mEnabled
                      << ", flora.source=" << WorldConfig::toString(worldSettings.mFlora.mSource)
                      << ", flora.density=" << worldSettings.mFlora.mDensity
+                     << ", flora.exclusionDistance=" << worldSettings.mFlora.mExclusionDistance << "m"
                      << ", fauna.enabled=" << worldSettings.mFauna.mEnabled;
     engine.setWorldSettings(std::move(worldSettings));
 

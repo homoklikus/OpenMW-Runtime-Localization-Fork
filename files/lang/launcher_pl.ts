@@ -3128,5 +3128,13 @@ Logi i ustawienia zmienione za pomocą programu uruchamiającego i w grze zostan
         <source>Settings are stored separately in world.cfg. Runtime placement will be connected in the next stage.</source>
         <translation>Ustawienia są przechowywane oddzielnie w pliku world.cfg. Generowanie roślinności w świecie zostanie podłączone w następnym etapie.</translation>
     </message>
+    <message>
+        <source>Road/object clearance:</source>
+        <translation>Odstęp od dróg i obiektów:</translation>
+    </message>
+    <message>
+        <source>Extra distance kept free of generated flora around roads, pathgrids and blocking world objects.</source>
+        <translation>Dodatkowy odstęp bez generowanej flory wokół dróg, ścieżek pathgrid i blokujących obiektów świata.</translation>
+    </message>
 </context>
 </TS>

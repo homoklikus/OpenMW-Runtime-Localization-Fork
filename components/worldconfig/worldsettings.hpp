@@ -18,6 +18,8 @@ namespace WorldConfig
         bool mEnabled = false;
         FloraSource mSource = FloraSource::Automatic;
         float mDensity = 1.f;
+        // Extra clearance around roads/pathgrids and blocking world objects, in metres.
+        float mExclusionDistance = 3.f;
     };
 
     struct FaunaSettings

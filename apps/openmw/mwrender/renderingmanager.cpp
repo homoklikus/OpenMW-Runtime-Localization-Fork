@@ -1267,11 +1267,13 @@ namespace MWRender
                                  << WorldConfig::toString(mWorldSettings.mFlora.mSource)
                                  << ", pluginGroundcover=" << pluginGroundcover
                                  << ", procedural=" << proceduralFlora
-                                 << ", proceduralDensity=" << mWorldSettings.mFlora.mDensity;
+                                 << ", proceduralDensity=" << mWorldSettings.mFlora.mDensity
+                                 << ", exclusionDistance=" << mWorldSettings.mFlora.mExclusionDistance << "m";
 
                 newChunkMgr.mGroundcover = std::make_unique<Groundcover>(
                     mResourceSystem->getSceneManager(), pluginDensity, groundcoverDistance, mGroundCoverStore,
-                    mTerrainStorage.get(), pluginGroundcover, proceduralFlora, mWorldSettings.mFlora.mDensity);
+                    mTerrainStorage.get(), pluginGroundcover, proceduralFlora, mWorldSettings.mFlora.mDensity,
+                    mWorldSettings.mFlora.mExclusionDistance);
                 quadTreeWorld->addChunkManager(newChunkMgr.mGroundcover.get());
                 mResourceSystem->addResourceManager(newChunkMgr.mGroundcover.get());
             }

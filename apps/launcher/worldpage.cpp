@@ -59,6 +59,10 @@ namespace Launcher
         connect(ui->proceduralFloraDensitySpinBox,
             qOverload<int>(&QSpinBox::valueChanged), this,
             [this](int) { emit signalProceduralFloraSettingsChanged(); });
+
+        connect(ui->proceduralFloraExclusionDistanceSpinBox,
+            qOverload<double>(&QDoubleSpinBox::valueChanged), this,
+            [this](double) { emit signalProceduralFloraSettingsChanged(); });
     }
 
     WorldPage::~WorldPage()
@@ -73,6 +77,7 @@ namespace Launcher
         const QSignalBlocker enabledBlocker(ui->proceduralFloraEnabledCheckBox);
         const QSignalBlocker sourceBlocker(ui->proceduralFloraSourceComboBox);
         const QSignalBlocker densityBlocker(ui->proceduralFloraDensitySpinBox);
+        const QSignalBlocker exclusionBlocker(ui->proceduralFloraExclusionDistanceSpinBox);
 
         ui->proceduralFloraEnabledCheckBox->setChecked(
             settings.value("Flora/enabled", false).toBool());
@@ -84,6 +89,12 @@ namespace Launcher
             settings.value("Flora/density", 1.0).toDouble(), 0.0, 2.0);
         ui->proceduralFloraDensitySpinBox->setValue(
             static_cast<int>(density * 100.0 + 0.5));
+
+        const QVariant legacyExclusionDistance
+            = settings.value("Flora/exclusion distance", 3.0);
+        const double exclusionDistance = std::clamp(
+            settings.value("Flora/exclusion_distance", legacyExclusionDistance).toDouble(), 0.0, 20.0);
+        ui->proceduralFloraExclusionDistanceSpinBox->setValue(exclusionDistance);
 
         slotProceduralFloraToggled(ui->proceduralFloraEnabledCheckBox->isChecked());
         return settings.status() == QSettings::NoError;
@@ -107,6 +118,11 @@ namespace Launcher
         settings.setValue(
             "Flora/density",
             static_cast<double>(ui->proceduralFloraDensitySpinBox->value()) / 100.0);
+
+        settings.setValue(
+            "Flora/exclusion_distance",
+            ui->proceduralFloraExclusionDistanceSpinBox->value());
+        settings.remove("Flora/exclusion distance");
 
         // Create the fauna section once world.cfg is written, but do not
         // overwrite it after future fauna settings are implemented.

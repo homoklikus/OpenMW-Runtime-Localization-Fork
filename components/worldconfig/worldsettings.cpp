@@ -142,6 +142,9 @@ namespace WorldConfig
                 else if (key == "density")
                     result.mFlora.mDensity
                         = std::clamp(parseFloat(value, result.mFlora.mDensity), 0.f, 2.f);
+                else if (key == "exclusion_distance" || key == "exclusion%20distance")
+                    result.mFlora.mExclusionDistance
+                        = std::clamp(parseFloat(value, result.mFlora.mExclusionDistance), 0.f, 20.f);
             }
             else if (section == "fauna")
             {

@@ -99,6 +99,38 @@
             </property>
            </widget>
           </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="proceduralFloraExclusionDistanceLabel">
+            <property name="text">
+             <string>Road/object clearance:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QDoubleSpinBox" name="proceduralFloraExclusionDistanceSpinBox">
+            <property name="suffix">
+             <string> m</string>
+            </property>
+            <property name="decimals">
+             <number>1</number>
+            </property>
+            <property name="minimum">
+             <double>0.000000000000000</double>
+            </property>
+            <property name="maximum">
+             <double>20.000000000000000</double>
+            </property>
+            <property name="singleStep">
+             <double>0.500000000000000</double>
+            </property>
+            <property name="value">
+             <double>3.000000000000000</double>
+            </property>
+            <property name="toolTip">
+             <string>Extra distance kept free of generated flora around roads, pathgrids and blocking world objects.</string>
+            </property>
+           </widget>
+          </item>
          </layout>
         </widget>
        </item>

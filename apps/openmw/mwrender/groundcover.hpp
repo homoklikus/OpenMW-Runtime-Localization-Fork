@@ -26,7 +26,7 @@ namespace MWRender
     public:
         Groundcover(Resource::SceneManager* sceneManager, float density, float viewDistance,
             const MWWorld::GroundcoverStore& store, TerrainStorage* terrainStorage, bool includePluginGroundcover,
-            bool proceduralEnabled, float proceduralDensity);
+            bool proceduralEnabled, float proceduralDensity, float exclusionDistanceMeters);
         ~Groundcover();
 
         osg::ref_ptr<osg::Node> getChunk(float size, const osg::Vec2f& center, unsigned char lod, unsigned int lodFlags,
@@ -66,6 +66,7 @@ namespace MWRender
         bool mIncludePluginGroundcover;
         bool mProceduralEnabled;
         float mProceduralDensity;
+        float mExclusionDistance;
         VFS::Path::Normalized mProceduralModel;
 
         osg::ref_ptr<osg::Node> createChunk(InstanceMap& instances, const osg::Vec2f& center);
