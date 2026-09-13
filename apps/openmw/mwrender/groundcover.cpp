@@ -339,13 +339,14 @@ namespace MWRender
             return true;
         }
 
-        bool isProceduralFloraSurfaceAllowed(VFS::Path::NormalizedView texture)
+        float getProceduralFloraSurfaceWeight(VFS::Path::NormalizedView texture)
         {
             if (texture.empty() || texture == "_land_default.dds")
-                return false;
+                return 0.f;
 
-            // Conservative first-pass rules. Dirt, grass, moss, mud and sand remain
-            // eligible; obviously hard/artificial surfaces are rejected.
+            const std::string_view name = texture.value();
+
+            // Hard/artificial surfaces never receive automatic flora.
             constexpr std::array<std::string_view, 6> blockedKeywords = {
                 "rock",
                 "stone",
@@ -357,11 +358,36 @@ namespace MWRender
 
             for (const std::string_view keyword : blockedKeywords)
             {
-                if (texture.value().find(keyword) != std::string_view::npos)
-                    return false;
+                if (name.find(keyword) != std::string_view::npos)
+                    return 0.f;
             }
 
-            return true;
+            // First-pass LAND profile weights. They deliberately affect only
+            // placement density; model/biome selection will be handled separately.
+            //
+            // Mixed grass+dirt is intentionally sparser than clean grass. This
+            // catches authored transition/track-like surfaces such as
+            // tx_ai_grass_dirt_01 without treating them as a hard road.
+            const bool grass = name.find("grass") != std::string_view::npos;
+            const bool dirt = name.find("dirt") != std::string_view::npos;
+
+            if (grass && dirt)
+                return 0.5f;
+            if (grass || name.find("clover") != std::string_view::npos
+                || name.find("moss") != std::string_view::npos)
+                return 1.f;
+            if (name.find("mud") != std::string_view::npos
+                || name.find("swamp") != std::string_view::npos)
+                return 0.55f;
+            if (dirt)
+                return 0.35f;
+            if (name.find("sand") != std::string_view::npos)
+                return 0.2f;
+            if (name.find("ash") != std::string_view::npos)
+                return 0.15f;
+
+            // Unknown natural-looking LAND remains eligible, but conservatively.
+            return 0.4f;
         }
 
         struct FloraExclusion
@@ -766,7 +792,8 @@ namespace MWRender
             {
                 Log(Debug::Info) << "Procedural flora PoC: model=" << mProceduralModel
                                  << ", density=" << mProceduralDensity
-                                 << ", maxSlope=28deg, LAND texture filtering=on, object exclusions=on"
+                                 << ", baseCandidatesPerCell=512"
+                                 << ", maxSlope=28deg, LAND texture weighting=on, object exclusions=on"
                                  << ", pathgrid exclusions=on, exclusionDistance="
                                  << mExclusionDistance / Constants::UnitsPerMeter << "m";
             }
@@ -865,8 +892,13 @@ namespace MWRender
             proceduralIt->second.emplace_back(position, scale);
         };
 
+        // One exterior cell is roughly 117 x 117 metres. The old PoC value
+        // of 24 candidates at 100% density produced only isolated tufts.
+        // 512 candidates gives a useful sparse groundcover baseline while still
+        // leaving LAND weights and exclusion rules in control of the final count.
+        constexpr float baseCandidatesPerCell = 512.f;
         const int candidatesPerCell
-            = std::max(1, static_cast<int>(std::lround(24.f * mProceduralDensity)));
+            = std::max(1, static_cast<int>(std::lround(baseCandidatesPerCell * mProceduralDensity)));
         constexpr float margin = 0.06f;
         constexpr float twoPi = 6.2831853071795864769f;
 
@@ -909,7 +941,12 @@ namespace MWRender
 
                     const VFS::Path::Normalized landTexture = mTerrainStorage->getLandTextureAt(
                         samplePos, ESM::Cell::sDefaultWorldspaceId);
-                    if (!isProceduralFloraSurfaceAllowed(landTexture))
+                    const float surfaceWeight = getProceduralFloraSurfaceWeight(landTexture);
+                    if (surfaceWeight <= 0.f)
+                        continue;
+
+                    if (surfaceWeight < 1.f
+                        && random01(base ^ 0x4f1bbcdcu) >= surfaceWeight)
                         continue;
 
                     if (isInsideFloraExclusion(samplePos, floraExclusions))
