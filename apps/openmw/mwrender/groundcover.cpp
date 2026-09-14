@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdlib>
+#include <cctype>
 #include <cstdint>
 #include <span>
 
@@ -31,6 +33,7 @@
 #include <components/settings/values.hpp>
 #include <components/shader/shadermanager.hpp>
 #include <components/terrain/quadtreenode.hpp>
+#include <components/vfs/manager.hpp>
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/world.hpp"
@@ -337,6 +340,219 @@ namespace MWRender
                 return false;
 
             return true;
+        }
+
+        std::string_view getLandRegionToken(VFS::Path::NormalizedView texture)
+        {
+            const std::string_view name = texture.value();
+            const std::size_t marker = name.find("tx_");
+            if (marker == std::string_view::npos)
+                return {};
+
+            const std::size_t start = marker + 3;
+            const std::size_t end = name.find('_', start);
+            if (end == std::string_view::npos || end <= start)
+                return {};
+
+            return name.substr(start, end - start);
+        }
+
+        enum class VanillaFloraFamily
+        {
+            Generic,
+            BitterCoast,
+            Ash,
+            Solstheim,
+        };
+
+        VanillaFloraFamily getVanillaFloraFamily(VFS::Path::NormalizedView model)
+        {
+            const std::string_view name = model.value();
+
+            if (name.find("/flora_bc_grass_") != std::string_view::npos)
+                return VanillaFloraFamily::BitterCoast;
+            if (name.find("/flora_ash_grass_") != std::string_view::npos)
+                return VanillaFloraFamily::Ash;
+            if (name.find("/flora_bm_grass_") != std::string_view::npos)
+                return VanillaFloraFamily::Solstheim;
+
+            return VanillaFloraFamily::Generic;
+        }
+
+        VanillaFloraFamily getPreferredVanillaFloraFamily(VFS::Path::NormalizedView landTexture)
+        {
+            const std::string_view region = getLandRegionToken(landTexture);
+
+            if (region == "bc")
+                return VanillaFloraFamily::BitterCoast;
+
+            if (region == "al" || region == "rr" || region == "rm")
+                return VanillaFloraFamily::Ash;
+
+            if (region == "sol" || region == "bm")
+                return VanillaFloraFamily::Solstheim;
+
+            return VanillaFloraFamily::Generic;
+        }
+
+        enum class StylizedFloraRole
+        {
+            Other,
+            GrassBase,
+            Accent,
+        };
+
+        StylizedFloraRole getStylizedFloraRole(VFS::Path::NormalizedView model)
+        {
+            std::string_view name = model.value();
+            const std::size_t slash = name.find_last_of("/\\");
+            if (slash != std::string_view::npos)
+                name.remove_prefix(slash + 1);
+
+            if (name.size() < 3 || name[2] != '_')
+                return StylizedFloraRole::Other;
+
+            const bool numericPrefix = name[0] >= '0' && name[0] <= '9'
+                && name[1] >= '0' && name[1] <= '9';
+            if (!numericPrefix)
+                return StylizedFloraRole::Other;
+
+            const int number = (name[0] - '0') * 10 + (name[1] - '0');
+
+            // Current curated test pools:
+            //   01-08 = primary grass/base vegetation
+            //   09-12 = rarer visual accents
+            //   13-16 = intentionally ignored for now
+            if (number >= 1 && number <= 8)
+                return StylizedFloraRole::GrassBase;
+            if (number >= 9 && number <= 12)
+                return StylizedFloraRole::Accent;
+
+            return StylizedFloraRole::Other;
+        }
+
+        const VFS::Path::Normalized* chooseWeightedStylizedFloraModel(
+            std::span<const VFS::Path::Normalized> models, std::uint32_t selector)
+        {
+            std::size_t baseCount = 0;
+            std::size_t accentCount = 0;
+
+            for (const VFS::Path::Normalized& model : models)
+            {
+                switch (getStylizedFloraRole(model))
+                {
+                    case StylizedFloraRole::GrassBase:
+                        ++baseCount;
+                        break;
+                    case StylizedFloraRole::Accent:
+                        ++accentCount;
+                        break;
+                    case StylizedFloraRole::Other:
+                        break;
+                }
+            }
+
+            if (baseCount == 0 && accentCount == 0)
+                return nullptr;
+
+            StylizedFloraRole wantedRole = StylizedFloraRole::GrassBase;
+
+            if (baseCount == 0)
+                wantedRole = StylizedFloraRole::Accent;
+            else if (accentCount > 0 && selector % 100u >= 88u)
+                wantedRole = StylizedFloraRole::Accent;
+
+            const std::size_t wantedCount
+                = wantedRole == StylizedFloraRole::GrassBase ? baseCount : accentCount;
+
+            std::size_t selected = (selector / 100u) % wantedCount;
+            for (const VFS::Path::Normalized& model : models)
+            {
+                if (getStylizedFloraRole(model) != wantedRole)
+                    continue;
+
+                if (selected == 0)
+                    return &model;
+
+                --selected;
+            }
+
+            return nullptr;
+        }
+
+        const VFS::Path::Normalized& chooseProceduralFloraModel(
+            std::span<const VFS::Path::Normalized> models, VFS::Path::NormalizedView landTexture,
+            std::uint32_t selector)
+        {
+            if (const VFS::Path::Normalized* stylized
+                = chooseWeightedStylizedFloraModel(models, selector))
+            {
+                return *stylized;
+            }
+
+            const VanillaFloraFamily preferred = getPreferredVanillaFloraFamily(landTexture);
+
+            std::size_t matchingModels = 0;
+            for (const VFS::Path::Normalized& model : models)
+            {
+                if (getVanillaFloraFamily(model) == preferred)
+                    ++matchingModels;
+            }
+
+            if (matchingModels > 0)
+            {
+                std::size_t selected = selector % matchingModels;
+                for (const VFS::Path::Normalized& model : models)
+                {
+                    if (getVanillaFloraFamily(model) != preferred)
+                        continue;
+
+                    if (selected == 0)
+                        return model;
+                    --selected;
+                }
+            }
+
+            return models[selector % models.size()];
+        }
+
+        std::vector<VFS::Path::Normalized> collectBuiltInProceduralFloraModels(
+            const VFS::Manager* vfs)
+        {
+            std::vector<VFS::Path::Normalized> result;
+            if (vfs == nullptr)
+                return result;
+
+            constexpr std::array<std::string_view, 18> candidates = {
+                "meshes/f/flora_grass_01.nif",
+                "meshes/f/flora_grass_02.nif",
+                "meshes/f/flora_grass_03.nif",
+                "meshes/f/flora_grass_04.nif",
+                "meshes/f/flora_grass_05.nif",
+                "meshes/f/flora_grass_06.nif",
+                "meshes/f/flora_grass_07.nif",
+                "meshes/f/flora_bc_grass_01.nif",
+                "meshes/f/flora_bc_grass_02.nif",
+                "meshes/f/flora_ash_grass_b_01.nif",
+                "meshes/f/flora_ash_grass_r_01.nif",
+                "meshes/f/flora_ash_grass_w_01.nif",
+                "meshes/f/flora_bm_grass_01.nif",
+                "meshes/f/flora_bm_grass_02.nif",
+                "meshes/f/flora_bm_grass_03.nif",
+                "meshes/f/flora_bm_grass_04.nif",
+                "meshes/f/flora_bm_grass_05.nif",
+                "meshes/f/flora_bm_grass_06.nif",
+            };
+
+            result.reserve(candidates.size());
+            for (const std::string_view candidate : candidates)
+            {
+                VFS::Path::Normalized model(candidate);
+                if (vfs->exists(model))
+                    result.push_back(std::move(model));
+            }
+
+            return result;
         }
 
         float getProceduralFloraSurfaceWeight(VFS::Path::NormalizedView texture)
@@ -763,8 +979,128 @@ namespace MWRender
         , mProceduralEnabled(proceduralEnabled)
         , mProceduralDensity(std::clamp(proceduralDensity, 0.f, 2.f))
         , mExclusionDistance(std::clamp(exclusionDistanceMeters, 0.f, 20.f) * Constants::UnitsPerMeter)
-        , mProceduralModel(store.getAnyGroundcoverModel())
     {
+        mProceduralModels = collectBuiltInProceduralFloraModels(
+            mSceneManager != nullptr ? mSceneManager->getVFS() : nullptr);
+
+        bool usingExternalTestAsset = false;
+        if (const char* value = std::getenv("OPENMW_FLORA_TEST_ASSET");
+            value != nullptr && *value != '\0')
+        {
+            const VFS::Manager* vfs = mSceneManager != nullptr ? mSceneManager->getVFS() : nullptr;
+            std::vector<VFS::Path::Normalized> externalModels;
+            std::string token;
+
+            auto flushToken = [&]() {
+                if (token.empty())
+                    return;
+
+                const VFS::Path::Normalized testModel(token);
+                token.clear();
+
+                if (vfs != nullptr && vfs->exists(testModel))
+                {
+                    if (std::find(externalModels.begin(), externalModels.end(), testModel)
+                        == externalModels.end())
+                    {
+                        externalModels.push_back(testModel);
+                    }
+                }
+                else
+                {
+                    Log(Debug::Warning) << "Procedural flora test asset not found in VFS: "
+                                        << testModel << "; skipping.";
+                }
+            };
+
+            for (const char ch : std::string(value))
+            {
+                if (ch == ',' || ch == ';'
+                    || std::isspace(static_cast<unsigned char>(ch)))
+                {
+                    flushToken();
+                }
+                else
+                {
+                    token.push_back(ch);
+                }
+            }
+            flushToken();
+
+            if (!externalModels.empty())
+            {
+                mProceduralModels = std::move(externalModels);
+                usingExternalTestAsset = true;
+                Log(Debug::Info) << "Procedural flora test assets: using "
+                                 << mProceduralModels.size() << " model(s), first="
+                                 << mProceduralModels.front();
+            }
+            else
+            {
+                Log(Debug::Warning)
+                    << "Procedural flora test assets: no valid VFS model from OPENMW_FLORA_TEST_ASSET="
+                    << value << "; falling back to vanilla-vfs.";
+            }
+        }
+
+        if (mProceduralEnabled && mSceneManager != nullptr)
+        {
+            constexpr float targetFootprint = 60.f;
+            constexpr float rejectFootprintAbove = 200.f;
+
+            std::vector<VFS::Path::Normalized> usableModels;
+            usableModels.reserve(mProceduralModels.size());
+
+            std::size_t rejectedOversizeModels = 0;
+
+            for (const VFS::Path::Normalized& model : mProceduralModels)
+            {
+                try
+                {
+                    const osg::ref_ptr<const osg::Node> node = mSceneManager->getTemplate(model, false);
+                    osg::ComputeBoundsVisitor boundsVisitor;
+                    const_cast<osg::Node*>(node.get())->accept(boundsVisitor);
+                    const osg::BoundingBox bounds = boundsVisitor.getBoundingBox();
+
+                    if (!bounds.valid())
+                        continue;
+
+                    const float widthX = bounds.xMax() - bounds.xMin();
+                    const float depthY = bounds.yMax() - bounds.yMin();
+                    const float sourceFootprint = std::max(widthX, depthY);
+
+                    // Vanilla flora_grass_05/06/07 are very wide multi-clump strip
+                    // meshes (256..512 world units). They behave like rigid bars on
+                    // slopes, so do not use them for Automatic placement.
+                    if (sourceFootprint > rejectFootprintAbove)
+                    {
+                        ++rejectedOversizeModels;
+                        continue;
+                    }
+
+                    const float profileScale
+                        = sourceFootprint > targetFootprint ? targetFootprint / sourceFootprint : 1.f;
+                    const float normalizedFootprint = sourceFootprint * profileScale;
+
+                    mProceduralModelScale.emplace(model, profileScale);
+                    mProceduralModelFootprint.emplace(model, normalizedFootprint);
+                    usableModels.push_back(model);
+                }
+                catch (const std::exception& e)
+                {
+                    Log(Debug::Warning) << "Procedural flora: unable to profile model "
+                                        << model << ": " << e.what();
+                }
+            }
+
+            mProceduralModels = std::move(usableModels);
+
+            Log(Debug::Info) << "Procedural flora model profile: usable=" << mProceduralModels.size()
+                             << ", rejectedOversize=" << rejectedOversizeModels
+                             << ", targetFootprint=" << targetFootprint
+                             << ", rejectAbove=" << rejectFootprintAbove;
+        }
+
         setViewDistance(viewDistance);
         // MGE uses default alpha settings for groundcover, so we can not rely on alpha properties
         // Force a unified alpha handling instead of data from meshes
@@ -783,16 +1119,27 @@ namespace MWRender
 
         if (mProceduralEnabled)
         {
-            if (mProceduralModel.empty())
+            if (mProceduralModels.empty())
             {
-                Log(Debug::Warning) << "Procedural flora PoC: no groundcover mesh is available; "
+                Log(Debug::Warning) << "Procedural flora PoC: no built-in vanilla grass meshes were found in the VFS; "
                                        "automatic placement is disabled for this run.";
             }
             else
             {
-                Log(Debug::Info) << "Procedural flora PoC: model=" << mProceduralModel
+                Log(Debug::Info) << "Procedural flora PoC: modelSource="
+                                 << (usingExternalTestAsset ? "external-test-assets" : "vanilla-vfs")
+                                 << ", models=" << mProceduralModels.size()
+                                 << ", firstModel=" << mProceduralModels.front()
+                                 << ", modelSelection=vanilla-LAND-region"
+                                 << ", terrainHeight=diamond-L0"
+                                 << ", modelFootprint=max60"
+                                 << ", microCluster=1"
+                                 << ", clusterRadius=0"
+                                 << ", slopeProjection=per-instance"
                                  << ", density=" << mProceduralDensity
-                                 << ", baseCandidatesPerCell=512"
+                                 << ", baseCandidatesPerCell=32768"
+                                 << ", distribution=jittered-grid"
+                                 << ", stylizedMix=88%base+12%accent"
                                  << ", maxSlope=28deg, LAND texture weighting=on, object exclusions=on"
                                  << ", pathgrid exclusions=on, exclusionDistance="
                                  << mExclusionDistance / Constants::UnitsPerMeter << "m";
@@ -863,7 +1210,8 @@ namespace MWRender
             }
         }
 
-        if (!mProceduralEnabled || mProceduralDensity <= 0.f || mProceduralModel.empty() || mTerrainStorage == nullptr)
+        if (!mProceduralEnabled || mProceduralDensity <= 0.f || mProceduralModels.empty()
+            || mTerrainStorage == nullptr)
             return;
 
         auto hash32 = [](std::uint32_t value) {
@@ -884,11 +1232,12 @@ namespace MWRender
         const std::vector<FloraPathSegment> pathgridExclusions
             = collectPathgridExclusions(size, center);
 
-        auto addProceduralInstance = [&](const ESM::Position& position, float scale) {
-            auto proceduralIt = instances.find(mProceduralModel);
+        auto addProceduralInstance = [&](VFS::Path::NormalizedView model, const ESM::Position& position,
+                                         float scale) {
+            auto proceduralIt = instances.find(model);
             if (proceduralIt == instances.end())
                 proceduralIt = instances.emplace_hint(
-                    proceduralIt, mProceduralModel, std::vector<GroundcoverEntry>());
+                    proceduralIt, VFS::Path::Normalized(model), std::vector<GroundcoverEntry>());
             proceduralIt->second.emplace_back(position, scale);
         };
 
@@ -896,12 +1245,11 @@ namespace MWRender
         // of 24 candidates at 100% density produced only isolated tufts.
         // 512 candidates gives a useful sparse groundcover baseline while still
         // leaving LAND weights and exclusion rules in control of the final count.
-        constexpr float baseCandidatesPerCell = 512.f;
+        constexpr float baseCandidatesPerCell = 32768.f;
         const int candidatesPerCell
             = std::max(1, static_cast<int>(std::lround(baseCandidatesPerCell * mProceduralDensity)));
         constexpr float margin = 0.06f;
         constexpr float twoPi = 6.2831853071795864769f;
-
 
         for (int cellX = startCell.x(); cellX < startCell.x() + size; ++cellX)
         {
@@ -914,8 +1262,20 @@ namespace MWRender
                         ^ static_cast<std::uint32_t>(cellY) * 0x85ebca6bu
                         ^ static_cast<std::uint32_t>(index) * 0xc2b2ae35u;
 
-                    const float fx = margin + (1.f - 2.f * margin) * random01(base ^ 0x68bc21ebu);
-                    const float fy = margin + (1.f - 2.f * margin) * random01(base ^ 0x02e5be93u);
+                    const int gridSide = static_cast<int>(
+                        std::ceil(std::sqrt(static_cast<float>(candidatesPerCell))));
+                    const int gridX = index % gridSide;
+                    const int gridY = index / gridSide;
+
+                    const float jitterX = random01(base ^ 0x68bc21ebu);
+                    const float jitterY = random01(base ^ 0x02e5be93u);
+                    const float normalizedX
+                        = (static_cast<float>(gridX) + jitterX) / static_cast<float>(gridSide);
+                    const float normalizedY
+                        = (static_cast<float>(gridY) + jitterY) / static_cast<float>(gridSide);
+
+                    const float fx = margin + (1.f - 2.f * margin) * normalizedX;
+                    const float fy = margin + (1.f - 2.f * margin) * normalizedY;
 
                     const float cellPosX = static_cast<float>(cellX) + fx;
                     const float cellPosY = static_cast<float>(cellY) + fy;
@@ -927,7 +1287,7 @@ namespace MWRender
                     position.pos[0] = cellPosX * ESM::Land::REAL_SIZE;
                     position.pos[1] = cellPosY * ESM::Land::REAL_SIZE;
                     const osg::Vec3f samplePos(position.pos[0], position.pos[1], 0.f);
-                    position.pos[2] = mTerrainStorage->getHeightAt(
+                    position.pos[2] = mTerrainStorage->getProceduralHeightAt(
                         samplePos, ESM::Cell::sDefaultWorldspaceId);
 
                     if (position.pos[2] <= 1.f)
@@ -959,8 +1319,96 @@ namespace MWRender
                     position.rot[1] = 0.f;
                     position.rot[2] = random01(base ^ 0xa511e9b3u) * twoPi;
 
-                    const float scale = 0.85f + random01(base ^ 0x63d83595u) * 0.3f;
-                    addProceduralInstance(position, scale);
+                    // Vanilla single-grass meshes are small enough to follow slopes,
+                    // but one accepted candidate still looks like an isolated blade.
+                    // Build a small patch from several independent instances instead.
+                    // Every child gets its own X/Y, terrain Z, slope and surface checks,
+                    // so the cluster bends over hills through placement rather than by
+                    // tilting one rigid mesh.
+                    // Carpet profile: use many more accepted base sites and only
+                    // a few children around each one. A wider child radius fills the
+                    // space between neighbouring sites instead of piling 12-18 blades
+                    // into isolated compact clumps.
+                    // Carpet mode: one independently selected model per accepted
+                    // base site. Density now comes from many evenly distributed
+                    // sites rather than several models piled into local clusters.
+                    constexpr int minClusterSize = 1;
+                    constexpr int clusterSizeRange = 1; // always 1
+                    constexpr float clusterRadius = 0.f;
+
+                    const int clusterSize = minClusterSize
+                        + static_cast<int>(hash32(base ^ 0xd3a2646cu) % clusterSizeRange);
+
+                    for (int clusterIndex = 0; clusterIndex < clusterSize; ++clusterIndex)
+                    {
+                        const std::uint32_t clusterSeed
+                            = hash32(base ^ (0x9e3779b9u * static_cast<std::uint32_t>(clusterIndex + 1)));
+
+                        const float angle = random01(clusterSeed ^ 0x68bc21ebu) * twoPi;
+                        const float radius = clusterRadius
+                            * std::sqrt(random01(clusterSeed ^ 0x02e5be93u));
+
+                        ESM::Position clusterPosition = position;
+                        clusterPosition.pos[0] += std::cos(angle) * radius;
+                        clusterPosition.pos[1] += std::sin(angle) * radius;
+
+                        const osg::Vec3f clusterSample(
+                            clusterPosition.pos[0], clusterPosition.pos[1], 0.f);
+
+                        clusterPosition.pos[2] = mTerrainStorage->getProceduralHeightAt(
+                            clusterSample, ESM::Cell::sDefaultWorldspaceId);
+
+                        if (clusterPosition.pos[2] <= 1.f)
+                            continue;
+
+                        const float clusterSlope = mTerrainStorage->getSlopeDegreesAt(
+                            clusterSample, ESM::Cell::sDefaultWorldspaceId);
+                        if (clusterSlope > maxSlopeDegrees)
+                            continue;
+
+                        const VFS::Path::Normalized clusterLandTexture
+                            = mTerrainStorage->getLandTextureAt(
+                                clusterSample, ESM::Cell::sDefaultWorldspaceId);
+                        const float clusterSurfaceWeight
+                            = getProceduralFloraSurfaceWeight(clusterLandTexture);
+                        if (clusterSurfaceWeight <= 0.f)
+                            continue;
+
+                        if (clusterSurfaceWeight < 1.f
+                            && random01(clusterSeed ^ 0x4f1bbcdcu) >= clusterSurfaceWeight)
+                            continue;
+
+                        if (isInsideFloraExclusion(clusterSample, floraExclusions))
+                            continue;
+
+                        if (isInsidePathgridExclusion(
+                                clusterSample, pathgridExclusions, mExclusionDistance))
+                            continue;
+
+                        clusterPosition.rot[0] = 0.f;
+                        clusterPosition.rot[1] = 0.f;
+                        clusterPosition.rot[2]
+                            = random01(clusterSeed ^ 0xa511e9b3u) * twoPi;
+
+                        const std::uint32_t modelSelector
+                            = hash32(clusterSeed ^ 0x91e10da5u);
+                        const VFS::Path::Normalized& proceduralModel
+                            = chooseProceduralFloraModel(
+                                mProceduralModels, clusterLandTexture, modelSelector);
+
+                        float profileScale = 1.f;
+                        if (const auto it = mProceduralModelScale.find(proceduralModel);
+                            it != mProceduralModelScale.end())
+                        {
+                            profileScale = it->second;
+                        }
+
+                        const float randomScale
+                            = 0.8f + random01(clusterSeed ^ 0x63d83595u) * 0.35f;
+                        const float scale = randomScale * profileScale;
+
+                        addProceduralInstance(proceduralModel, clusterPosition, scale);
+                    }
                 }
             }
         }
@@ -970,9 +1418,10 @@ namespace MWRender
     {
         osg::ref_ptr<osg::Group> group = new osg::Group;
         osg::Vec3f worldCenter = osg::Vec3f(center.x(), center.y(), 0) * ESM::Land::REAL_SIZE;
-        for (const auto& [model, entries] : instances)
+        for (auto& [model, entries] : instances)
         {
             const osg::Node* temp = mSceneManager->getTemplate(model);
+
             osg::ref_ptr<osg::Node> node = static_cast<osg::Node*>(temp->clone(osg::CopyOp::DEEP_COPY_NODES
                 | osg::CopyOp::DEEP_COPY_DRAWABLES | osg::CopyOp::DEEP_COPY_USERDATA | osg::CopyOp::DEEP_COPY_ARRAYS
                 | osg::CopyOp::DEEP_COPY_PRIMITIVES));

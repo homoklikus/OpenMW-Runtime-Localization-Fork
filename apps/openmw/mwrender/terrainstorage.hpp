@@ -26,6 +26,7 @@ namespace MWRender
         const std::string* getLandTexture(std::uint16_t index, int plugin) override;
 
         VFS::Path::Normalized getLandTextureAt(const osg::Vec3f& worldPos, ESM::RefId worldspace);
+        float getProceduralHeightAt(const osg::Vec3f& worldPos, ESM::RefId worldspace);
         float getSlopeDegreesAt(const osg::Vec3f& worldPos, ESM::RefId worldspace);
 
         const ESM4::LandTexture* getEsm4LandTexture(ESM::RefId ltexId) const override;

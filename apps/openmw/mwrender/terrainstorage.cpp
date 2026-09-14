@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include <osg/Plane>
+
 #include <components/esm3/loadland.hpp>
 #include <components/esm4/loadltex.hpp>
 #include <components/esm4/loadtxst.hpp>
@@ -114,6 +116,83 @@ namespace MWRender
     {
         const MWWorld::ESMStore& esmStore = *MWBase::Environment::get().getESMStore();
         return esmStore.get<ESM::LandTexture>().search(index, plugin);
+    }
+
+    float TerrainStorage::getProceduralHeightAt(
+        const osg::Vec3f& worldPos, ESM::RefId worldspace)
+    {
+        // Procedural flora needs to sit on the same triangle that the terrain
+        // renderer draws. ESMTerrain::Storage::getHeightAt currently contains
+        // a FIXME and always assumes one diagonal orientation, while the
+        // renderer uses a checkerboard ("diamond") pattern.
+        if (ESM::isEsm4Ext(worldspace))
+            return getHeightAt(worldPos, worldspace);
+
+        const float cellSize = static_cast<float>(ESM::Land::REAL_SIZE);
+        const int cellX = static_cast<int>(std::floor(worldPos.x() / cellSize));
+        const int cellY = static_cast<int>(std::floor(worldPos.y() / cellSize));
+
+        const osg::ref_ptr<const ESMTerrain::LandObject> land
+            = getLand(ESM::ExteriorCellLocation(cellX, cellY, worldspace));
+        if (!land)
+            return getHeightAt(worldPos, worldspace);
+
+        const ESM::LandData* data = land->getData(ESM::Land::DATA_VHGT);
+        if (data == nullptr)
+            return getHeightAt(worldPos, worldspace);
+
+        const int landSize = data->getLandSize();
+        const float nX = (worldPos.x() - static_cast<float>(cellX) * cellSize) / cellSize;
+        const float nY = (worldPos.y() - static_cast<float>(cellY) * cellSize) / cellSize;
+
+        const float factor = static_cast<float>(landSize - 1);
+        const float invFactor = 1.f / factor;
+
+        const int startX = std::clamp(static_cast<int>(nX * factor), 0, landSize - 1);
+        const int startY = std::clamp(static_cast<int>(nY * factor), 0, landSize - 1);
+        const int endX = std::min(startX + 1, landSize - 1);
+        const int endY = std::min(startY + 1, landSize - 1);
+
+        if (startX == endX || startY == endY)
+            return getHeightAt(worldPos, worldspace);
+
+        const float startXTS = static_cast<float>(startX) * invFactor;
+        const float startYTS = static_cast<float>(startY) * invFactor;
+        const float endXTS = static_cast<float>(endX) * invFactor;
+        const float endYTS = static_cast<float>(endY) * invFactor;
+
+        const float xParam = (nX - startXTS) * factor;
+        const float yParam = (nY - startYTS) * factor;
+
+        const osg::Vec3f v0(startXTS, startYTS, getVertexHeight(data, startX, startY) / cellSize);
+        const osg::Vec3f v1(endXTS, startYTS, getVertexHeight(data, endX, startY) / cellSize);
+        const osg::Vec3f v2(endXTS, endYTS, getVertexHeight(data, endX, endY) / cellSize);
+        const osg::Vec3f v3(startXTS, endYTS, getVertexHeight(data, startX, endY) / cellSize);
+
+        osg::Plane plane;
+
+        // Match components/terrain/buffercache.cpp:
+        // odd checkerboard quads use the v1-v3 diagonal,
+        // even checkerboard quads use the v0-v2 diagonal.
+        const bool oddDiamond = ((startX + startY) & 1) != 0;
+        if (oddDiamond)
+        {
+            if ((1.f - yParam) > xParam)
+                plane = osg::Plane(v0, v1, v3);
+            else
+                plane = osg::Plane(v1, v2, v3);
+        }
+        else
+        {
+            if (yParam > xParam)
+                plane = osg::Plane(v0, v2, v3);
+            else
+                plane = osg::Plane(v0, v1, v2);
+        }
+
+        return static_cast<float>(
+            (-plane.getNormal().x() * nX - plane.getNormal().y() * nY - plane[3])
+            / plane.getNormal().z() * cellSize);
     }
 
     VFS::Path::Normalized TerrainStorage::getLandTextureAt(

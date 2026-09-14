@@ -67,7 +67,9 @@ namespace MWRender
         bool mProceduralEnabled;
         float mProceduralDensity;
         float mExclusionDistance;
-        VFS::Path::Normalized mProceduralModel;
+        std::vector<VFS::Path::Normalized> mProceduralModels;
+        std::map<VFS::Path::Normalized, float, std::less<>> mProceduralModelScale;
+        std::map<VFS::Path::Normalized, float, std::less<>> mProceduralModelFootprint;
 
         osg::ref_ptr<osg::Node> createChunk(InstanceMap& instances, const osg::Vec2f& center);
         void collectInstances(InstanceMap& instances, float size, const osg::Vec2f& center);
