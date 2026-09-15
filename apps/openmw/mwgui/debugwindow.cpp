@@ -112,7 +112,7 @@ namespace MWGui
         // - Shader editor
 
         // Native Debug world/LAND diagnostics.
-        MyGUI::TabItem* itemWorld = mTabControl->addItem("Świat");
+        MyGUI::TabItem* itemWorld = mTabControl->addItem(" Świat ");
         mWorldDebug = itemWorld->createWidgetReal<MyGUI::EditBox>(
             "LogEdit", MyGUI::FloatCoord(0, 0, 1, 1), MyGUI::Align::Stretch);
         mWorldDebug->setEditReadOnly(true);
