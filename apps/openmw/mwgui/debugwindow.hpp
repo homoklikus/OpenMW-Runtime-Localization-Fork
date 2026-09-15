@@ -16,11 +16,13 @@ namespace MWGui
         static void startLogRecording();
 
     private:
+        void updateWorldDebug();
         void updateLogView();
         void updateLuaProfile();
         void updateBulletProfile();
 
         MyGUI::TabControl* mTabControl;
+        MyGUI::EditBox* mWorldDebug;
         MyGUI::EditBox* mLogView;
         MyGUI::EditBox* mLuaProfiler;
         MyGUI::EditBox* mBulletProfilerEdit;

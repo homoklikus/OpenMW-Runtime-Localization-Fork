@@ -235,6 +235,7 @@ namespace MWRender
         void setViewDistance(float distance, bool delay = false);
 
         float getTerrainHeightAt(const osg::Vec3f& pos, ESM::RefId worldspace);
+        VFS::Path::Normalized getLandTextureAt(const osg::Vec3f& pos, ESM::RefId worldspace);
 
         // camera stuff
         Camera* getCamera() { return mCamera.get(); }

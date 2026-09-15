@@ -1414,6 +1414,11 @@ namespace MWRender
         return getWorldspaceChunkMgr(worldspace).mTerrain->getHeightAt(pos);
     }
 
+    VFS::Path::Normalized RenderingManager::getLandTextureAt(const osg::Vec3f& pos, ESM::RefId worldspace)
+    {
+        return mTerrainStorage->getLandTextureAt(pos, worldspace);
+    }
+
     void RenderingManager::overrideFieldOfView(float val)
     {
         if (mFieldOfViewOverridden != true || mFieldOfViewOverride != val)

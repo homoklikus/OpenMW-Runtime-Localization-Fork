@@ -480,6 +480,200 @@ namespace MWRender
             return nullptr;
         }
 
+        // Remiros AI reference profile.
+        //
+        // Test-only bridge for the isolated Ascadian Isles model pool.
+        // The exact weights and scale ranges come from the analysed Rem_AI.esp.
+        bool hasPathSuffix(std::string_view value, std::string_view suffix)
+        {
+            return value.size() >= suffix.size()
+                && value.substr(value.size() - suffix.size()) == suffix;
+        }
+
+        enum class RemirosAiModel
+        {
+            Grass01,
+            Grass01B,
+            Grass01C,
+            Grass02,
+            Other,
+        };
+
+        RemirosAiModel getRemirosAiModel(VFS::Path::NormalizedView model)
+        {
+            const std::string_view name = model.value();
+
+            if (hasPathSuffix(name, "/rem_ai_grass_01.nif"))
+                return RemirosAiModel::Grass01;
+            if (hasPathSuffix(name, "/rem_ai_grass_01b.nif"))
+                return RemirosAiModel::Grass01B;
+            if (hasPathSuffix(name, "/rem_ai_grass_01c.nif"))
+                return RemirosAiModel::Grass01C;
+            if (hasPathSuffix(name, "/rem_ai_grass_02.nif"))
+                return RemirosAiModel::Grass02;
+
+            return RemirosAiModel::Other;
+        }
+
+        const VFS::Path::Normalized* findRemirosAiModel(
+            std::span<const VFS::Path::Normalized> models, RemirosAiModel wanted)
+        {
+            for (const VFS::Path::Normalized& model : models)
+            {
+                if (getRemirosAiModel(model) == wanted)
+                    return &model;
+            }
+            return nullptr;
+        }
+
+        bool hasRemirosAiTestPool(std::span<const VFS::Path::Normalized> models)
+        {
+            return findRemirosAiModel(models, RemirosAiModel::Grass01) != nullptr
+                && findRemirosAiModel(models, RemirosAiModel::Grass01B) != nullptr
+                && findRemirosAiModel(models, RemirosAiModel::Grass01C) != nullptr
+                && findRemirosAiModel(models, RemirosAiModel::Grass02) != nullptr;
+        }
+
+        // Remiros AI LAND-aware mix.
+        const VFS::Path::Normalized* chooseRemirosAiModel(
+            std::span<const VFS::Path::Normalized> models,
+            VFS::Path::NormalizedView landTexture, std::uint32_t selector)
+        {
+            const VFS::Path::Normalized* grass01
+                = findRemirosAiModel(models, RemirosAiModel::Grass01);
+            const VFS::Path::Normalized* grass01b
+                = findRemirosAiModel(models, RemirosAiModel::Grass01B);
+            const VFS::Path::Normalized* grass01c
+                = findRemirosAiModel(models, RemirosAiModel::Grass01C);
+            const VFS::Path::Normalized* grass02
+                = findRemirosAiModel(models, RemirosAiModel::Grass02);
+
+            if (grass01 == nullptr || grass01b == nullptr
+                || grass01c == nullptr || grass02 == nullptr)
+                return nullptr;
+
+            const std::string_view texture = landTexture.value();
+            const bool clover
+                = texture.find("clover") != std::string_view::npos;
+            const bool grassDirt
+                = texture.find("grass") != std::string_view::npos
+                && texture.find("dirt") != std::string_view::npos;
+            const bool grass02Surface
+                = texture.find("grass_02") != std::string_view::npos;
+
+            // Rem_AI.esp has one dedicated Clover static and it always uses
+            // rem_ai_grass_02.nif.
+            if (clover)
+                return grass02;
+
+            if (grassDirt)
+            {
+                // GRS_AI_Grass_Dirt2/0/1:
+                // 01=6079 (39.20%), 01c=4788 (30.87%), 01b=4641 (29.93%).
+                const std::uint32_t slot = selector % 15508u;
+                if (slot < 6079u)
+                    return grass01;
+                if (slot < 10867u)
+                    return grass01c;
+                return grass01b;
+            }
+
+            if (grass02Surface)
+            {
+                // GRS_AI_Grass_022/020/021:
+                // 01=6998 (48.74%), 01c=4516 (31.45%), 01b=2845 (19.81%).
+                const std::uint32_t slot = selector % 14359u;
+                if (slot < 6998u)
+                    return grass01;
+                if (slot < 11514u)
+                    return grass01c;
+                return grass01b;
+            }
+
+            // Main clean-grass family GRS_AI_Grass2/0/1:
+            // 01=45651 (74.05%), 01c=9809 (15.91%), 01b=6188 (10.04%).
+            const std::uint32_t slot = selector % 61648u;
+            if (slot < 45651u)
+                return grass01;
+            if (slot < 55460u)
+                return grass01c;
+            return grass01b;
+        }
+
+        bool isRemirosAiRegion(int cellX, int cellY)
+        {
+            const MWBase::World* world = MWBase::Environment::get().getWorld();
+            if (world == nullptr)
+                return false;
+
+            const ESM::Cell* cell
+                = world->getStore().get<ESM::Cell>().searchStatic(cellX, cellY);
+            if (cell == nullptr)
+                return false;
+
+            return cell->mRegion.getRefIdString() == "Ascadian Isles Region";
+        }
+
+        void alignRemirosAiToTerrain(
+            ESM::Position& position, const osg::Vec3f& worldPos,
+            TerrainStorage* terrainStorage)
+        {
+            if (terrainStorage == nullptr)
+                return;
+
+            const float sampleDistance
+                = static_cast<float>(ESM::Land::REAL_SIZE)
+                / static_cast<float>(ESM::Land::LAND_SIZE - 1);
+
+            const ESM::RefId worldspace = ESM::Cell::sDefaultWorldspaceId;
+            const float left = terrainStorage->getProceduralHeightAt(
+                osg::Vec3f(worldPos.x() - sampleDistance, worldPos.y(), 0.f),
+                worldspace);
+            const float right = terrainStorage->getProceduralHeightAt(
+                osg::Vec3f(worldPos.x() + sampleDistance, worldPos.y(), 0.f),
+                worldspace);
+            const float down = terrainStorage->getProceduralHeightAt(
+                osg::Vec3f(worldPos.x(), worldPos.y() - sampleDistance, 0.f),
+                worldspace);
+            const float up = terrainStorage->getProceduralHeightAt(
+                osg::Vec3f(worldPos.x(), worldPos.y() + sampleDistance, 0.f),
+                worldspace);
+
+            const float dzdx = (right - left) / (2.f * sampleDistance);
+            const float dzdy = (up - down) / (2.f * sampleDistance);
+
+            osg::Vec3f normal(-dzdx, -dzdy, 1.f);
+            normal.normalize();
+
+            position.rot[0] = std::asin(std::clamp(normal.y(), -1.f, 1.f));
+            position.rot[1] = std::atan2(-normal.x(), normal.z());
+        }
+
+        float getRemirosAiReferenceScale(
+            VFS::Path::NormalizedView model, VFS::Path::NormalizedView landTexture,
+            float randomValue)
+        {
+            const RemirosAiModel kind = getRemirosAiModel(model);
+            const std::string_view texture = landTexture.value();
+
+            // Rem_AI.esp uses the same 01/01b/01c NIFs at two authored
+            // scale ranges depending on LAND surface family:
+            //   clean grass: 1.25 .. 1.62, median ~1.44
+            //   grass+dirt:  1.00 .. 1.34, median ~1.17
+            // Clover (02) is rare and sits around 1.24 .. 1.50.
+            const bool grassDirt
+                = texture.find("grass") != std::string_view::npos
+                && texture.find("dirt") != std::string_view::npos;
+
+            if (kind == RemirosAiModel::Grass02)
+                return 1.24f + randomValue * 0.26f;
+
+            if (grassDirt)
+                return 1.00f + randomValue * 0.34f;
+
+            return 1.25f + randomValue * 0.37f;
+        }
+
         const VFS::Path::Normalized& chooseProceduralFloraModel(
             std::span<const VFS::Path::Normalized> models, VFS::Path::NormalizedView landTexture,
             std::uint32_t selector)
@@ -553,6 +747,42 @@ namespace MWRender
             }
 
             return result;
+        }
+
+        // Pathgrid flora exclusion only on path-like LAND.
+        bool shouldUsePathgridFloraExclusion(VFS::Path::NormalizedView texture)
+        {
+            if (texture.empty())
+                return false;
+
+            const std::string_view name = texture.value();
+
+            return name.find("road") != std::string_view::npos
+                || name.find("path") != std::string_view::npos
+                || name.find("cobble") != std::string_view::npos
+                || name.find("dirt") != std::string_view::npos;
+        }
+
+        // Remiros AI mixed-rock LAND and slope alignment.
+        float getRemirosAiSurfaceWeight(
+            VFS::Path::NormalizedView texture, float genericWeight)
+        {
+            if (genericWeight > 0.f || texture.empty())
+                return genericWeight;
+
+            const std::string_view name = texture.value();
+            const bool rock = name.find("rock") != std::string_view::npos;
+            const bool naturalCover
+                = name.find("grass") != std::string_view::npos
+                || name.find("moss") != std::string_view::npos
+                || name.find("clover") != std::string_view::npos;
+
+            // Keep pure rock blocked. Only mixed natural-cover + rock LAND is
+            // reopened for the Ascadian Isles reference profile.
+            if (rock && naturalCover)
+                return 0.65f;
+
+            return genericWeight;
         }
 
         float getProceduralFloraSurfaceWeight(VFS::Path::NormalizedView texture)
@@ -1043,6 +1273,8 @@ namespace MWRender
             }
         }
 
+        const bool remirosAiTestPool = hasRemirosAiTestPool(mProceduralModels);
+
         if (mProceduralEnabled && mSceneManager != nullptr)
         {
             constexpr float targetFootprint = 60.f;
@@ -1069,17 +1301,25 @@ namespace MWRender
                     const float depthY = bounds.yMax() - bounds.yMin();
                     const float sourceFootprint = std::max(widthX, depthY);
 
+                    const bool remirosAiModel
+                        = remirosAiTestPool && getRemirosAiModel(model) != RemirosAiModel::Other;
+
                     // Vanilla flora_grass_05/06/07 are very wide multi-clump strip
                     // meshes (256..512 world units). They behave like rigid bars on
                     // slopes, so do not use them for Automatic placement.
-                    if (sourceFootprint > rejectFootprintAbove)
+                    //
+                    // The isolated Remiros AI test pool is exempt: those meshes are
+                    // already authored as complete groundcover clumps and must keep
+                    // their native footprint.
+                    if (!remirosAiModel && sourceFootprint > rejectFootprintAbove)
                     {
                         ++rejectedOversizeModels;
                         continue;
                     }
 
-                    const float profileScale
-                        = sourceFootprint > targetFootprint ? targetFootprint / sourceFootprint : 1.f;
+                    const float profileScale = remirosAiModel
+                        ? 1.f
+                        : (sourceFootprint > targetFootprint ? targetFootprint / sourceFootprint : 1.f);
                     const float normalizedFootprint = sourceFootprint * profileScale;
 
                     mProceduralModelScale.emplace(model, profileScale);
@@ -1130,18 +1370,29 @@ namespace MWRender
                                  << (usingExternalTestAsset ? "external-test-assets" : "vanilla-vfs")
                                  << ", models=" << mProceduralModels.size()
                                  << ", firstModel=" << mProceduralModels.front()
-                                 << ", modelSelection=vanilla-LAND-region"
+                                 << ", modelSelection="
+                                 << (remirosAiTestPool ? "remiros-AI-CELL-region" : "vanilla-LAND-region")
                                  << ", terrainHeight=diamond-L0"
-                                 << ", modelFootprint=max60"
+                                 << ", modelFootprint="
+                                 << (remirosAiTestPool ? "remiros-authored" : "max60")
                                  << ", microCluster=1"
                                  << ", clusterRadius=0"
                                  << ", slopeProjection=per-instance"
                                  << ", density=" << mProceduralDensity
-                                 << ", baseCandidatesPerCell=32768"
+                                 << ", baseCandidatesPerCell="
+                                 << (remirosAiTestPool ? "4096(remiros-AI)" : "32768")
                                  << ", distribution=jittered-grid"
-                                 << ", stylizedMix=88%base+12%accent"
-                                 << ", maxSlope=28deg, LAND texture weighting=on, object exclusions=on"
-                                 << ", pathgrid exclusions=on, exclusionDistance="
+                                 << ", stylizedMix="
+                                 << (remirosAiTestPool
+                                         ? "remirosAI LAND-aware static groups"
+                                         : "88%base+12%accent")
+                                 << ", maxSlope="
+                                 << (remirosAiTestPool ? "45deg(AI)" : "28deg")
+                                 << ", LAND texture weighting=on, object exclusions=on"
+                                 << ", remirosAI LAND=bypass-diagnostic"
+                                 << ", RemirosAiFilters=LAND+slope45+objectExclusion"
+                                 << ", slopeAlignment=on"
+                                 << ", pathgrid exclusions=path-like-LAND-only, exclusionDistance="
                                  << mExclusionDistance / Constants::UnitsPerMeter << "m";
             }
         }
@@ -1248,22 +1499,41 @@ namespace MWRender
         constexpr float baseCandidatesPerCell = 32768.f;
         const int candidatesPerCell
             = std::max(1, static_cast<int>(std::lround(baseCandidatesPerCell * mProceduralDensity)));
-        constexpr float margin = 0.06f;
+        constexpr float margin = 0.f;
         constexpr float twoPi = 6.2831853071795864769f;
+
+        const bool useRemirosAiProfile = hasRemirosAiTestPool(mProceduralModels);
 
         for (int cellX = startCell.x(); cellX < startCell.x() + size; ++cellX)
         {
             for (int cellY = startCell.y(); cellY < startCell.y() + size; ++cellY)
             {
-                for (int index = 0; index < candidatesPerCell; ++index)
+                const bool remirosAiCell
+                    = useRemirosAiProfile && isRemirosAiRegion(cellX, cellY);
+
+                // The AI test pool is regional by design. Keep it inside
+                // Ascadian Isles while we tune the reference profile.
+                if (useRemirosAiProfile && !remirosAiCell)
+                    continue;
+
+                // Rem_AI.esp around Vivec frequently contains roughly
+                // 1000..3000 final references per natural exterior cell.
+                // Our count is BEFORE LAND/slope/object/path rejection, so 1536
+                // was visibly too sparse. 4096 remains well below pach74g's
+                // generic 32768 carpet while giving the filters room to work.
+                const int cellCandidatesPerCell = remirosAiCell
+                    ? std::max(1, static_cast<int>(std::lround(4096.f * mProceduralDensity)))
+                    : candidatesPerCell;
+                const int gridSide = static_cast<int>(
+                    std::ceil(std::sqrt(static_cast<float>(cellCandidatesPerCell))));
+
+                for (int index = 0; index < cellCandidatesPerCell; ++index)
                 {
                     const std::uint32_t base
                         = static_cast<std::uint32_t>(cellX) * 0x9e3779b9u
                         ^ static_cast<std::uint32_t>(cellY) * 0x85ebca6bu
                         ^ static_cast<std::uint32_t>(index) * 0xc2b2ae35u;
 
-                    const int gridSide = static_cast<int>(
-                        std::ceil(std::sqrt(static_cast<float>(candidatesPerCell))));
                     const int gridX = index % gridSide;
                     const int gridY = index / gridSide;
 
@@ -1293,7 +1563,13 @@ namespace MWRender
                     if (position.pos[2] <= 1.f)
                         continue;
 
-                    constexpr float maxSlopeDegrees = 28.f;
+                    // Remiros AI slope limit 45deg.
+                    //
+                    // 28 degrees is conservative for generic automatic flora and
+                    // appears to cut the top/face of ordinary Ascadian Isles hills.
+                    // For the Remiros AI reference profile only, allow vegetation
+                    // up to 45 degrees. The generic pach74g profile stays at 28.
+                    const float maxSlopeDegrees = remirosAiCell ? 45.f : 28.f;
                     const float slope = mTerrainStorage->getSlopeDegreesAt(
                         samplePos, ESM::Cell::sDefaultWorldspaceId);
                     if (slope > maxSlopeDegrees)
@@ -1301,7 +1577,12 @@ namespace MWRender
 
                     const VFS::Path::Normalized landTexture = mTerrainStorage->getLandTextureAt(
                         samplePos, ESM::Cell::sDefaultWorldspaceId);
-                    const float surfaceWeight = getProceduralFloraSurfaceWeight(landTexture);
+                    const float genericSurfaceWeight
+                        = getProceduralFloraSurfaceWeight(landTexture);
+
+                    const float surfaceWeight = remirosAiCell
+                        ? getRemirosAiSurfaceWeight(landTexture, genericSurfaceWeight)
+                        : genericSurfaceWeight;
                     if (surfaceWeight <= 0.f)
                         continue;
 
@@ -1310,10 +1591,16 @@ namespace MWRender
                         continue;
 
                     if (isInsideFloraExclusion(samplePos, floraExclusions))
+                    {
                         continue;
+                    }
 
-                    if (isInsidePathgridExclusion(samplePos, pathgridExclusions, mExclusionDistance))
+                    if (shouldUsePathgridFloraExclusion(landTexture)
+                        && isInsidePathgridExclusion(
+                            samplePos, pathgridExclusions, mExclusionDistance))
+                    {
                         continue;
+                    }
 
                     position.rot[0] = 0.f;
                     position.rot[1] = 0.f;
@@ -1369,8 +1656,11 @@ namespace MWRender
                         const VFS::Path::Normalized clusterLandTexture
                             = mTerrainStorage->getLandTextureAt(
                                 clusterSample, ESM::Cell::sDefaultWorldspaceId);
-                        const float clusterSurfaceWeight
+                        const float genericClusterSurfaceWeight
                             = getProceduralFloraSurfaceWeight(clusterLandTexture);
+                        const float clusterSurfaceWeight = remirosAiCell
+                            ? getRemirosAiSurfaceWeight(clusterLandTexture, genericClusterSurfaceWeight)
+                            : genericClusterSurfaceWeight;
                         if (clusterSurfaceWeight <= 0.f)
                             continue;
 
@@ -1379,22 +1669,39 @@ namespace MWRender
                             continue;
 
                         if (isInsideFloraExclusion(clusterSample, floraExclusions))
+                        {
                             continue;
+                        }
 
-                        if (isInsidePathgridExclusion(
+                        if (shouldUsePathgridFloraExclusion(clusterLandTexture)
+                            && isInsidePathgridExclusion(
                                 clusterSample, pathgridExclusions, mExclusionDistance))
+                        {
                             continue;
+                        }
 
                         clusterPosition.rot[0] = 0.f;
                         clusterPosition.rot[1] = 0.f;
                         clusterPosition.rot[2]
                             = random01(clusterSeed ^ 0xa511e9b3u) * twoPi;
 
+                        if (remirosAiCell)
+                            alignRemirosAiToTerrain(
+                                clusterPosition, clusterSample, mTerrainStorage);
+
                         const std::uint32_t modelSelector
                             = hash32(clusterSeed ^ 0x91e10da5u);
+
+                        const VFS::Path::Normalized* remirosAiModel
+                            = remirosAiCell
+                            ? chooseRemirosAiModel(mProceduralModels, clusterLandTexture, modelSelector)
+                            : nullptr;
+
                         const VFS::Path::Normalized& proceduralModel
-                            = chooseProceduralFloraModel(
-                                mProceduralModels, clusterLandTexture, modelSelector);
+                            = remirosAiModel != nullptr
+                            ? *remirosAiModel
+                            : chooseProceduralFloraModel(
+                                  mProceduralModels, clusterLandTexture, modelSelector);
 
                         float profileScale = 1.f;
                         if (const auto it = mProceduralModelScale.find(proceduralModel);
@@ -1403,8 +1710,11 @@ namespace MWRender
                             profileScale = it->second;
                         }
 
-                        const float randomScale
-                            = 0.8f + random01(clusterSeed ^ 0x63d83595u) * 0.35f;
+                        const float randomScale = remirosAiCell
+                            ? getRemirosAiReferenceScale(
+                                  proceduralModel, clusterLandTexture,
+                                  random01(clusterSeed ^ 0x63d83595u))
+                            : 0.8f + random01(clusterSeed ^ 0x63d83595u) * 0.35f;
                         const float scale = randomScale * profileScale;
 
                         addProceduralInstance(proceduralModel, clusterPosition, scale);

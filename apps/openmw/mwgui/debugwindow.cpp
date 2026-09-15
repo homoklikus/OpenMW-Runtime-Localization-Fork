@@ -6,12 +6,20 @@
 
 #include <LinearMath/btQuickprof.h>
 #include <components/debug/debugging.hpp>
+#include <components/esm3/loadcell.hpp>
+#include <components/esm3/loadland.hpp>
 #include <components/settings/values.hpp>
 
 #include "../mwbase/environment.hpp"
 #include "../mwbase/luamanager.hpp"
+#include "../mwbase/world.hpp"
+#include "../mwrender/renderingmanager.hpp"
+#include "../mwworld/refdata.hpp"
 
+#include <cmath>
+#include <iomanip>
 #include <mutex>
+#include <sstream>
 
 #ifndef BT_NO_PROFILE
 
@@ -103,6 +111,12 @@ namespace MWGui
         // - Material editor
         // - Shader editor
 
+        // Native Debug world/LAND diagnostics.
+        MyGUI::TabItem* itemWorld = mTabControl->addItem("Świat");
+        mWorldDebug = itemWorld->createWidgetReal<MyGUI::EditBox>(
+            "LogEdit", MyGUI::FloatCoord(0, 0, 1, 1), MyGUI::Align::Stretch);
+        mWorldDebug->setEditReadOnly(true);
+
         MyGUI::TabItem* itemLV = mTabControl->addItem("Log Viewer");
         itemLV->setCaptionWithReplacing(" #{OMWEngine:LogViewer} ");
         mLogView
@@ -188,6 +202,61 @@ namespace MWGui
         });
     }
 
+    void DebugWindow::updateWorldDebug()
+    {
+        MWBase::World* world = MWBase::Environment::get().getWorld();
+        if (world == nullptr)
+        {
+            mWorldDebug->setCaption("World unavailable");
+            return;
+        }
+
+        MWWorld::Ptr player = world->getPlayerPtr();
+        if (player.isEmpty())
+        {
+            mWorldDebug->setCaption("Player unavailable");
+            return;
+        }
+
+        const osg::Vec3f pos = player.getRefData().getPosition().asVec3();
+
+        std::ostringstream stream;
+        stream << std::fixed << std::setprecision(1);
+        stream << "Pozycja: X=" << pos.x() << " Y=" << pos.y() << " Z=" << pos.z() << '\n';
+
+        if (!world->isCellExterior())
+        {
+            stream << "Komórka: interior\n";
+            stream << "LAND: <not exterior>";
+            mWorldDebug->setCaption(stream.str());
+            return;
+        }
+
+        const int cellX = static_cast<int>(std::floor(pos.x() / ESM::Land::REAL_SIZE));
+        const int cellY = static_cast<int>(std::floor(pos.y() / ESM::Land::REAL_SIZE));
+
+        MWRender::RenderingManager* rendering = world->getRenderingManager();
+        if (rendering == nullptr)
+        {
+            stream << "Cell: (" << cellX << ", " << cellY << ")\n";
+            stream << "LAND: <renderer unavailable>";
+            mWorldDebug->setCaption(stream.str());
+            return;
+        }
+
+        const VFS::Path::Normalized landTexture
+            = rendering->getLandTextureAt(pos, ESM::Cell::sDefaultWorldspaceId);
+
+        stream << "Cell: (" << cellX << ", " << cellY << ")\n";
+        stream << "LAND: ";
+        if (landTexture.value().empty())
+            stream << "<none>";
+        else
+            stream << landTexture.value();
+
+        mWorldDebug->setCaption(stream.str());
+    }
+
     void DebugWindow::updateLogView()
     {
         std::lock_guard lock(sBufferMutex);
@@ -258,12 +327,15 @@ namespace MWGui
         switch (mTabControl->getIndexSelected())
         {
             case 0:
-                updateLogView();
+                updateWorldDebug();
                 break;
             case 1:
-                updateLuaProfile();
+                updateLogView();
                 break;
             case 2:
+                updateLuaProfile();
+                break;
+            case 3:
                 updateBulletProfile();
                 break;
             default:;

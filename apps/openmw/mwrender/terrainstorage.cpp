@@ -238,17 +238,25 @@ namespace MWRender
 
     float TerrainStorage::getSlopeDegreesAt(const osg::Vec3f& worldPos, ESM::RefId worldspace)
     {
+        // Procedural flora slope sampling must use the rendered LAND triangle.
+        //
+        // getHeightAt() still follows the old single-diagonal interpolation,
+        // while getProceduralHeightAt() matches the terrain renderer's
+        // checkerboard ("diamond") triangulation. Mixing the two can produce
+        // false steep-slope bands and large/partial bald patches on otherwise
+        // ordinary hills.
+        //
         // One vanilla LAND height vertex is 128 world units apart.
         const float sampleDistance
             = static_cast<float>(ESM::Land::REAL_SIZE) / static_cast<float>(ESM::Land::LAND_SIZE - 1);
 
-        const float left = getHeightAt(
+        const float left = getProceduralHeightAt(
             osg::Vec3f(worldPos.x() - sampleDistance, worldPos.y(), 0.f), worldspace);
-        const float right = getHeightAt(
+        const float right = getProceduralHeightAt(
             osg::Vec3f(worldPos.x() + sampleDistance, worldPos.y(), 0.f), worldspace);
-        const float down = getHeightAt(
+        const float down = getProceduralHeightAt(
             osg::Vec3f(worldPos.x(), worldPos.y() - sampleDistance, 0.f), worldspace);
-        const float up = getHeightAt(
+        const float up = getProceduralHeightAt(
             osg::Vec3f(worldPos.x(), worldPos.y() + sampleDistance, 0.f), worldspace);
 
         const float dzdx = (right - left) / (2.f * sampleDistance);
