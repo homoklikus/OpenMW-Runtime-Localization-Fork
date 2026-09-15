@@ -600,6 +600,90 @@ namespace MWRender
             return grass01b;
         }
 
+        // Remiros BC reference profile.
+        //
+        // First-pass regional bridge for Rem_BC.esp assets. Keep this isolated
+        // to the Bitter Coast while density / surface mix is tuned visually.
+        enum class RemirosBcModel
+        {
+            Grass01,
+            Grass02,
+            Grass03,
+            Other,
+        };
+
+        RemirosBcModel getRemirosBcModel(VFS::Path::NormalizedView model)
+        {
+            const std::string_view name = model.value();
+
+            if (hasPathSuffix(name, "/rem_bc_grass_01.nif"))
+                return RemirosBcModel::Grass01;
+            if (hasPathSuffix(name, "/rem_bc_grass_02.nif"))
+                return RemirosBcModel::Grass02;
+            if (hasPathSuffix(name, "/rem_bc_grass_03.nif"))
+                return RemirosBcModel::Grass03;
+
+            return RemirosBcModel::Other;
+        }
+
+        const VFS::Path::Normalized* findRemirosBcModel(
+            std::span<const VFS::Path::Normalized> models, RemirosBcModel wanted)
+        {
+            for (const VFS::Path::Normalized& model : models)
+            {
+                if (getRemirosBcModel(model) == wanted)
+                    return &model;
+            }
+            return nullptr;
+        }
+
+        bool hasRemirosBcTestPool(std::span<const VFS::Path::Normalized> models)
+        {
+            return findRemirosBcModel(models, RemirosBcModel::Grass01) != nullptr
+                && findRemirosBcModel(models, RemirosBcModel::Grass02) != nullptr
+                && findRemirosBcModel(models, RemirosBcModel::Grass03) != nullptr;
+        }
+
+        const VFS::Path::Normalized* chooseRemirosBcModel(
+            std::span<const VFS::Path::Normalized> models, std::uint32_t selector)
+        {
+            const VFS::Path::Normalized* grass01
+                = findRemirosBcModel(models, RemirosBcModel::Grass01);
+            const VFS::Path::Normalized* grass02
+                = findRemirosBcModel(models, RemirosBcModel::Grass02);
+            const VFS::Path::Normalized* grass03
+                = findRemirosBcModel(models, RemirosBcModel::Grass03);
+
+            if (grass01 == nullptr || grass02 == nullptr || grass03 == nullptr)
+                return nullptr;
+
+            // Neutral first-pass mix. Do not invent Rem_BC.esp weights before
+            // measuring them; visual/reference analysis can tune this later.
+            switch (selector % 3u)
+            {
+                case 0u:
+                    return grass01;
+                case 1u:
+                    return grass02;
+                default:
+                    return grass03;
+            }
+        }
+
+        bool isRemirosBcRegion(int cellX, int cellY)
+        {
+            const MWBase::World* world = MWBase::Environment::get().getWorld();
+            if (world == nullptr)
+                return false;
+
+            const ESM::Cell* cell
+                = world->getStore().get<ESM::Cell>().searchStatic(cellX, cellY);
+            if (cell == nullptr)
+                return false;
+
+            return cell->mRegion.getRefIdString() == "Bitter Coast Region";
+        }
+
         bool isRemirosAiRegion(int cellX, int cellY)
         {
             const MWBase::World* world = MWBase::Environment::get().getWorld();
@@ -890,7 +974,7 @@ namespace MWRender
             if (type != ESM::REC_STAT)
                 return false;
 
-            constexpr std::array<std::string_view, 8> naturalKeywords = {
+            constexpr std::array<std::string_view, 10> naturalKeywords = {
                 "flora",
                 "tree",
                 "plant",
@@ -899,6 +983,8 @@ namespace MWRender
                 "fern",
                 "bush",
                 "shrub",
+                "rock",
+                "boulder",
             };
 
             for (const std::string_view keyword : naturalKeywords)
@@ -1274,6 +1360,8 @@ namespace MWRender
         }
 
         const bool remirosAiTestPool = hasRemirosAiTestPool(mProceduralModels);
+        const bool remirosBcTestPool = hasRemirosBcTestPool(mProceduralModels);
+        const bool remirosReferenceTestPool = remirosAiTestPool || remirosBcTestPool;
 
         if (mProceduralEnabled && mSceneManager != nullptr)
         {
@@ -1301,23 +1389,25 @@ namespace MWRender
                     const float depthY = bounds.yMax() - bounds.yMin();
                     const float sourceFootprint = std::max(widthX, depthY);
 
-                    const bool remirosAiModel
-                        = remirosAiTestPool && getRemirosAiModel(model) != RemirosAiModel::Other;
+                    const bool remirosReferenceModel
+                        = (remirosAiTestPool
+                              && getRemirosAiModel(model) != RemirosAiModel::Other)
+                        || (remirosBcTestPool
+                              && getRemirosBcModel(model) != RemirosBcModel::Other);
 
                     // Vanilla flora_grass_05/06/07 are very wide multi-clump strip
                     // meshes (256..512 world units). They behave like rigid bars on
                     // slopes, so do not use them for Automatic placement.
                     //
-                    // The isolated Remiros AI test pool is exempt: those meshes are
-                    // already authored as complete groundcover clumps and must keep
-                    // their native footprint.
-                    if (!remirosAiModel && sourceFootprint > rejectFootprintAbove)
+                    // Isolated Remiros reference pools are exempt: their meshes are
+                    // authored as complete groundcover clumps and keep native footprint.
+                    if (!remirosReferenceModel && sourceFootprint > rejectFootprintAbove)
                     {
                         ++rejectedOversizeModels;
                         continue;
                     }
 
-                    const float profileScale = remirosAiModel
+                    const float profileScale = remirosReferenceModel
                         ? 1.f
                         : (sourceFootprint > targetFootprint ? targetFootprint / sourceFootprint : 1.f);
                     const float normalizedFootprint = sourceFootprint * profileScale;
@@ -1371,25 +1461,34 @@ namespace MWRender
                                  << ", models=" << mProceduralModels.size()
                                  << ", firstModel=" << mProceduralModels.front()
                                  << ", modelSelection="
-                                 << (remirosAiTestPool ? "remiros-AI-CELL-region" : "vanilla-LAND-region")
+                                 << (remirosAiTestPool
+                                         ? "remiros-AI-CELL-region"
+                                         : (remirosBcTestPool
+                                                   ? "remiros-BC-region"
+                                                   : "vanilla-LAND-region"))
                                  << ", terrainHeight=diamond-L0"
                                  << ", modelFootprint="
-                                 << (remirosAiTestPool ? "remiros-authored" : "max60")
+                                 << (remirosReferenceTestPool ? "remiros-authored" : "max60")
                                  << ", microCluster=1"
                                  << ", clusterRadius=0"
                                  << ", slopeProjection=per-instance"
                                  << ", density=" << mProceduralDensity
                                  << ", baseCandidatesPerCell="
-                                 << (remirosAiTestPool ? "4096(remiros-AI)" : "32768")
+                                 << (remirosAiTestPool
+                                         ? "4096(remiros-AI)"
+                                         : (remirosBcTestPool ? "8192(remiros-BC)" : "32768"))
                                  << ", distribution=jittered-grid"
                                  << ", stylizedMix="
                                  << (remirosAiTestPool
                                          ? "remirosAI LAND-aware static groups"
-                                         : "88%base+12%accent")
+                                         : (remirosBcTestPool
+                                                   ? "remirosBC neutral 3-model first-pass"
+                                                   : "88%base+12%accent"))
                                  << ", maxSlope="
-                                 << (remirosAiTestPool ? "45deg(AI)" : "28deg")
+                                 << (remirosAiTestPool
+                                         ? "45deg(AI)"
+                                         : (remirosBcTestPool ? "28deg(BC)" : "28deg"))
                                  << ", LAND texture weighting=on, object exclusions=on"
-                                 << ", remirosAI LAND=bypass-diagnostic"
                                  << ", RemirosAiFilters=LAND+slope45+objectExclusion"
                                  << ", slopeAlignment=on"
                                  << ", pathgrid exclusions=path-like-LAND-only, exclusionDistance="
@@ -1503,6 +1602,9 @@ namespace MWRender
         constexpr float twoPi = 6.2831853071795864769f;
 
         const bool useRemirosAiProfile = hasRemirosAiTestPool(mProceduralModels);
+        const bool useRemirosBcProfile = hasRemirosBcTestPool(mProceduralModels);
+        const bool useRemirosReferenceProfile
+            = useRemirosAiProfile || useRemirosBcProfile;
 
         for (int cellX = startCell.x(); cellX < startCell.x() + size; ++cellX)
         {
@@ -1510,10 +1612,13 @@ namespace MWRender
             {
                 const bool remirosAiCell
                     = useRemirosAiProfile && isRemirosAiRegion(cellX, cellY);
+                const bool remirosBcCell
+                    = useRemirosBcProfile && isRemirosBcRegion(cellX, cellY);
+                const bool remirosReferenceCell = remirosAiCell || remirosBcCell;
 
-                // The AI test pool is regional by design. Keep it inside
-                // Ascadian Isles while we tune the reference profile.
-                if (useRemirosAiProfile && !remirosAiCell)
+                // Isolated Remiros test pools are regional by design.
+                // Never leak one region's grass into the rest of Vvardenfell.
+                if (useRemirosReferenceProfile && !remirosReferenceCell)
                     continue;
 
                 // Rem_AI.esp around Vivec frequently contains roughly
@@ -1523,7 +1628,9 @@ namespace MWRender
                 // generic 32768 carpet while giving the filters room to work.
                 const int cellCandidatesPerCell = remirosAiCell
                     ? std::max(1, static_cast<int>(std::lround(4096.f * mProceduralDensity)))
-                    : candidatesPerCell;
+                    : (remirosBcCell
+                              ? std::max(1, static_cast<int>(std::lround(8192.f * mProceduralDensity)))
+                              : candidatesPerCell);
                 const int gridSide = static_cast<int>(
                     std::ceil(std::sqrt(static_cast<float>(cellCandidatesPerCell))));
 
@@ -1685,7 +1792,7 @@ namespace MWRender
                         clusterPosition.rot[2]
                             = random01(clusterSeed ^ 0xa511e9b3u) * twoPi;
 
-                        if (remirosAiCell)
+                        if (remirosReferenceCell)
                             alignRemirosAiToTerrain(
                                 clusterPosition, clusterSample, mTerrainStorage);
 
@@ -1696,12 +1803,18 @@ namespace MWRender
                             = remirosAiCell
                             ? chooseRemirosAiModel(mProceduralModels, clusterLandTexture, modelSelector)
                             : nullptr;
+                        const VFS::Path::Normalized* remirosBcModel
+                            = remirosBcCell
+                            ? chooseRemirosBcModel(mProceduralModels, modelSelector)
+                            : nullptr;
 
                         const VFS::Path::Normalized& proceduralModel
                             = remirosAiModel != nullptr
                             ? *remirosAiModel
-                            : chooseProceduralFloraModel(
-                                  mProceduralModels, clusterLandTexture, modelSelector);
+                            : (remirosBcModel != nullptr
+                                      ? *remirosBcModel
+                                      : chooseProceduralFloraModel(
+                                            mProceduralModels, clusterLandTexture, modelSelector));
 
                         float profileScale = 1.f;
                         if (const auto it = mProceduralModelScale.find(proceduralModel);
