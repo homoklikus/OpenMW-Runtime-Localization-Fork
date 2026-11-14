@@ -5,7 +5,7 @@
 | Data | 2026-11-14 |
 | Wersja MCP | `openmw-mcp 0.6.0`, hash drzewa: patrz tabela etapów w `README.md` |
 | Zmiana silnika | `pach76-remiros-subtexel-counts.py` (`Fork/experiments/remiros-subtexel-2026-11-14/`), na gałęzi `world-remiros-texture` po pach75 (`94e5fb45`) |
-| Status | zbudowane, sprawdzone w grze (Debian 13, 2026-11-14 17:24) i zatwierdzone; commit `5ead2e90` na gałęzi `world-remiros-texture` (niescalonej z `0.5-world`) |
+| Status | zbudowane, sprawdzone w grze (Debian 13, 2026-11-14 17:24) i zatwierdzone; commit `5ead2e90` na gałęzi `world-remiros-texture`, scalony z `0.5-world` (merge `f9f775ae`) |
 
 ## Skąd ta zmiana
 Porównanie zrzutów (etap 3) pokazało na Solstheimie zielone kępki trawy w oficjalnym OpenMW, których fork nie miał. Analiza w MCP:
