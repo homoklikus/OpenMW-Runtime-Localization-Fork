@@ -5,7 +5,7 @@
 | Data | 2026-11-14 |
 | Wersja MCP | `openmw-mcp 0.7.0`, hash drzewa `22731e7b896ddb2937b478391d8be075815aa2cf5bba59181fb18118b3cdc58f` |
 | Baza | `0.5-world` = `80b82e84`; generator Groundcover forka bez zmian; bez zmian w silniku i w oficjalnym OpenMW |
-| Status | sprawdzone na Debianie (104 testy, integracja) i w grze (granice 9457 obiektów, zrzuty z przebiegu 18:58); poprawki po teście: śmierć postaci testowej, dwa przestarzałe sprawdzenia integracji |
+| Status | sprawdzone na Debianie (104 testy, integracja) i w grze (granice 9457 obiektów, zrzuty z przebiegu 18:58); poprawki po teście potwierdzone (integracja 62/62, przebieg `2026-11-14-191745-porownanie`: oba kadry c15_-9 z tego samego miejsca, bez zmiany kamery); **zatwierdzone**, commit `be3df967` |
 
 ## Cel
 Claude ma sam ustalać, jakie obiekty stoją w komórce, jakie mają modele i granice oraz czy zasłaniają kamerę. Na tej podstawie ma wybierać punkty obserwacji do porównań oficjalny OpenMW / fork.
