@@ -7,7 +7,7 @@ Zwięzłe podsumowania zmian, patchy, testów i decyzji technicznych. Surowe dan
 | [`migracja/`](migracja/) | reorganizacje środowiska pracy |
 | [`patche/`](patche/) | różnice forka względem oficjalnego OpenMW, architektura modyfikacji |
 | [`groundcover/`](groundcover/) | proceduralna flora, profile Remirosa, eksperymenty |
-| [`mcp/`](mcp/) | założenia przyszłego serwera MCP |
+| [`mcp/`](mcp/) | serwer MCP-openMW: architektura, etapy, wersje kodu, testy ([indeks](mcp/README.md)) |
 
 ## Trzy stany kodu — zawsze rozróżniaj
 
@@ -27,3 +27,4 @@ Zasoby bazowe Groundcover dla obu stanów: Remiros' Groundcover 4.1 `00 Core Ope
 - [Groundcover: stan forka, Remiros, eksperyment AC](groundcover/2026-11-14-groundcover-stan.md)
 - [Remiros: wariant historyczny i referencyjny](groundcover/2026-11-14-remiros-wariant-historyczny.md)
 - [Założenia architektury MCP](mcp/2026-11-14-architektura-mcp.md)
+- [MCP-openMW etap 1 — narzędzia tylko do odczytu](mcp/2026-11-14-etap1-narzedzia-odczytu.md) (zatwierdzony, Debian 13: 36/36)
