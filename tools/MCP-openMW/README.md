@@ -1,4 +1,4 @@
-# MCP-openMW — etapy 1–2c
+# MCP-openMW — etapy 1–3
 
 Wspólny serwer MCP dla dwóch silników:
 - **official** — OpenMW 0.51.0 (Flatpak `org.openmw.OpenMW`, kod w `../OpenMW/repo`);
@@ -65,18 +65,28 @@ Claude Desktop: dopisz wpis z `claude/claude_desktop_config.snippet.json` do sek
 
 Wynik forka jest **górną granicą**: bez wykluczeń obiektów sceny (wymagają granic NIF) i ścieżek PGRD. Te cztery narzędzia emulują generator **sprzed pach75**.
 
-### Etap 2c — trawa Remirosa w forku (pach75)
+### Etap 2c — trawa Remirosa w forku (pach75, od 0.6.0 format pach76)
 | Narzędzie | Opis |
 |---|---|
 | `openmw_remiros_rules` | reguły wyliczone z pluginów: tekstura LAND → gęstość na teksel, statyki (model, udział, skala, +z), statystyka mapy liczników |
-| `openmw_remiros_compare` | komórka: Remiros vs trawa forka po pach75 (emulacja identyczna z rdzeniem C++), tryb liczników albo same reguły |
-| `openmw_remiros_export` | zapis plików C++ dla pach75 (dane + kopie wzorców z `cpp/`) do katalogu eksperymentu — jedyny zapis |
+| `openmw_remiros_compare` | komórka: Remiros vs trawa forka (emulacja identyczna z rdzeniem C++), tryb liczników albo same reguły; od 0.6.0 liczniki per pole 4×4 teksela i per statyka (pach76) |
+| `openmw_remiros_export` | zapis plików C++ (dane + kopie wzorców z `cpp/`) do katalogu eksperymentu, domyślnie `Fork/experiments/remiros-subtexel-2026-11-14/files` (pach76) — jedyny zapis |
+
+### Etap 3 — porównania wizualne (uruchamia silniki)
+| Narzędzie | Opis |
+|---|---|
+| `openmw_capture_plan` | punkty kamery dla komórek (cel: najgęstszy teksel Remirosa, 700 j., kamera nad wodą), katalog uruchomienia i polecenia — bez uruchamiania; `repeat` (powtórzenie serii), `settle_seconds`, `render_seconds` |
+| `openmw_capture_start` | uruchamia w tle oficjalny OpenMW, potem fork; skrypt Lua `lua/rlf_capture` ustawia ujęcia, MCP robi zrzut (F12 w grze przez `xdotool`, awaryjnie `import -window`) |
+| `openmw_capture_status` | postęp, zrzuty, błędy z logów, arkusze obok siebie i miary (różnica obrazów, udział pikseli roślinności) |
+
+Profile `openmw-ref` i `openmw-test` nie są zmieniane. Każde uruchomienie dostaje katalog `Raporty/mcp/zrzuty/<data>/<profil>/` (`cfg/` jako ostatni katalog konfiguracji: log, ustawienia 1920×1080 w oknie, kopia `world.cfg`/`shaders.yaml`/`input_v3.xml`; `data/` ze skryptem Lua; `userdata/`). Oba silniki działają przez XWayland (`SDL_VIDEODRIVER=x11`; Flatpak dostaje `--socket=x11` tylko na czas uruchomienia). Wymagania: `xdotool`, `import` (ImageMagick), `pip install -e '.[capture]'` (Pillow). W trakcie przebiegu nie używaj myszy ani klawiatury.
+
+Przebieg z terminala: `.venv/bin/python -m openmw_mcp.capture <katalog_uruchomienia>` (katalog przygotowany przez `openmw_capture_plan`).
 
 `cpp/remirosgroundcovergen.hpp` to wzorzec rdzenia generatora (bez zależności od OSG/OpenMW), `cpp/remirosgroundcover.{hpp,cpp}` — adapter do silnika, `cpp/remiros_harness.cpp` — test porównawczy C++↔Python (`tests/test_remiros.py`, wymaga `g++`).
 
 To emulacja offline na podstawie kodu silnika, nie pomiar w działającym silniku. Indeksy LAND/groundcover są trzymane w pamięci procesu i odświeżane, gdy zmieni się rozmiar lub mtime któregoś pliku.
 
-## Wersja kodu
 ## Wersja kodu
 Podstawowy identyfikator: commit Git repozytorium forka, w którym zmieniono `tools/MCP-openMW/`. Dodatkowy identyfikator wersji testowej: `SOURCE-MANIFEST.sha256` (suma SHA-256 każdego pliku źródłowego) i hash drzewa (`sha256sum SOURCE-MANIFEST.sha256`). Hash pozwala wskazać stan sprzed commita albo z lokalnymi zmianami:
 ```bash

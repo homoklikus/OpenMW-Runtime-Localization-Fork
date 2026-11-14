@@ -4,16 +4,17 @@
 // Generator trawy według reguł Remirosa (tekstura LAND -> gęstość, statyki, skala, wysokość) z mapą liczników
 // na teksel. Rdzeń bez zależności od OSG/OpenMW — ten sam kod kompiluje się w silniku i w teście porównawczym MCP.
 //
-// Wzorzec: tools/MCP-openMW/cpp/remirosgroundcovergen.hpp (MCP-openMW, etap 2c). Odpowiednik w Pythonie:
+// Wzorzec: tools/MCP-openMW/cpp/remirosgroundcovergen.hpp (MCP-openMW, etap 2c + pach76). Odpowiednik w Pythonie:
 // openmw_mcp/remirosrules.py::generate_cell — oba muszą dawać identyczne instancje dla tego samego terenu.
 //
 // Zasady (z analizy pluginów Remirosa):
-//  * teksel z zapisanym licznikiem, zgodnym odciskiem terenu komórki i tą samą teksturą -> dokładnie tyle roślin,
-//    pozycje losowe w tekselu (do sRetries prób, gdy pod wodą), model wg tekstury w punkcie przesuniętym o ±0,3 teksela;
+//  * teksel z zapisanymi licznikami, zgodnym odciskiem terenu komórki i tą samą teksturą -> dla każdej grupy
+//    (pole podsiatki 4x4 = 128x128 j., statyka) dokładnie tyle roślin tej statyki, pozycje losowe w polu
+//    (do sRetries prób, gdy pod wodą) — odtwarza miks modeli i luki autora bez kopiowania współrzędnych roślin;
 //  * pozostałe teksele (inny teren, inna tekstura, brak wpisu) -> reguła tekstury: gęstość na teksel, pozycje
 //    w tekselu poszerzonym o sSpreadTexels z każdej strony;
 //  * bez filtru zbocza i bez omijania obiektów (Remiros ich nie stosuje); teren <= sUnderwaterMaxHeight -> brak;
-//  * dane zawierają wyłącznie agregaty (liczby na teksel, reguły) — żadnych współrzędnych roślin z ESP.
+//  * dane zawierają wyłącznie agregaty (liczby w polach 128 j., reguły) — żadnych współrzędnych roślin z ESP.
 
 #include <algorithm>
 #include <array>
@@ -95,6 +96,15 @@ namespace MWRender::RemirosGen
         std::vector<Entry> mEntries;
     };
 
+    /// Statyka wg indeksu globalnego (RemirosRules::statics()); pusty mModel = brak modelu w VFS.
+    struct StaticInfo
+    {
+        std::string mModel;
+        float mScaleMin = 1.f;
+        float mScaleMax = 1.f;
+        float mZOffset = 0.f;
+    };
+
     class Model
     {
     public:
@@ -103,34 +113,34 @@ namespace MWRender::RemirosGen
         explicit Model(Resolve&& resolve)
         {
             const auto statics = RemirosRules::statics();
+            mStatics.reserve(statics.size());
+            for (const RemirosRules::StaticRule& rule : statics)
+            {
+                std::optional<std::string> path = resolve(rule.mModel);
+                if (!path)
+                    ++mMissingStatics;
+                mStatics.push_back(StaticInfo{ path ? std::move(*path) : std::string(), rule.mScaleMin,
+                    rule.mScaleMax, rule.mZOffset });
+            }
             for (const RemirosRules::TextureRule& texture : RemirosRules::textures())
             {
-                std::vector<const RemirosRules::StaticRule*> usable;
-                std::vector<std::string> paths;
                 double total = 0.0;
                 for (unsigned i = 0; i < texture.mStaticCount; ++i)
-                {
-                    const RemirosRules::StaticRule& rule = statics[texture.mFirstStatic + i];
-                    std::optional<std::string> path = resolve(rule.mModel);
-                    if (!path)
-                    {
-                        ++mMissingStatics;
-                        continue;
-                    }
-                    usable.push_back(&rule);
-                    paths.push_back(std::move(*path));
-                    total += rule.mShare;
-                }
-                if (usable.empty() || total <= 0.0)
+                    if (!mStatics[texture.mFirstStatic + i].mModel.empty())
+                        total += statics[texture.mFirstStatic + i].mShare;
+                if (total <= 0.0)
                     continue;
                 Rule rule;
                 rule.mDensity = texture.mDensityPerTexel;
                 double accumulated = 0.0;
-                for (std::size_t i = 0; i < usable.size(); ++i)
+                for (unsigned i = 0; i < texture.mStaticCount; ++i)
                 {
-                    accumulated += usable[i]->mShare / total;
-                    rule.mEntries.push_back(Entry{ static_cast<float>(std::min(accumulated, 1.0)), paths[i],
-                        usable[i]->mScaleMin, usable[i]->mScaleMax, usable[i]->mZOffset });
+                    const StaticInfo& info = mStatics[texture.mFirstStatic + i];
+                    if (info.mModel.empty())
+                        continue;
+                    accumulated += statics[texture.mFirstStatic + i].mShare / total;
+                    rule.mEntries.push_back(Entry{ static_cast<float>(std::min(accumulated, 1.0)), info.mModel,
+                        info.mScaleMin, info.mScaleMax, info.mZOffset });
                 }
                 mRules.emplace(std::string(texture.mTexture), std::move(rule));
             }
@@ -144,6 +154,11 @@ namespace MWRender::RemirosGen
         {
             const auto it = mRules.find(key);
             return it == mRules.end() ? nullptr : &it->second;
+        }
+
+        const StaticInfo* staticAt(std::size_t index) const
+        {
+            return index < mStatics.size() ? &mStatics[index] : nullptr;
         }
 
         static const RemirosRules::CellCounts* findCell(int x, int y)
@@ -160,6 +175,7 @@ namespace MWRender::RemirosGen
 
     private:
         std::unordered_map<std::string, Rule> mRules;
+        std::vector<StaticInfo> mStatics;
         std::size_t mMissingStatics = 0;
     };
 
@@ -192,15 +208,21 @@ namespace MWRender::RemirosGen
         }
         std::array<int, 256> recordedTexture;
         recordedTexture.fill(-1);
-        std::array<int, 256> recordedCount{};
+        std::array<std::uint32_t, 256> firstGroup{};
+        std::array<int, 256> groupCount{};
+        const auto groups = RemirosRules::groups();
         if (countsValid)
         {
             const auto entries = RemirosRules::entries();
+            std::uint32_t next = counts->mFirstGroup;
             for (unsigned i = 0; i < counts->mEntryCount; ++i)
             {
                 const std::uint32_t e = entries[counts->mFirstEntry + i];
-                recordedTexture[e & 0xffu] = static_cast<int>((e >> 8) & 0xffu);
-                recordedCount[e & 0xffu] = static_cast<int>((e >> 16) & 0xffu);
+                const int texel = static_cast<int>(e & 0xffu);
+                recordedTexture[texel] = static_cast<int>((e >> 8) & 0xffu);
+                firstGroup[texel] = next;
+                groupCount[texel] = static_cast<int>((e >> 16) & 0xffu);
+                next += static_cast<std::uint32_t>(groupCount[texel]);
             }
         }
         stats.mCountsUsed = countsValid;
@@ -208,6 +230,45 @@ namespace MWRender::RemirosGen
         const bool filter = (maxX - minX) < 1.f || (maxY - minY) < 1.f;
         const std::uint32_t cxu = static_cast<std::uint32_t>(cellX) * 0x9e3779b9u;
         const std::uint32_t cyu = static_cast<std::uint32_t>(cellY) * 0x85ebca6bu;
+        constexpr float sub = static_cast<float>(RemirosRules::sSubdivisions);
+
+        const auto countOf = [](float d, std::uint32_t seed) {
+            const float whole = std::floor(d);
+            return static_cast<int>(whole) + (random01(seed ^ 0x2545f491u) < d - whole ? 1 : 0);
+        };
+
+        struct Placed
+        {
+            float mWorldX, mWorldY, mHeight;
+            std::uint32_t mSeed;
+        };
+        // offset(seed, px, py): pozycja w jednostkach komórek; nullopt = pod wodą (po próbach) lub poza chunkiem.
+        const auto place = [&](std::uint32_t s0, int attempts, auto&& offset) -> std::optional<Placed> {
+            for (int attempt = 0; attempt < attempts; ++attempt)
+            {
+                const std::uint32_t s
+                    = attempt == 0 ? s0 : hash32(s0 ^ (static_cast<std::uint32_t>(attempt) * 0x632be5abu));
+                float px = 0.f, py = 0.f;
+                offset(s, px, py);
+                const float wx = px * sCellSize;
+                const float wy = py * sCellSize;
+                const float h = terrain.heightAt(wx, wy);
+                if (h <= RemirosRules::sUnderwaterMaxHeight)
+                    continue;
+                if (filter
+                    && ((minX > std::floor(minX) && px < minX) || (minY > std::floor(minY) && py < minY)
+                        || (maxX < std::ceil(maxX) && px >= maxX) || (maxY < std::ceil(maxY) && py >= maxY)))
+                    return std::nullopt;
+                return Placed{ wx, wy, h, s };
+            }
+            return std::nullopt;
+        };
+        const auto emit = [&](const Placed& p, const std::string& modelPath, float scaleMin, float scaleMax,
+                              float zOffset) {
+            const float scale = scaleMin + random01(p.mSeed ^ 0x63d83595u) * (scaleMax - scaleMin);
+            sink(modelPath, p.mWorldX, p.mWorldY, p.mHeight + zOffset, scale, random01(p.mSeed ^ 0xa511e9b3u) * sTwoPi);
+            ++stats.mInstances;
+        };
 
         for (int ty = 0; ty < 16; ++ty)
         {
@@ -217,88 +278,62 @@ namespace MWRender::RemirosGen
                 const float sx = (static_cast<float>(cellX) + (static_cast<float>(tx) + 0.5f) / 16.f) * sCellSize;
                 const float sy = (static_cast<float>(cellY) + (static_cast<float>(ty) + 0.5f) / 16.f) * sCellSize;
                 const std::string key = terrain.textureKeyAt(sx, sy);
-                const Rule* own = model.find(key);
+                const std::uint32_t texelSeed = hash32(cxu ^ cyu ^ (static_cast<std::uint32_t>(texel) * 0xc2b2ae35u));
 
-                float baseCount = 0.f;
-                float spread = 0.f;
                 if (recordedTexture[texel] >= 0 && names[recordedTexture[texel]] == key)
                 {
-                    baseCount = static_cast<float>(recordedCount[texel]);
                     ++stats.mCountTexels;
-                }
-                else
-                {
-                    if (own == nullptr)
-                        continue;
-                    baseCount = own->mDensity;
-                    spread = RemirosRules::sSpreadTexels;
-                    ++stats.mRuleTexels;
+                    for (int gi = 0; gi < groupCount[texel]; ++gi)
+                    {
+                        const std::uint32_t g = groups[firstGroup[texel] + static_cast<std::uint32_t>(gi)];
+                        const StaticInfo* info = model.staticAt((g >> 4) & 0xffu);
+                        if (info == nullptr || info->mModel.empty())
+                            continue;
+                        const float fx = static_cast<float>(g & 3u);
+                        const float fy = static_cast<float>((g >> 2) & 3u);
+                        const std::uint32_t groupSeed
+                            = hash32(texelSeed ^ (static_cast<std::uint32_t>(gi + 1) * 0x165667b1u));
+                        const int n = countOf(static_cast<float>((g >> 12) & 0xffu) * density, groupSeed);
+                        for (int k = 0; k < n; ++k)
+                        {
+                            const auto p = place(hash32(groupSeed ^ (0x9e3779b9u * static_cast<std::uint32_t>(k + 1))),
+                                RemirosRules::sRetries, [&](std::uint32_t s, float& px, float& py) {
+                                    px = static_cast<float>(cellX)
+                                        + (static_cast<float>(tx) + (fx + random01(s ^ 0x68bc21ebu)) / sub) / 16.f;
+                                    py = static_cast<float>(cellY)
+                                        + (static_cast<float>(ty) + (fy + random01(s ^ 0x02e5be93u)) / sub) / 16.f;
+                                });
+                            if (p)
+                                emit(*p, info->mModel, info->mScaleMin, info->mScaleMax, info->mZOffset);
+                        }
+                    }
+                    continue;
                 }
 
-                const float d = baseCount * density;
+                const Rule* own = model.find(key);
+                if (own == nullptr)
+                    continue;
+                ++stats.mRuleTexels;
+                const float d = own->mDensity * density;
                 if (d <= 0.f)
                     continue;
-                const std::uint32_t texelSeed = hash32(cxu ^ cyu ^ (static_cast<std::uint32_t>(texel) * 0xc2b2ae35u));
-                const float whole = std::floor(d);
-                const int n = static_cast<int>(whole) + (random01(texelSeed ^ 0x2545f491u) < d - whole ? 1 : 0);
+                constexpr float spread = RemirosRules::sSpreadTexels;
                 const float width = 1.f + 2.f * spread;
-                const int attempts = spread == 0.f ? RemirosRules::sRetries : 1;
-
+                const int n = countOf(d, texelSeed);
                 for (int k = 0; k < n; ++k)
                 {
-                    const std::uint32_t s0 = hash32(texelSeed ^ (0x9e3779b9u * static_cast<std::uint32_t>(k + 1)));
-                    std::uint32_t s = s0;
-                    float px = 0.f, py = 0.f, wx = 0.f, wy = 0.f, h = 0.f;
-                    bool placed = false;
-                    for (int attempt = 0; attempt < attempts; ++attempt)
-                    {
-                        s = attempt == 0 ? s0 : hash32(s0 ^ (static_cast<std::uint32_t>(attempt) * 0x632be5abu));
-                        const float u = random01(s ^ 0x68bc21ebu) * width - spread;
-                        const float v = random01(s ^ 0x02e5be93u) * width - spread;
-                        px = static_cast<float>(cellX) + (static_cast<float>(tx) + u) / 16.f;
-                        py = static_cast<float>(cellY) + (static_cast<float>(ty) + v) / 16.f;
-                        wx = px * sCellSize;
-                        wy = py * sCellSize;
-                        h = terrain.heightAt(wx, wy);
-                        if (h > RemirosRules::sUnderwaterMaxHeight)
-                        {
-                            placed = true;
-                            break;
-                        }
-                    }
-                    if (!placed)
+                    const auto p = place(hash32(texelSeed ^ (0x9e3779b9u * static_cast<std::uint32_t>(k + 1))), 1,
+                        [&](std::uint32_t s, float& px, float& py) {
+                            px = static_cast<float>(cellX)
+                                + (static_cast<float>(tx) + (random01(s ^ 0x68bc21ebu) * width - spread)) / 16.f;
+                            py = static_cast<float>(cellY)
+                                + (static_cast<float>(ty) + (random01(s ^ 0x02e5be93u) * width - spread)) / 16.f;
+                        });
+                    if (!p)
                         continue;
-                    if (filter
-                        && ((minX > std::floor(minX) && px < minX) || (minY > std::floor(minY) && py < minY)
-                            || (maxX < std::ceil(maxX) && px >= maxX) || (maxY < std::ceil(maxY) && py >= maxY)))
-                        continue;
-
-                    const Rule* rule = own;
-                    if (spread == 0.f)
-                    {
-                        const float jx = (random01(s ^ 0x7f4a7c15u) * 2.f - 1.f) * RemirosRules::sSpreadTexels;
-                        const float jy = (random01(s ^ 0x3c6ef372u) * 2.f - 1.f) * RemirosRules::sSpreadTexels;
-                        const Rule* shifted
-                            = model.find(terrain.textureKeyAt((px + jx / 16.f) * sCellSize, (py + jy / 16.f) * sCellSize));
-                        rule = shifted != nullptr ? shifted : own;
-                        if (rule == nullptr)
-                        {
-                            constexpr int dirs[4][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
-                            for (const auto& dir : dirs)
-                            {
-                                rule = model.find(terrain.textureKeyAt(wx + static_cast<float>(dir[0]) * (sCellSize / 16.f),
-                                    wy + static_cast<float>(dir[1]) * (sCellSize / 16.f)));
-                                if (rule != nullptr)
-                                    break;
-                            }
-                        }
-                        if (rule == nullptr)
-                            continue;
-                    }
-
-                    const float pick = random01(s ^ 0x91e10da5u);
-                    const Entry* entry = &rule->mEntries.back();
-                    for (const Entry& e : rule->mEntries)
+                    const float pick = random01(p->mSeed ^ 0x91e10da5u);
+                    const Entry* entry = &own->mEntries.back();
+                    for (const Entry& e : own->mEntries)
                     {
                         if (pick < e.mCumulative)
                         {
@@ -306,10 +341,7 @@ namespace MWRender::RemirosGen
                             break;
                         }
                     }
-                    const float scale
-                        = entry->mScaleMin + random01(s ^ 0x63d83595u) * (entry->mScaleMax - entry->mScaleMin);
-                    sink(entry->mModel, wx, wy, h + entry->mZOffset, scale, random01(s ^ 0xa511e9b3u) * sTwoPi);
-                    ++stats.mInstances;
+                    emit(*p, entry->mModel, entry->mScaleMin, entry->mScaleMax, entry->mZOffset);
                 }
             }
         }

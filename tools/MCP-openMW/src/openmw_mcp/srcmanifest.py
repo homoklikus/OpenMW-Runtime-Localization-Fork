@@ -18,7 +18,7 @@ from pathlib import Path
 from . import __version__
 
 ROOT = Path(__file__).resolve().parents[2]
-INCLUDE = ("src/openmw_mcp/*.py", "tests/*.py", "cpp/*.hpp", "cpp/*.cpp", "scripts/*.py", "scripts/*.sh", "pyproject.toml", "openmw-mcp.json", "catalog/*.sha256",
+INCLUDE = ("src/openmw_mcp/*.py", "tests/*.py", "cpp/*.hpp", "cpp/*.cpp", "lua/*.omwscripts", "lua/scripts/rlf_capture/*.lua", "scripts/*.py", "scripts/*.sh", "pyproject.toml", "openmw-mcp.json", "catalog/*.sha256",
            "claude/*", "README.md", ".gitignore")
 MANIFEST = "SOURCE-MANIFEST.sha256"
 

@@ -25,6 +25,7 @@ from .land import CELL, LandIndex
 SPREAD = 0.3                    # rozrzut poza teksel (w tekselach) — z analizy krawędzi
 UNDERWATER = -23.0              # teren ≤ −23 (z = teren + 23 ≤ 0) ⇒ brak trawy; Remiros ma rośliny do ok. −15
 RETRIES = 4                     # tryb liczników: próby pozycji w tekselu częściowo pod wodą
+SUB = 4                         # pach76: podsiatka teksela SUB×SUB pól (128 j.) — liczniki per pole i statyka
 
 
 def texture_key(name: Optional[str]) -> str:
@@ -138,14 +139,25 @@ def land_hash(heights: list[float]) -> int:
 
 # --- mapa liczników na teksel (agregaty, bez współrzędnych roślin) -------------------------------------
 
+def static_order(rules: dict) -> list[dict]:
+    """Statyki w kolejności tablicy sStatics w C++ (reguły po kolei, w regule wg udziału) — indeks globalny."""
+    return [st for r in rules["rules"] for st in r["statics"]]
+
+
 def build_counts(gc, land: LandIndex, rules: dict) -> dict:
-    """Liczba roślin Remirosa w każdym tekselu (wg pozycji), tekstura teksela i odcisk terenu komórki.
-    Wpisy: teksele z teksturą-regułą (także liczba 0 = wycięcie autora) oraz teksele z roślinami."""
+    """Liczniki Remirosa (pach76): na teksel tekstura i grupy (pole podsiatki SUB×SUB, statyka, liczba roślin).
+    Wpisy: teksele z teksturą-regułą (także bez roślin = wycięcie autora) oraz teksele z roślinami.
+    Zapisywane są wyłącznie liczby w polach 128×128 j. — bez współrzędnych pojedynczych roślin."""
     owners = {r["texture"] for r in rules["rules"]}
-    per_texel = collections.Counter()
+    sidx = {st["id"]: i for i, st in enumerate(static_order(rules))}
+    per_texel: dict = collections.defaultdict(collections.Counter)
     for (cx, cy) in gc.cells:
         for i in gc.instances(cx, cy, 1.0):
-            per_texel[(math.floor(i["x"] / CELL * 16), math.floor(i["y"] / CELL * 16))] += 1
+            if i["id"] not in sidx:
+                continue
+            gx, gy = math.floor(i["x"] / CELL * 16 * SUB), math.floor(i["y"] / CELL * 16 * SUB)
+            sub = (gy % SUB) * SUB + (gx % SUB)
+            per_texel[(gx // SUB, gy // SUB)][(sub, sidx[i["id"]])] += 1
     cells_with = {(tx // 16, ty // 16) for tx, ty in per_texel}
     names: list[str] = []
     name_idx: dict[str, int] = {}
@@ -158,16 +170,18 @@ def build_counts(gc, land: LandIndex, rules: dict) -> dict:
         for ty in range(16):
             for tx in range(16):
                 key = texture_key(land.texture_at((cx + (tx + 0.5) / 16) * CELL, (cy + (ty + 0.5) / 16) * CELL, "fork"))
-                c = per_texel.get((cx * 16 + tx, cy * 16 + ty), 0)
-                if c == 0 and key not in owners:
+                g = per_texel.get((cx * 16 + tx, cy * 16 + ty))
+                if not g and key not in owners:
                     continue
                 if key not in name_idx:
                     name_idx[key] = len(names)
                     names.append(key)
-                entries.append((ty * 16 + tx, name_idx[key], min(c, 255)))
+                groups = sorted((sub, st, min(k, 255)) for (sub, st), k in (g or {}).items())
+                entries.append((ty * 16 + tx, name_idx[key], sum(k for _, _, k in groups), groups))
         cells.append({"cell": [cx, cy], "land_hash": land_hash(heights_f32(ld.vhgt)), "entries": entries})
     return {"texture_names": names, "cells": cells, "entries": sum(len(c["entries"]) for c in cells),
-            "refs": sum(e[2] for c in cells for e in c["entries"])}
+            "groups": sum(len(e[3]) for c in cells for e in c["entries"]),
+            "refs": sum(e[2] for c in cells for e in c["entries"]), "sub": SUB}
 
 
 # --- algorytm (identyczny z wersją C++) -----------------------------------------------------------------
@@ -189,11 +203,14 @@ class Model:
                 entries.append((f32(min(acc, 1.0)), have[s["model"]] if have else s["model"], f32(s["scale_min"]),
                                 f32(s["scale_max"]), f32(s["z_offset"])))
             self.rules[r["texture"]] = (f32(r["density_per_texel"]), entries)
+        # pach76: statyki wg indeksu globalnego (None = modelu brak w puli)
+        self.statics = [((have[st["model"]] if have else st["model"]) if have is None or st["model"] in have else None,
+                         f32(st["scale_min"]), f32(st["scale_max"]), f32(st["z_offset"])) for st in static_order(rules)]
         self.counts = {}
         if counts:
             for c in counts["cells"]:
                 self.counts[tuple(c["cell"])] = (c["land_hash"],
-                                                 {t: (counts["texture_names"][n], k) for t, n, k in c["entries"]})
+                                                 {e[0]: (counts["texture_names"][e[1]], e[3]) for e in c["entries"]})
 
 
 def _texel_key(land: LandIndex, cx: int, cy: int, tx: int, ty: int) -> str:
@@ -211,8 +228,9 @@ def _choose(rule, pick: float):
 def generate_cell(land: LandIndex, model: Model, cx: int, cy: int, density: float = 1.0,
                   bounds: Optional[tuple[float, float, float, float]] = None, include_instances: bool = False,
                   use_counts: bool = True) -> dict:
-    """Instancje dla komórki. Tryb liczników, gdy komórka ma wpis i odcisk terenu się zgadza; w tekselu z inną
-    teksturą niż zapisana — reguły. bounds: filtr jak isInChunkBorders (None = komórka jako chunk, bez filtru)."""
+    """Instancje dla komórki. Tryb liczników (pach76), gdy komórka ma wpis i odcisk terenu się zgadza: w tekselu
+    o zapisanej teksturze dokładne liczby per pole podsiatki i statyka; w tekselu z inną teksturą — reguły.
+    bounds: filtr jak isInChunkBorders (None = komórka jako chunk, bez filtru)."""
     ld = land.lands.get((cx, cy))
     out = {"cell": [cx, cy], "instances": 0, "mode": "none"}
     if ld is None or ld.textures() is None:
@@ -229,71 +247,78 @@ def generate_cell(land: LandIndex, model: Model, cx: int, cy: int, density: floa
     if bounds is not None:
         mnx, mny, mxx, mxy = (f32(b / CELL) for b in bounds)
         filt = (mxx - mnx) < 1.0 or (mxy - mny) < 1.0          # jak isInChunkBorders: chunk ≥ 1 komórki bez filtru
+
+    def count_of(d: float, seed: int) -> int:
+        return int(math.floor(d)) + (1 if random01(seed ^ 0x2545F491) < f32(d - math.floor(d)) else 0)
+
+    def place(s0: int, attempts: int, offset):
+        """Pozycja (px, py, wx, wy, h, s) albo None (pod wodą / poza chunkiem). offset(s) -> (px, py)."""
+        for attempt in range(attempts):
+            s = s0 if attempt == 0 else hash32(s0 ^ ((attempt * 0x632BE5AB) & M32))
+            px, py = offset(s)
+            wx, wy = f32(px * CELL), f32(py * CELL)
+            h = land.height_at(wx, wy)
+            h = None if h is None else f32(h)                  # silnik: getProceduralHeightAt zwraca float
+            if h is not None and h > UNDERWATER:
+                break
+        else:
+            rej["underwater_or_no_land"] += 1
+            return None
+        if filt and ((mnx > math.floor(mnx) and px < mnx) or (mny > math.floor(mny) and py < mny)
+                     or (mxx < math.ceil(mxx) and px >= mxx) or (mxy < math.ceil(mxy) and py >= mxy)):
+            rej["chunk_bounds"] += 1
+            return None
+        return px, py, wx, wy, h, s
+
+    def emit(pos, mdl, smin, smax, dz):
+        _, _, wx, wy, h, s = pos
+        scale = f32(smin + f32(random01(s ^ 0x63D83595) * f32(smax - smin)))
+        by_model[mdl] += 1
+        if include_instances:
+            inst.append({"x": wx, "y": wy, "z": f32(h + dz), "model": mdl, "scale": scale,
+                         "rot_z": f32(random01(s ^ 0xA511E9B3) * f32(TWO_PI))})
+
     for ty in range(16):
         for tx in range(16):
             t = ty * 16 + tx
             key = _texel_key(land, cx, cy, tx, ty)
             rec = cnt[1].get(t) if hash_ok else None
+            tseed = hash32(cxu ^ cyu ^ ((t * 0xC2B2AE35) & M32))
             if rec is not None and rec[0] == key:
-                base_n, spread, own_rule = f32(float(rec[1])), 0.0, model.rules.get(key)
                 src["counts"] += 1
-            else:
-                own_rule = model.rules.get(key)
-                if own_rule is None:
-                    continue
-                base_n, spread = own_rule[0], SPREAD
-                src["rules" if rec is None else "rules (inna tekstura)"] += 1
-            d = f32(base_n * dmul)
+                for gi, (sub, st, k) in enumerate(rec[1]):
+                    mdl, smin, smax, dz = model.statics[st]
+                    if mdl is None:
+                        rej["no_model"] += k
+                        continue
+                    gseed = hash32(tseed ^ (((gi + 1) * 0x165667B1) & M32))
+                    sxf, syf = float(sub % SUB), float(sub // SUB)
+                    for kk in range(count_of(f32(f32(float(k)) * dmul), gseed)):
+                        pos = place(hash32(gseed ^ ((0x9E3779B9 * (kk + 1)) & M32)), RETRIES,
+                                    lambda s: (f32(float(cx) + f32(f32(float(tx) + f32(f32(sxf + random01(s ^ 0x68BC21EB))
+                                                                                       / SUB)) / 16.0)),
+                                               f32(float(cy) + f32(f32(float(ty) + f32(f32(syf + random01(s ^ 0x02E5BE93))
+                                                                                       / SUB)) / 16.0))))
+                        if pos is not None:
+                            emit(pos, mdl, smin, smax, dz)
+                continue
+            own_rule = model.rules.get(key)
+            if own_rule is None:
+                continue
+            src["rules" if rec is None else "rules (inna tekstura)"] += 1
+            d = f32(own_rule[0] * dmul)
             if d <= 0.0:
                 continue
-            tseed = hash32(cxu ^ cyu ^ ((t * 0xC2B2AE35) & M32))
-            n = int(math.floor(d)) + (1 if random01(tseed ^ 0x2545F491) < f32(d - math.floor(d)) else 0)
-            width = f32(1.0 + 2.0 * spread)
-            for k in range(n):
-                s0 = hash32(tseed ^ ((0x9E3779B9 * (k + 1)) & M32))
-                placed = False
-                for attempt in range(RETRIES if spread == 0.0 else 1):
-                    s = s0 if attempt == 0 else hash32(s0 ^ ((attempt * 0x632BE5AB) & M32))
-                    u = f32(f32(random01(s ^ 0x68BC21EB) * width) - f32(spread))
-                    v = f32(f32(random01(s ^ 0x02E5BE93) * width) - f32(spread))
-                    px = f32(float(cx) + f32(f32(float(tx) + u) / 16.0))
-                    py = f32(float(cy) + f32(f32(float(ty) + v) / 16.0))
-                    wx, wy = f32(px * CELL), f32(py * CELL)
-                    h = land.height_at(wx, wy)
-                    h = None if h is None else f32(h)              # silnik: getProceduralHeightAt zwraca float
-                    if h is not None and h > UNDERWATER:
-                        placed = True
-                        break
-                if not placed:
-                    rej["underwater_or_no_land"] += 1
-                    continue
-                if filt and ((mnx > math.floor(mnx) and px < mnx) or (mny > math.floor(mny) and py < mny)
-                             or (mxx < math.ceil(mxx) and px >= mxx) or (mxy < math.ceil(mxy) and py >= mxy)):
-                    rej["chunk_bounds"] += 1
-                    continue
-                rule = own_rule
-                if spread == 0.0:
-                    # liczniki: model wg tekstury w punkcie przesuniętym o ±0,3 teksela (przenikanie na krawędziach)
-                    jx = f32(f32(f32(random01(s ^ 0x7F4A7C15) * 2.0) - 1.0) * f32(SPREAD))
-                    jy = f32(f32(f32(random01(s ^ 0x3C6EF372) * 2.0) - 1.0) * f32(SPREAD))
-                    sx = f32(f32(px + f32(jx / 16.0)) * CELL)
-                    sy = f32(f32(py + f32(jy / 16.0)) * CELL)
-                    rule = model.rules.get(texture_key(land.texture_at(sx, sy, "fork"))) or own_rule
-                    if rule is None:
-                        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                            rule = model.rules.get(texture_key(land.texture_at(f32(wx + dx * CELL / 16),
-                                                                               f32(wy + dy * CELL / 16), "fork")))
-                            if rule is not None:
-                                break
-                    if rule is None:
-                        rej["no_rule_near_texel"] += 1
-                        continue
-                _, mdl, smin, smax, dz = _choose(rule, random01(s ^ 0x91E10DA5))
-                scale = f32(smin + f32(random01(s ^ 0x63D83595) * f32(smax - smin)))
-                by_model[mdl] += 1
-                if include_instances:
-                    inst.append({"x": wx, "y": wy, "z": f32(h + dz), "model": mdl, "scale": scale,
-                                 "rot_z": f32(random01(s ^ 0xA511E9B3) * f32(TWO_PI))})
+            width = f32(1.0 + 2.0 * SPREAD)
+            for k in range(count_of(d, tseed)):
+                pos = place(hash32(tseed ^ ((0x9E3779B9 * (k + 1)) & M32)), 1,
+                            lambda s: (f32(float(cx) + f32(f32(float(tx) + f32(f32(random01(s ^ 0x68BC21EB) * width)
+                                                                                - f32(SPREAD))) / 16.0)),
+                                       f32(float(cy) + f32(f32(float(ty) + f32(f32(random01(s ^ 0x02E5BE93) * width)
+                                                                                - f32(SPREAD))) / 16.0))))
+                if pos is not None:
+                    _, mdl, smin, smax, dz = _choose(own_rule, random01(pos[5] ^ 0x91E10DA5))
+                    emit(pos, mdl, smin, smax, dz)
     out.update({"instances": sum(by_model.values()), "rejected": dict(rej), "texel_sources": dict(src),
                 "by_model": dict(by_model.most_common())})
     if include_instances:
@@ -338,19 +363,24 @@ namespace MWRender::RemirosRules
         std::uint32_t mLandHash; // odcisk wysokości LAND — liczniki tylko dla zgodnego terenu
         std::uint32_t mFirstEntry;
         std::uint16_t mEntryCount;
+        std::uint32_t mFirstGroup; // grupy wpisów komórki leżą kolejno od mFirstGroup (w kolejności wpisów)
     };
 
-    // wpis = teksel (bity 0-7) | indeks nazwy tekstury (8-15) | liczba roślin (16-23)
+    // wpis  = teksel (bity 0-7) | indeks nazwy tekstury (8-15) | liczba grup teksela (16-23)
+    // grupa = pole podsiatki sSubdivisions×sSubdivisions (bity 0-3, wiersz·4+kolumna) | indeks statyki w statics()
+    //         (4-11) | liczba roślin (12-19). Liczby w polach 128×128 j., bez współrzędnych pojedynczych roślin.
 
     constexpr float sSpreadTexels = 0.3f;
     constexpr float sUnderwaterMaxHeight = -23.f;
     constexpr int sRetries = 4;
+    constexpr int sSubdivisions = 4; // pach76
 
     std::span<const StaticRule> statics();
     std::span<const TextureRule> textures();
     std::span<const std::string_view> textureNames();
     std::span<const CellCounts> cells();
     std::span<const std::uint32_t> entries();
+    std::span<const std::uint32_t> groups();
     std::string_view sourceInfo();
 }
 
@@ -381,24 +411,39 @@ def emit_cpp_files(rules: dict, counts: dict, mcp_info: dict) -> dict:
     names = counts["texture_names"]
     src.append(f"        constexpr std::array<std::string_view, {len(names)}> sTextureNames = {{ {{")
     src += [f'            "{n}",' for n in names] + ["        } };", ""]
-    cell_lines, entries = [], []
+    if counts.get("sub", SUB) != SUB or len(statics) > 256 or len(names) > 256:
+        raise ValueError("format liczników pach76: podsiatka 4×4, ≤256 statyk i nazw tekstur")
+    cell_lines, entries, groups = [], [], []
     for c in counts["cells"]:
         cx, cy = c["cell"]
-        cell_lines.append(f"            CellCounts{{ {cx}, {cy}, {c['land_hash']}u, {len(entries)}u, {len(c['entries'])} }},")
-        entries += [t | (n << 8) | (k << 16) for t, n, k in c["entries"]]
+        cell_lines.append(f"            CellCounts{{ {cx}, {cy}, {c['land_hash']}u, {len(entries)}u, "
+                          f"{len(c['entries'])}, {len(groups)}u }},")
+        for t, n, _, gl in c["entries"]:
+            if len(gl) > 255:
+                raise ValueError(f"teksel {t} komórki {c['cell']}: {len(gl)} grup > 255")
+            entries.append(t | (n << 8) | (len(gl) << 16))
+            groups += [sub | (st << 4) | (k << 12) for sub, st, k in gl]
     src.append(f"        constexpr std::array<CellCounts, {len(cell_lines)}> sCells = {{ {{")
     src += cell_lines + ["        } };", ""]
     src.append(f"        constexpr std::array<std::uint32_t, {len(entries)}> sEntries = {{ {{")
     for i in range(0, len(entries), 12):
         src.append("            " + ", ".join(f"{e}u" for e in entries[i:i + 12]) + ",")
+    src += ["        } };", ""]
+    src.append(f"        constexpr std::array<std::uint32_t, {max(len(groups), 1)}> sGroups = {{ {{")
+    for i in range(0, len(groups), 12):
+        src.append("            " + ", ".join(f"{e}u" for e in groups[i:i + 12]) + ",")
+    if not groups:
+        src.append("            0u,")
     src += ["        } };", "    }", "",
             "    std::span<const StaticRule> statics() { return sStatics; }",
             "    std::span<const TextureRule> textures() { return sTextures; }",
             "    std::span<const std::string_view> textureNames() { return sTextureNames; }",
             "    std::span<const CellCounts> cells() { return sCells; }",
             "    std::span<const std::uint32_t> entries() { return sEntries; }",
+            f"    std::span<const std::uint32_t> groups() {{ return std::span<const std::uint32_t>(sGroups).first({len(groups)}); }}",
             f'    std::string_view sourceInfo() {{ return "Remiros 4.1 texture rules: {len(textures)} textures, '
-            f'{len(statics)} statics, {len(cell_lines)} count cells; MCP {mcp_info.get("version")}"; }}',
+            f'{len(statics)} statics, {len(cell_lines)} count cells, {len(groups)} count groups (4x4 sub-texel, '
+            f'per static, pach76); MCP {mcp_info.get("version")}"; }}',
             "}", ""]
     return {"remirosgroundcoverdata.hpp": DATA_HEADER, "remirosgroundcoverdata.cpp": "\n".join(src)}
 

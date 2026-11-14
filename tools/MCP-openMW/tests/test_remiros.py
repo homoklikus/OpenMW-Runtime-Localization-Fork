@@ -118,8 +118,9 @@ def test_counts_reproduce_texels_and_cutouts(tmp_path):
     assert not any(tx >= 8 for tx, _ in got)                      # skała: 0
     assert {i["model"] for i in r["instance_list"]} == {"rem_a.nif"}
     assert all(abs(i["z"] - 123.0) < 1e-3 for i in r["instance_list"])
-    # gęstość 0.5 ⇒ połowa (deterministycznie: 2 na teksel)
-    assert RR.generate_cell(li, m, 0, 0, 0.5)["instances"] == 2 * (128 - len(cut))
+    # gęstość 0.5 ⇒ około połowy (grupy 1/1/2 na teksel: część losowana)
+    half = RR.generate_cell(li, m, 0, 0, 0.5)["instances"]
+    assert abs(half - 2 * (128 - len(cut))) <= 0.15 * 2 * (128 - len(cut))
     # same reguły: wycięcia znikają (≈ 4 na teksel trawy, z rozrzutem ±0,3 teksela)
     rr = RR.generate_cell(li, m, 0, 0, 1.0, None, False, use_counts=False)
     assert rr["mode"] == "rules" and rr["instances"] > 4 * (128 - len(cut))
@@ -150,6 +151,38 @@ def test_underwater_and_missing_models(tmp_path):
     assert RR.generate_cell(wet, RR.Model(rules, None), 0, 0)["instances"] == 0
     assert RR.Model(rules, counts, pool=["meshes/grass/inny.nif"]).rules == {}
     assert RR.Model(rules, counts, pool=["meshes/grass/rem_a.nif"]).rules["tx_grass_a"][1][0][1] == "meshes/grass/rem_a.nif"
+
+
+def test_counts_keep_subtexel_cells_and_static_mix(tmp_path):
+    """pach76: liczby per pole 4×4 teksela i per statyka takie same jak u autora (pozycje w polu losowe)."""
+    li, gc = load(tmp_path)
+    # druga statyka na tej samej teksturze: co druga roślina inny model
+    rules = RR.derive(gc, li)
+    src = gc.instances(0, 0)
+    for k, i in enumerate(src):
+        if k % 2:
+            i["id"] = "grs_b"
+    st = dict(rules["rules"][0]["statics"][0])
+    st.update({"id": "grs_b", "model": "rem_b.nif", "share": 0.5})
+    rules["rules"][0]["statics"][0]["share"] = 0.5
+    rules["rules"][0]["statics"].append(st)
+    gc.instances = lambda cx, cy, density=1.0: [dict(i) for i in src] if (cx, cy) == (0, 0) else []
+    counts = RR.build_counts(gc, li, rules)
+    assert counts["sub"] == 4 and counts["groups"] > counts["entries"]
+
+    def cells(insts, key):
+        out = {}
+        for i in insts:
+            c = (int(i["x"] // 128), int(i["y"] // 128), key(i))
+            out[c] = out.get(c, 0) + 1
+        return out
+    r = RR.generate_cell(li, RR.Model(rules, counts), 0, 0, 1.0, None, True)
+    want = cells(src, lambda i: "rem_a.nif" if i["id"] != "grs_b" else "rem_b.nif")
+    assert cells(r["instance_list"], lambda i: i["model"]) == want
+    # brak modelu w puli ⇒ ta statyka pomijana, pozostałe bez zmian
+    r2 = RR.generate_cell(li, RR.Model(rules, counts, pool=["meshes/grass/rem_a.nif"]), 0, 0, 1.0, None, True)
+    assert {i["model"] for i in r2["instance_list"]} == {"meshes/grass/rem_a.nif"}
+    assert r2["rejected"]["no_model"] == sum(v for (_, _, m), v in want.items() if m == "rem_b.nif")
 
 
 @pytest.mark.skipif(shutil.which("g++") is None, reason="brak g++")

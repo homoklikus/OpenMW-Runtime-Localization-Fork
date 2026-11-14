@@ -1,3 +1,3 @@
-"""MCP-openMW — wspólny serwer MCP (etapy 1–2c: tylko odczyt) dla oficjalnego OpenMW (Flatpak) i forka RLF."""
+"""MCP-openMW — wspólny serwer MCP (etapy 1–3: analiza, emulacja, porównania wizualne) dla oficjalnego OpenMW (Flatpak) i forka RLF."""
 
-__version__ = "0.4.0"
+__version__ = "0.6.0"

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import collections
 import functools
+import os
 import traceback
 from pathlib import Path
 from typing import Optional
@@ -161,7 +162,9 @@ def openmw_groundcover_mode(profile: str, pool: Optional[str] = None) -> dict:
         res["remiros_texture_rules"] = st
         if st["in_binary"] and res.get("procedural"):
             models = [m for m in (vfs or {}).get("index", {}) if m.startswith("meshes/grass/rem_")]
-            res["procedural_profile"] = {"mode": "reguły tekstur Remirosa + mapa liczników (pach75)",
+            res["procedural_profile"] = {"mode": "reguły tekstur Remirosa + mapa liczników ("
+                                                 + ("pola 4×4 teksela i statyki, pach76)" if st.get(
+                                                     "pach76_subtexel_counts_in_binary") else "na teksel, pach75)"),
                                          "remiros_models_in_vfs": len(models),
                                          "note": "stare profile regionalne usunięte; emulacja: openmw_remiros_compare"}
             res["mechanism"] = res["mechanism"].replace("proceduralna flora forka",
@@ -447,6 +450,7 @@ def openmw_flora_coverage(fork_profile: str = "fork-test", official_profile: str
 
 # --- etap 2c: trawa Remirosa w forku (reguły tekstur + liczniki, pach75) --------------------------------
 PACH75_MARKER = b"Remiros texture rules (pach75)"
+PACH76_MARKER = b"sub-texel, per static, pach76"
 
 
 def _pach75_state() -> dict:
@@ -455,12 +459,16 @@ def _pach75_state() -> dict:
     repo = e.p(t["repo"])
     binary = e.p(t["binary"])
     in_source = bool(repo) and (repo / "apps/openmw/mwrender/remirosgroundcover.cpp").is_file()
-    in_binary = False
+    in_binary = pach76 = False
     if binary and binary.is_file():
         import mmap
         with open(binary, "rb") as fh, mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ) as mm:
             in_binary = mm.find(PACH75_MARKER) >= 0
-    return {"in_source": in_source, "in_binary": in_binary}
+            pach76 = mm.find(PACH76_MARKER) >= 0
+    out = {"in_source": in_source, "in_binary": in_binary}
+    if pach76:
+        out["pach76_subtexel_counts_in_binary"] = True     # liczniki per pole 4×4 teksela i statyka
+    return out
 
 
 def _remiros_model(official_profile: str, land_profile: str, with_counts: bool = True):
@@ -483,7 +491,8 @@ def openmw_remiros_rules(official_profile: str = "official-ref", land_profile: s
     rows = [r for r in rules["rules"] if texture is None or r["texture"] == remirosrules.texture_key(texture)]
     return {"textures": rules["textures"], "statics": rules["statics"], "refs": rules["refs"],
             "constants": rules["constants"], "source_plugins": rules["source_plugins"],
-            "counts": {"cells": len(counts["cells"]), "entries": counts["entries"], "refs": counts["refs"]},
+            "counts": {"cells": len(counts["cells"]), "entries": counts["entries"], "groups": counts.get("groups"),
+                       "refs": counts["refs"], "sub_texel_grid": counts.get("sub")},
             "rules": rows[:top]}
 
 
@@ -515,9 +524,10 @@ def openmw_remiros_compare(cell_x: int, cell_y: int, official_profile: str = "of
 
 @tool
 def openmw_remiros_export(official_profile: str = "official-ref", land_profile: str = "fork-test",
-                          dest: str = "Fork/experiments/remiros-texture-2026-11-14/files") -> dict:
-    """Zapisuje pliki C++ dla pach75: dane (remirosgroundcoverdata.{hpp,cpp}) i kopie wzorców z cpp/ MCP.
-    Jedyny zapis tego narzędzia; katalog docelowy względem projektu (domyślnie eksperyment pach75)."""
+                          dest: str = "Fork/experiments/remiros-subtexel-2026-11-14/files") -> dict:
+    """Zapisuje pliki C++ dla pach76 (format liczników: pola 4×4 teksela × statyka): dane
+    (remirosgroundcoverdata.{hpp,cpp}) i kopie wzorców z cpp/ MCP. Jedyny zapis tego narzędzia; katalog docelowy
+    względem projektu (domyślnie eksperyment pach76; katalog pach75 zostaje jako zapis historyczny)."""
     import hashlib
     from . import srcmanifest
     rules, counts, _ = _remiros_model(official_profile, land_profile)
@@ -531,6 +541,107 @@ def openmw_remiros_export(official_profile: str = "official-ref", land_profile: 
         (out_dir / name).write_text(text, encoding="utf-8")
         written[name] = hashlib.sha256(text.encode("utf-8")).hexdigest()
     return {"dest": str(out_dir), "files": written}
+
+
+# --- etap 3: porównania wizualne (uruchamia silniki; zapis tylko w Raporty/mcp/zrzuty/) -------------------
+
+def _parse_cells(cells) -> list:
+    out = []
+    for c in cells:
+        if isinstance(c, str):
+            x, y = c.replace("(", "").replace(")", "").split(",")
+            out.append((int(x), int(y)))
+        else:
+            out.append((int(c[0]), int(c[1])))
+    return out
+
+
+def _capture_plans(cells, profiles_list, hour, weather, distance, label, repeat=1, settle_seconds=None,
+                   render_seconds=None):
+    from . import capture
+    e = env()
+    li = _land_index(profiles_list[-1] if profiles_list else "fork-test")
+    density = None
+    try:
+        _, counts, _ = _remiros_model("official-ref", "fork-test")
+        tex = {}
+        for c in counts["cells"]:
+            cx, cy = c["cell"]
+            for ent in c["entries"]:
+                t, k = ent[0], ent[2]
+                tex[(cx * 16 + t % 16, cy * 16 + t // 16)] = k
+        density = lambda x, y: tex.get((int(x // (land.CELL / 16)), int(y // (land.CELL / 16))), 0)  # noqa: E731
+    except Exception:  # noqa: BLE001 — bez mapy liczników kamera celuje w środek komórki
+        density = None
+    shots = [capture.viewpoint(li, cx, cy, None, distance, 128.0, hour, weather, f"c{cx}_{cy}", density)
+             for cx, cy in _parse_cells(cells)]
+    shots = capture.repeat_shots(shots, repeat)
+    timing = {k: v for k, v in (("settleSeconds", settle_seconds), ("renderSeconds", render_seconds)) if v is not None}
+    run_dir = capture.new_run_dir(e, label)
+    plans = [capture.prepare(e, p, shots, run_dir, timing) for p in profiles_list]
+    return run_dir, shots, plans
+
+
+def _capture_prereq(profiles_list) -> list:
+    import shutil as _sh
+    issues = []
+    for tool_name in ("xdotool", "import"):
+        if not _sh.which(tool_name):
+            issues.append(f"brak programu {tool_name}")
+    if not os.environ.get("DISPLAY"):
+        issues.append("brak zmiennej DISPLAY (XWayland) w środowisku serwera MCP")
+    if any(profiles.effective(env(), p)["target"] == "official" for p in profiles_list) and not _sh.which("flatpak"):
+        issues.append("brak flatpak")
+    return issues
+
+
+@tool
+def openmw_capture_plan(cells: list[str], profile_list: Optional[list[str]] = None, hour: float = 12.0,
+                        weather: str = "Clear", distance: float = 700.0, repeat: int = 1,
+                        settle_seconds: Optional[float] = None, render_seconds: Optional[float] = None) -> dict:
+    """Przygotowuje (bez uruchamiania) ujęcia porównawcze: punkty kamery dla komórek (np. ["-5,-3","15,-9"]),
+    katalogi uruchomienia w Raporty/mcp/zrzuty/ i polecenia dla każdego profilu. Do sprawdzenia przed startem.
+    repeat>1: po pełnej serii ujęć powtarza ją (id z sufiksem -r2, -r3…) — test, czy różnica wynika z asynchronicznego
+    doładowania (Groundcover/paging) zamiast z danych. settle_seconds/render_seconds nadpisują czasy oczekiwania."""
+    pl = profile_list or ["official-ref", "fork-test"]
+    run_dir, shots, plans = _capture_plans(cells, pl, hour, weather, distance, "plan", repeat, settle_seconds,
+                                           render_seconds)
+    return {"run_dir": str(run_dir), "prerequisites": _capture_prereq(pl),
+            "shots": [s.__dict__ for s in shots], "commands": {p["profile"]: p["cmd"] for p in plans}}
+
+
+@tool
+def openmw_capture_start(cells: list[str], profile_list: Optional[list[str]] = None, hour: float = 12.0,
+                         weather: str = "Clear", distance: float = 700.0, timeout_per_engine: float = 300.0,
+                         repeat: int = 1, settle_seconds: Optional[float] = None,
+                         render_seconds: Optional[float] = None) -> dict:
+    """URUCHAMIA silniki (najpierw oficjalny, potem fork) w tle: każdy dostaje własny tymczasowy profil uruchomienia,
+    skrypt Lua ustawia kamerę, MCP robi zrzut (F12/import). Wynik: openmw_capture_status(run_dir).
+    repeat/settle_seconds/render_seconds jak w openmw_capture_plan."""
+    import subprocess as _sp
+    import sys as _sys
+    pl = profile_list or ["official-ref", "fork-test"]
+    issues = _capture_prereq(pl)
+    if issues:
+        return {"error": "nie spełnione warunki: " + "; ".join(issues)}
+    run_dir, shots, plans = _capture_plans(cells, pl, hour, weather, distance, "porownanie", repeat, settle_seconds,
+                                           render_seconds)
+    log = open(run_dir / "runner.log", "w", encoding="utf-8")
+    proc = _sp.Popen([_sys.executable, "-m", "openmw_mcp.capture", str(run_dir), str(timeout_per_engine)],
+                     stdout=log, stderr=_sp.STDOUT, start_new_session=True)
+    return {"run_dir": str(run_dir), "pid": proc.pid, "shots": [s.id for s in shots],
+            "profiles": pl, "note": "silniki uruchamiają się kolejno; nie używaj w tym czasie myszy/klawiatury w oknie gry"}
+
+
+@tool
+def openmw_capture_status(run_dir: str) -> dict:
+    """Postęp i wyniki przebiegu openmw_capture_start: zrzuty, błędy z logów, porównania (arkusze obok siebie,
+    różnica obrazów, udział pikseli roślinności)."""
+    from . import capture
+    p = Path(run_dir)
+    if not p.is_absolute():
+        p = env().p(run_dir)
+    return capture.status(p)
 
 
 def main() -> None:
