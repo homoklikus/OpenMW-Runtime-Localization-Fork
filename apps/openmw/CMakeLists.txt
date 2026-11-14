@@ -22,6 +22,7 @@ add_openmw_dir (mwrender
     creatureanimation effectmanager util renderinginterface pathgrid rendermode weaponanimation screenshotmanager
     bulletdebugdraw globalmap characterpreview camera localmap water terrainstorage ripplesimulation
     renderbin actoranimation landmanager navmesh actorspaths recastmesh fogmanager objectpaging groundcover
+    remirosgroundcover remirosgroundcoverdata remirosgroundcovergen
     postprocessor pingpongcull luminancecalculator pingpongcanvas transparentpass precipitationocclusion ripples
     actorutil distortion animationpriority bonegroup blendmask animblendcontroller
     )

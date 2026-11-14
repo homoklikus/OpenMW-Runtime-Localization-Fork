@@ -1,6 +1,8 @@
 #ifndef OPENMW_MWRENDER_GROUNDCOVER_H
 #define OPENMW_MWRENDER_GROUNDCOVER_H
 
+#include <memory>
+
 #include <components/esm3/loadcell.hpp>
 #include <components/resource/scenemanager.hpp>
 #include <components/terrain/quadtreeworld.hpp>
@@ -19,6 +21,7 @@ namespace osg
 namespace MWRender
 {
     class TerrainStorage;
+    class RemirosGroundcover;
     typedef std::tuple<osg::Vec2f, float> GroundcoverChunkId; // Center, Size
     class Groundcover : public Resource::GenericResourceManager<GroundcoverChunkId>,
                         public Terrain::QuadTreeWorld::ChunkManager
@@ -70,6 +73,7 @@ namespace MWRender
         std::vector<VFS::Path::Normalized> mProceduralModels;
         std::map<VFS::Path::Normalized, float, std::less<>> mProceduralModelScale;
         std::map<VFS::Path::Normalized, float, std::less<>> mProceduralModelFootprint;
+        std::unique_ptr<RemirosGroundcover> mRemiros;
 
         osg::ref_ptr<osg::Node> createChunk(InstanceMap& instances, const osg::Vec2f& center);
         void collectInstances(InstanceMap& instances, float size, const osg::Vec2f& center);
