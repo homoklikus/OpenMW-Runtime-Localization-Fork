@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openmw-mcp"
+version = "0.2.1"
+description = "MCP-openMW: wspólny serwer MCP (tylko odczyt) dla oficjalnego OpenMW 0.51.0 (Flatpak) i forka OpenMW RLF"
+requires-python = ">=3.10"
+dependencies = ["mcp>=1.2"]
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.scripts]
+openmw-mcp = "openmw_mcp.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

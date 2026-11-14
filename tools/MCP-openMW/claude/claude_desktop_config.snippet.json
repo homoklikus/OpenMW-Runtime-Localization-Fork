@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "openmw-rlf": {
+      "command": "/media/precell/Inne/Projekty AI/OpenMW RLF/MCP-openMW/.venv/bin/openmw-mcp",
+      "args": []
+    }
+  }
+}

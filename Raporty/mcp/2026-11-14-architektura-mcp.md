@@ -1,6 +1,9 @@
 # Założenia architektury MCP-openMW (2026-11-14)
 
-Status: projekt, bez implementacji.
+Status: założenia z początku prac. Zaimplementowane etapy opisują osobne dokumenty (`README.md` w tym katalogu).
+
+## Położenie kodu (od wersji 0.2.1)
+Kod MCP: `tools/MCP-openMW/` w tym repozytorium (Python ≥ 3.10, oficjalne SDK `mcp`, transport stdio). W katalogu projektu `MCP-openMW/` jest dowiązaniem do `Fork/repo/tools/MCP-openMW/`. Środowisko `.venv/`, cache i raporty testów nie są wersjonowane. Dane wejściowe (gra, mody, profile, Flatpak) są czytane z katalogu projektu, nie z repozytorium.
 
 ## Zasady
 - Jeden serwer, dwa cele: `official` (OpenMW 0.51.0, Flatpak) i `fork` (`0.5-world`). Eksperymenty tylko jako jawny wariant budowany w osobnym worktree.

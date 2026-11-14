@@ -4,7 +4,7 @@
 |---|---|
 | Wersja | `openmw-mcp` 0.1.0 |
 | Hash drzewa źródeł | `efb03baa76271f5e7f8beb74bae79a34bfac3915c116c825793900b19a67708c` (`sha256sum MCP-openMW/SOURCE-MANIFEST.sha256`, 21 plików) |
-| Status | **zatwierdzony** — testy automatyczne: Debian 13 **36/36** (2026-11-14 13:36, `srcmanifest --check` zgodny), VM 36/36; próba na prawdziwym projekcie w trybie odczytu. Podłączenie w kliencie Claude: jeszcze nie sprawdzane |
+| Status | **zatwierdzony** — testy automatyczne: Debian 13 **36/36** (2026-11-14 13:36, `srcmanifest --check` zgodny), VM 36/36; próba na prawdziwym projekcie w trybie odczytu. Podłączenie w kliencie Claude Code: sprawdzone 2026-11-14 w wersji 0.2.1 (zob. [wersjonowanie i test integracyjny](2026-11-14-wersjonowanie-i-test-integracyjny.md)) |
 
 ## Zakres
 Serwer tylko czyta. Nie uruchamia silników i nie zmienia ich kodu, configów ani modów. Jedyne zapisy to manifesty testów (`Raporty/mcp/manifesty/` w katalogu projektu) i lokalny cache sum SHA-256.
@@ -20,7 +20,7 @@ Python ≥3.10, oficjalne SDK `mcp` (1.x `FastMCP` lub 2.x `MCPServer`), transpo
 | `mods` | odciski SHA-256 katalogów, identyfikacja wariantów i kolejności nakładek, konflikty nazw, nadpisywanie plików, kolizje wielkości liter |
 | `flora` | mechanizm roślinności: oficjalny Groundcover z pluginów ESP / proceduralna flora forka / eksperyment |
 | `manifest` | manifest testu z etykietą stanu, diff profili, porównanie VFS |
-| `srcmanifest` | wersja kodu MCP poza Gitem |
+| `srcmanifest` | identyfikator wersji kodu MCP (w etapie 1 kod był jeszcze poza Gitem) |
 
 ## Integracja z silnikami
 Semantykę przeniesiono z kodu źródłowego, bez zgadywania:
@@ -80,3 +80,6 @@ claude mcp add openmw-rlf -- "$PWD/.venv/bin/openmw-mcp"
 
 ## Następny etap
 Dane świata (LAND z ESM, emulacja oficjalnego `Groundcover::collectInstances` jako baseline liczb, parser NIF) — po zatwierdzeniu etapu 1.
+
+## Uwaga o odtwarzalności (dopisane 2026-11-14)
+Kod etapu 1 (hash `efb03baa…`) nie był wersjonowany w Git i jego dokładnego drzewa nie zachowano — prace nad etapem 2 zmieniły te same pliki. Funkcje etapu 1 zostały w kodzie bez zmian zachowania i obejmują je te same 36 testów. Pierwsza wersja w Git to `0.2.1` w `tools/MCP-openMW/` (zob. [wersjonowanie](2026-11-14-wersjonowanie-i-test-integracyjny.md)).
