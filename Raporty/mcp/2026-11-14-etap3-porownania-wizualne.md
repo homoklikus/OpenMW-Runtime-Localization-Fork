@@ -78,6 +78,25 @@ Oba silniki: 3/3 ujęcia przez F12, bez błędów. Fork bez pach76 (stan pach75)
 ## Czwarty przebieg — fork z pach76 (Debian 13, 2026-11-14 17:23, `2026-11-14-172349-porownanie`)
 Oba silniki: 3/3 ujęcia, bez błędów. Kamera wybrana z kontrolą zasłonięcia (MCP 0.6.0). Trawa forka z pach76 odpowiada oryginałowi we wszystkich trzech ujęciach; szczegóły w [raporcie pach76](2026-11-14-pach76-liczniki-w-polach-teksela.md).
 
+## Piąty przebieg — 7 regionów Remirosa, fork z pach76 (Debian 13, 2026-11-14 17:59, `2026-11-14-175937-porownanie`)
+Po jednej komórce na plugin, wybranej spośród najgęstszych. Oba silniki: 7/7 ujęć, bez błędów.
+
+Poniżej liczba roślin w kadrze według danych (±46°, do 350 j. / 350–700 j.) i ocena zrzutów:
+
+| Komórka | Region (plugin) | Komórka: Remiros / fork pach76 | Kadr: Remiros / fork | Zrzuty |
+|---|---|---|---|---|
+| (5,−9) | Ascadian Isles (AI) | 3076 / 3076 | 4+22 / 6+21 | praktycznie identyczne |
+| (0,15) | Ashlands (AL) | 3523 / 3523 | 7+17 / 6+17 | ta sama gęstość; kępy w innych miejscach pól 128 j. |
+| (12,11) | Grazelands (GL) | 3587 / 3587 | 7+18 / 5+18 | lewą połowę zasłania głaz (obiekt, nie teren); trawa po prawej zgodna |
+| (−7,12) | West Gash (WG) | 1759 / 1759 | 2+11 / 2+11 | bardzo podobne |
+| (−5,−3) | Bitter Coast (BC) | 2703 / 2701 | 7+15 / 6+18 | bardzo podobne |
+| (−24,19) | Solstheim | 9087 / 9087 | 12+43 / 10+51 | jak w czwartym przebiegu |
+| (15,−9) | Azura's Coast (AC) | 1435 / 1435 | 2+11 / 1+9 | jak w czwartym przebiegu |
+
+Podział na modele w komórce: różnica (TV) 0 we wszystkich komórkach poza BC (0,0004).
+
+Ograniczenie: kontrola widoku uwzględnia teren, ale nie obiekty (głazy, drzewa). Wymagałoby to granic modeli NIF (etap 2b).
+
 ## MCP 0.5.1 — poprawka kamery, powtórzenia ujęć i czasy oczekiwania
 - Poprawka kierunku kamery (wyżej).
 - `openmw_capture_plan` / `openmw_capture_start`: nowe parametry `repeat` (1–5; seria ujęć powtórzona, id z sufiksem `-r2`…), `settle_seconds`, `render_seconds`.

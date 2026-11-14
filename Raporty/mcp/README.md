@@ -24,7 +24,7 @@ Hash trafia także do każdego manifestu testu (`mcp.tree_sha256`), więc wynik 
 | 2c-b | trawa Remirosa w forku: reguły tekstur + mapa liczników, zmiana silnika pach75 (przygotowana) | 0.4.0 / `93f8275f5bcec353de73acd52a3f4fb129722affd204c55bd80a119d0095ec30` | [MCP: sprawdzony — Debian 13: 76/76, integracja 58/58; pach75: zbudowany, w grze aktywny (log), commit `94e5fb45` na gałęzi `world-remiros-texture`, niescalony](2026-11-14-etap2c-trawa-remirosa-pach75.md) |
 | 2c-c | trawa Remirosa: liczniki per pole 4×4 teksela i per statyka, zmiana silnika pach76 (przygotowana); poprawka `_capture_plans` | 0.6.0 / `6d9c78ca069940ceab495e31c07f177bb9e7e9c5025a0ac6e05d2a936d1c3a9f` | [VM: 86/86, zgodność C++ na prawdziwym terenie; wybór kamery z kontrolą zasłonięcia; pach76: sprawdzony w grze i **zatwierdzony**, commit `5ead2e90` na `world-remiros-texture`](2026-11-14-pach76-liczniki-w-polach-teksela.md) |
 | 2b | parser NIF (bounding boxy, wysokości modeli) | — | planowany |
-| 3 | porównania wizualne: uruchamianie obu silników z ujęciami (Lua), zrzuty, porównanie obrazów; 0.5.1: poprawka kierunku kamery, powtórzenia ujęć | 0.5.1 / `b8963dbb8c944351de3588c7b2c581372aba4005caaebef5289631a92dd03e14` | [**zatwierdzony** — cztery przebiegi na Debianie](2026-11-14-etap3-porownania-wizualne.md) |
+| 3 | porównania wizualne: uruchamianie obu silników z ujęciami (Lua), zrzuty, porównanie obrazów; 0.5.1: poprawka kierunku kamery, powtórzenia ujęć | 0.5.1 / `b8963dbb8c944351de3588c7b2c581372aba4005caaebef5289631a92dd03e14` | [**zatwierdzony** — pięć przebiegów na Debianie, w tym 7 regionów Remirosa](2026-11-14-etap3-porownania-wizualne.md) |
 | 4 | instrumentacja forka (osobna, minimalna zmiana C++) | — | planowany |
 | 5 | porównania wizualne | — | planowany |
 
