@@ -18,7 +18,7 @@ from pathlib import Path
 from . import __version__
 
 ROOT = Path(__file__).resolve().parents[2]
-INCLUDE = ("src/openmw_mcp/*.py", "tests/*.py", "scripts/*.py", "scripts/*.sh", "pyproject.toml", "openmw-mcp.json", "catalog/*.sha256",
+INCLUDE = ("src/openmw_mcp/*.py", "tests/*.py", "cpp/*.hpp", "cpp/*.cpp", "scripts/*.py", "scripts/*.sh", "pyproject.toml", "openmw-mcp.json", "catalog/*.sha256",
            "claude/*", "README.md", ".gitignore")
 MANIFEST = "SOURCE-MANIFEST.sha256"
 
@@ -44,9 +44,15 @@ def git_state(root: Path = ROOT) -> dict:
         return {"in_git": False}
     rel = Path(root).resolve().relative_to(Path(top).resolve()).as_posix()
     status = g("status", "--porcelain", "--untracked-files=all", "--", ".")
+    files = [l.split("  ", 1)[1] for l in manifest_text(root).splitlines() if "  " in l]
+    r = subprocess.run(["git", "--no-optional-locks", "-C", str(root), "check-ignore", "--stdin"],
+                       input="\n".join(files), capture_output=True, text=True,
+                       env={"LC_ALL": "C", "PATH": "/usr/bin:/bin"})
+    ignored = [x for x in r.stdout.splitlines() if x]
     return {"in_git": True, "repo": top, "path_in_repo": rel, "head": g("rev-parse", "HEAD"),
             "last_commit_for_mcp": g("log", "-1", "--format=%H", "--", ".") or None,
-            "dirty": bool(status), "changed_files": len(status.splitlines()) if status else 0}
+            "dirty": bool(status), "changed_files": len(status.splitlines()) if status else 0,
+            "ignored_source_files": ignored}
 
 
 def info(root: Path = ROOT) -> dict:
@@ -75,6 +81,11 @@ def main(argv: list[str]) -> int:
     if gs.get("in_git"):
         print(f"git: {gs['path_in_repo']} ostatni commit MCP={gs['last_commit_for_mcp'] or '(brak — nie zacommitowano)'} "
               f"zmiany_robocze={'tak' if gs['dirty'] else 'nie'}")
+        if gs["ignored_source_files"]:
+            print("BŁĄD: pliki źródłowe ignorowane przez Git (nie trafią do repozytorium): "
+                  + ", ".join(gs["ignored_source_files"]))
+            if "--check" in argv:
+                return 3
     else:
         print("git: katalog MCP poza repozytorium")
     return 0

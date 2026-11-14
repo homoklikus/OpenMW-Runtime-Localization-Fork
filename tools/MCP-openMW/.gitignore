@@ -7,3 +7,7 @@ __pycache__/
 .pytest_cache/
 build/
 dist/
+
+# Główny .gitignore forka ma wzorzec *__* (linia 80) — przywracamy pliki pakietu Pythona
+!__init__.py
+!__main__.py

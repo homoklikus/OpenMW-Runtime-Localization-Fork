@@ -1,5 +1,17 @@
 # MCP — kod w repozytorium forka i test integracyjny (0.2.1)
 
+Commit: `478677cf7f3f82c2aba2066ee0f88fafa97c39d7` (gałąź `0.5-world`, wypchnięty 2026-11-14).
+
+> **Wada commita `478677cf` (wykryta 2026-11-14 przy etapie 2c):** brakuje w nim `tools/MCP-openMW/src/openmw_mcp/__init__.py`. Główny `.gitignore` forka ma w linii 80 wzorzec `*__*`, który ignoruje ten plik. Skrypt przenoszący sprawdzał ignorowanie `.venv` i cache, ale nie kodu źródłowego. Skutek: czysty checkout `478677cf` kończy się `ImportError: cannot import name '__version__'` w `srcmanifest`. Na Debianie nic nie zauważono, bo plik istniał na dysku.
+> **Naprawa (w commicie wersji 0.3.0):** `tools/MCP-openMW/.gitignore` przywraca `!__init__.py` i `!__main__.py`. `srcmanifest` sprawdza teraz `git check-ignore` dla wszystkich plików manifestu i przy `--check` kończy się błędem, jeśli któryś jest ignorowany. Test integracyjny ma osobne sprawdzenie, a skrypt przenoszący — dodatkowy krok.
+> **Odtworzenie wersji 0.2.1:** `git checkout 478677cf -- tools/MCP-openMW`, potem utworzyć `tools/MCP-openMW/src/openmw_mcp/__init__.py` o treści poniżej (z nią `srcmanifest --check` daje `560428b4…`). Od wersji 0.3.0 wystarczy sam checkout.
+
+```python
+"""MCP-openMW — wspólny serwer MCP (etap 1–2: tylko odczyt) dla oficjalnego OpenMW (Flatpak) i forka RLF."""
+
+__version__ = "0.2.1"
+```
+
 **Status: przeniesienie wykonane i sprawdzone na Debianie 13 (2026-11-14 14:07): testy jednostkowe zaliczone, `srcmanifest --check` zgodne (`560428b4…`), test integracyjny 44/44, test przez klienta Claude Code zgodny (14:10).**
 
 ## Problem

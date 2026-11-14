@@ -107,6 +107,8 @@ class LandIndex:
     ltex_map: dict = field(default_factory=dict)       # (plugin, index) -> id
     ltex_tex: dict = field(default_factory=dict)       # id -> texture
     overridden: dict = field(default_factory=dict)     # (x, y) -> [pliki]
+    regions: dict = field(default_factory=dict)        # (x, y) -> RGNN komórki zewnętrznej (później wczytany wygrywa)
+    cell_records: set = field(default_factory=set)     # komórki zewnętrzne z rekordem CELL (searchStatic != nullptr)
 
     @classmethod
     def load(cls, content_files: list[Path]) -> "LandIndex":
@@ -133,6 +135,20 @@ class LandIndex:
                     if lid is not None and index is not None and not deleted:
                         idx.ltex_tex[lid] = tex or ""
                         idx.ltex_map.setdefault((plugin, index), lid)
+                elif t == b"CELL":
+                    flags = xy = rgn = None
+                    for st, so, sn in _subs(data, start, size):
+                        if st == b"FRMR":
+                            break
+                        if st == b"DATA" and sn == 12 and flags is None:
+                            flags, cx, cy = struct.unpack_from("<Iii", data, so)
+                            xy = (cx, cy)
+                        elif st == b"RGNN":
+                            rgn = data[so:so + sn].split(b"\0")[0].decode("latin-1")
+                    if flags is not None and not flags & 1:
+                        idx.cell_records.add(xy)
+                        if rgn is not None:
+                            idx.regions[xy] = rgn
                 elif t == b"LAND":
                     xy = vhgt = vtex = None
                     for st, so, sn in _subs(data, start, size):

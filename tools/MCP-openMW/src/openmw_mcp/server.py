@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import collections
 import functools
 import traceback
 from pathlib import Path
@@ -12,7 +13,7 @@ try:                                   # mcp 2.x
 except ImportError:                    # mcp 1.x
     from mcp.server.fastmcp import FastMCP as _Server
 
-from . import environment, esp, flora, gcbaseline, land, manifest, mods, profiles
+from . import environment, esp, fflora, flora, gcbaseline, land, manifest, mods, profiles, remirosrules
 from .util import vfs_key
 
 mcp = _Server(
@@ -154,7 +155,20 @@ def openmw_groundcover_mode(profile: str, pool: Optional[str] = None) -> dict:
     exps = environment.detect_fork(e, False).get("experiments") if eff["target"] == "fork" else None
     pl, src = manifest.pool_for(e, profile, pool) if eff["target"] == "fork" else (None, "")
     vfs = profiles.vfs_index(eff) if eff["target"] == "fork" else None
-    return flora.classify(eff, eff["target"], vfs, pl, src, exps)
+    res = flora.classify(eff, eff["target"], vfs, pl, src, exps)
+    if eff["target"] == "fork":
+        st = _pach75_state()
+        res["remiros_texture_rules"] = st
+        if st["in_binary"] and res.get("procedural"):
+            models = [m for m in (vfs or {}).get("index", {}) if m.startswith("meshes/grass/rem_")]
+            res["procedural_profile"] = {"mode": "reguły tekstur Remirosa + mapa liczników (pach75)",
+                                         "remiros_models_in_vfs": len(models),
+                                         "note": "stare profile regionalne usunięte; emulacja: openmw_remiros_compare"}
+            res["mechanism"] = res["mechanism"].replace("proceduralna flora forka",
+                                                        "proceduralna flora forka (trawa Remirosa, pach75)")
+        elif st["in_source"] and not st["in_binary"]:
+            res["notes"].append("pach75 jest w źródłach forka, ale binarka go nie zawiera — przebuduj fork")
+    return res
 
 
 @tool
@@ -294,6 +308,229 @@ def openmw_land_texture_mapping_check(profile: str = "official-ref", max_refs: O
 def openmw_groundcover_height_offset(profile: str = "official-ref", per_cell: int = 40) -> dict:
     """Różnica wysokości referencji groundcover względem terenu (z − h) per plugin — kalibracja proceduralnej flory."""
     return gcbaseline.height_offset_check(_gc_index(profile), _land_index(profile), per_cell)
+
+
+# --- etap 2c: proceduralna flora forka offline i porównanie z Remirosem ------------------------------
+BUILTIN_VANILLA_POOL = [f"meshes/f/flora_grass_0{i}.nif" for i in range(1, 8)] + [
+    "meshes/f/flora_bc_grass_01.nif", "meshes/f/flora_bc_grass_02.nif", "meshes/f/flora_ash_grass_b_01.nif",
+    "meshes/f/flora_ash_grass_r_01.nif", "meshes/f/flora_ash_grass_w_01.nif"] + [
+    f"meshes/f/flora_bm_grass_0{i}.nif" for i in range(1, 7)]
+
+
+def _fork_params(profile: str, pool: Optional[str], density: Optional[float]) -> "fflora.ForkFloraParams":
+    e = env()
+    eff = profiles.effective(e, profile)
+    if eff["target"] != "fork":
+        raise ValueError(f"profil {profile} nie jest profilem forka")
+    wf = (eff.get("world_cfg") or {}).get("flora") or {}
+    raw, src = manifest.pool_for(e, profile, pool)
+    vfs = profiles.vfs_index(eff)["index"]
+    if raw:
+        models = []
+        for m in raw:
+            k = vfs_key(m)
+            if k in vfs and k not in models:
+                models.append(k)
+        if not models:
+            raw, src = None, src + " — żaden model nie istnieje w VFS, silnik wraca do puli vanilla"
+    if not raw:
+        models = [m for m in BUILTIN_VANILLA_POOL if m in vfs]
+        src = src or "pula wbudowana (vanilla)"
+    return fflora.ForkFloraParams(density=float(density if density is not None else wf.get("density", 1.0)),
+                                  exclusion_distance_m=float(wf.get("exclusion_distance", 0.0)),
+                                  models=models, pool_source=src)
+
+
+def _fork_world_status(profile: str) -> dict:
+    eff = profiles.effective(env(), profile)
+    wf = (eff.get("world_cfg") or {}).get("flora") or {}
+    proc = bool(wf.get("enabled")) and wf.get("source") in ("automatic", "hybrid")
+    return {"world_cfg_flora": wf, "procedural_enabled_in_profile": proc}
+
+
+@tool
+def openmw_fork_flora_cell(profile: str = "fork-test", cell_x: int = 0, cell_y: int = 0,
+                           density: Optional[float] = None, pool: Optional[str] = None,
+                           include_instances: bool = False) -> dict:
+    """[Generator SPRZED pach75 — profile regionalne AI/AL/BC/GL/WG] Proceduralna flora forka w komórce — offline emulacja collectInstances (fork 0.5-world): profil
+    regionalny, liczba kandydatów, odrzucenia (wysokość, nachylenie, waga powierzchni, losowania), modele, skale.
+    Bez wykluczeń obiektów i ścieżek ⇒ górna granica. Gęstość domyślnie z world.cfg [Flora]."""
+    params = _fork_params(profile, pool, density)
+    out = fflora.generate_cell(_land_index(profile), params, cell_x, cell_y, None, include_instances)
+    out["generator"] = params.as_dict()
+    out.update(_fork_world_status(profile))
+    return out
+
+
+@tool
+def openmw_fork_flora_region(profile: str, x0: float, y0: float, x1: float, y1: float,
+                             density: Optional[float] = None, pool: Optional[str] = None,
+                             include_instances: bool = False) -> dict:
+    """[Generator SPRZED pach75] Proceduralna flora forka w prostokącie świata [x0,x1)×[y0,y1) (te same granice co openmw_groundcover_region)."""
+    params = _fork_params(profile, pool, density)
+    out = fflora.generate_region(_land_index(profile), params, x0, y0, x1, y1, include_instances)
+    out["generator"] = params.as_dict()
+    return out
+
+
+def _remiros_cell_plugins(gc, cx: int, cy: int) -> dict:
+    out = {}
+    for fi, refs in gc.cells.get((cx, cy), []):
+        out[Path(gc.files[fi]).name] = sum(1 for r in refs if not r.deleted)
+    return out
+
+
+@tool
+def openmw_flora_compare(cell_x: int, cell_y: int, fork_profile: str = "fork-test",
+                         official_profile: str = "official-ref", density_fork: Optional[float] = None,
+                         density_official: Optional[float] = None, pool: Optional[str] = None) -> dict:
+    """[Generator SPRZED pach75; po pach75: openmw_remiros_compare] Komórka obok siebie: oficjalny Groundcover (Remiros, pozycje w granicach komórki) i proceduralna flora forka
+    (emulacja, górna granica) — region, profil forka, pluginy Remirosa pokrywające komórkę, liczby, gęstość na m², modele."""
+    from .cfgparse import setting, _float
+    x0, y0 = cell_x * land.CELL, cell_y * land.CELL
+    if density_official is None:
+        eff = profiles.effective(env(), official_profile)
+        density_official = _float(setting(eff["settings"]["merged"], "Groundcover", "density"), 1.0)
+    gc = _gc_index(official_profile)
+    off = gcbaseline.region_count(gc, x0, y0, x0 + land.CELL, y0 + land.CELL, density_official)
+    params = _fork_params(fork_profile, pool, density_fork)
+    fk = fflora.generate_cell(_land_index(fork_profile), params, cell_x, cell_y)
+    ratio = round(fk["instances"] / off["instances"], 3) if off["instances"] else None
+    return {"cell": [cell_x, cell_y], "region": fk.get("region"),
+            "fork_profiles": fk.get("profiles"), "fork_generates": fk.get("generated"),
+            "fork_reason": fk.get("reason"), "remiros_plugins_assigned": _remiros_cell_plugins(gc, cell_x, cell_y),
+            "official": {"instances": off["instances"], "per_m2": off["per_m2"], "density": density_official,
+                         "by_plugin": off["by_plugin"], "by_model": off["by_model"],
+                         "by_assigned_cell": off["by_assigned_cell"]},
+            "fork": {k: fk.get(k) for k in ("instances", "candidates", "rejected", "pathgrid_check_candidates",
+                                             "by_model", "scale", "max_slope_deg")},
+            "fork_per_m2": round(fk["instances"] / off["area_m2"], 4) if off["area_m2"] else None,
+            "ratio_fork_to_official": ratio, "generator": params.as_dict(),
+            "caveats": ["fork: emulacja bez wykluczeń obiektów i ścieżek (górna granica)",
+                        "official: emulacja groundcover.cpp 0.51.0; pozycje w granicach komórki, także z sąsiednich CELL"]}
+
+
+@tool
+def openmw_flora_coverage(fork_profile: str = "fork-test", official_profile: str = "official-ref",
+                          density_official: Optional[float] = None, top: int = 15) -> dict:
+    """Pokrycie świata: dla każdej komórki z referencjami Remirosa — region, czy fork ma dla niej profil;
+    sumy instancji oficjalnego Groundcover w komórkach obsługiwanych i nieobsługiwanych przez fork."""
+    from .cfgparse import setting, _float
+    if density_official is None:
+        eff = profiles.effective(env(), official_profile)
+        density_official = _float(setting(eff["settings"]["merged"], "Groundcover", "density"), 1.0)
+    gc = _gc_index(official_profile)
+    li = _land_index(fork_profile)
+    params = _fork_params(fork_profile, None, None)
+    by_region = collections.defaultdict(lambda: {"cells": 0, "official_instances": 0, "fork_cells_with_profile": 0})
+    missing = []
+    tot = {"cells": 0, "official_instances": 0, "covered_cells": 0, "covered_instances": 0}
+    for (cx, cy) in sorted(gc.cells):
+        n = len(gc.instances(cx, cy, density_official))
+        cp = fflora.cell_profile(li, params, cx, cy)
+        reg = cp["region"] or ("(brak CELL)" if not cp["cell_record"] else "(brak regionu)")
+        b = by_region[reg]
+        b["cells"] += 1; b["official_instances"] += n
+        tot["cells"] += 1; tot["official_instances"] += n
+        if cp["generates"]:
+            b["fork_cells_with_profile"] += 1
+            tot["covered_cells"] += 1; tot["covered_instances"] += n
+        else:
+            missing.append({"cell": [cx, cy], "region": reg, "official_instances": n,
+                            "plugins": _remiros_cell_plugins(gc, cx, cy)})
+    missing.sort(key=lambda m: -m["official_instances"])
+    return {"totals": tot, "by_region": dict(sorted(by_region.items(), key=lambda kv: -kv[1]["official_instances"])),
+            "uncovered_cells": len(missing), "uncovered_official_instances": sum(m["official_instances"] for m in missing),
+            "top_uncovered": missing[:top], "generator": params.as_dict(), "density_official": density_official,
+            "note": "komórki zewnętrzne z pluginów groundcover=; 'pokryta' = fork generuje tam florę (profil regionalny)"}
+
+
+# --- etap 2c: trawa Remirosa w forku (reguły tekstur + liczniki, pach75) --------------------------------
+PACH75_MARKER = b"Remiros texture rules (pach75)"
+
+
+def _pach75_state() -> dict:
+    e = env()
+    t = e.target("fork")
+    repo = e.p(t["repo"])
+    binary = e.p(t["binary"])
+    in_source = bool(repo) and (repo / "apps/openmw/mwrender/remirosgroundcover.cpp").is_file()
+    in_binary = False
+    if binary and binary.is_file():
+        import mmap
+        with open(binary, "rb") as fh, mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ) as mm:
+            in_binary = mm.find(PACH75_MARKER) >= 0
+    return {"in_source": in_source, "in_binary": in_binary}
+
+
+def _remiros_model(official_profile: str, land_profile: str, with_counts: bool = True):
+    key = ("remiros", official_profile, land_profile, with_counts,
+           _files_key([Path(g["file"]) for g in profiles.effective(env(), official_profile)["groundcover"] if g["file"]]))
+    if key not in _WORLD_CACHE:
+        gc, li = _gc_index(official_profile), _land_index(land_profile)
+        rules = remirosrules.derive(gc, li)
+        counts = remirosrules.build_counts(gc, li, rules) if with_counts else None
+        _WORLD_CACHE[key] = (rules, counts, remirosrules.Model(rules, counts))
+    return _WORLD_CACHE[key]
+
+
+@tool
+def openmw_remiros_rules(official_profile: str = "official-ref", land_profile: str = "fork-test",
+                         texture: Optional[str] = None, top: int = 40) -> dict:
+    """Reguły Remirosa wyliczone z pluginów groundcover=: tekstura LAND → gęstość na teksel, statyki (model, udział,
+    zakres skali, wysokość nad terenem), pluginy. Plus statystyka mapy liczników. Bez współrzędnych roślin."""
+    rules, counts, _ = _remiros_model(official_profile, land_profile)
+    rows = [r for r in rules["rules"] if texture is None or r["texture"] == remirosrules.texture_key(texture)]
+    return {"textures": rules["textures"], "statics": rules["statics"], "refs": rules["refs"],
+            "constants": rules["constants"], "source_plugins": rules["source_plugins"],
+            "counts": {"cells": len(counts["cells"]), "entries": counts["entries"], "refs": counts["refs"]},
+            "rules": rows[:top]}
+
+
+@tool
+def openmw_remiros_compare(cell_x: int, cell_y: int, official_profile: str = "official-ref",
+                           land_profile: str = "fork-test", density: float = 1.0, use_counts: bool = True) -> dict:
+    """Komórka: Remiros (oficjalny Groundcover) vs trawa Remirosa w forku po pach75 (emulacja identyczna z rdzeniem C++),
+    w tych samych granicach komórki. use_counts=False pokazuje same reguły tekstur (teren zmieniony modami)."""
+    rules, counts, model = _remiros_model(official_profile, land_profile)
+    li = _land_index(land_profile)
+    x0, y0 = cell_x * land.CELL, cell_y * land.CELL
+    off = gcbaseline.region_count(_gc_index(official_profile), x0, y0, x0 + land.CELL, y0 + land.CELL, density)
+    inside, modes, models = 0, {}, collections.Counter()
+    for dx in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+            r = remirosrules.generate_cell(li, model, cell_x + dx, cell_y + dy, density, None, True, use_counts)
+            if dx == 0 and dy == 0:
+                modes = {"mode": r.get("mode"), "texel_sources": r.get("texel_sources"), "rejected": r.get("rejected")}
+            for i in r.get("instance_list", []):
+                if x0 <= i["x"] < x0 + land.CELL and y0 <= i["y"] < y0 + land.CELL:
+                    inside += 1
+                    models[i["model"]] += 1
+    return {"cell": [cell_x, cell_y], "region": li.regions.get((cell_x, cell_y)), "density": density,
+            "remiros": {"instances": off["instances"], "by_model": off["by_model"]},
+            "fork_pach75": {"instances": inside, "by_model": dict(models.most_common()), **modes},
+            "ratio": round(inside / off["instances"], 4) if off["instances"] else None,
+            "pach75": _pach75_state()}
+
+
+@tool
+def openmw_remiros_export(official_profile: str = "official-ref", land_profile: str = "fork-test",
+                          dest: str = "Fork/experiments/remiros-texture-2026-11-14/files") -> dict:
+    """Zapisuje pliki C++ dla pach75: dane (remirosgroundcoverdata.{hpp,cpp}) i kopie wzorców z cpp/ MCP.
+    Jedyny zapis tego narzędzia; katalog docelowy względem projektu (domyślnie eksperyment pach75)."""
+    import hashlib
+    from . import srcmanifest
+    rules, counts, _ = _remiros_model(official_profile, land_profile)
+    out_dir = env().p(dest)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    files = remirosrules.emit_cpp_files(rules, counts, srcmanifest.info())
+    for name in ("remirosgroundcovergen.hpp", "remirosgroundcover.hpp", "remirosgroundcover.cpp"):
+        files[name] = (srcmanifest.ROOT / "cpp" / name).read_text(encoding="utf-8")
+    written = {}
+    for name, text in files.items():
+        (out_dir / name).write_text(text, encoding="utf-8")
+        written[name] = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return {"dest": str(out_dir), "files": written}
 
 
 def main() -> None:

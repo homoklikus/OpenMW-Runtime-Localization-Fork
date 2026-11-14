@@ -36,7 +36,9 @@ EXPECTED_TOOLS = {
     "openmw_mod_identify_dir", "openmw_groundcover_mode", "openmw_groundcover_stats", "openmw_esp_info",
     "openmw_manifest_build", "openmw_manifest_write", "openmw_profile_diff",
     "openmw_land_cell", "openmw_land_point", "openmw_groundcover_baseline", "openmw_land_texture_mapping_check",
-    "openmw_groundcover_height_offset", "openmw_groundcover_region"}
+    "openmw_groundcover_height_offset", "openmw_groundcover_region",
+    "openmw_fork_flora_cell", "openmw_fork_flora_region", "openmw_flora_compare", "openmw_flora_coverage",
+    "openmw_remiros_rules", "openmw_remiros_compare", "openmw_remiros_export"}
 
 
 # --- niezależne źródła prawdy -----------------------------------------------------------------
@@ -124,6 +126,30 @@ def esp_counts(path: Path) -> tuple[set, set, list]:
     return cells, stats, masters
 
 
+def cell_regions(files: list[Path]) -> dict:
+    """RGNN komórek zewnętrznych z plików content= (później wczytany wygrywa) — własny parser."""
+    out = {}
+    for f in files:
+        data = f.read_bytes(); o = 0
+        while o + 16 <= len(data):
+            t, size = data[o:o + 4], struct.unpack_from("<I", data, o + 4)[0]
+            if t == b"CELL":
+                so, xy, rg, fl = o + 16, None, None, None
+                while so + 8 <= o + 16 + size:
+                    st, n = data[so:so + 4], struct.unpack_from("<I", data, so + 4)[0]
+                    if st == b"FRMR":
+                        break
+                    if st == b"DATA" and n == 12 and fl is None:
+                        fl, x, y = struct.unpack_from("<Iii", data, so + 8); xy = (x, y)
+                    elif st == b"RGNN":
+                        rg = data[so + 8:so + 8 + n].split(b"\0")[0].decode("latin-1")
+                    so += 8 + n
+                if fl is not None and not fl & 1 and rg is not None:
+                    out[xy] = rg
+            o += 16 + size
+    return out
+
+
 def find_file(dirs: list[Path], name: str) -> Path | None:
     hit = None
     for d in dirs:
@@ -186,6 +212,10 @@ def truth() -> dict:
             missing.append(g); continue
         c, s, _ = esp_counts(f); cells |= c; stats |= s
     t["ref_gc_cells"], t["ref_gc_statics"], t["ref_gc_missing"] = len(cells), len(stats), missing
+    t["ref_gc_ext_cells"] = sum(1 for c in cells if c[0] == "ext")
+    content_files = [f for f in (find_file([fs(d) for d in t["ref_data"]], c) for c in t["ref_content"]) if f]
+    regs = cell_regions(content_files) if content_files else {}
+    t["regions_sample"] = {f"{x},{y}": regs.get((x, y)) for x, y in ((15, -9), (2, -10), (-13, 13), (-4, 9))}
     return t
 
 
@@ -302,6 +332,9 @@ async def run(t: dict, C: Checks, raw: dict):
             mcpi = env.get("mcp", {})
             C.add("MCP", "kod zgodny z SOURCE-MANIFEST", mcpi.get("matches_stored_manifest") is True,
                   True, mcpi.get("matches_stored_manifest"), mcpi.get("tree_sha256", ""))
+            if (mcpi.get("git") or {}).get("in_git"):
+                C.add("MCP", "żaden plik źródłowy nie jest ignorowany przez Git", mcpi["git"].get("ignored_source_files") == [],
+                      [], mcpi["git"].get("ignored_source_files"))
 
             # 2. profile
             for prof, data, content, gc in (("official-ref", "ref_data", "ref_content", "ref_groundcover"),
@@ -400,6 +433,45 @@ async def run(t: dict, C: Checks, raw: dict):
                 C.add("etap 2", "region (15,−9): z przypisanych do (15,−9) = baseline.position_inside_cell",
                       (rg.get("by_assigned_cell") or {}).get("15,-9") == bl.get("position_inside_cell"),
                       bl.get("position_inside_cell"), rg.get("by_assigned_cell"))
+                # 6. etap 2c — proceduralna flora forka i porównanie
+                cov = await call("openmw_flora_coverage", top=5)
+                C.add("etap 2c", "pokrycie: komórki zewnętrzne Remirosa = parser niezależny",
+                      cov.get("totals", {}).get("cells") == t["ref_gc_ext_cells"], t["ref_gc_ext_cells"], cov.get("totals"))
+                C.add("etap 2c", "pokrycie: suma instancji = suma komórek pokrytych + niepokrytych",
+                      cov.get("totals", {}).get("official_instances") ==
+                      cov.get("totals", {}).get("covered_instances", -1) + cov.get("uncovered_official_instances", -1),
+                      None, cov.get("totals"))
+                fc = await call("openmw_flora_compare", cell_x=15, cell_y=-9)
+                C.add("etap 2c", "(15,−9): region = RGNN z parsera niezależnego", fc.get("region") == t["regions_sample"]["15,-9"],
+                      t["regions_sample"]["15,-9"], fc.get("region"))
+                exp_gen = t["regions_sample"]["15,-9"] in ("Ascadian Isles Region", "Ashlands Region", "Bitter Coast Region",
+                                                           "Grazelands Region", "West Gash Region") or bool(fc.get("fork_profiles"))
+                C.add("etap 2c", "(15,−9): fork generuje tylko przy profilu regionu", fc.get("fork_generates") == exp_gen,
+                      exp_gen, [fc.get("fork_generates"), fc.get("fork_profiles"), fc.get("fork_reason")])
+                C.add("etap 2c", "(15,−9): oficjalne z przypisanych do komórki = baseline.position_inside_cell",
+                      (fc.get("official", {}).get("by_assigned_cell") or {}).get("15,-9") == bl.get("position_inside_cell"),
+                      bl.get("position_inside_cell"), fc.get("official", {}).get("by_assigned_cell"))
+                for key in ("2,-10", "-13,13", "-4,9"):
+                    x, y = map(int, key.split(","))
+                    a = await call("openmw_fork_flora_cell", profile="fork-test", cell_x=x, cell_y=y)
+                    b = await call("openmw_fork_flora_cell", profile="fork-test", cell_x=x, cell_y=y)
+                    C.add("etap 2c", f"fork ({key}): region zgodny i wynik deterministyczny",
+                          a.get("region") == t["regions_sample"][key] and a.get("instances") == b.get("instances") and
+                          a.get("generated") is True, [t["regions_sample"][key], "generated"],
+                          [a.get("region"), a.get("instances"), b.get("instances"), a.get("generated")])
+                # 7. trawa Remirosa w forku (pach75): reguły i emulacja
+                rr = await call("openmw_remiros_rules", top=3)
+                C.add("pach75", "reguły: suma referencji = suma instancji oficjalnych (pokrycie)",
+                      rr.get("refs") == cov.get("totals", {}).get("official_instances"),
+                      cov.get("totals", {}).get("official_instances"), rr.get("refs"))
+                C.add("pach75", "reguły: każda statyka przypisana do jednej tekstury (7 pluginów)",
+                      len({p for r in rr.get("rules", []) for p in r.get("plugins", [])}) >= 1 and rr.get("statics", 0) > 90,
+                      ">90 statyk", rr.get("statics"))
+                for key in ("2,-10", "-24,19", "15,-9"):
+                    x, y = map(int, key.split(","))
+                    rc = await call("openmw_remiros_compare", cell_x=x, cell_y=y)
+                    C.add("pach75", f"emulacja forka po pach75 ({key}) = Remiros ±3%",
+                          rc.get("ratio") is not None and abs(rc["ratio"] - 1.0) <= 0.03, "0.97–1.03", rc.get("ratio"))
             else:
                 C.add("flora", "official", None, got=gmo["error"], note="wymaga Flatpaka")
 

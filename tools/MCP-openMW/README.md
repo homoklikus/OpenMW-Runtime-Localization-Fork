@@ -1,4 +1,4 @@
-# MCP-openMW — etapy 1–2 (tylko odczyt)
+# MCP-openMW — etapy 1–2c
 
 Wspólny serwer MCP dla dwóch silników:
 - **official** — OpenMW 0.51.0 (Flatpak `org.openmw.OpenMW`, kod w `../OpenMW/repo`);
@@ -54,6 +54,25 @@ Claude Desktop: dopisz wpis z `claude/claude_desktop_config.snippet.json` do sek
 | `openmw_land_texture_mapping_check` | test hipotezy przesunięcia tekstur LAND na wszystkich referencjach groundcover |
 | `openmw_groundcover_height_offset` | z referencji − wysokość terenu per plugin (kalibracja wysokości flory proceduralnej) |
 | `openmw_groundcover_region` | instancje, których pozycja leży w prostokącie świata (łącznie z przypisanymi do sąsiednich komórek) — granice do porównań z florą proceduralną |
+
+### Etap 2c — proceduralna flora forka offline i porównanie z Remirosem
+| Narzędzie | Opis |
+|---|---|
+| `openmw_fork_flora_cell` | emulacja `collectInstances` forka w komórce: profil regionalny (RGNN, zapasowe próbkowanie tekstur AL/GL), kandydaci, odrzucenia wg przyczyny, modele, skale, parametry generatora i wzór ziarna |
+| `openmw_fork_flora_region` | to samo w prostokącie świata — te same granice co `openmw_groundcover_region` |
+| `openmw_flora_compare` | komórka obok siebie: Remiros (oficjalny Groundcover) i fork — region, profil forka, pluginy Remirosa, liczby i gęstość na m², modele |
+| `openmw_flora_coverage` | cały świat: komórki Remirosa z profilem forka i bez, utracone instancje wg regionu |
+
+Wynik forka jest **górną granicą**: bez wykluczeń obiektów sceny (wymagają granic NIF) i ścieżek PGRD. Te cztery narzędzia emulują generator **sprzed pach75**.
+
+### Etap 2c — trawa Remirosa w forku (pach75)
+| Narzędzie | Opis |
+|---|---|
+| `openmw_remiros_rules` | reguły wyliczone z pluginów: tekstura LAND → gęstość na teksel, statyki (model, udział, skala, +z), statystyka mapy liczników |
+| `openmw_remiros_compare` | komórka: Remiros vs trawa forka po pach75 (emulacja identyczna z rdzeniem C++), tryb liczników albo same reguły |
+| `openmw_remiros_export` | zapis plików C++ dla pach75 (dane + kopie wzorców z `cpp/`) do katalogu eksperymentu — jedyny zapis |
+
+`cpp/remirosgroundcovergen.hpp` to wzorzec rdzenia generatora (bez zależności od OSG/OpenMW), `cpp/remirosgroundcover.{hpp,cpp}` — adapter do silnika, `cpp/remiros_harness.cpp` — test porównawczy C++↔Python (`tests/test_remiros.py`, wymaga `g++`).
 
 To emulacja offline na podstawie kodu silnika, nie pomiar w działającym silniku. Indeksy LAND/groundcover są trzymane w pamięci procesu i odświeżane, gdy zmieni się rozmiar lub mtime któregoś pliku.
 
