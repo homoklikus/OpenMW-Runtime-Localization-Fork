@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import collections
 import functools
+import json
 import os
 import traceback
 from pathlib import Path
@@ -15,7 +16,10 @@ except ImportError:                    # mcp 1.x
     from mcp.server.fastmcp import FastMCP as _Server
 
 from . import environment, esp, fflora, flora, gcbaseline, land, manifest, mods, profiles, remirosrules
+from . import bsa, geomverify, nif, objects, scene, visibility
 from .util import vfs_key
+
+import numpy as np
 
 mcp = _Server(
     "openmw-rlf",
@@ -543,6 +547,209 @@ def openmw_remiros_export(official_profile: str = "official-ref", land_profile: 
     return {"dest": str(out_dir), "files": written}
 
 
+# --- etap 2b: modele NIF, obiekty w komórkach, widoczność i punkty obserwacji -----------------------------
+
+def _scene(profile: str) -> "scene.Scene":
+    eff = profiles.effective(env(), profile)
+    files = [Path(c["file"]) for c in eff["content"] if c["file"]]
+    layers = [a["file"] for a in eff["fallback_archives"] if a["file"]] + \
+             [d["host_path"] for d in eff["data_dirs"] if d["exists"]]
+    key = ("scene", profile, _files_key(files), tuple(layers))
+    if key not in _WORLD_CACHE:
+        _WORLD_CACHE[key] = scene.Scene(_land_index(profile), objects.WorldObjects.load(files),
+                                        bsa.VfsReader(profiles.vfs_index(eff)))
+    return _WORLD_CACHE[key]
+
+
+def _box(b):
+    return None if b is None else {"min": [round(float(v), 2) for v in b[0]], "max": [round(float(v), 2) for v in b[1]],
+                                   "size": [round(float(v), 2) for v in (b[1] - b[0])]}
+
+
+@tool
+def openmw_nif_inspect(model: str, profile: str = "fork-test", list_shapes: bool = False) -> dict:
+    """Model NIF z VFS profilu (np. "meshes/f/flora_tree_gl_02.nif" albo "f/flora_tree_gl_02.nif"): kto go dostarcza
+    (BSA/katalog, nadpisania przez mody), granice z geometrii (AABB, jak silnik, kolizja, sfera), statystyka
+    kształtów i porównanie z granicami zapisanymi w pliku. list_shapes=True: każdy kształt z powodem pominięcia."""
+    sc = _scene(profile)
+    key = vfs_key(model if model.lower().startswith("meshes/") else "meshes/" + model)
+    provs = sc.vfs.providers(key)
+    if not provs:
+        return {"error": f"brak {key} w VFS profilu {profile}"}
+    g, err = sc.model(key)
+    out = {"model": key, "provider": {"kind": provs[-1]["kind"], "root": provs[-1]["root"]},
+           "overridden": [{"kind": p["kind"], "root": p["root"]} for p in provs[:-1]]}
+    if g is None:
+        return {**out, "error": err}
+    out.update(nif.summary(g))
+    out["declared_bounds_check"] = nif.declared_sphere_check(g)
+    out["node_bounding_volumes"] = [{k: v for k, v in d.items() if k in ("record", "node", "type")}
+                                    for d in g.declared if d["type"] != "data_sphere"][:10]
+    if list_shapes:
+        out["shapes"] = [{"name": sh.name, "path": sh.path, "kind": sh.kind, "rendered": sh.rendered,
+                          "reason": sh.reason or None, "alpha": sh.alpha, "billboard": sh.billboard,
+                          "skinned": sh.skinned, "animated": sh.animated, "vertices": int(len(sh.local_vertices)),
+                          "triangles": int(len(sh.triangles)),
+                          "aabb_model": _box(objects.aabb_of(sh.model_vertices()))} for sh in g.shapes]
+    return out
+
+
+@tool
+def openmw_cell_objects(cell_x: int, cell_y: int, profile: str = "fork-test", radius: int = 0,
+                        types: str = "static", min_height: float = 0.0, limit: int = 100) -> dict:
+    """Obiekty komórki zewnętrznej po rozstrzygnięciu kolejności pluginów (nadpisania, DELE, MVRF): rekord bazowy,
+    model po VFS, pozycja/obrót/skala, granice w świecie, przekroczenie granic komórki. Dodatkowo obiekty
+    z komórek sąsiednich (radius ≥ 1 albo zawsze te, których geometria wchodzi w badaną komórkę).
+    types: "static" (STAT, ACTI, DOOR, CONT, LIGH) albo "all"."""
+    sc = _scene(profile)
+    tset = objects.STATIC_TYPES if types == "static" else None
+    own = sc.objects([(cell_x, cell_y)], tset)
+    x0, y0 = cell_x * land.CELL, cell_y * land.CELL
+    near = []
+    for o in sc.objects([c for c in objects.cells_around(cell_x, cell_y, max(radius, 1)) if c != (cell_x, cell_y)],
+                        tset):
+        if o.aabb is None:
+            continue
+        lo, hi = o.aabb
+        overlaps = lo[0] < x0 + land.CELL and hi[0] > x0 and lo[1] < y0 + land.CELL and hi[1] > y0
+        if radius >= 1 or overlaps:
+            near.append((o, overlaps))
+    rows = [{**scene.object_report(o, (cell_x, cell_y)), "from_neighbor": False} for o in own]
+    rows += [{**scene.object_report(o, tuple(o.ref.cell)), "from_neighbor": True, "overlaps_cell": ov}
+             for o, ov in near]
+    rows = [r for r in rows if (r["height"] or 0) >= min_height]
+    rows.sort(key=lambda r: -(r["height"] or 0))
+    by_type: dict = {}
+    for r in rows:
+        by_type[r["type"]] = by_type.get(r["type"], 0) + 1
+    w = sc.world
+    return {"cell": [cell_x, cell_y], "region": sc.land.regions.get((cell_x, cell_y)), "profile": profile,
+            "objects": len(rows), "by_type": by_type,
+            "own_cell": sum(1 for r in rows if not r["from_neighbor"]),
+            "from_neighbors": sum(1 for r in rows if r["from_neighbor"]),
+            "crossing_border": sum(1 for r in rows if r["crosses_cell_border"]),
+            "without_geometry": [r["id"] + ": " + r["error"] for r in rows if r["error"]][:20],
+            "load_stats": {"deleted_refs": w.deleted, "moved_refs": w.moved, "overridden_refs": w.overridden},
+            "list": rows[:limit]}
+
+
+def _visibility_inputs(profile: str, cell: tuple):
+    sc = _scene(profile)
+    grid = sc.height_grid(cell[0], cell[1], 1)
+    objs = sc.objects(objects.cells_around(cell[0], cell[1], 1), objects.STATIC_TYPES)
+    return sc, grid, objs
+
+
+def _view_report(cam, grid, objs, target, w=64, h=36, ascii_art=True) -> dict:
+    fr = visibility.frame(cam, grid, objs, w, h)
+    fs = visibility.frame_summary(fr, objs)
+    out = {"camera": [round(cam.x, 1), round(cam.y, 1), round(cam.z, 1)], "yaw": round(cam.yaw, 5),
+           "pitch": round(cam.pitch, 5), "frame": fs}
+    in_view = [objs[int(i)] for i in np.unique(fr["object"][fr["object"] >= 0])]
+    errors = sum(1 for o in objs if o.error and o.model)
+    if target is not None:
+        pts = visibility.target_points(grid, target[0], target[1])
+        tv = visibility.target_visibility(cam, grid, objs, pts)
+        out["target"] = {"xy": [round(target[0], 1), round(target[1], 1)], **tv}
+        out["score"] = visibility.score(tv, fs)
+    out["confidence"] = visibility.confidence(in_view, fs, errors)
+    if ascii_art:
+        out["mask"] = visibility.ascii_mask(fr)
+        out["mask_legend"] = "spacja niebo/daleko, . teren, ~ woda, # obiekt, % obiekt z alfą (liście, kraty)"
+    return out
+
+
+@tool
+def openmw_view_analyze(camera: Optional[list] = None, yaw: float = 0.0, pitch: float = 0.1,
+                        target: Optional[list] = None, profile: str = "fork-test", run_dir: Optional[str] = None,
+                        shot_id: Optional[str] = None, ascii_art: bool = True) -> dict:
+    """Ocena kadru: co zajmuje obraz (niebo, teren, woda, obiekty — z nazwami i odległością), czy obszar celu jest
+    widoczny i co go zasłania, pewność oceny. Kamera podana wprost (camera=[x,y,z], yaw=kurs, pitch>0 w dół, konwencja
+    Lua) albo z przebiegu zrzutów (run_dir + shot_id). FOV 60° pionowo, 16:9 — jak ujęcia MCP."""
+    if run_dir and shot_id:
+        rd = Path(run_dir) if Path(run_dir).is_absolute() else env().p(run_dir)
+        for plan_file in sorted(rd.glob("*/plan.json")):
+            for sh in json.loads(plan_file.read_text(encoding="utf-8"))["shots"]:
+                if sh["id"] == shot_id:
+                    camera, yaw, pitch = sh["camera"], sh["yaw"], sh["pitch"]
+                    break
+            if camera:
+                break
+        if not camera:
+            return {"error": f"brak ujęcia {shot_id} w {rd}"}
+    if not camera or len(camera) != 3:
+        return {"error": "podaj camera=[x, y, z] albo run_dir + shot_id"}
+    cam = visibility.Camera(float(camera[0]), float(camera[1]), float(camera[2]), float(yaw), float(pitch))
+    cell = objects.cell_of(cam.x, cam.y)
+    _, grid, objs = _visibility_inputs(profile, cell)
+    return _view_report(cam, grid, objs, target, ascii_art=ascii_art)
+
+
+def _density_map():
+    try:
+        _, counts, _ = _remiros_model("official-ref", "fork-test")
+    except Exception:  # noqa: BLE001 — bez mapy liczników cel = środek komórki
+        return None
+    tex = {}
+    for c in counts["cells"]:
+        cx, cy = c["cell"]
+        for ent in c["entries"]:
+            tex[(cx * 16 + ent[0] % 16, cy * 16 + ent[0] // 16)] = ent[2]
+    return lambda x, y: tex.get((int(x // (land.CELL / 16)), int(y // (land.CELL / 16))), 0)  # noqa: E731
+
+
+@tool
+def openmw_view_suggest(cell_x: int, cell_y: int, target: Optional[list] = None, profile: str = "fork-test",
+                        distances: Optional[list] = None, eyes: Optional[list] = None, ascii_art: bool = True) -> dict:
+    """Proponuje punkt kamery na obszar celu (domyślnie najgęstszy teksel trawy Remirosa w komórce): przegląd
+    16 kursów × odległości × wysokości oczu, odrzuca kamerę nad wodą i w obiektach, ocenia widoczność celu,
+    zasłonięcia i skład kadru. Zwraca najlepsze ujęcie (gotowe dla openmw_capture_*), alternatywy i przeszkody."""
+    from . import capture
+    tgt = tuple(target) if target else capture.pick_target(cell_x, cell_y, _density_map())
+    _, grid, objs = _visibility_inputs(profile, (cell_x, cell_y))
+    r = visibility.suggest(grid, objs, tgt, tuple(distances or (600.0, 800.0, 1000.0)), tuple(eyes or (128.0,)))
+    if "error" in r:
+        return r
+    best = _view_report(r["best"]["camera"], grid, objs, tgt, ascii_art=ascii_art)
+    alts = [{"camera": [round(a["camera"].x, 1), round(a["camera"].y, 1), round(a["camera"].z, 1)],
+             "yaw": round(a["camera"].yaw, 5), "pitch": round(a["camera"].pitch, 5), "score": a["score"],
+             "target_visible": a["target"]["visible_fraction"]} for a in r["alternatives"]]
+    return {"cell": [cell_x, cell_y], "target": [round(v, 1) for v in r["target"]], "best": best,
+            "alternatives": alts, "candidates": r["candidates"], "rejected": r["rejected"]}
+
+
+@tool
+def openmw_geometry_verify(run_dir: str, profile: str = "fork-test", engine_profile: Optional[str] = None,
+                           tolerance: float = 2.0) -> dict:
+    """Niezależna weryfikacja geometrii MCP w przebiegu zrzutów: (1) granice obiektów z silnika (Lua getBoundingBox,
+    plik <profil>/bounds.json) vs granice z parsera NIF MCP; (2) niebo przewidziane promieniami vs niebo na zrzutach.
+    engine_profile: którego silnika zrzuty/granice (domyślnie ten sam co profile)."""
+    rd = Path(run_dir) if Path(run_dir).is_absolute() else env().p(run_dir)
+    ep = engine_profile or profile
+    sc = _scene(profile)
+    out = {"run_dir": str(rd), "profile": profile, "engine_profile": ep}
+    bfile = rd / ep / "bounds.json"
+    if bfile.is_file():
+        out["bounds"] = geomverify.compare_bounds(sc, json.loads(bfile.read_text(encoding="utf-8")), tolerance)
+    else:
+        out["bounds"] = {"error": f"brak {bfile} (przebieg sprzed MCP 0.7.0 albo skrypt bez zrzutu granic)"}
+    plan_file = rd / ep / "plan.json"
+    sky = []
+    if plan_file.is_file():
+        for sh in json.loads(plan_file.read_text(encoding="utf-8"))["shots"]:
+            png = rd / ep / f"shot-{sh['id']}.png"
+            if not png.is_file():
+                continue
+            cam = visibility.Camera(*sh["camera"], yaw=sh["yaw"], pitch=sh["pitch"])
+            _, grid, objs = _visibility_inputs(profile, tuple(sh["cell"]))
+            try:
+                sky.append({"shot": sh["id"], **geomverify.compare_sky(cam, grid, objs, png)})
+            except ImportError:
+                sky.append({"shot": sh["id"], "error": "brak Pillow"})
+    out["sky"] = sky
+    return out
+
+
 # --- etap 3: porównania wizualne (uruchamia silniki; zapis tylko w Raporty/mcp/zrzuty/) -------------------
 
 def _parse_cells(cells) -> list:
@@ -557,24 +764,30 @@ def _parse_cells(cells) -> list:
 
 
 def _capture_plans(cells, profiles_list, hour, weather, distance, label, repeat=1, settle_seconds=None,
-                   render_seconds=None):
+                   render_seconds=None, use_objects=True):
     from . import capture
     e = env()
     li = _land_index(profiles_list[-1] if profiles_list else "fork-test")
-    density = None
-    try:
-        _, counts, _ = _remiros_model("official-ref", "fork-test")
-        tex = {}
-        for c in counts["cells"]:
-            cx, cy = c["cell"]
-            for ent in c["entries"]:
-                t, k = ent[0], ent[2]
-                tex[(cx * 16 + t % 16, cy * 16 + t // 16)] = k
-        density = lambda x, y: tex.get((int(x // (land.CELL / 16)), int(y // (land.CELL / 16))), 0)  # noqa: E731
-    except Exception:  # noqa: BLE001 — bez mapy liczników kamera celuje w środek komórki
-        density = None
-    shots = [capture.viewpoint(li, cx, cy, None, distance, 128.0, hour, weather, f"c{cx}_{cy}", density)
-             for cx, cy in _parse_cells(cells)]
+    density = _density_map()
+    land_profile = profiles_list[-1] if profiles_list else "fork-test"
+    shots = []
+    for cx, cy in _parse_cells(cells):
+        shot = None
+        if use_objects:
+            try:                                  # etap 2b: teren + geometria obiektów, ocena kadru
+                tgt = capture.pick_target(cx, cy, density)
+                _, grid, objs = _visibility_inputs(land_profile, (cx, cy))
+                r = visibility.suggest(grid, objs, tgt, (distance - 100.0, distance + 100.0, distance + 400.0))
+                if "error" not in r:
+                    rep_ = _view_report(r["best"]["camera"], grid, objs, tgt, ascii_art=False)
+                    shot = capture.shot_from_camera(li, r["best"]["camera"], cx, cy, hour, weather, f"c{cx}_{cy}",
+                                                    tgt, rep_)
+            except Exception as ex:  # noqa: BLE001 — awaryjnie wybór kamery tylko wg terenu
+                shot = None
+                print(f"capture: wybór kamery z obiektami nieudany dla ({cx},{cy}): {ex}")
+        if shot is None:
+            shot = capture.viewpoint(li, cx, cy, None, distance, 128.0, hour, weather, f"c{cx}_{cy}", density)
+        shots.append(shot)
     shots = capture.repeat_shots(shots, repeat)
     timing = {k: v for k, v in (("settleSeconds", settle_seconds), ("renderSeconds", render_seconds)) if v is not None}
     run_dir = capture.new_run_dir(e, label)
@@ -598,14 +811,16 @@ def _capture_prereq(profiles_list) -> list:
 @tool
 def openmw_capture_plan(cells: list[str], profile_list: Optional[list[str]] = None, hour: float = 12.0,
                         weather: str = "Clear", distance: float = 700.0, repeat: int = 1,
-                        settle_seconds: Optional[float] = None, render_seconds: Optional[float] = None) -> dict:
+                        settle_seconds: Optional[float] = None, render_seconds: Optional[float] = None,
+                        use_objects: bool = True) -> dict:
     """Przygotowuje (bez uruchamiania) ujęcia porównawcze: punkty kamery dla komórek (np. ["-5,-3","15,-9"]),
     katalogi uruchomienia w Raporty/mcp/zrzuty/ i polecenia dla każdego profilu. Do sprawdzenia przed startem.
     repeat>1: po pełnej serii ujęć powtarza ją (id z sufiksem -r2, -r3…) — test, czy różnica wynika z asynchronicznego
-    doładowania (Groundcover/paging) zamiast z danych. settle_seconds/render_seconds nadpisują czasy oczekiwania."""
+    doładowania (Groundcover/paging) zamiast z danych. settle_seconds/render_seconds nadpisują czasy oczekiwania.
+    use_objects=True (domyślnie): punkt kamery z uwzględnieniem geometrii obiektów (openmw_view_suggest)."""
     pl = profile_list or ["official-ref", "fork-test"]
     run_dir, shots, plans = _capture_plans(cells, pl, hour, weather, distance, "plan", repeat, settle_seconds,
-                                           render_seconds)
+                                           render_seconds, use_objects)
     return {"run_dir": str(run_dir), "prerequisites": _capture_prereq(pl),
             "shots": [s.__dict__ for s in shots], "commands": {p["profile"]: p["cmd"] for p in plans}}
 
@@ -614,7 +829,7 @@ def openmw_capture_plan(cells: list[str], profile_list: Optional[list[str]] = No
 def openmw_capture_start(cells: list[str], profile_list: Optional[list[str]] = None, hour: float = 12.0,
                          weather: str = "Clear", distance: float = 700.0, timeout_per_engine: float = 300.0,
                          repeat: int = 1, settle_seconds: Optional[float] = None,
-                         render_seconds: Optional[float] = None) -> dict:
+                         render_seconds: Optional[float] = None, use_objects: bool = True) -> dict:
     """URUCHAMIA silniki (najpierw oficjalny, potem fork) w tle: każdy dostaje własny tymczasowy profil uruchomienia,
     skrypt Lua ustawia kamerę, MCP robi zrzut (F12/import). Wynik: openmw_capture_status(run_dir).
     repeat/settle_seconds/render_seconds jak w openmw_capture_plan."""
@@ -625,7 +840,7 @@ def openmw_capture_start(cells: list[str], profile_list: Optional[list[str]] = N
     if issues:
         return {"error": "nie spełnione warunki: " + "; ".join(issues)}
     run_dir, shots, plans = _capture_plans(cells, pl, hour, weather, distance, "porownanie", repeat, settle_seconds,
-                                           render_seconds)
+                                           render_seconds, use_objects)
     log = open(run_dir / "runner.log", "w", encoding="utf-8")
     proc = _sp.Popen([_sys.executable, "-m", "openmw_mcp.capture", str(run_dir), str(timeout_per_engine)],
                      stdout=log, stderr=_sp.STDOUT, start_new_session=True)

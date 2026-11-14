@@ -3,6 +3,7 @@
 local world = require('openmw.world')
 local core = require('openmw.core')
 local util = require('openmw.util')
+local types = require('openmw.types')
 local S = require('scripts.rlf_capture.scenario')
 
 local player = nil
@@ -12,6 +13,41 @@ local index = 0
 
 local function log(msg)
     print('RLF_CAPTURE ' .. msg)
+end
+
+-- Weryfikacja geometrii MCP (etap 2b): granice obiektów policzone przez silnik (getBoundingBox).
+-- Format: RLF_BBOX <ujęcie> <typ> <id> <recordId> <środek x y z> <połowa rozmiaru x y z> <pozycja x y z>
+local dumpedCells = {}
+local bboxTypes = { Static = types.Static, Activator = types.Activator, Door = types.Door,
+                    Container = types.Container, Light = types.Light }
+
+local function dumpBounds(shot)
+    if S.dumpBounds == false then return end
+    local n = 0
+    for dx = -1, 1 do
+        for dy = -1, 1 do
+            local cx, cy = shot.cell[1] + dx, shot.cell[2] + dy
+            local key = cx .. ',' .. cy
+            if not dumpedCells[key] then
+                dumpedCells[key] = true
+                local ok, err = pcall(function()
+                    local cell = world.getExteriorCell(cx, cy)
+                    for name, t in pairs(bboxTypes) do
+                        for _, o in ipairs(cell:getAll(t)) do
+                            local bb = o:getBoundingBox()
+                            local p = o.position
+                            print(string.format('RLF_BBOX %s %s %s %s %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f %.2f',
+                                shot.id, name, o.id, o.recordId, bb.center.x, bb.center.y, bb.center.z,
+                                bb.halfSize.x, bb.halfSize.y, bb.halfSize.z, p.x, p.y, p.z))
+                            n = n + 1
+                        end
+                    end
+                end)
+                if not ok then log('WARN bbox ' .. key .. ' ' .. tostring(err)) end
+            end
+        end
+    end
+    log('BBOX ' .. shot.id .. ' ' .. n)
 end
 
 local function setHour(hour)
@@ -61,6 +97,7 @@ return {
                 phase = 'settle'
                 deadline = now + S.settleSeconds
             elseif phase == 'settle' and now >= deadline then
+                dumpBounds(S.shots[index])
                 world.setGameTimeScale(0)
                 setHour(S.shots[index].hour)
                 player:sendEvent('RlfCaptureCamera', S.shots[index])

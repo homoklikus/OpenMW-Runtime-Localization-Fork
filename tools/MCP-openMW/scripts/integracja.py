@@ -38,7 +38,10 @@ EXPECTED_TOOLS = {
     "openmw_land_cell", "openmw_land_point", "openmw_groundcover_baseline", "openmw_land_texture_mapping_check",
     "openmw_groundcover_height_offset", "openmw_groundcover_region",
     "openmw_fork_flora_cell", "openmw_fork_flora_region", "openmw_flora_compare", "openmw_flora_coverage",
-    "openmw_remiros_rules", "openmw_remiros_compare", "openmw_remiros_export"}
+    "openmw_remiros_rules", "openmw_remiros_compare", "openmw_remiros_export",
+    "openmw_capture_plan", "openmw_capture_start", "openmw_capture_status",
+    "openmw_nif_inspect", "openmw_cell_objects", "openmw_view_analyze", "openmw_view_suggest",
+    "openmw_geometry_verify"}
 
 
 # --- niezależne źródła prawdy -----------------------------------------------------------------
@@ -364,6 +367,27 @@ async def run(t: dict, C: Checks, raw: dict):
                     got = (vr.get("winner") or {}).get("root")
                     C.add(prof, f"VFS: zwycięzca {dpath}", got is not None and fs(got) == fs(winner), winner, got)
 
+            # 2b. obiekty i modele (Seyda Neen): referencje z geometrią, dostawca modelu = zwycięzca VFS
+            co = await call("openmw_cell_objects", cell_x=-2, cell_y=-9, profile="fork-test", limit=400)
+            if "error" in co:
+                C.add("etap 2b", "openmw_cell_objects(-2,-9)", False, got=co["error"])
+            else:
+                lst = co.get("list", [])
+                bad = [r for r in lst if r.get("error") and r["error"] != "brak modelu (MODL)"]
+                C.add("etap 2b", "Seyda Neen: obiekty statyczne z modelem odczytane", co.get("objects", 0) > 100 and not bad,
+                      "> 100, bez błędów NIF", f"{co.get('objects')} obiektów, błędy: {[r['id'] for r in bad][:5]}")
+                with_model = [r for r in lst if r.get("model") and r.get("provider")]
+                if with_model:
+                    r0 = max(with_model, key=lambda r: r.get("height") or 0)
+                    vr = await call("openmw_vfs_resolve", profile="fork-test", path=r0["model"])
+                    got = (vr.get("winner") or {}).get("root")
+                    C.add("etap 2b", f"dostawca modelu {r0['model']} = zwycięzca VFS", got is not None and
+                          fs(got) == fs(r0["provider"]["root"]), r0["provider"]["root"], got)
+                    ni = await call("openmw_nif_inspect", model=r0["model"], profile="fork-test")
+                    C.add("etap 2b", f"openmw_nif_inspect({r0['model']}): granice z geometrii",
+                          "error" not in ni and (ni.get("aabb") or {}).get("size") is not None, "AABB",
+                          (ni.get("aabb") or {}).get("size") or ni.get("error"))
+
             # 3. flora
             wf = t["fork_world_flora"]
             en = wf.get("enabled", "false").lower() == "true"
@@ -377,10 +401,20 @@ async def run(t: dict, C: Checks, raw: dict):
                   exp_plug, gm.get("plugins_rendered"),
                   "source=automatic wyłącza pluginy mimo [Groundcover] enabled=true" if src == "automatic" else "")
             prof_info = gm.get("procedural_profile") or {}
-            C.add("flora", "fork: pula modeli kompletna w VFS", prof_info.get("pool_found_in_vfs") == prof_info.get("pool_models") and
-                  bool(prof_info.get("pool_models")), prof_info.get("pool_models"), prof_info.get("pool_found_in_vfs"))
-            C.add("flora", "fork: aktywne profile regionalne Remirosa", sorted(prof_info.get("active_profiles") or []) ==
-                  ["AI", "AL", "BC", "GL", "WG"], ["AI", "AL", "BC", "GL", "WG"], prof_info.get("active_profiles"))
+            rtr = gm.get("remiros_texture_rules") or {}
+            if rtr.get("in_binary"):
+                # po pach75/pach76 (scalone z 0.5-world): trawa Remirosa z tabeli, bez profili regionalnych
+                C.add("flora", "fork: trawa Remirosa (pach75) w binarce i źródłach", rtr.get("in_source") is True, True,
+                      rtr)
+                C.add("flora", "fork: liczniki w polach 4×4 teksela (pach76) w binarce",
+                      rtr.get("pach76_subtexel_counts_in_binary") is True, True, rtr.get("pach76_subtexel_counts_in_binary"))
+                C.add("flora", "fork: modele Remirosa w VFS", (prof_info.get("remiros_models_in_vfs") or 0) > 0,
+                      "> 0", prof_info.get("remiros_models_in_vfs"))
+            else:
+                C.add("flora", "fork: pula modeli kompletna w VFS", prof_info.get("pool_found_in_vfs") == prof_info.get("pool_models") and
+                      bool(prof_info.get("pool_models")), prof_info.get("pool_models"), prof_info.get("pool_found_in_vfs"))
+                C.add("flora", "fork: aktywne profile regionalne Remirosa", sorted(prof_info.get("active_profiles") or []) ==
+                      ["AI", "AL", "BC", "GL", "WG"], ["AI", "AL", "BC", "GL", "WG"], prof_info.get("active_profiles"))
             gmo = await call("openmw_groundcover_mode", profile="official-ref")
             if "error" not in gmo:
                 exp_on = t["ref_settings_gc"].get("enabled", "false").lower() == "true"

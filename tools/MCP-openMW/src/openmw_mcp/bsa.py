@@ -56,3 +56,67 @@ def build_tes3_bsa(files: dict[str, bytes]) -> bytes:
     out += struct.pack(f"<{count}I", *offsets) + name_block
     out += b"\0" * (8 * count)  # hashe (nieużywane przy odczycie listy)
     return out + data_block
+
+
+class Tes3Bsa:
+    """Odczyt plików z BSA TES3: nagłówek (wersja 0x100, offset hashy, liczba), (rozmiar, offset) × n,
+    offsety nazw, nazwy, hashe; dane zaczynają się po hashach (12 + hash_offset + 8·n)."""
+
+    def __init__(self, path: Path):
+        self.path = Path(path)
+        with open(self.path, "rb") as f:
+            head = f.read(12)
+            if len(head) < 12:
+                raise BsaError(f"{path}: plik za krótki")
+            version, hash_offset, count = struct.unpack("<III", head)
+            if version != 0x100:
+                raise BsaError(f"{path}: nieobsługiwana wersja BSA 0x{version:x} (oczekiwano TES3 0x100)")
+            if count > 1_000_000:
+                raise BsaError(f"{path}: podejrzana liczba plików {count}")
+            recs = struct.unpack(f"<{2 * count}I", f.read(8 * count))
+            name_offsets = struct.unpack(f"<{count}I", f.read(4 * count))
+            names = f.read(hash_offset - count * 12)
+        self.data_offset = 12 + hash_offset + 8 * count
+        self.entries: dict[str, tuple[int, int]] = {}
+        for i, off in enumerate(name_offsets):
+            end = names.find(b"\0", off)
+            if end < 0:
+                raise BsaError(f"{path}: uszkodzona tablica nazw")
+            self.entries[vfs_key(names[off:end].decode("latin-1"))] = (recs[2 * i + 1], recs[2 * i])
+
+    def read(self, key: str) -> bytes:
+        off, size = self.entries[vfs_key(key)]
+        with open(self.path, "rb") as f:
+            f.seek(self.data_offset + off)
+            data = f.read(size)
+        if len(data) != size:
+            raise BsaError(f"{self.path}: ucięty plik {key}")
+        return data
+
+
+class VfsReader:
+    """Pliki VFS profilu wg `profiles.vfs_index`: ostatni dostawca wygrywa (BSA najpierw, potem katalogi data=
+    w kolejności — jak rejestracja archiwów w OpenMW)."""
+
+    def __init__(self, vfs: dict):
+        self.index = vfs["index"]
+        self.layers = vfs["layers"]
+        self._bsa: dict[str, Tes3Bsa] = {}
+
+    def provider(self, key: str) -> dict | None:
+        lst = self.index.get(vfs_key(key))
+        return lst[-1] if lst else None
+
+    def providers(self, key: str) -> list[dict]:
+        return list(self.index.get(vfs_key(key), []))
+
+    def read(self, key: str) -> bytes:
+        p = self.provider(key)
+        if p is None:
+            raise FileNotFoundError(key)
+        if p["kind"] == "dir":
+            return Path(p["file"]).read_bytes()
+        bsa = self._bsa.get(p["root"])
+        if bsa is None:
+            bsa = self._bsa[p["root"]] = Tes3Bsa(Path(p["root"]))
+        return bsa.read(key)

@@ -72,6 +72,17 @@ Wynik forka jest **górną granicą**: bez wykluczeń obiektów sceny (wymagają
 | `openmw_remiros_compare` | komórka: Remiros vs trawa forka (emulacja identyczna z rdzeniem C++), tryb liczników albo same reguły; od 0.6.0 liczniki per pole 4×4 teksela i per statyka (pach76) |
 | `openmw_remiros_export` | zapis plików C++ (dane + kopie wzorców z `cpp/`) do katalogu eksperymentu, domyślnie `Fork/experiments/remiros-subtexel-2026-11-14/files` (pach76) — jedyny zapis |
 
+### Etap 2b — modele NIF, obiekty w świecie, widoczność (MCP 0.7.0)
+| Narzędzie | Opis |
+|---|---|
+| `openmw_nif_inspect` | model z VFS profilu: dostawca (BSA/katalog) i nadpisania, granice z geometrii (AABB, granice „jak silnik”, kolizja, sfera), kształty z powodem pominięcia, kontrola sfer zapisanych w pliku |
+| `openmw_cell_objects` | obiekty komórki po rozstrzygnięciu pluginów (nadpisania, DELE, MVRF): rekord bazowy, model, pozycja/obrót/skala, granice w świecie, przekroczenie granic komórki, obiekty sąsiadów wchodzące do komórki |
+| `openmw_view_analyze` | ocena kadru z kamery (lub ujęcia z przebiegu): udział nieba/terenu/wody/obiektów, przeszkody z odległością, widoczność obszaru celu, pewność, maska ASCII |
+| `openmw_view_suggest` | proponowany punkt kamery na obszar celu (16 kursów × odległości × wysokości oczu), alternatywy, odrzucone kandydatury |
+| `openmw_geometry_verify` | niezależna weryfikacja: granice obiektów z silnika (Lua `getBoundingBox`, zapisywane w przebiegu zrzutów) i niebo na zrzutach vs przewidywania MCP |
+
+`openmw_capture_plan` / `openmw_capture_start` domyślnie wybierają kamerę z uwzględnieniem obiektów (`use_objects=True`); ocena kadru trafia do `plan.json` (pole `visibility`). Parser NIF (`nif.py`) odwzorowuje `components/nif` OpenMW dla wersji 4.0.0.2/4.0.0.0 i reguły rysowania z `nifloader.cpp`. Szczegóły i wyniki: `Fork/repo/Raporty/mcp/2026-11-14-etap2b-nif-obiekty-widocznosc.md`.
+
 ### Etap 3 — porównania wizualne (uruchamia silniki)
 | Narzędzie | Opis |
 |---|---|

@@ -45,6 +45,7 @@ class Shot:
     hour: float = 12.0
     weather: Optional[str] = "Clear"
     note: str = ""
+    visibility: Optional[dict] = None            # ocena kadru (etap 2b) — tylko w plan.json, nie w scenariuszu Lua
 
 
 def repeat_shots(shots: list[Shot], repeat: int = 1) -> list[Shot]:
@@ -82,6 +83,7 @@ def scenario_lua(shots: list[Shot], timing: dict) -> str:
     for s in shots:
         d = asdict(s)
         d.pop("note", None)
+        d.pop("visibility", None)
         lines.append("        " + _lua_value(d) + ",")
     lines += ["    },", "}", ""]
     return "\n".join(lines)
@@ -118,6 +120,25 @@ def _view_blocked(land: LandIndex, camx: float, camy: float, camz: float, headin
     return total
 
 
+def shot_from_camera(land: LandIndex, cam, cx: int, cy: int, hour: float, weather: Optional[str], shot_id: str,
+                     target: tuple, report: Optional[dict] = None) -> Shot:
+    """Ujęcie z kamery wybranej przez visibility.suggest (yaw = kurs, pitch > 0 = w dół — konwencja Lua);
+    gracz 250 j. za kamerą (poza kadrem)."""
+    px, py = cam.x - math.sin(cam.yaw) * 250.0, cam.y - math.cos(cam.yaw) * 250.0
+    vis = None
+    if report:
+        vis = {"score": report.get("score"), "target_visible": report.get("target", {}).get("visible_fraction"),
+               "blockers": list(report.get("target", {}).get("blockers", {}))[:5],
+               "frame": report["frame"]["shares"], "near_occlusion": report["frame"]["near_occlusion_share"],
+               "confidence": report["confidence"]["score"]}
+    th = land.height_at(*target) or 0.0
+    return Shot(id=shot_id, cell=[cx, cy], camera=[round(cam.x, 1), round(cam.y, 1), round(cam.z, 1)],
+                player=[round(px, 1), round(py, 1), round((land.height_at(px, py) or cam.z - 128.0) + 10.0, 1)],
+                yaw=round(cam.yaw, 5), pitch=round(cam.pitch, 5), hour=hour, weather=weather,
+                note=f"cel ({target[0]:.0f}, {target[1]:.0f}, {th:.0f}), wybór z obiektami (MCP etap 2b)",
+                visibility=vis)
+
+
 def viewpoint(land: LandIndex, cx: int, cy: int, target: Optional[tuple[float, float]] = None,
               distance: float = 700.0, eye: float = 128.0, hour: float = 12.0, weather: Optional[str] = "Clear",
               shot_id: Optional[str] = None, density: Optional[Callable[[float, float], float]] = None) -> Shot:
@@ -125,15 +146,7 @@ def viewpoint(land: LandIndex, cx: int, cy: int, target: Optional[tuple[float, f
     z odległości `distance`, z kierunku (co 22,5°), w którym kamera stoi nad wodą, teren nie zasłania celu
     i kamera jest jak najniżej względem celu."""
     if target is None:
-        best, tx, ty = -1.0, (cx + 0.5) * CELL, (cy + 0.5) * CELL
-        if density is not None:
-            for j in range(2, 14):
-                for i in range(2, 14):
-                    x, y = (cx + (i + 0.5) / 16) * CELL, (cy + (j + 0.5) / 16) * CELL
-                    v = density(x, y)
-                    if v > best:
-                        best, tx, ty = v, x, y
-        target = (tx, ty)
+        target = pick_target(cx, cy, density)
     tx, ty = target
     th = land.height_at(tx, ty) or 0.0
     best_dir = None
@@ -299,9 +312,47 @@ def run(plan: dict, timeout: float = 300.0, popen=subprocess.Popen, grabber=grab
     if log.is_file():
         errors = [l for l in log.read_text(encoding="utf-8", errors="replace").splitlines()
                   if " E] " in l or "RLF_CAPTURE WARN" in l or "Lua error" in l or "[E]" in l][:20]
-    res = {"profile": plan["profile"], "status": status, "shots": results, "log": str(log), "errors": errors}
+    bounds = parse_bounds(log) if log.is_file() else []
+    if bounds:
+        (base / "bounds.json").write_text(json.dumps(bounds, ensure_ascii=False), encoding="utf-8")
+    res = {"profile": plan["profile"], "status": status, "shots": results, "log": str(log), "errors": errors,
+           "engine_bounds": len(bounds)}
     (base / "result.json").write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
     return res
+
+
+BBOX = "RLF_BBOX "
+
+
+def parse_bounds(log: Path) -> list[dict]:
+    """Granice obiektów z silnika (Lua getBoundingBox) zapisane przez skrypt ujęć: środek, połowa rozmiaru, pozycja."""
+    out = []
+    for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
+        if BBOX not in line:
+            continue
+        f = line.split(BBOX, 1)[1].split()
+        if len(f) < 13:
+            continue
+        try:
+            nums = [float(v) for v in f[-9:]]
+        except ValueError:
+            continue
+        out.append({"shot": f[0], "type": f[1], "id": f[2], "record": " ".join(f[3:-9]),
+                    "center": nums[0:3], "half": nums[3:6], "position": nums[6:9]})
+    return out
+
+
+def pick_target(cx: int, cy: int, density: Optional[Callable[[float, float], float]]) -> tuple[float, float]:
+    """Najgęstszy teksel komórki (bez dwóch tekseli przy krawędziach) albo środek komórki."""
+    best, tx, ty = -1.0, (cx + 0.5) * CELL, (cy + 0.5) * CELL
+    if density is not None:
+        for j in range(2, 14):
+            for i in range(2, 14):
+                x, y = (cx + (i + 0.5) / 16) * CELL, (cy + (j + 0.5) / 16) * CELL
+                v = density(x, y)
+                if v > best:
+                    best, tx, ty = v, x, y
+    return tx, ty
 
 
 def new_run_dir(env, label: str = "") -> Path:
