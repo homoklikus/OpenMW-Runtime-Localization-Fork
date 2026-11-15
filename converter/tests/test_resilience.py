@@ -172,3 +172,13 @@ def test_duplicate_texture_sources_and_png_crc(synth_data, tmp_path):
     s = run(_cfg(src), opts, log=lambda _m: None)
     assert s["textures"]["converted"] == 1 and verify(out, deep=True)["ok"]
     assert not list(out.rglob("*.tmp.png"))
+
+
+def test_glb_texture_refs_for_rebake(synth_data, tmp_path):
+    """Wypiekanie musi się powtórzyć po naprawie tekstury – GLB zna swoje tekstury (images[].uri)."""
+    from mwconv.pipeline import _glb_textures
+    src = synth_data["dir"]
+    out = tmp_path / "out"
+    run(_cfg(src), Options(out=out, cells=["Synthville"], jobs=1), log=lambda _m: None)
+    texs = _glb_textures(out / "meshes" / "synth" / "test_hut.glb")
+    assert texs and all(t.exists() and t.suffix == ".png" and (out / "textures") in t.parents for t in texs)

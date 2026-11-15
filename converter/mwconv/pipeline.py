@@ -373,6 +373,21 @@ def _assets_only(cfg, opts, vfs, cache, state, stats, run_id, T0, log) -> dict:
     return stats
 
 
+def _glb_textures(glb: Path) -> list:
+    """Pliki tekstur, do których odwołuje się GLB (images[].uri) – tylko nagłówek i blok JSON."""
+    import struct
+    from urllib.parse import unquote
+    try:
+        with open(glb, "rb") as fh:
+            head = fh.read(20)
+            ln, = struct.unpack_from("<I", head, 12)
+            j = json.loads(fh.read(ln).decode("utf-8"))
+    except Exception:  # noqa: BLE001
+        return []
+    return [(glb.parent / unquote(im["uri"])).resolve() for im in j.get("images", [])
+            if im.get("uri") and not im["uri"].startswith("data:")]
+
+
 def bake(opts: Options, stats: dict, log) -> None:
     """Wypiekanie GLB, dla których brak aktualnej sceny .scn (przyrostowo)."""
     import subprocess
@@ -381,7 +396,12 @@ def bake(opts: Options, stats: dict, log) -> None:
     for glb in sorted((out / "meshes").rglob("*.glb")):
         rel = glb.relative_to(out).as_posix()
         scn = out / "baked" / (rel[:-4] + ".scn")
-        if not scn.exists() or scn.stat().st_mtime < glb.stat().st_mtime:
+        if not scn.exists():
+            todo.append(rel)
+            continue
+        t_scn = scn.stat().st_mtime
+        # scena nieaktualna, gdy nowszy jest model albo którakolwiek jego tekstura (np. po naprawie PNG)
+        if t_scn < glb.stat().st_mtime or any(t.exists() and t_scn < t.stat().st_mtime for t in _glb_textures(glb)):
             todo.append(rel)
     stats["bake"] = {"todo": len(todo)}
     if not todo:
