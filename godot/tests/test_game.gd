@@ -36,6 +36,7 @@ func _run() -> void:
 	main.show_coords = false
 	check(main.coords_text() == "", "F3: współrzędne ukryte")
 	main.show_coords = true
+	_test_localization(main)
 	check(main.loaded.size() == 4, "4 komórki zewnętrzne wczytane wokół gracza (%d)" % main.loaded.size())
 	var waters := main.find_children("Water", "MeshInstance3D", true, false)
 	check(waters.size() == 4, "woda w każdej komórce zewnętrznej (%d)" % waters.size())
@@ -82,3 +83,35 @@ func _run() -> void:
 	check(main.interior == "" and main.loaded.size() == 4 and not env.interior, "powrót do świata zewnętrznego")
 	print("RESULT ", JSON.stringify({"checks": checks, "failures": failures, "report": report}))
 	quit(0 if failures.is_empty() else 1)
+
+## Lokalizacja runtime (fork OpenMW RLF): język wybierany w grze, kolejność plików, znaczniki, warianty INFO, QA.
+const Loc := preload("res://scripts/mw/mw_localization.gd")
+
+func _test_localization(main) -> void:
+	var data: String = main.db.data_root
+	var off = Loc.create(data, [], "original")
+	check(not off.is_active() and off.available.has("PL"), "lokalizacja: „original” wyłącza tłumaczenia (%s)" % [off.available])
+	var pl = Loc.create(data, [], "auto", "pl", "mwg_synthtown_patch.esp")
+	check(pl.is_active() and pl.languages == PackedStringArray(["PL"]), "„auto” = język launchera (%s)" % [pl.languages])
+	var door: Dictionary = main.db.get_object("synth_door")
+	check(pl.object_name(door) == "Drzwi (łatka)", "nazwa drzwi z późniejszego pliku (%s)" % pl.object_name(door))
+	check(pl.object_name_bbcode(door).begins_with("[color=#ff40ff]QA:[/color] "), "QA: znacznik dla modułu łatki")
+	var pl_noqa = Loc.create(data, [], "pl")
+	check(pl_noqa.bbcode(Loc.key("DOOR", "synth_door", "FNAM"), "") == "Drzwi (łatka)", "bez QA – czysty tekst")
+	check(Loc.to_bbcode("[b][c=#ffd060]Drzwi[/c][/b] do") == "[b][color=#ffd060]Drzwi[/color][/b] do", "znaczniki → BBCode")
+	check(Loc.strip_markup("[c=#ffd060]Drzwi[/c] do domu") == "Drzwi do domu", "plain bez znaczników")
+	var bad = pl_noqa.lookup(Loc.key("ACTI", "synth_windmill", "FNAM"))
+	check(not bad.is_empty() and Loc.to_bbcode(bad[0]) == "[lb]b]Wiatrak[lb]/i]", "błędne znaczniki → tekst bez formatowania")
+	var de = Loc.create(data, [], "de,pl")
+	check(de.object_name(door) == "Testtür", "kolejność języków: DE przed PL (%s)" % de.object_name(door))
+	check(de.object_name(main.db.get_object("synth_crate")) == "Skrzynka (łatka)", "brak DE → następny język (PL)")
+	check(pl_noqa.info_text("Greeting 0", "SYNTH_INFO_1", "Hello.", true) == "Witaj, wędrowczyni.", "INFO: wariant płci NPC")
+	check(pl_noqa.info_text("Greeting 0", "synth_info_1", "Hello.", false, true) == "Witaj, wędrowcze.", "INFO: wariant NPC przed domyślnym")
+	check(pl_noqa.info_text("Brak", "x", "Oryginał") == "Oryginał", "INFO: brak tłumaczenia → oryginał")
+	check(pl_noqa.fallback_value("Question 1", "Question", "?") == "Pytanie?", "wartości Morrowind.ini (fallbacks)")
+	# pasek gry: region przetłumaczony, po wyłączeniu – oryginał z ESM
+	main.loc = pl_noqa
+	check(main.display_location() == "Kraina Syntetyczna (PL)", "pasek: region po polsku (%s)" % main.display_location())
+	main.loc = off
+	check(main.display_location() == "Kraina Syntetyczna", "pasek: region oryginalny (%s)" % main.display_location())
+

@@ -305,3 +305,21 @@ def test_find_godot_official_binary_next_to_project(tmp_path, monkeypatch):
         f.chmod(0o755)
     (tmp_path / "Godot_v4.8-stable_linux.x86_64.zip").write_text("")
     assert launch.find_godot("", app) == str(tmp_path / "Godot_v4.7.2-stable_linux.x86_64")
+
+
+def test_project_needs_import_after_script_update(tmp_path):
+    """Gra uruchamiana bez edytora zna tylko klasy z cache importu – po aktualizacji skryptów import."""
+    import os
+    import time
+    from mwcore import launch
+    proj = tmp_path / "godot"
+    (proj / "scripts").mkdir(parents=True)
+    (proj / "scripts" / "a.gd").write_text("class_name A\n")
+    assert launch.project_needs_import(proj)            # brak cache
+    cache = proj / ".godot" / "global_script_class_cache.cfg"
+    cache.parent.mkdir()
+    cache.write_text("list=[]\n")
+    assert not launch.project_needs_import(proj)
+    future = time.time() + 5
+    os.utime(proj / "scripts" / "a.gd", (future, future))   # skrypt nowszy niż cache (np. po git pull)
+    assert launch.project_needs_import(proj)

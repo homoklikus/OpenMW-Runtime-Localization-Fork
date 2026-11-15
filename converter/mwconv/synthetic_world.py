@@ -175,7 +175,70 @@ def write_world(data_dir: Path) -> dict:
     esp = W.header([("mwg_synthtown.esm", len(esm))], len(prec), desc="Synthetic patch", is_master=False) + b"".join(prec)
     esp_path = data_dir / "mwg_synthtown_patch.esp"
     esp_path.write_bytes(esp)
+    write_localization(data_dir)
     return {"esm": str(esm_path), "esp": str(esp_path), "layout": layout}
+
+
+SYNTH_LOCALIZATION = {
+    # plik-towarzysz wtyczki głównej: nazwy, formatowanie, błędne znaczniki, warianty INFO, teksty, Morrowind.ini
+    "mwg_synthtown.yaml": """meta:
+  module: mwg_synthtown
+  source_language: en
+strings:
+  'DOOR|synth_door|FNAM':
+    EN: 'Test Door'
+    PL: '[c=#ffd060]Drzwi[/c] do domu'
+    DE: 'Testtür'
+  'REGN|Synthetic Region|FNAM':
+    EN: 'Synthetic Land'
+    PL: 'Kraina Syntetyczna (PL)'
+  'CELL|Synthville, Test House|NAME':
+    PL: 'Synthville, Dom testowy'
+  'ACTI|synth_windmill|FNAM':
+    PL: '[b]Wiatrak[/i]'
+  'MISC|Synth_Crate|FNAM':
+    PL: 'Skrzynka (oryginał)'
+  'GMST|sMonthMorningstar|STRV':
+    PL: 'Gwiazda Poranna'
+  'INFO|Greeting 0|Synth_Info_1|NAME':
+    EN: 'Hello.'
+    PL:
+      default: 'Witaj.'
+      npc:
+        male: 'Witaj, wędrowcze.'
+        female: 'Witaj, wędrowczyni.'
+  'BOOK|synth_book|TEXT':
+    PL: '<DIV>Treść [i]książki[/i]</DIV>'
+  'zly klucz':
+    PL: 'pominięty'
+fallbacks:
+  Question 1:
+    Question:
+      EN: 'A question?'
+      PL: 'Pytanie?'
+""",
+    # łatka ładowana później: nadpisuje cały wpis (także formatowanie) i dodaje nowy
+    "mwg_synthtown_patch.yaml": """meta:
+  module: mwg_synthtown_patch
+strings:
+  'DOOR|synth_door|FNAM':
+    PL: 'Drzwi (łatka)'
+  'MISC|synth_crate|FNAM':
+    PL: 'Skrzynka (łatka)'
+""",
+    # plik bez aktywnej wtyczki – nie może być wczytany
+    "NieAktywny.yaml": """strings:
+  'DOOR|synth_door|FNAM':
+    PL: 'NIE POWINNO SIĘ POJAWIĆ'
+""",
+}
+
+
+def write_localization(data_dir: Path) -> None:
+    d = Path(data_dir) / "localization" / "language"
+    d.mkdir(parents=True, exist_ok=True)
+    for name, text in SYNTH_LOCALIZATION.items():
+        (d / name).write_text(text, encoding="utf-8")
 
 
 def write_patch2(data_dir: Path) -> str:

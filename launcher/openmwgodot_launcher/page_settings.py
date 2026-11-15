@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import subprocess
 
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel,
                                QLineEdit, QPushButton, QSpinBox, QTabWidget, QVBoxLayout, QWidget)
@@ -54,6 +54,11 @@ class SettingsPage(QWidget):
                 wdg.setDecimals(4 if o.hi < 0.1 else 2)
                 wdg.setSingleStep((o.hi - o.lo) / 20)
                 wdg.setRange(o.lo, o.hi)
+            elif o.key == "game_language":
+                wdg = QComboBox()          # wypełniana w refresh() językami z bieżącej konwersji
+            elif o.kind == "str":
+                wdg = QLineEdit()
+                wdg.setPlaceholderText("puste = wyłączone")
             else:
                 wdg = QComboBox()
                 for c in o.choices:
@@ -65,8 +70,10 @@ class SettingsPage(QWidget):
         self.lang.addItem("Polski", "pl")
         self.lang.addItem("English", "en")
         forms["language"].addRow("Język launchera (po ponownym uruchomieniu)", self.lang)
-        forms["language"].addRow(QLabel("Język gry: lokalizacja Runtime nie jest jeszcze przeniesiona "
-                                        "(system YAML forka OpenMW – osobny etap)."))
+        self.lang_info = QLabel("")
+        self.lang_info.setWordWrap(True)
+        self.lang_info.setProperty("class", "muted")
+        forms["language"].addRow("", self.lang_info)
         # zaawansowane
         f = forms["advanced"]
         self.godot = QLineEdit()
@@ -121,9 +128,27 @@ class SettingsPage(QWidget):
         core = self.win.core
         self.title.setText(f"{tr('settings')} — profil {core.profile.name}")
         s = core.profile.settings
+        langs = core.game_languages()
+        o_gl, w_gl = self.widgets["game_language"]
+        w_gl.clear()
+        w_gl.addItem(f"Automatycznie (jak launcher: {core.config['language'].upper()})", "auto")
+        w_gl.addItem("Oryginalny (bez tłumaczenia)", "original")
+        for L in langs:
+            w_gl.addItem(L.upper(), L.lower())
+        cur = str(s.get("game_language", "auto"))
+        if w_gl.findData(cur) < 0:
+            w_gl.addItem(f"{cur.upper()} (brak w konwersji)", cur)
+        self.lang_info.setText(
+            ("Tłumaczenia w konwersji: " + ", ".join(L.upper() for L in langs) if langs else
+             "Konwersja nie zawiera tłumaczeń. Pliki localization/language/&lt;wtyczka&gt;.yaml (format forka "
+             "OpenMW RLF) dodaj jako mod i uruchom aktualizację konwersji.")
+            + "<br>Zmiana języka nie wymaga ponownej konwersji.")
+        self.lang_info.setTextFormat(Qt.RichText)
         for key, (o, w) in self.widgets.items():
             v = s.get(key, o.default)
-            if isinstance(w, QCheckBox):
+            if isinstance(w, QLineEdit):
+                w.setText(str(v or ""))
+            elif isinstance(w, QCheckBox):
                 w.setChecked(bool(v))
             elif isinstance(w, (QSpinBox, QDoubleSpinBox)):
                 w.setValue(v)
@@ -141,7 +166,9 @@ class SettingsPage(QWidget):
     def values(self) -> dict:
         out = {}
         for key, (o, w) in self.widgets.items():
-            if isinstance(w, QCheckBox):
+            if isinstance(w, QLineEdit):
+                out[key] = w.text().strip()
+            elif isinstance(w, QCheckBox):
                 out[key] = w.isChecked()
             elif isinstance(w, (QSpinBox, QDoubleSpinBox)):
                 out[key] = w.value()

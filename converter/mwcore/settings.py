@@ -41,6 +41,11 @@ GAME_SCHEMA: list[Opt] = [
     Opt("fog", "graphics", "bool", True, "Mgła i pogoda (postprocessing)", "Fog and weather"),
     Opt("mouse_sensitivity", "controls", "float", 0.0025, "Czułość myszy", "Mouse sensitivity", lo=0.0005, hi=0.01),
     Opt("invert_y", "controls", "bool", False, "Odwróć oś Y", "Invert Y axis"),
+    # lokalizacja runtime (fork OpenMW RLF): „auto” = język launchera, „original” = bez tłumaczenia,
+    # albo kod/lista kodów („pl” lub „pl,en”) – tłumaczenia z world/localization, bez ponownej konwersji
+    Opt("game_language", "language", "str", "auto", "Język gry", "Game language"),
+    Opt("qa_source", "language", "str", "", "QA: wyróżnij tłumaczenia z modułu (np. MojMod)",
+        "QA: highlight translations from module"),
 ]
 
 LAUNCHER_DEFAULTS: dict[str, Any] = {

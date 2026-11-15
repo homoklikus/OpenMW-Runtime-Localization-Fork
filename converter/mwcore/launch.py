@@ -64,6 +64,35 @@ def safe_split(extra: str) -> list[str]:
         return []
 
 
+def project_needs_import(project: Path) -> bool:
+    """Godot zna klasy skryptów (class_name) z .godot/global_script_class_cache.cfg, tworzonego przy imporcie.
+    Po aktualizacji skryptów gra uruchomiona bez edytora nie widziałaby nowych klas – trzeba zaimportować."""
+    project = Path(project)
+    cache = project / ".godot" / "global_script_class_cache.cfg"
+    if not cache.exists():
+        return True
+    t = cache.stat().st_mtime
+    for p in project.rglob("*.gd"):
+        if ".godot" in p.parts:
+            continue
+        if p.stat().st_mtime > t:
+            return True
+    return False
+
+
+def import_project(godot: str, project: Path, timeout: float = 300.0) -> tuple[bool, str]:
+    """`godot --headless --path P --import` – bez okna, kończy się po imporcie."""
+    try:
+        r = subprocess.run([godot, "--headless", "--path", str(project), "--import"], capture_output=True,
+                           text=True, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return False, str(e)
+    cache = Path(project) / ".godot" / "global_script_class_cache.cfg"
+    if cache.exists():
+        os.utime(cache)   # nawet gdy Godot nic nie zmienił – znacznik „zaimportowano po zmianach”
+    return r.returncode == 0, (r.stdout + r.stderr)[-2000:]
+
+
 def write_runtime_settings(path: Path, settings: dict, profile_id: str, language: str) -> Path:
     write_json(path, {"format": "mwgodot-runtime-settings", "version": 1, "profile": profile_id,
                       "language": language, **validate_game(settings)})

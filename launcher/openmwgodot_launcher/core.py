@@ -8,6 +8,7 @@ from pathlib import Path
 
 from mwcore import conversion, install, launch, mods
 from mwcore.activity import Activity
+from mwcore.jsonio import read_json
 from mwcore.paths import AppPaths
 from mwcore.profiles import Profile, ProfileStore
 from mwcore.settings import LauncherConfig
@@ -182,6 +183,17 @@ class LauncherCore:
             probs.append(("project", "Nie znaleziono projektu gry (project.godot)."))
             action = action or "settings"
         return Check(not probs, probs, action)
+
+    def game_languages(self) -> list[str]:
+        """Języki tłumaczeń w bieżącej konwersji (world/localization/index.json profilu lub bazy)."""
+        plan = self.plan()
+        if plan is None:
+            return []
+        for out in (plan.play_out, plan.base_out):
+            j = read_json(Path(out) / "world" / "localization" / "index.json", None)
+            if isinstance(j, dict):
+                return [str(x) for x in j.get("languages", [])]
+        return []
 
     def runtime_args(self, extra_user: list[str] | None = None) -> list[str]:
         plan = self.plan()

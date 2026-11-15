@@ -11,7 +11,10 @@ var loaded := {}  # key → Node3D
 var radius := 1
 var interior := ""
 var envr: MWEnvironment
-var hud: Label
+var hud: RichTextLabel
+## preload zamiast class_name: gra działa też bez ponownego importu projektu po aktualizacji skryptów
+const Loc := preload("res://scripts/mw/mw_localization.gd")
+var loc  # Loc
 var current_region := ""
 var settings := {}
 var launched_by_launcher := false
@@ -37,6 +40,10 @@ func _ready() -> void:
 	db = MWWorldDB.new(data, project)
 	models = MWModelCache.new(data)
 	builder = MWCellBuilder.new(db, models)
+	loc = Loc.create(data, MWModelCache.base_roots, String(settings.get("game_language", "auto")),
+			String(settings.get("language", "")), String(settings.get("qa_source", "")))
+	if loc.is_active():
+		print("MWGODOT_LOCALIZATION ", ",".join(loc.languages), " (dostępne: ", ",".join(loc.available), ")")
 	builder.with_water = bool(settings.get("water", true))
 	if db.cell_index().is_empty():
 		push_error("Brak danych świata w %s – uruchom konwerter (README)." % data)
@@ -190,8 +197,14 @@ func _named_start(name: String) -> Variant:
 
 func _setup_hud() -> void:
 	var cl := CanvasLayer.new()
-	hud = Label.new()
+	hud = RichTextLabel.new()      # BBCode: formatowanie z tłumaczeń ([c] [b] [i]) i znacznik QA
+	hud.bbcode_enabled = true
+	hud.fit_content = true
+	hud.scroll_active = false
+	hud.autowrap_mode = TextServer.AUTOWRAP_OFF
+	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.position = Vector2(12, 8)
+	hud.size = Vector2(1600, 120)
 	cl.add_child(hud)
 	add_child(cl)
 
@@ -228,8 +241,8 @@ func _process(_d: float) -> void:
 		# podpowiedź tylko dla tego, co klawisz E faktycznie obsługuje (na razie: drzwi z celem podróży)
 		if r and not r.has_meta("mw_marker") and not MWTravel.door_destination(r).is_empty():
 			var base := db.get_object(String(r.get_meta("mw_base", "")))
-			hint = "\n[E] %s" % base.get("name", r.get_meta("mw_base", ""))
-	var rname := interior if not interior.is_empty() else String(envr.regions.get(current_region.to_lower(), {}).get("name", current_region))
+			hint = "\n[lb]E] %s" % loc.object_name_bbcode(base, String(r.get_meta("mw_base", "")))
+	var rname := display_location()
 	hud.text = "%s  |  dzień %d, %02d:%02d  |  %s%s%s" % [rname, envr.day + 1, int(envr.game_hour), int(fmod(envr.game_hour, 1.0) * 60), envr.weather, coords_text(), hint]
 
 ## Widok z ostatniej sesji – zapisywany lokalnie (katalog zapisów profilu), launcher pokazuje go na ekranie głównym.
@@ -242,6 +255,14 @@ func _notification(what: int) -> void:
 				DirAccess.make_dir_recursive_absolute(saves)
 				img.resize(640, int(640.0 * img.get_height() / max(1, img.get_width())), Image.INTERPOLATE_BILINEAR)
 				img.save_png(saves.path_join("last_view.png"))
+
+## Nazwa miejsca w pasku: wnętrze (CELL|nazwa|NAME) albo region (REGN|id|FNAM) – przetłumaczona, jeśli jest.
+func display_location() -> String:
+	if not interior.is_empty():
+		return Loc.escape_bbcode(loc.plain(Loc.key("CELL", interior, "NAME"), interior))
+	var reg := current_region.to_lower()
+	var name := String(envr.regions.get(reg, {}).get("name", current_region))
+	return Loc.escape_bbcode(loc.plain(Loc.key("REGN", reg, "FNAM"), name))
 
 ## Współrzędne do testów (F3 – pokaż/ukryj, F4 – kopiuj do schowka i zapisz w logu).
 ## Pozycja w jednostkach Morrowinda (jak w Construction Set i konsoli gry); „--pos=x,y,z” uruchamia grę w tym miejscu.
@@ -263,7 +284,7 @@ func coords_text() -> String:
 	else:
 		cell = "wnętrze „%s”" % interior
 	var yaw := fposmod(-rad_to_deg(player.rotation.y), 360.0)
-	return "\n%s  |  pozycja %s  |  kierunek %d°  [F3 ukryj, F4 kopiuj]" % [cell, position_string(), roundi(yaw)]
+	return "\n%s  |  pozycja %s  |  kierunek %d°  [lb]F3 ukryj, F4 kopiuj]" % [Loc.escape_bbcode(cell), position_string(), roundi(yaw)]
 
 func _unhandled_input(e: InputEvent) -> void:
 	if e is InputEventKey and e.pressed and not e.echo:

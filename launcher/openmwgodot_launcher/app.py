@@ -15,7 +15,7 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QDialogButtonBo
                                QInputDialog, QLabel, QListWidget, QMessageBox, QPlainTextEdit, QPushButton,
                                QSizePolicy, QStackedWidget, QToolButton, QVBoxLayout, QWidget)
 
-from mwcore import conversion
+from mwcore import conversion, launch
 
 from . import APP_NAME, __version__, art, theme
 from .core import LauncherCore
@@ -748,8 +748,18 @@ class MainWindow(QWidget):
         if holder and not self.confirm("Gra już działa",
                                        f"W tym profilu działa już gra (PID {holder}). Uruchomić drugą instancję?"):
             return False
+        # po aktualizacji skryptów projekt trzeba zaimportować, inaczej gra nie zna nowych klas (class_name)
+        project = self.core.project_dir()
+        if project and launch.project_needs_import(project):
+            self.status_text.setText("Przygotowanie projektu gry po aktualizacji (import Godota)…")
+            QApplication.processEvents()
+            ok, out = launch.import_project(self.core.godot(), project)
+            self.core.activity.add("ok" if ok else "warn",
+                                   "Zaimportowano projekt gry po aktualizacji" if ok else "Import projektu gry nie powiódł się")
+            if not ok:
+                self.message("Import projektu", "Godot nie zaimportował projektu gry:\n" + out[-800:], "warn")
         cmd = self.core.game_command(extra_user or self._test_extra())
-        if not self.game.start(cmd, self.core.paths.logs, self.core.project_dir()):
+        if not self.game.start(cmd, self.core.paths.logs, project):
             self.message("Błąd", f"Nie udało się uruchomić Godota:\n{cmd[0]}", "error")
             return False
         lock.acquire(self.game.pid())

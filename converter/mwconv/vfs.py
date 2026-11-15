@@ -125,7 +125,7 @@ class Vfs:
         for k, e in arc.entries.items():
             self.files[k] = VfsFile(k, str(path), "bsa", e.name, e.size, st.st_mtime)
 
-    def add_dir(self, root, subdirs: Iterable[str] = ("meshes", "textures", "icons", "bookart", "splash")):
+    def add_dir(self, root, subdirs: Iterable[str] = ("meshes", "textures", "icons", "bookart", "splash", "localization")):
         root = Path(root)
         if not root.is_dir():
             return

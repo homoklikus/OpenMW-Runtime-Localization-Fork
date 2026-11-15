@@ -344,6 +344,17 @@ def _deps(cache: Cache, key: str) -> list:
     return (c or {}).get("deps") or []
 
 
+def _localization(cfg, vfs, out, log) -> dict:
+    from . import localization
+    emit("stage", stage="localization")
+    try:
+        return localization.export(vfs, [os.path.basename(c) for c in cfg.content], out, log,
+                                   warn=lambda m: (log("Lokalizacja: " + m), emit("warning", message="Lokalizacja: " + m)))
+    except ImportError as e:
+        log(f"Lokalizacja pominięta: {e} (sudo apt install python3-yaml)")
+        return {"error": str(e)}
+
+
 def _assets_only(cfg, opts, vfs, cache, state, stats, run_id, T0, log) -> dict:
     """Świat bez zmian: tylko przyrostowe sprawdzenie modeli i tekstur (np. zmieniony luźny plik NIF)."""
     out = opts.out
@@ -361,6 +372,7 @@ def _assets_only(cfg, opts, vfs, cache, state, stats, run_id, T0, log) -> dict:
     ttodo, tskip, tbase = _plan(cache, "texture", tex, vfs, TEXTURE_CONVERTER, opts)
     _run_jobs(convert_texture_job, ttodo, cfg, opts, "textures", log, cache, "texture", TEXTURE_CONVERTER, vfs, stats)
     stats.setdefault("textures", {}).update(skipped_unchanged=tskip, from_base=tbase)
+    stats["localization"] = _localization(cfg, vfs, out, log)
     if opts.bake_godot:
         bake(opts, stats, log)
     stats["total_seconds"] = round(time.perf_counter() - T0, 3)
@@ -536,7 +548,9 @@ def _run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) 
 
     # 2. świat – pominięcie, gdy ESM/ESP (SHA-256), wybór komórek, VFS i wersja są te same co ostatnio
     t = time.perf_counter()
-    vfs_sig = hashlib.sha256("\n".join(f"{k}|{f.source}|{f.size}|{f.mtime:.3f}" for k, f in sorted(vfs.files.items()))
+    # tłumaczenia (localization/) mają własny odcisk – ich zmiana nie wymusza ponownego eksportu świata
+    vfs_sig = hashlib.sha256("\n".join(f"{k}|{f.source}|{f.size}|{f.mtime:.3f}" for k, f in sorted(vfs.files.items())
+                                       if not k.startswith("localization/"))
                              .encode()).hexdigest()
     export_key = {"v": __version__, "base": str(opts.base_out or ""), "content": content_fingerprint(cfg.content), "cells": sorted(opts.cells),
                   "grids": sorted(map(list, opts.grids)), "all_cells": opts.all_cells, "all_models": opts.all_models,
@@ -660,6 +674,7 @@ def _run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) 
         "axis_mapping": "godot(x,y,z) = (mw_x, mw_z, -mw_y) / units_per_meter",
     }
     write_json(wdir / "manifest.json", manifest)
+    stats["localization"] = _localization(cfg, vfs, out, log)
     stats["world_export"] = {"cells": len(keys), "terrain": len(terrain_json), "objects": len(objs),
                              "refs": sum(i["refs"] for i in index), "seconds": round(time.perf_counter() - t, 3),
                              "missing_models": sorted(missing_models)}
