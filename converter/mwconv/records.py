@@ -356,12 +356,39 @@ def decode_gmst(rec, rid: str) -> dict:
     return o
 
 
+def _float_cast(value: float, bits: int) -> int:
+    """Jak floatCast w OpenMW (variantimp.cpp): NaN i wartości spoza int32 → INT32_MIN, potem obcięcie do typu."""
+    import math
+    i = -2 ** 31 if (math.isnan(value) or value < -2 ** 31 or value > 2 ** 31 - 1) else int(value)
+    if bits == 16:
+        i &= 0xFFFF
+        i = i - 0x10000 if i >= 0x8000 else i
+    return i
+
+
 def decode_global(rec, rid: str) -> dict:
     t = rec.zstr("FNAM") or "f"
     v = rec.get("FLTV")
     val = struct.unpack_from("<f", v, 0)[0] if v and len(v) >= 4 else 0.0
     typ = {"s": "short", "l": "long", "f": "float"}.get(t[:1].lower(), "float")
-    return {"id": rid, "type": typ, "value": int(val) if typ != "float" else val}
+    if typ == "short":
+        return {"id": rid, "type": typ, "value": _float_cast(val, 16)}
+    if typ == "long":
+        return {"id": rid, "type": typ, "value": _float_cast(val, 32)}
+    return {"id": rid, "type": typ, "value": val}
+
+
+def _finite(o, bad: list):
+    """JSON nie zna NaN/nieskończoności – zamiana na null (liczone w raporcie)."""
+    import math
+    if isinstance(o, float) and not math.isfinite(o):
+        bad.append(1)
+        return None
+    if isinstance(o, dict):
+        return {k: _finite(v, bad) for k, v in o.items()}
+    if isinstance(o, list):
+        return [_finite(v, bad) for v in o]
+    return o
 
 
 DECODERS: dict[str, Callable] = {
@@ -414,12 +441,15 @@ def export(store: dict, wdir, write_json) -> dict:
     """world/records/<plik>.json (id_lower → rekord) + index.json. Zwraca liczności."""
     counts = {}
     types = {}
+    bad: list = []
     for typ, fname in FILES.items():
         bucket = store.get(typ, {})
-        write_json(wdir / "records" / f"{fname}.json", {k: bucket[k] for k in sorted(bucket)})
+        write_json(wdir / "records" / f"{fname}.json", _finite({k: bucket[k] for k in sorted(bucket)}, bad))
         counts[typ] = len(bucket)
         types[typ] = {"file": f"{fname}.json", "count": len(bucket), "schema": SCHEMA_VERSION}
     write_json(wdir / "records" / "index.json", {
         "format": "mwgodot-records", "version": 1, "types": types,
-        "attributes": ATTRIBUTES, "skills": SKILLS, "specializations": SPECIALIZATIONS})
+        "attributes": ATTRIBUTES, "skills": SKILLS, "specializations": SPECIALIZATIONS,
+        "non_finite_floats": len(bad)})
+    counts["non_finite_floats"] = len(bad)
     return counts

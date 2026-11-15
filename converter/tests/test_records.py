@@ -142,3 +142,12 @@ def test_records_decode_merge_export(tmp_path):
     assert idx["format"] == "mwgodot-records" and idx["types"]["NPC_"]["count"] == 1 and len(idx["skills"]) == 27
     assert json.loads((tmp_path / "w/records/weapon.json").read_text())["iron longsword"]["value"] == 45
     assert counts["BOOK"] == 0 and (tmp_path / "w/records/book.json").exists()
+
+
+def test_global_nan_like_openmw():
+    """GLOB short/long z NaN lub spoza zakresu: jak floatCast w OpenMW (short → 0, long → INT32_MIN)."""
+    assert R._float_cast(float("nan"), 16) == 0 and R._float_cast(float("nan"), 32) == -2 ** 31
+    assert R._float_cast(1e20, 32) == -2 ** 31 and R._float_cast(70000.0, 16) == 70000 - 65536
+    assert R._float_cast(-3.7, 16) == -3
+    bad = []
+    assert R._finite({"a": [1.0, float("inf")], "b": float("nan")}, bad) == {"a": [1.0, None], "b": None} and len(bad) == 2
