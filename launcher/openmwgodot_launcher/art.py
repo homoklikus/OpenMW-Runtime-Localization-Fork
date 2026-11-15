@@ -424,3 +424,27 @@ def image_preview(w: int, h: int):
         return None
     pm = pm.scaled(w, h, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
     return pm.copy((pm.width() - w) // 2, (pm.height() - h) // 2, w, h)
+
+
+GODOT_URL = "https://godotengine.org"
+GODOT_LOGO_CREDIT = ("Logo Godot Engine © 2017 Andrea Calabró, licencja CC BY 4.0 "
+                     "(https://creativecommons.org/licenses/by/4.0/); Godot Foundation, godotengine.org")
+
+
+def godot_logo(size: int):
+    """Oficjalna ikona Godot Engine (resources/godot/icon.svg, CC BY 4.0, Andrea Calabró)."""
+    f = RESOURCES / "godot" / "icon.svg"
+    try:
+        from PySide6.QtSvg import QSvgRenderer
+    except ImportError:
+        return None
+    r = QSvgRenderer(str(f)) if f.is_file() else None
+    if r is None or not r.isValid():
+        return None
+    pm = QPixmap(size, size)
+    pm.fill(Qt.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.Antialiasing)
+    r.render(p, QRectF(0, 0, size, size))
+    p.end()
+    return pm

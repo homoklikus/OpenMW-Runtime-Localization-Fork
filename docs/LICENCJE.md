@@ -57,5 +57,10 @@ i mechanik, warto wrócić do decyzji, bo przepisywanie interpretera od zera to 
   użytkownikowi; przed publicznym wydaniem warto to jeszcze potwierdzić w aktualnych warunkach.
 * `launcher/resources/openmwgodot.png`, godło, ikony, pejzaż i podgląd proceduralny (zapasowe) — własne,
   rysowane kodem.
+* `launcher/resources/godot/icon.svg` — oficjalna ikona Godot Engine z repozytorium Godota
+  (`misc/logo/icon.svg`), © 2017 Andrea Calabró, licencja CC BY 4.0 (`launcher/resources/godot/LICENSE.txt`).
+  Użyta bez zmian w stopce panelu bocznego jako odnośnik do https://godotengine.org; uznanie autorstwa
+  w podpowiedzi i w oknie „O projekcie”. Użycie zgodne z polityką znaków towarowych Godot Foundation
+  (logo jako odniesienie do silnika, bez sugerowania oficjalnego produktu).
 * Logo *Morrowind* / *The Elder Scrolls* (znak towarowy Bethesdy) nie jest częścią repozytorium,
   także w wersji narysowanej przez AI.

@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 from PySide6.QtCore import QRectF, QSize, Qt, QTimer, QUrl
-from PySide6.QtGui import QColor, QDesktopServices, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtGui import QColor, QDesktopServices, QIcon, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (QApplication, QComboBox, QDialog, QDialogButtonBox, QFrame, QGridLayout, QHBoxLayout,
                                QInputDialog, QLabel, QListWidget, QMessageBox, QPlainTextEdit, QPushButton,
                                QSizePolicy, QStackedWidget, QToolButton, QVBoxLayout, QWidget)
@@ -612,14 +612,22 @@ class MainWindow(QWidget):
             sl.addWidget(b)
             self.nav[key] = b
         sl.addStretch(1)
-        gl = QHBoxLayout()
-        gi = QLabel()
-        gi.setPixmap(art.icon_pixmap("godot_chip", 30, "#8f8574"))
-        self.godot_lbl = QLabel()
-        self.godot_lbl.setStyleSheet(f"color: {theme.MUTED}; font-size: 9pt;")
-        gl.addWidget(gi)
-        gl.addWidget(self.godot_lbl, 1)
-        sl.addLayout(gl)
+        # stopka: oficjalne logo Godota z odnośnikiem do twórców (CC BY 4.0, uznanie autorstwa w tooltipie
+        # i w oknie „O projekcie”)
+        self.godot_link = QPushButton()
+        self.godot_link.setObjectName("godotLink")
+        self.godot_link.setCursor(Qt.PointingHandCursor)
+        self.godot_link.setFlat(True)
+        logo = art.godot_logo(32) or art.icon_pixmap("godot_chip", 30, "#8f8574")
+        self.godot_link.setIcon(QIcon(logo))
+        self.godot_link.setIconSize(QSize(32, 32))
+        self.godot_link.setToolTip(f"Godot Engine – {art.GODOT_URL}\n{art.GODOT_LOGO_CREDIT}")
+        self.godot_link.setStyleSheet(f"QPushButton#godotLink {{ background: transparent; border: none; text-align: left;"
+                                      f" color: {theme.MUTED}; font-size: 9pt; padding: 2px; }}"
+                                      f" QPushButton#godotLink:hover {{ color: {theme.ACCENT}; }}")
+        self.godot_link.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(art.GODOT_URL)))
+        self.godot_lbl = self.godot_link
+        sl.addWidget(self.godot_link)
         body.addWidget(side)
         self.stack = QStackedWidget()
         body.addWidget(self.stack, 1)
@@ -693,7 +701,10 @@ class MainWindow(QWidget):
         self.message("O projekcie", f"{APP_NAME} {__version__} (alpha)\n\nEksperymentalny port Morrowinda na Godot 4. "
                                    "Projekt nie zawiera danych Bethesdy – gracz dostarcza własną, legalną instalację, "
                                    "konwertowaną lokalnie.\n\nMorrowind® i The Elder Scrolls® są znakami towarowymi "
-                                   "ZeniMax Media Inc. Projekt nie jest z nimi powiązany.\n\nKod: licencja MIT.")
+                                   "ZeniMax Media Inc. Projekt nie jest z nimi powiązany.\n\n"
+                                   f"Silnik: Godot Engine ({art.GODOT_URL}) – Godot Foundation i społeczność Godota. "
+                                   "Projekt nie jest oficjalnym produktem Godot Foundation.\n"
+                                   f"{art.GODOT_LOGO_CREDIT}.\n\nKod: licencja MIT.")
 
     def message(self, title: str, text: str, kind: str = "info"):
         self.last_message = text
