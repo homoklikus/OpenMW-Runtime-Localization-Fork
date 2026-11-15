@@ -84,6 +84,25 @@ Ten sam test: „Construction Set” → `godot --editor --path godot -- --data 
 
 Logi: `testy/run_tests_godot47.log`, `testy/run_tests_godot45.log`.
 
+### Na komputerze użytkownika (Debian 13, KDE, Godot 4.7.2, Python 3.13) — 2026-11-15
+
+`./tools/run_tests.sh --godot ./Godot_v4.7.2-stable_linux.x86_64`: **wszystkie testy zaliczone** — konwerter
+(pytest), launcher 13/13 (z prawdziwym Godotem: gra + Construction Set), konwersja, test_import,
+test_editor_import, test_controllers, test_game, test_cs2, test_world (×2), wypiekanie, GDExtension
+(`mw_native 0.1`), zrzut launchera. Pominięty tylko walidator Khronos (wymaga node).
+
+Uruchomienie u użytkownika ujawniło i pozwoliło poprawić:
+
+* **Katalog docelowy wpisany jako sama nazwa** („Balmora”) trafiał do `launcher/Balmora` w repozytorium
+  (z przekonwertowanymi zasobami gry). Teraz: nazwy względne → katalog danych XDG, katalog w repozytorium
+  lub w instalacji gry jest odrzucany, a konwerter zapisuje w wyniku `.gitignore` z `*`. Test regresyjny.
+* Względna ścieżka do Godota (`./Godot_v4…`) w `run_tests.sh` i przy wypiekaniu — zamieniana na pełną.
+* Wykrywanie oficjalnej binarki `Godot_v4*` położonej obok projektu.
+* Zgodność konwertera z Pythonem 3.10; czytelny komunikat o braku pytest; odświeżanie bazy aplikacji KDE
+  w instalatorze (ostrzeżenie portalu „App info not found”).
+* Pierwsza konwersja prawdziwej instalacji (zakres Balmora, Morrowind + Tribunal + Bloodmoon): 1513 plików,
+  56 MB — dane zostają wyłącznie lokalnie.
+
 ## 8. Instrukcja dla Debiana 13
 
 ```bash
@@ -100,8 +119,7 @@ Pełny opis: `docs/DEBIAN13.md` i `docs/LAUNCHER.md`.
 
 ## 9. Ograniczenia i następne kroki
 
-* Pierwsza konwersja prawdziwej instalacji nie była jeszcze uruchomiona (brak plików gry w tej sesji);
-  zaczynamy od `mwconv scan` u Ciebie.
+* Pełna konwersja prawdziwej instalacji i ocena Balmory w grze — następny krok; przydatny `mwconv scan`.
 * Tłumaczenie angielskie obejmuje tylko ekran główny.
 * Konflikty rekordów ESP pokazuje CS 2.0, nie launcher.
 * Paczka samodzielna (PyInstaller) i Windows nie były testowane.
