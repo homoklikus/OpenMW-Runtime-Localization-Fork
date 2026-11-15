@@ -18,6 +18,26 @@ from .cache import Cache
 PNG_SIG = b"\x89PNG\r\n\x1a\n"
 
 
+def _check_png(b: bytes) -> str | None:
+    """Sygnatura, sumy CRC wszystkich bloków i blok IEND (wykrywa pliki sklejone/ucięte)."""
+    import zlib
+    if b[:8] != PNG_SIG:
+        return "zła sygnatura PNG"
+    i = 8
+    while i + 12 <= len(b):
+        ln, typ = struct.unpack_from(">I4s", b, i)
+        end = i + 12 + ln
+        if end > len(b):
+            return "ucięty PNG"
+        crc, = struct.unpack_from(">I", b, i + 8 + ln)
+        if zlib.crc32(b[i + 4:i + 8 + ln]) & 0xFFFFFFFF != crc:
+            return f"błąd CRC bloku {typ.decode('latin-1')}"
+        if typ == b"IEND":
+            return None if end == len(b) else "dane po IEND"
+        i = end
+    return "brak bloku IEND"
+
+
 def _check_file(p: Path, deep: bool) -> str | None:
     if not p.exists():
         return "brak pliku"
@@ -37,9 +57,9 @@ def _check_file(p: Path, deep: bool) -> str | None:
                 ln, typ = struct.unpack_from("<II", head, 12)
                 json.loads(fh.read(ln).decode("utf-8"))
         elif p.suffix == ".png":
-            with open(p, "rb") as fh:
-                if fh.read(8) != PNG_SIG:
-                    return "zła sygnatura PNG"
+            prob = _check_png(p.read_bytes())
+            if prob:
+                return prob
         elif p.suffix == ".json":
             json.loads(p.read_text(encoding="utf-8"))
     except Exception as e:  # noqa: BLE001

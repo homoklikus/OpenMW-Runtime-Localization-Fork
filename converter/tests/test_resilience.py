@@ -152,3 +152,23 @@ def test_profile_overlay_on_shared_base(synth_data, tmp_path):
         target = (over / "meshes" / "synth" / im["uri"]).resolve()
         assert target.exists(), im["uri"]
     assert (over / "world" / "index.json").exists()
+
+
+def test_duplicate_texture_sources_and_png_crc(synth_data, tmp_path):
+    """Regresja (pełna gra): tx.dds i tx.tga → ten sam tx.png pisany równolegle = sklejony PNG z błędem CRC."""
+    from mwconv.textures import dedupe_textures
+    keys = {"textures/tx_a.dds", "textures/tx_a.tga", "textures/TX_B.tga", "textures/tx_b.bmp", "textures/c.tga"}
+    assert dedupe_textures(keys) == {"textures/tx_a.dds", "textures/TX_B.tga", "textures/c.tga"}
+    src = synth_data["dir"]
+    out = tmp_path / "out"
+    opts = Options(out=out, cells=["Synthville"], jobs=1)
+    run(_cfg(src), opts, log=lambda _m: None)
+    png = next((out / "textures").rglob("*.png"))
+    b = bytearray(png.read_bytes())
+    b[len(b) // 2] ^= 0xFF  # uszkodzenie danych IDAT przy zachowanej długości i sygnaturze
+    png.write_bytes(bytes(b))
+    v = verify(out, deep=True)
+    assert not v["ok"] and any("CRC" in x["problem"] for x in v["bad"])
+    s = run(_cfg(src), opts, log=lambda _m: None)
+    assert s["textures"]["converted"] == 1 and verify(out, deep=True)["ok"]
+    assert not list(out.rglob("*.tmp.png"))

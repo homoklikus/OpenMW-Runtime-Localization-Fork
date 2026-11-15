@@ -30,7 +30,7 @@ from .cache import Cache
 from .install import InstallConfig
 from .nif.reader import NifError, parse
 from .nif2gltf import NifToGltf, TextureRef
-from .textures import convert_texture, texture_out_rel
+from .textures import convert_texture, dedupe_textures, texture_out_rel
 from .vfs import Vfs, norm
 from .world import (cell_file_rel, cell_to_json, content_fingerprint, load_world, select_cells, terrain_to_json,
                     write_json)
@@ -357,6 +357,7 @@ def _assets_only(cfg, opts, vfs, cache, state, stats, run_id, T0, log) -> dict:
         tex.update(_deps(cache, k))
     if opts.all_textures:
         tex |= {k for k in vfs.list("textures/") if k.endswith((".dds", ".tga", ".bmp"))}
+    tex = dedupe_textures(tex)
     ttodo, tskip, tbase = _plan(cache, "texture", tex, vfs, TEXTURE_CONVERTER, opts)
     _run_jobs(convert_texture_job, ttodo, cfg, opts, "textures", log, cache, "texture", TEXTURE_CONVERTER, vfs, stats)
     stats.setdefault("textures", {}).update(skipped_unchanged=tskip, from_base=tbase)
@@ -578,6 +579,7 @@ def _run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) 
 
     if opts.all_textures:
         tex_needed |= {k for k in vfs.list("textures/") if k.endswith((".dds", ".tga", ".bmp"))}
+    tex_needed = dedupe_textures(tex_needed)
     ttodo, tskip, tbase = _plan(cache, "texture", tex_needed, vfs, TEXTURE_CONVERTER, opts)
     log(f"Tekstury: {len(tex_needed)} potrzebnych, {len(ttodo)} do konwersji, {tskip} bez zmian, {tbase} z bazy")
     _run_jobs(convert_texture_job, ttodo, cfg, opts, "textures", log, cache, "texture", TEXTURE_CONVERTER, vfs, stats)
