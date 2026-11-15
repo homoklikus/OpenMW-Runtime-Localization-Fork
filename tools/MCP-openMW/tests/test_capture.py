@@ -174,6 +174,10 @@ def test_server_capture_plan(project, monkeypatch):
     monkeypatch.setattr(server, "_remiros_model", lambda *a, **k: (None, counts, None))
     r2 = server.openmw_capture_plan(["15,-9"], repeat=2, settle_seconds=12.0)
     assert "error" not in r2 and [s["id"] for s in r2["shots"]] == ["c15_-9", "c15_-9-r2"]
+    # profil zewnętrzny na końcu listy: teren z ostatniego profilu OpenMW (regresja 0.8.0: KeyError 'binary_dir')
+    project["env"].cfg["profiles"]["ext"] = {"target": "external", "command": ["true", "{shots}", "{out}"]}
+    r3 = server.openmw_capture_plan(["15,-9"], profile_list=["official-ref", "ext"])
+    assert "error" not in r3 and set(r3["commands"]) == {"official-ref", "ext"}, r3
 
 
 def test_repeat_shots_and_timing_override(tmp_path):

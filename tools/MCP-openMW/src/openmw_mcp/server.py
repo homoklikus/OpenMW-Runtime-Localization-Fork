@@ -767,9 +767,11 @@ def _capture_plans(cells, profiles_list, hour, weather, distance, label, repeat=
                    render_seconds=None, use_objects=True):
     from . import capture
     e = env()
-    li = _land_index(profiles_list[-1] if profiles_list else "fork-test")
+    # teren i obiekty z ostatniego profilu OpenMW (profil zewnętrzny, np. openmwgodot, nie ma configu OpenMW)
+    engine_profiles = [p for p in profiles_list if e.cfg["profiles"].get(p, {}).get("target") != "external"]
+    land_profile = engine_profiles[-1] if engine_profiles else "fork-test"
+    li = _land_index(land_profile)
     density = _density_map()
-    land_profile = profiles_list[-1] if profiles_list else "fork-test"
     shots = []
     for cx, cy in _parse_cells(cells):
         shot = None
