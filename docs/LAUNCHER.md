@@ -159,7 +159,7 @@ etapy bez liczby plików (VFS, ESM) pokazują pasek nieokreślony. Czas pozosta�
 Debian 13 / KDE Plasma:
 
 ```bash
-sudo apt install python3-pyside6.qtwidgets python3-numpy python3-pil python3-py7zr
+sudo apt install python3-pyside6.qtwidgets python3-numpy python3-pil python3-py7zr python3-yaml
 ./tools/install_launcher.sh            # polecenie `openmwgodot` + skrót „OpenMWGodot” w menu, ikona
 openmwgodot                            # albo: launcher/openmwgodot-launcher
 ```

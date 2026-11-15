@@ -417,3 +417,23 @@ def test_converted_dir_never_relative_to_cwd_or_inside_repo(env, qapp, fake_game
         assert not w.conv_runner.is_running() and "Katalog" in w.last_message
         assert w.core.config["converted_dir"] == str(out)
     assert not any(p.exists() for p in in_repo)
+
+
+def test_game_language_setting_from_conversion(env, qapp, fake_game):
+    """Język gry: lista z world/localization/index.json bieżącej konwersji, zapis w ustawieniach profilu."""
+    w = make_window()
+    w.core.set_install(str(fake_game))
+    plan = w.core.plan()
+    idx = Path(plan.base_out) / "world" / "localization" / "index.json"
+    idx.parent.mkdir(parents=True, exist_ok=True)
+    idx.write_text(json.dumps({"languages": ["EN", "PL"]}))
+    assert w.core.game_languages() == ["EN", "PL"]
+    page = w.pages["settings"]
+    w.show_page("settings")
+    o, combo = page.widgets["game_language"]
+    assert [combo.itemData(i) for i in range(combo.count())] == ["auto", "original", "en", "pl"]
+    combo.setCurrentIndex(combo.findData("pl"))
+    page.widgets["qa_source"][1].setText("MojMod.esp")
+    page.save()
+    rs = json.loads(Path(w.core.runtime_args()[2].split("=", 1)[1]).read_text())
+    assert rs["game_language"] == "pl" and rs["qa_source"] == "MojMod.esp"

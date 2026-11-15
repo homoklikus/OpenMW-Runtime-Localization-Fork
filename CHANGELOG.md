@@ -1,5 +1,14 @@
 # Zmiany
 
+## 0.4 — 2026-11-15: lokalizacja runtime z forka OpenMW RLF (etap 1, `docs/PORT-RLF.md`)
+
+* Konwerter: pliki `localization/language/<wtyczka>.yaml` (format forka) w kolejności ładowania →
+  `world/localization/<JĘZYK>/`; nadpisywanie per język, warianty INFO, znaczniki, `fallbacks`, odcisk zmian.
+* Gra: `MWLocalization` – język wybierany w trakcie działania (Ustawienia → Język → „Język gry”), nazwy
+  regionów, wnętrz i drzwi po przetłumaczeniu, formatowanie w pasku (BBCode), znacznik QA.
+* Launcher: przed startem gry import projektu, jeśli skrypty zmieniły się od ostatniego importu.
+* Zależność: `python3-yaml`.
+
 ## 0.3.1 — 2026-11-15: licencja GPL-3.0-or-later
 
 * Licencja całego projektu zmieniona z MIT na **GPL-3.0-or-later** (jak OpenMW), żeby móc korzystać z kodu

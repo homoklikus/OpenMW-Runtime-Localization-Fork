@@ -3,7 +3,7 @@
 ## 1. Zależności
 
 ```bash
-sudo apt install python3 python3-numpy python3-pil python3-pytest git xvfb
+sudo apt install python3 python3-numpy python3-pil python3-yaml python3-pytest git xvfb
 # launcher (Qt 6) i archiwa 7z modów
 sudo apt install python3-pyside6.qtwidgets python3-py7zr
 # opcjonalnie: GDExtension (C++)
