@@ -12,7 +12,7 @@ Zasada: **bez integracji Nexus Mods** (API, przeglądanie, pobieranie, NXM, kluc
 | Grupa | Commity forka (skrót) | Decyzja | Etap |
 |---|---|---|---|
 | **Lokalizacja runtime** (YAML obok wtyczek, `components/translation`, `engine.cpp`, `mwgui`, `mwdialogue`, `mwlua/contentbindings`) | 8acb1f6, fa19a75, 97aa87b, f87d3c7, 557f851, 8553883 | przenosimy | **1 – zrobione** (dane + nazwy w grze); dialogi, dziennik, książki, podpowiedzi przedmiotów – gdy Runtime dostanie te okna |
-| **Roślinność**: groundcover z wtyczek `groundcover=`, flora proceduralna z `world.cfg` (filtr LAND i nachylenia, wykluczenie przy obiektach, wagi tekstur, profile regionów), reguły Remirosa z liczbami na teksel (pach75/pach76) | 3b735aa…5629d38, 94e5fb4, 5ead2e9 | przenosimy; dane Remirosa liczymy **lokalnie** z zainstalowanych `Rem_*.esp` zamiast wbudowanej tabeli | 2 |
+| **Roślinność**: groundcover z wtyczek `groundcover=`, flora proceduralna z `world.cfg` (filtr LAND i nachylenia, wykluczenie przy obiektach, wagi tekstur, profile regionów), reguły Remirosa z liczbami na teksel (pach75/pach76) | 3b735aa…5629d38, 94e5fb4, 5ead2e9 | przenosimy: tabela reguł forka wbudowana, trawa bez ESP (tylko modele Remirosa) | **2 – zrobione** |
 | **Launcher – mody**: sortowanie wg zależności, zasoby modów i konflikty (szczegóły), propozycje dla konfliktów rozdzielczości DDS, analiza archiwum, podgląd podpakietów BAIN, instalacja z archiwum, bezpieczna podmiana, usuwanie, synchronizacja priorytetów wtyczek i zasobów, przeglądanie plików moda, wersje modów, nakładki tłumaczeń | 5d92de4…726e6e9 (bez Nexus) | przenosimy funkcje, których launcher OpenMWGodot jeszcze nie ma | 3 |
 | **Launcher – strona Świat** (flora, fauna) i ustawienia Groundcover | 07465d2, 7bd5677, eb37969 | przenosimy razem z etapem 2 | 2/3 |
 | Nexus Mods: API, przeglądanie, pobieranie, metadane, NXM (rejestracja/obsługa/przywracanie), archiwalne pliki, tłumaczenia z Nexus, aktualizacje, zaszyfrowany klucz API | 2cbbb7e, 4165a51, a760064, 291c658, 2159306, 32608b3, 07f3525, f90e953, 3208a56, aea7e52, 66ec112*, 401db09, 0751919, 5cecd31 | **pomijamy** (wymaganie). *66ec112: z części „nakładki tłumaczeń” bierzemy mechanizm nakładek, bez źródła Nexus | – |
@@ -45,34 +45,33 @@ z wariantami płci), książki i zwoje (BOOK TEXT), dziennik, podpowiedzi przedm
 Test na prawdziwych danych (u gracza, lokalnie): polskie tłumaczenie Morrowind + Tribunal + Bloodmoon + UMOPP –
 52 326 wpisów, 0 ostrzeżeń, 2,5 s konwersji; w Godocie nazwy 21 ms, dialogi (na żądanie) 157 ms.
 
-## Etap 2 – roślinność (zrobione)
+## Etap 2 – roślinność (zrobione, poprawione 2026-11-15 wieczorem)
 
-Źródła: `groundcover.cpp`, `remirosgroundcover*.{hpp,cpp}`, `terrainstorage.cpp`, `renderingmanager.cpp`,
-`components/worldconfig` (fork) oraz `land.py`, `fflora.py`, `gcbaseline.py`, `remirosrules.py` (MCP-openMW).
-Kod: `converter/mwconv/flora.py`, `godot/scripts/mw/mw_flora.gd`, zakładka **Świat** w ustawieniach launchera.
+Intencja forka: **trawa Remirosa generowana w grze bez jego ESP** – z moda potrzebne są wyłącznie modele i tekstury
+(`meshes/grass/`, `textures/`), a rozmieszczenie wynika z reguł tekstur LAND i liczników na pola 128 j. (pach75 +
+pach76) wkompilowanych w program. Pierwsza wersja portu źle to odczytała (wymagała `Rem_*.esp` i dodawała florę
+z waniliowych traw, której fork w praktyce nie używał) – poprawione.
 
-* Ustawienia jak `world.cfg` forka: `[flora] enabled / source (automatic | groundcover | hybrid) / density (0–2) /
-  exclusion_distance (0–20 m)` oraz „legacy” `[Groundcover] enabled` z gęstością wtyczek – mapowanie identyczne
-  z `RenderingManager` forka (gęstość wtyczek × gęstość flory w trybie skonfigurowanym).
-* **Wtyczki groundcover**: `groundcover=` z openmw.cfg albo wtyczki modów rozpoznane automatycznie (tylko STAT i CELL,
-  modele trawy); DensityCalculator jak w OpenMW; osobna lista, nie `content`.
-* **Flora proceduralna (tryb ogólny)**: 32768 × gęstość kandydatów na komórkę, siatka z jitterem, wysokość „diamond”,
-  nachylenie ≤ 28°, wagi tekstur LAND, wykluczenia obiektów (STAT/ACTI/DOOR/CONT bez natury i znaczników, promień
-  z granic modelu + odstęp) i ścieżek PGRD (tylko na teksturach drogowych), pula wanilii (bez modeli > 200 j.,
-  skala do 60 j.), wybór modelu wg rodziny regionu tekstury. Te same ziarna i hash32 co w forku.
-* **Reguły Remirosa**: jeśli w katalogach danych są wtyczki `Rem_*.esp` i modele `meshes/grass/`, konwerter wylicza
-  tabelę reguł i liczniki na pola 128 j. **lokalnie** (port `derive` + `build_counts` z MCP) i generuje rośliny jak
-  `RemirosGen::collectCell` (liczniki, gdy teren zgodny; inaczej reguły tekstur; obrót wg normalnej terenu, z + 23).
-  Repozytorium nie zawiera danych moda (fork miał 60 tys. linii wkompilowanej tabeli).
+* **Tabela forka** `remirosgroundcoverdata.cpp` (39 reguł tekstur, 102 statyki, liczniki dla 715 komórek, 626 204
+  grupy; wygenerowana przez MCP-openMW) → `converter/mwconv/data/remiros_rules.json.gz` (1,1 MB). Generator
+  `RemirosGen::collectCell` przeniesiony 1:1 (bity wpisów i grup, ziarna, liczniki przy zgodnym odcisku terenu,
+  reguły tekstur w pozostałych tekselach, rozrzut ±0,3 teksela, z + przesunięcie statyki, obrót wg normalnej).
+* Ustawienia jak `world.cfg` forka: `[flora] enabled / source (automatic | groundcover | hybrid) / density (0–2)`
+  oraz „legacy” `[Groundcover] enabled` z gęstością wtyczek (mapowanie z `RenderingManager` forka).
+* **Wtyczki groundcover** (`groundcover=` albo mody rozpoznane automatycznie) – rozmieszczenie autora moda.
+* Bez modeli Remirosa tryb automatyczny nie generuje trawy (komunikat w dzienniku konwersji).
 * Gra: MultiMesh na model i komórkę, bez kolizji i cieni, test alfa 128/255, normalne „w górę” jak shader groundcover
-  OpenMW, zasięg i gęstość rysowania w ustawieniach (Grafika); gęstość w grze bez ponownej konwersji (ranga instancji).
+  OpenMW, zasięg i gęstość rysowania w ustawieniach (Grafika).
 
-Test na prawdziwym terenie (49 komórek wokół Balmory, lokalnie u gracza): flora ogólna 149 tys. roślin w 1,5 s;
-Remiros 50 tys. w 23 s (w tym jednorazowe reguły z 836 tys. roślin wtyczek). Liczby roślin Remirosa vs oryginał
-autora: Balmora (-3,-2) 130/127, (-2,-2) 769/755, (-3,-3) 680/682, (-4,-2) 522/534.
+Test na prawdziwym terenie (lokalnie u gracza, katalog modeli Remirosa bez ESP w VFS): odciski terenu zgodne
+z tabelą forka w 714/715 komórkach; 49 komórek wokół Balmory – 50 180 roślin w 8,7 s; liczby vs rozmieszczenie
+autora: (-3,-2) 130/127, (-2,-2) 769/755, (-3,-3) 680/682, (-4,-2) 522/534, (-5,-4) 2145/2160.
 
-Nieprzeniesione: fauna (w forku tylko flaga w `world.cfg`, bez działania), testowe modele z `OPENMW_FLORA_TEST_ASSET`
-i pule „stylizowane” `NN_*.nif` (eksperyment forka), wiatr/deptanie trawy (shader OpenMW) – osobny temat.
+Nieprzeniesione: flora z waniliowych traw i jej wykluczenia (kod forka sprzed pach75, nieużywany), fauna (w forku
+tylko flaga), wiatr/deptanie trawy (shader OpenMW) – osobny temat.
+
+Poprawka przy okazji: woda – falowanie i wzór we współrzędnych świata (wcześniej lokalne współrzędne płaszczyzny
+dawały szczeliny i szwy na łączeniach komórek).
 
 ## Etap 3 – launcher (mody, bez Nexus)
 

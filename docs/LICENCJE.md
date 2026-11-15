@@ -67,3 +67,11 @@ Przeniesiony kod OpenMW (od sesji 4): *na razie brak* — każdy przeniesiony fr
   (logo jako odniesienie do silnika, bez sugerowania oficjalnego produktu).
 * Logo *Morrowind* / *The Elder Scrolls* (znak towarowy Bethesdy) nie jest częścią repozytorium,
   także w wersji narysowanej przez AI.
+
+## Dane roślinności
+
+* `converter/mwconv/data/remiros_rules.json.gz` — tabela reguł i liczników trawy Remirosa przeniesiona z forka
+  OpenMW RLF (`apps/openmw/mwrender/remirosgroundcoverdata.cpp`, gałąź `0.5-world`, 3bfa4c3), wygenerowana przez
+  MCP-openMW z wtyczek Remiros' Groundcover 4.1. Zawiera wyłącznie agregaty (gęstości na teksel, udziały statyk,
+  liczby roślin w polach 128×128 j., odciski terenu) – bez modeli, tekstur i współrzędnych pojedynczych roślin.
+  Modele i tekstury trawy dostarcza gracz (mod Remirosa); nie są częścią repozytorium.
