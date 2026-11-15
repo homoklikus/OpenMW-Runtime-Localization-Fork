@@ -91,7 +91,30 @@ class LauncherCore:
     # --- konwersja -----------------------------------------------------------------------------
     @property
     def converted_dir(self) -> Path:
-        return Path(self.config["converted_dir"] or self.paths.default_converted)
+        return self.resolve_converted(self.config["converted_dir"])
+
+    def resolve_converted(self, text: str | None) -> Path:
+        """Ścieżka katalogu przekonwertowanych danych. Puste → domyślny katalog XDG; nazwa względna
+        (np. „Balmora”) → podkatalog katalogu danych użytkownika, nigdy względem bieżącego katalogu."""
+        if not text or not str(text).strip():
+            return self.paths.default_converted
+        p = Path(str(text).strip()).expanduser()
+        return p if p.is_absolute() else self.paths.data / p
+
+    def check_converted(self, text: str | None) -> tuple[Path, str | None]:
+        """(ścieżka, błąd). Przekonwertowane dane zawierają zasoby gry – nie mogą trafić do repozytorium
+        projektu ani do katalogu instalacji gry."""
+        p = self.resolve_converted(text).resolve()
+        repo = conversion.converter_dir().parent.resolve()
+        if p == repo or repo in p.parents:
+            return p, (f"Katalog {p} leży w katalogu projektu ({repo}). Przekonwertowane dane zawierają zasoby "
+                       "gry i nie mogą trafić do repozytorium – wybierz katalog poza projektem.")
+        inst = self.config["install"].get("path") if isinstance(self.config["install"], dict) else None
+        if inst:
+            ip = Path(inst).expanduser().resolve()
+            if p == ip or ip in p.parents:
+                return p, f"Katalog {p} leży w instalacji gry ({ip}) – wybierz inny, gra musi zostać nietknięta."
+        return p, None
 
     def plan(self) -> conversion.Plan | None:
         res = self.resolution()

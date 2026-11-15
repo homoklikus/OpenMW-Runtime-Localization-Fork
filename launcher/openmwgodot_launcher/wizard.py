@@ -3,8 +3,8 @@ Postęp kreatora (ukończone kroki) jest zapisywany w konfiguracji – przerwani
 
 from __future__ import annotations
 
-from PySide6.QtWidgets import (QComboBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit, QProgressBar, QPushButton,
-                               QVBoxLayout, QWizard, QWizardPage)
+from PySide6.QtWidgets import (QApplication, QComboBox, QFileDialog, QHBoxLayout, QLabel, QLineEdit, QProgressBar, QPushButton,
+                               QMessageBox, QVBoxLayout, QWizard, QWizardPage)
 
 from mwcore import conversion, install
 
@@ -155,7 +155,16 @@ class FirstRunWizard(QWizard):
 
     def _start(self):
         c = self.core.config
-        c["converted_dir"] = self.dst.text().strip() or None
+        text = self.dst.text().strip()
+        path, err = self.core.check_converted(text)
+        if err:
+            self.stage.setText(f"<span style='color:#d0644f'>{err}</span>")
+            if not QApplication.instance().property("headless_test"):
+                QMessageBox.warning(self, "Katalog docelowy", err)
+            return
+        c["converted_dir"] = str(path) if text else None
+        if text:
+            self.dst.setText(str(path))
         c["conversion_scope"] = self.scope.currentData()
         c.save()
         self.btn.setEnabled(False)

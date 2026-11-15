@@ -390,3 +390,26 @@ def test_home_screen_reference_layout(env, qapp, fake_game):
     for k in ("profiles", "diagnostics", "help", "settings", "home"):
         w.show_page(k)
         assert w.nav[k].isChecked()
+
+
+def test_converted_dir_never_relative_to_cwd_or_inside_repo(env, qapp, fake_game, monkeypatch):
+    """Regresja: wpisanie samej nazwy („Balmora”) zapisało zasoby gry w launcher/Balmora (w repozytorium)."""
+    monkeypatch.chdir(ROOT / "launcher")
+    w = make_window()
+    page = w.pages["conversion"]
+    page.src.setText(str(fake_game))
+    assert page._apply_src()
+    page.dst.setText("Balmora")
+    res, _ = convert_gui(qapp, w, "full")
+    assert res["status"] == "done"
+    out = Path(w.core.config["converted_dir"])
+    assert out.is_absolute() and out == w.core.paths.data / "Balmora"
+    assert (out / "base" / ".gitignore").read_text().strip().endswith("*")
+    assert not (ROOT / "launcher" / "Balmora").exists() and not (ROOT / "converter" / "Balmora").exists()
+    # katalog w repozytorium i w instalacji gry – odrzucony, konwersja nie startuje
+    for bad in (str(ROOT / "launcher" / "Balmora"), str(ROOT), str(fake_game / "out")):
+        page.dst.setText(bad)
+        page.start()
+        assert not w.conv_runner.is_running() and "Katalog" in w.last_message
+        assert w.core.config["converted_dir"] == str(out)
+    assert not (ROOT / "launcher" / "Balmora").exists()

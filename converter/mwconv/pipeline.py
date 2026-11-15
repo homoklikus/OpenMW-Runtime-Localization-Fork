@@ -413,6 +413,17 @@ def _pid_alive(pid: int) -> bool:
         return True
 
 
+def _guard_gitignore(out: Path) -> None:
+    """Wynik konwersji zawiera zasoby gry: plik .gitignore z „*” sprawia, że git nigdy go nie doda,
+    nawet gdy katalog wyjściowy przez pomyłkę leży w repozytorium."""
+    g = out / ".gitignore"
+    if not g.exists():
+        try:
+            g.write_text("# Przekonwertowane zasoby gry – nie publikować, nie dodawać do repozytorium.\n*\n")
+        except OSError:
+            pass
+
+
 def acquire_lock(out: Path) -> Path:
     """Blokada katalogu wyników: tylko jedna konwersja naraz; martwa blokada (proces nie żyje) jest przejmowana."""
     lock = out / ".mwconv" / "convert.lock"
@@ -438,6 +449,7 @@ def run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) -
     global CANCEL
     CANCEL = False
     opts.out.mkdir(parents=True, exist_ok=True)
+    _guard_gitignore(opts.out)
     lock = acquire_lock(opts.out)
     old = {s_: signal.signal(s_, _on_signal) for s_ in (signal.SIGTERM, signal.SIGINT)}
     _Base.cache, _Base.out, _Base.tex = None, None, frozenset()

@@ -160,11 +160,19 @@ class ConversionPage(QWidget):
         self.win.pages["home"].refresh()
         return rep.ok
 
-    def _apply_target(self):
+    def _apply_target(self) -> bool:
         c = self.win.core.config
-        c["converted_dir"] = self.dst.text().strip() or None
+        text = self.dst.text().strip()
+        path, err = self.win.core.check_converted(text)
+        if err:
+            self.win.message("Katalog docelowy", err, "warn")
+            return False
+        c["converted_dir"] = str(path) if text else None
+        if text:
+            self.dst.setText(str(path))
         c["conversion_scope"] = self.scope.currentData()
         c.save()
+        return True
 
     # --- operacje -------------------------------------------------------------------------------------
     def start(self):
@@ -176,7 +184,8 @@ class ConversionPage(QWidget):
         if self.win.game.is_running():
             self.win.message("Konwersja", "Zamknij grę przed konwersją.", "warn")
             return
-        self._apply_target()
+        if not self._apply_target():
+            return
         steps = self.win.core.conversion_steps(self.scope.currentData())
         self.log.clear()
         self._warns = 0
@@ -212,7 +221,8 @@ class ConversionPage(QWidget):
     def verify(self, repair: bool):
         if self.win.conv_runner.is_running():
             return
-        self._apply_target()
+        if not self._apply_target():
+            return
         total_bad, problems = 0, []
         for out in self._outs():
             if not (out / ".mwconv").exists():
