@@ -15,6 +15,7 @@ var game_hour := 9.0
 var day := 0
 var time_running := true
 var weather := "clear"
+var forced_weather := ""   # tryb zrzutu: stała pogoda (porównania z OpenMW)
 var region := ""
 var interior := false
 var sun: DirectionalLight3D
@@ -86,6 +87,10 @@ func set_region(region_id: String) -> void:
 
 ## Pogoda losowana deterministycznie (dzień + region) wg szans z rekordu REGN.
 func pick_weather() -> void:
+	if not forced_weather.is_empty():
+		weather = forced_weather
+		apply()
+		return
 	var r: Dictionary = regions.get(region.to_lower(), {})
 	var chances: Dictionary = r.get("weather", {"clear": 100})
 	var total := 0

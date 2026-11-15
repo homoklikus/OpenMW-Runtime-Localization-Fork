@@ -24,6 +24,10 @@ func arg(name: String, def := "") -> String:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--%s=" % name):
 			return a.split("=", true, 1)[1]
+	# te same argumenty z override.cfg ([mwgodot] cli/<nazwa>=…) – start bez wiersza poleceń (np. przez MCP Godota)
+	var ps := "mwgodot/cli/" + name
+	if ProjectSettings.has_setting(ps):
+		return str(ProjectSettings.get_setting(ps))
 	return def
 
 func _ready() -> void:
@@ -76,6 +80,7 @@ func _ready() -> void:
 	var start_t := _start_transform()
 	player.global_position = start_t.origin
 	player.rotation.y = start_t.basis.get_euler().y
+	_apply_capture()
 	if not interior.is_empty():
 		var key := "int:" + interior.to_lower()
 		_load(key)
@@ -222,8 +227,59 @@ func _setup_hud() -> void:
 
 var _frames := 0
 
+## Tryb zrzutu (porównania z OpenMW, np. ujęcia MCP-openMW openmw_capture_plan):
+##   --camera=x,y,z   pozycja kamery (jednostki MW)      --look=yaw,pitch  radiany jak w OpenMW
+##                    (yaw 0 = północ/+Y, zgodnie z ruchem wskazówek; pitch > 0 = w dół)
+##   --hour=12  --weather=clear  --fov=60 (pionowe, jak OpenMW)  --screenshot=PLIK.png  --shot-frames=120
+## Kamera stoi w miejscu (latanie), czas zatrzymany, pasek ukryty; po zrzucie gra kończy się (--quit=0: zostaje).
+func _apply_capture() -> void:
+	var c := arg("camera")
+	if not c.is_empty():
+		var v := c.split(",")
+		player.fly = true
+		player.global_position = MWCoords.mw_to_godot(Vector3(float(v[0]), float(v[1]), float(v[2]))) - Vector3(0, 1.65, 0)
+		player.velocity = Vector3.ZERO
+	var look := arg("look")
+	if not look.is_empty():
+		var l := look.split(",")
+		player.rotation.y = -float(l[0])
+		var cam := player.get_node_or_null("Camera3D") as Camera3D
+		if cam and l.size() > 1:
+			cam.rotation.x = -float(l[1])
+	var fov := arg("fov")
+	if not fov.is_empty():
+		var cam2 := player.get_node_or_null("Camera3D") as Camera3D
+		if cam2:
+			cam2.fov = float(fov)
+	var hour := arg("hour")
+	if not hour.is_empty():
+		envr.time_running = false
+		envr.game_hour = float(hour)
+		envr.apply()
+	var w := arg("weather").to_lower()
+	if not w.is_empty():
+		envr.forced_weather = w
+		envr.pick_weather()
+	if not arg("screenshot").is_empty() and hud:
+		hud.visible = false
+
+func _capture_tick() -> void:
+	var shot := arg("screenshot")
+	if shot.is_empty() or _frames != int(arg("shot-frames", "120")):
+		return
+	if player and player.fly:
+		player.velocity = Vector3.ZERO
+	var img := get_viewport().get_texture().get_image()
+	DirAccess.make_dir_recursive_absolute(shot.get_base_dir())
+	var err := img.save_png(shot)
+	print("MWGODOT_SHOT ", shot, " ", img.get_width(), "x", img.get_height(), " err=", err,
+		" flora=", JSON.stringify(builder.flora.stats if builder.flora else {}))
+	if arg("quit", "1") != "0":
+		get_tree().quit(0 if err == OK else 4)
+
 func _process(_d: float) -> void:
 	_frames += 1
+	_capture_tick()
 	var autotest := int(arg("autotest-frames", "0"))
 	if autotest > 0 and _frames == autotest:
 		# tryb testu integracyjnego (launcher): raport i wyjście z kodem zależnym od błędów ładowania

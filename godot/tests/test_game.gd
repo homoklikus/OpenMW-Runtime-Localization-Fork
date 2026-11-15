@@ -36,6 +36,7 @@ func _run() -> void:
 	main.show_coords = false
 	check(main.coords_text() == "", "F3: współrzędne ukryte")
 	main.show_coords = true
+	_test_capture(main)
 	_test_localization(main)
 	check(main.loaded.size() == 4, "4 komórki zewnętrzne wczytane wokół gracza (%d)" % main.loaded.size())
 	var waters := main.find_children("Water", "MeshInstance3D", true, false)
@@ -124,3 +125,32 @@ func _test_localization(main) -> void:
 	main.loc = off
 	check(main.display_location() == "Kraina Syntetyczna", "pasek: region oryginalny (%s)" % main.display_location())
 
+
+
+## Tryb zrzutu: kamera i kierunek jak ujęcie OpenMW (yaw 0 = +Y MW, pitch > 0 = w dół), stała pora i pogoda.
+func _test_capture(main) -> void:
+	var saved_pos: Vector3 = main.player.global_position
+	var saved_rot: float = main.player.rotation.y
+	var saved_hour: float = main.envr.game_hour
+	for kv in [["camera", "1000,2000,700"], ["look", "%f,0.2" % (PI / 2.0)], ["hour", "12"], ["weather", "foggy"], ["fov", "60"]]:
+		ProjectSettings.set_setting("mwgodot/cli/" + kv[0], kv[1])
+	main._apply_capture()
+	var cam: Camera3D = main.player.get_node("Camera3D")
+	var want := MWCoords.mw_to_godot(Vector3(1000, 2000, 700))
+	check(cam.global_position.distance_to(want) < 0.01, "zrzut: kamera w punkcie MW (%s / %s)" % [cam.global_position, want])
+	var fwd := -cam.global_transform.basis.z
+	var mw_fwd := Vector3(fwd.x, -fwd.z, fwd.y)   # Godot → MW (x, y, z)
+	check(mw_fwd.x > 0.9 and absf(mw_fwd.y) < 0.05 and mw_fwd.z < -0.1, "zrzut: yaw π/2 = wschód (+X MW), pitch w dół (%s)" % mw_fwd)
+	check(main.envr.game_hour == 12.0 and not main.envr.time_running and main.envr.weather == "foggy", "zrzut: pora i pogoda stałe")
+	check(is_equal_approx(cam.fov, 60.0) and main.player.fly, "zrzut: FOV 60 i kamera nieruchoma")
+	for k in ["camera", "look", "hour", "weather", "fov"]:
+		ProjectSettings.set_setting("mwgodot/cli/" + k, null)
+	main.envr.forced_weather = ""
+	main.envr.time_running = true
+	main.envr.game_hour = saved_hour
+	main.envr.pick_weather()
+	main.player.fly = false
+	cam.rotation.x = 0
+	cam.fov = 75
+	main.player.global_position = saved_pos
+	main.player.rotation.y = saved_rot

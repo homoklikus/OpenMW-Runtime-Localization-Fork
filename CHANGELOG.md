@@ -11,6 +11,8 @@
   turkusowych kamieni.
 * Launcher: rozdzielczość wykrywana z podłączonych ekranów (np. 3440x1440, także HiDPI) i ultrawide na liście;
   gra przyjmuje dowolną rozdzielczość „SZERxWYS” i wyśrodkowuje okno.
+* Gra: tryb zrzutu do porównań z OpenMW (`--camera`, `--look`, `--hour`, `--weather`, `--fov`, `--screenshot`);
+  argumenty można też podać w `override.cfg` (`[mwgodot] cli/<nazwa>=…`), np. przy starcie przez MCP Godota.
 * Woda: falowanie i wzór we współrzędnych świata – bez szczelin na łączeniach komórek.
 * Gra `mw_flora.gd`: MultiMesh, bez kolizji i cieni, test alfa, normalne w górę; zasięg i gęstość w ustawieniach.
 * Launcher: zakładka Świat (odpowiednik world.cfg forka), opcje roślinności w zakładce Grafika.
