@@ -13,6 +13,7 @@ Każdy etap pomija zasoby, których SHA-256 i wersja konwertera się nie zmieni�
 """
 
 from __future__ import annotations
+import dataclasses
 
 import concurrent.futures as cf
 import hashlib
@@ -561,7 +562,21 @@ def run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) -
             pass
 
 
+def _with_bundled_grass(cfg: InstallConfig, opts: Options, log) -> InstallConfig:
+    """Trawa Remirosa dołączona do OpenMWGodot (licencja moda pozwala: GPL v2 / zasoby z podaniem autora) jako
+    katalog danych o NAJNIŻSZYM priorytecie – zainstalowany mod Remirosa lub retekstury go nadpisują."""
+    from . import flora
+    if not _flora_settings(opts).normalized().modes()[1] or not flora.BUNDLED_GRASS.is_dir():
+        return cfg
+    b = str(flora.BUNDLED_GRASS)
+    if b in cfg.data_dirs:
+        return cfg
+    log(f"Roślinność: modele i tekstury Remiros' Groundcover dołączone do programu ({b})")
+    return dataclasses.replace(cfg, data_dirs=[b, *cfg.data_dirs])
+
+
 def _run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) -> dict:
+    cfg = _with_bundled_grass(cfg, opts, log)
     out = opts.out
     out.mkdir(parents=True, exist_ok=True)
     cache = Cache(out / ".mwconv" / "cache.sqlite")

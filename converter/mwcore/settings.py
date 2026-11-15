@@ -69,7 +69,7 @@ LAUNCHER_DEFAULTS: dict[str, Any] = {
     "godot_version": "",            # zapamiętana wersja (sprawdzana tylko na żądanie lub po grze – nie przy starcie)
     "wizard_done": False,
     # roślinność (odpowiednik world.cfg forka OpenMW RLF: [flora] i [Groundcover]) – wpływa na konwersję
-    "flora": {"enabled": False, "source": "automatic", "density": 1.0, "exclusion_distance": 3.0,
+    "flora": {"enabled": True, "source": "automatic", "density": 1.0, "exclusion_distance": 3.0,
               "groundcover_enabled": False, "groundcover_density": 1.0},
     "wizard_step": 0,
 }

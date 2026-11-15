@@ -59,7 +59,10 @@ z waniliowych traw, której fork w praktyce nie używał) – poprawione.
 * Ustawienia jak `world.cfg` forka: `[flora] enabled / source (automatic | groundcover | hybrid) / density (0–2)`
   oraz „legacy” `[Groundcover] enabled` z gęstością wtyczek (mapowanie z `RenderingManager` forka).
 * **Wtyczki groundcover** (`groundcover=` albo mody rozpoznane automatycznie) – rozmieszczenie autora moda.
-* Bez modeli Remirosa tryb automatyczny nie generuje trawy (komunikat w dzienniku konwersji).
+* **Modele i tekstury Remirosa są dołączone do programu** (`converter/mwconv/data/remiros_groundcover/`,
+  26 NIF + 25 DDS, 27 MB; licencja moda pozwala – zob. LICENCJE.md). Konwerter dodaje ten katalog jako dane
+  o najniższym priorytecie, więc zainstalowany mod Remirosa albo retekstury trawy go nadpisują. Roślinność jest
+  domyślnie włączona w launcherze (Ustawienia → Świat).
 * Gra: MultiMesh na model i komórkę, bez kolizji i cieni, test alfa 128/255, normalne „w górę” jak shader groundcover
   OpenMW, zasięg i gęstość rysowania w ustawieniach (Grafika).
 

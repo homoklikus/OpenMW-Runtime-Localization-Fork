@@ -124,7 +124,7 @@ def test_remiros_without_esp(synth_data, flora_dir, tmp_path, monkeypatch):
     for r in rows[::41]:
         assert abs(r[4] - terrain.height_at(r[2], r[3]) - 23) < 1.5 and 0.85 < r[6] < 1.35
     assert any(abs(r[7]) > 0.01 or abs(r[8]) > 0.01 for r in rows)   # obrót wg normalnej terenu
-    # bez modeli Remirosa → brak trawy (fork: brak automatycznego rozmieszczenia), bez wyjątku
+    # bez modeli Remirosa (synt. tabela, dołączone modele nie pasują do nazw) → brak trawy, bez wyjątku
     s2 = run(_cfg(synth_data, []), Options(out=tmp_path / "o3", cells=["Synthville"], jobs=1, flora={"enabled": True}),
              log=lambda _m: None)
     assert s2["flora"]["mode"] == "none" and s2["flora"]["instances"] == 0
@@ -133,3 +133,17 @@ def test_remiros_without_esp(synth_data, flora_dir, tmp_path, monkeypatch):
 def test_groundcover_plugin_detection(flora_dir, synth_data):
     assert flora.is_groundcover_plugin(flora_dir["groundcover"]) and flora.is_groundcover_plugin(flora_dir["remiros"])
     assert not flora.is_groundcover_plugin(synth_data["dir"] / "mwg_synthtown_patch.esp")
+
+
+def test_bundled_remiros_assets():
+    """Modele i tekstury Remirosa są dołączone do programu: każda statyka tabeli forka ma model, każdy model teksturę."""
+    import re
+    from mwconv.vfs import Vfs
+    v = Vfs.from_install([str(flora.BUNDLED_GRASS)], [])
+    models = flora.remiros_models(v)
+    assert len(models) == 26 == len({s[1] for s in flora.remiros_table().statics})
+    for m in models:
+        for t in re.findall(rb"textures[\\/][\w\\/]+\.dds", v.read(m), re.I):
+            assert v.exists(t.decode()), (m, t)
+    credits = (flora.BUNDLED_GRASS / "CREDITS.md").read_text()
+    assert "Remiros" in credits and "46733" in credits

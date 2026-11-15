@@ -323,6 +323,9 @@ class Settings:
 # modele i tekstury Remirosa (meshes/grass/…), BEZ jego wtyczek ESP – trawa jest generowana na teksturach LAND.
 
 DATA_FILE = Path(__file__).with_name("data") / "remiros_rules.json.gz"
+# Modele i tekstury Remiros' Groundcover 4.1 (Remiros; Nexus Mods 46733) – 26 modeli z tabeli forka + 25 tekstur.
+# Uprawnienia moda: użycie zasobów bez pytania z podaniem autora, uwagi autora: GNU GPL V2; nie w modach płatnych.
+BUNDLED_GRASS = Path(__file__).with_name("data") / "remiros_groundcover"
 SRC_PLUGIN, SRC_REMIROS = 0, 2
 
 

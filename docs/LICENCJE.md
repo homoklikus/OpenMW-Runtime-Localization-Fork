@@ -75,3 +75,13 @@ Przeniesiony kod OpenMW (od sesji 4): *na razie brak* — każdy przeniesiony fr
   MCP-openMW z wtyczek Remiros' Groundcover 4.1. Zawiera wyłącznie agregaty (gęstości na teksel, udziały statyk,
   liczby roślin w polach 128×128 j., odciski terenu) – bez modeli, tekstur i współrzędnych pojedynczych roślin.
   Modele i tekstury trawy dostarcza gracz (mod Remirosa); nie są częścią repozytorium.
+
+## Trawa: Remiros' Groundcover (zasoby dołączone)
+
+* `converter/mwconv/data/remiros_groundcover/` — 26 modeli NIF i 25 tekstur DDS z **Remiros' Groundcover 4.1**
+  (autor: **Remiros**; Nexus Mods, Morrowind, mod 46733), bez zmian, bez wtyczek ESP. Szczegóły:
+  `CREDITS.md` w tym katalogu.
+* Uprawnienia moda: zasoby wolno używać bez pytania z podaniem autora; konwersja dozwolona z podaniem autora;
+  zakaz użycia w plikach sprzedawanych; uwagi autora: „GNU GPL V2”. Zasoby są osobnym dziełem dołączonym do
+  programu (agregacja) – kod OpenMWGodot pozostaje na GPL-3.0-or-later.
+* Zasoby Bethesdy nadal NIE są częścią repozytorium – te pliki nie zawierają danych z gry.

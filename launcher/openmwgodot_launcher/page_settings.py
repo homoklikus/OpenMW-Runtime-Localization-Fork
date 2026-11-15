@@ -80,7 +80,7 @@ class SettingsPage(QWidget):
         self.fl_enabled = QCheckBox("Roślinność generowana przy konwersji ([flora] enabled)")
         f.addRow("", self.fl_enabled)
         self.fl_source = QComboBox()
-        self.fl_source.addItem("Automatyczna – trawa Remirosa generowana bez ESP (wymaga modeli Remirosa)", "automatic")
+        self.fl_source.addItem("Automatyczna – trawa Remirosa (dołączona do programu, bez ESP)", "automatic")
         self.fl_source.addItem("Z wtyczek groundcover", "groundcover")
         self.fl_source.addItem("Obie (hybryda)", "hybrid")
         f.addRow("Źródło", self.fl_source)
@@ -204,8 +204,8 @@ class SettingsPage(QWidget):
         self.world_info.setText(
             ("Wtyczki groundcover: " + ", ".join(gcs) if gcs else "Brak wtyczek groundcover (rozpoznawane automatycznie "
              "przy instalacji moda).")
-            + "\nTryb automatyczny: trawa Remirosa liczona z reguł forka na teksturach terenu – z moda potrzebne są tylko "
-              "modele i tekstury (meshes/grass, textures), bez plików ESP."
+            + "\nTryb automatyczny: trawa Remirosa liczona z reguł forka na teksturach terenu; modele i tekstury "
+              "Remiros' Groundcover (autor: Remiros) są dołączone do programu – nic nie trzeba instalować."
             + "\nRoślinność jest liczona przy konwersji – po zmianie ustawień uruchom „Aktualizuj” na stronie Konwersja. "
               "Zasięg i gęstość rysowania w grze: zakładka Grafika.")
 

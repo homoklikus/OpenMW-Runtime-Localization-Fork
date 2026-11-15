@@ -5,6 +5,8 @@
 * Konwerter `mwconv/flora.py`: wtyczki groundcover (openmw.cfg `groundcover=`, mody rozpoznawane automatycznie)
   oraz trawa Remirosa jak w forku – tabela reguł i liczników forka wbudowana, bez ESP (z moda tylko modele
   i tekstury); pliki `world/flora/<x>_<y>.bin`; czytnik ESM czyta PGRD.
+* Modele i tekstury Remiros' Groundcover (autor: Remiros) dołączone do programu – trawa działa bez instalowania
+  moda; roślinność domyślnie włączona.
 * Woda: falowanie i wzór we współrzędnych świata – bez szczelin na łączeniach komórek.
 * Gra `mw_flora.gd`: MultiMesh, bez kolizji i cieni, test alfa, normalne w górę; zasięg i gęstość w ustawieniach.
 * Launcher: zakładka Świat (odpowiednik world.cfg forka), opcje roślinności w zakładce Grafika.

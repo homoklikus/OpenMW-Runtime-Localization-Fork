@@ -445,9 +445,11 @@ def test_world_tab_flora_settings_to_conversion(env, qapp, fake_game):
     w.core.set_install(str(fake_game))
     page = w.pages["settings"]
     w.show_page("settings")
+    # domyślnie włączona (modele Remirosa są dołączone do programu)
+    assert page.fl_enabled.isChecked() and page.fl_source.isEnabled() and not page.gc_legacy.isEnabled()
+    page.fl_enabled.setChecked(False)
     assert not page.fl_source.isEnabled() and page.gc_legacy.isEnabled()
     page.fl_enabled.setChecked(True)
-    assert page.fl_source.isEnabled() and not page.gc_legacy.isEnabled()
     page.fl_source.setCurrentIndex(page.fl_source.findData("hybrid"))
     page.fl_density.setValue(1.5)
     page.save()
