@@ -47,3 +47,12 @@ i mechanik, warto wrócić do decyzji, bo przepisywanie interpretera od zera to 
 | SQLite (moduł `sqlite3` Pythona) | domena publiczna | – |
 | pytest, scons | MIT | nie (narzędzia deweloperskie) |
 | Khronos glTF-Validator (npm) | Apache-2.0 | nie (tylko testy) |
+
+
+## Grafiki launchera
+
+* `launcher/resources/banner.png` — wycinek pejzażu z grafiki referencyjnej launchera dostarczonej przez
+  autora projektu (sesja 3, 2026-11-15). Według autora nie pochodzi z gry Morrowind. Wycięty bez godła
+  i tytułu. Przed publicznym wydaniem warto potwierdzić licencję źródła obrazu.
+* `launcher/resources/openmwgodot.png`, godło, ikony, pejzaż i podgląd proceduralny — własne, rysowane kodem.
+* Logo *Morrowind* / *The Elder Scrolls* nie jest i nie będzie częścią repozytorium (znak towarowy).

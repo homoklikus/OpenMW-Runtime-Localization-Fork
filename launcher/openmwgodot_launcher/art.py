@@ -372,3 +372,45 @@ def user_image(name: str, w: int, h: int):
         return None
     pm = pm.scaled(w, h, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
     return pm.copy((pm.width() - w) // 2, (pm.height() - h) // 2, w, h)
+
+
+RESOURCES = __import__("pathlib").Path(__file__).resolve().parent.parent / "resources"
+
+
+def image_banner(w: int, h: int):
+    """Baner z pejzażem z grafiki referencyjnej (resources/banner.png): obraz dosunięty do prawej,
+    z lewej płynne przejście w tło okna pod godło i tytuł. None, gdy pliku brak."""
+    f = RESOURCES / "banner.png"
+    src = QPixmap(str(f)) if f.is_file() else QPixmap()
+    if src.isNull():
+        return None
+    img = src.scaledToHeight(h, Qt.SmoothTransformation)
+    if img.width() < w * 0.55:  # bardzo szerokie okno – powiększ, żeby obraz zajmował większość banera
+        img = src.scaledToWidth(int(w * 0.55), Qt.SmoothTransformation)
+        img = img.copy(0, (img.height() - h) // 2, img.width(), h)
+    pm = QPixmap(w, h)
+    pm.fill(QColor("#0e0e0e"))
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.Antialiasing)
+    # tło po lewej: ciemne karmazynowe niebo dopasowane do lewej krawędzi obrazu
+    sky = QLinearGradient(0, 0, 0, h)
+    sky.setColorAt(0, QColor("#2a1a1a"))
+    sky.setColorAt(0.6, QColor("#3a2322"))
+    sky.setColorAt(1, QColor("#141110"))
+    p.fillRect(0, 0, w, h, sky)
+    x0 = w - img.width()
+    p.drawPixmap(x0, 0, img)
+    fade = QLinearGradient(x0, 0, x0 + img.width() * 0.35, 0)
+    fade.setColorAt(0, QColor(42, 26, 26, 255))
+    fade.setColorAt(1, QColor(42, 26, 26, 0))
+    p.fillRect(x0, 0, int(img.width() * 0.35) + 1, h, fade)
+    left = QLinearGradient(0, 0, w * 0.5, 0)
+    left.setColorAt(0, QColor(14, 14, 14, 200))
+    left.setColorAt(1, QColor(14, 14, 14, 0))
+    p.fillRect(0, 0, w, h, left)
+    bot = QLinearGradient(0, h * 0.75, 0, h)
+    bot.setColorAt(0, QColor(14, 14, 14, 0))
+    bot.setColorAt(1, QColor(14, 14, 14, 230))
+    p.fillRect(0, 0, w, h, bot)
+    p.end()
+    return pm

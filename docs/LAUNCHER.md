@@ -187,16 +187,20 @@ Paleta (`theme.py`) to średnie kolorów z próbek grafiki referencyjnej:
 | potwierdzenie / informacja | `#3f8f2c` / `#3a6fb0` |
 | niebo banera | `#5e2e2b`→`#8a4e4b` |
 
-**Świadome odstępstwa.** Grafika referencyjna zawiera logo *Morrowind* (znak towarowy Bethesdy)
-i ilustracje z gry. Repozytorium ich nie zawiera: zamiast logo jest własne godło (mosiężny pierścień
-z górami), zamiast ilustracji proceduralny pejzaż (`art.banner`: wulkan, dymy, grzybowa wieża,
-sylwetka miasta) i proceduralne domy (`art.preview`). Po pierwszym uruchomieniu gry podgląd pokazuje
+**Baner.** Pejzaż (wulkan, twierdza, grzybowa wieża) jest wycięty z grafiki referencyjnej dostarczonej
+przez autora projektu; nie pochodzi z gry. Plik: `launcher/resources/banner.png` (868×188), wycinek
+bez godła i napisu. Launcher rysuje go wyrównanego do prawej, z przejściem w tło pod tytułem.
+Gdy pliku brak, używany jest proceduralny pejzaż (`art.banner`).
+
+**Świadome odstępstwa.** Logo *Morrowind* (znak towarowy Bethesdy) zastępuje własne godło
+(mosiężny pierścień z górami). Ilustracja Balmory w karcie „Stan instalacji” zostaje zastąpiona
+proceduralnymi domami (`art.preview`). Po pierwszym uruchomieniu gry podgląd pokazuje
 lokalny zrzut ostatniego widoku (`<zapisy profilu>/last_view.png`), który nigdy nie opuszcza komputera.
 
 **Motyw lokalny (opcjonalny).** Własne obrazy można położyć w `~/.config/openmwgodot/theme/`
 (w trybie przenośnym: `userdata/config/theme/`):
 
-* `banner.png` — tło banera (skalowane i kadrowane do ~1024×140, tytuł rysowany na wierzchu),
+* `banner.png` — tło banera (ma pierwszeństwo przed `resources/banner.png`) (skalowane i kadrowane do ~1024×140, tytuł rysowany na wierzchu),
 * `preview.png` — obraz w karcie „Stan instalacji” (270×150).
 
 Pliki są czytane wyłącznie lokalnie; launcher nie kopiuje ich do repozytorium, raportów ani logów.

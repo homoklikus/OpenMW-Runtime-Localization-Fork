@@ -33,9 +33,10 @@ Układ i paleta odwzorowują referencję. Kolory to średnie z próbek obrazu: t
 `#131314`, karty `#171819`, kafelki `#282522` z ramką `#6e6457`, złote zaznaczenie `#a78850`→`#61481b`,
 zielone potwierdzenia, niebieskie informacje, karmazynowe niebo banera `#5e2e2b`→`#8a4e4b`.
 
-Logo *Morrowind* jest znakiem towarowym Bethesdy, a ilustracje w referencji pochodzą z gry, dlatego
-repozytorium ich nie zawiera. Zastąpiłem je własnymi grafikami: godłem (mosiężny pierścień z górami),
-proceduralnym pejzażem banera (wulkan, dymy, grzybowa wieża, miasto) i proceduralnym podglądem.
+Pejzaż na banerze (wulkan, twierdza, grzybowa wieża) jest wycięty z grafiki referencyjnej
+(`launcher/resources/banner.png`, bez godła i napisu); według autora projektu nie pochodzi z gry.
+Logo *Morrowind* jest znakiem towarowym Bethesdy, więc zastępuje je własne godło (mosiężny pierścień
+z górami). Ilustrację Balmory w karcie „Stan instalacji” zastępuje proceduralny podgląd.
 Po pierwszej sesji gry podgląd pokazuje lokalny zrzut ostatniego widoku. Opcjonalny motyw lokalny:
 `~/.config/openmwgodot/theme/banner.png` i `preview.png` (własne obrazy użytkownika, czytane tylko
 lokalnie). Szczegóły: `LAUNCHER.md` §9a.

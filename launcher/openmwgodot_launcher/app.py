@@ -157,7 +157,9 @@ class Banner(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         if self._pm is None or self._pm.width() != self.width():
-            self._pm = art.user_image("banner", self.width(), self.height()) or art.banner(self.width(), self.height())
+            self._pm = (art.user_image("banner", self.width(), self.height())
+                        or art.image_banner(self.width(), self.height())
+                        or art.banner(self.width(), self.height()))
         p.drawPixmap(0, 0, self._pm)
         p.drawPixmap(30, 16, theme.emblem(104))
         p.setFont(art.serif_font(52))
