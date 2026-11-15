@@ -13,6 +13,9 @@
   gra przyjmuje dowolną rozdzielczość „SZERxWYS” i wyśrodkowuje okno.
 * Gra: tryb zrzutu do porównań z OpenMW (`--camera`, `--look`, `--hour`, `--weather`, `--fov`, `--screenshot`);
   argumenty można też podać w `override.cfg` (`[mwgodot] cli/<nazwa>=…`), np. przy starcie przez MCP Godota.
+* MCP-openMW 0.8.0 przeniesiony do repozytorium (`tools/MCP-openMW`, wcześniej w forku na zamrożonej gałęzi
+  `0.5-world`): profil zewnętrzny `openmwgodot` (zrzuty OpenMWGodot z tą samą kamerą co OpenMW, porównania
+  z każdym profilem), wykrywanie folderu `OpenMW RLF` obok repozytorium.
 * Woda: falowanie i wzór we współrzędnych świata – bez szczelin na łączeniach komórek.
 * Gra `mw_flora.gd`: MultiMesh, bez kolizji i cieni, test alfa, normalne w górę; zasięg i gęstość w ustawieniach.
 * Launcher: zakładka Świat (odpowiednik world.cfg forka), opcje roślinności w zakładce Grafika.

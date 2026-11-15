@@ -1,0 +1,213 @@
+f912a3182c0ef77232766be57ddfdd1b4483725b4458e74e026c42c80a52a9f0  ./00 Core MGE XE/Rem_AC.esp
+607e2c1ae2dc470b5dd8e4c56da3ddf11f02b0a1131c49796ed194b36a5c5502  ./00 Core MGE XE/Rem_AI.esp
+8b99f073694548e76ac660b66586c6549c872f8c100bdefcb51faef620bdc24e  ./00 Core MGE XE/Rem_AL.esp
+921b6cb91a8c7a41645fe8a6e047f9450efffb0ccd9124afadc440bf8995ac65  ./00 Core MGE XE/Rem_BC.esp
+bab05aa5361ff0bc1cf5adf136d6c1207da0f477e2dab681f5245f686e130760  ./00 Core MGE XE/Rem_GL.esp
+c8213da3943f4e999ad0802f85dd09263f861277f8323605367a5ce67e84076e  ./00 Core MGE XE/Rem_Solstheim.esp
+034248fa6d9e8a254e7b8799e8875acc3844a22ca129d57e5ed197b6d71c8094  ./00 Core MGE XE/Rem_WG.esp
+90df37e09f2d5a0fffe4799b332e70652073c1bef672565d491042e6085c557c  ./00 Core MGE XE/meshes/grass/rem_ac_grass_01.nif
+cd12bbcf83e313151de3a38b26091eef1ce71b613b500ea18ff386ff55c6b3e3  ./00 Core MGE XE/meshes/grass/rem_ac_grass_03.nif
+87d8ace40646bd64e48bf7a5ceef0cdf5beab86651f182e683f761abeee93e10  ./00 Core MGE XE/meshes/grass/rem_ac_grass_04.nif
+723b8add4dec10f48339c2dce8991549e885e2188a77c3ef4c358ca41fa32b6d  ./00 Core MGE XE/meshes/grass/rem_ai_grass_01.nif
+a08984e551e4dcd49b21f504d1b7bad9005cb6d9183b2b96adae6cf3f0e3165a  ./00 Core MGE XE/meshes/grass/rem_ai_grass_01b.nif
+1c1f75d80d093eb9f92416961c2c4bd0bc0fcb015d3e4d07cda793d9b19fb3ee  ./00 Core MGE XE/meshes/grass/rem_ai_grass_01c.nif
+723b8add4dec10f48339c2dce8991549e885e2188a77c3ef4c358ca41fa32b6d  ./00 Core MGE XE/meshes/grass/rem_ai_grass_02.nif
+11acf35cc374972a3134d5cd2e6dd201600e50a954ca06a75cc2fe2d8cd68f1e  ./00 Core MGE XE/meshes/grass/rem_ai_grass_03.nif
+d56ebb46ab3176e03f4d7bc08762ff4fb4323e9910b0a66d66c84004117734e7  ./00 Core MGE XE/meshes/grass/rem_al_grass.nif
+c60bd6eaa5decd82615b10fe38480971c972944aa902f058d1438647be9bb087  ./00 Core MGE XE/meshes/grass/rem_al_grass_b.nif
+78fc9665f844ac019f26b109bb63c59beafbe5044235a36dc6435e604eb9d14b  ./00 Core MGE XE/meshes/grass/rem_al_rock.nif
+4787aa99bd47108dda3c55fe28e695b3dd7dce807fe3b278d5026d04255479f5  ./00 Core MGE XE/meshes/grass/rem_at_grass.nif
+276e8b41dd99f4dcd8b72bfb11d0c596e6e6d5de94c2a7eb9a02921a519c7662  ./00 Core MGE XE/meshes/grass/rem_at_grass_02.nif
+31fbf2dc2a0ec7bb5ac771c3e5a7dd1ac619180151b206399102906ad50e390b  ./00 Core MGE XE/meshes/grass/rem_bc_grass_01.nif
+1ef83bcd037b183a100685c74329124df0ff7eea9532f8de810c604d13cd31f0  ./00 Core MGE XE/meshes/grass/rem_bc_grass_02.nif
+6483fc31603330f63cd6b0785c90484d21992bfe9ba055711e045f4aded31db3  ./00 Core MGE XE/meshes/grass/rem_bc_grass_03.nif
+fa5cb34059b5e7d6ac146577e487b3a6ea8614198d09da1fee11cb3c03173156  ./00 Core MGE XE/meshes/grass/rem_gl_grass_01.nif
+708a862a6d2477956781b2c2a0cf4b3e5e45a863d144c76a8e2d13a428e50e8e  ./00 Core MGE XE/meshes/grass/rem_gl_grass_01b.nif
+0d9e03164495c7906f21aa5a94bc3181a9f742fcd3b770b31309575de207c4ac  ./00 Core MGE XE/meshes/grass/rem_gl_grass_01c.nif
+d827e367dd1379cb90ac9cc681bb53a1eebdff09faf0d17cbecfdcce83f6941b  ./00 Core MGE XE/meshes/grass/rem_gm_grass.nif
+c759932510775fa54447a68d34d50d7eb48e34153cdc63c0f66df7e2aa686c8f  ./00 Core MGE XE/meshes/grass/rem_gm_mold_01.nif
+70291b83178255b0807e5a0ded0595fa30b9bef9cd35e826f6e165a9670fcdd8  ./00 Core MGE XE/meshes/grass/rem_gm_parasol_01.nif
+ddfe0e0a939d2eabf58969ed4c1bb8dd9f001e62a84135d4d27d7b41091c12f5  ./00 Core MGE XE/meshes/grass/rem_gm_parasol_02.nif
+5a0e9c41101183ded7dce98c76c48b5ff95572ad2fd966f24a4da2a91af6d1d3  ./00 Core MGE XE/meshes/grass/rem_rr_grass_01.nif
+8b3ed810ef94c3aa4f3a76b0fcabc6867002d029995df151533030b93af374eb  ./00 Core MGE XE/meshes/grass/rem_rr_grass_02.nif
+b2bf13cd52fb7665b1dce82d1525e7be7e4f298a7bb8764049c3f1778a23e2e1  ./00 Core MGE XE/meshes/grass/rem_sol_grass_01.nif
+8d67b3eb3c34b881dfbd5549d6a713ca26df0c01140889d6ea25015eb1e394ba  ./00 Core MGE XE/meshes/grass/rem_sol_grass_01b.nif
+22694a2a7b23e328b68f540a5d48d2e570c5aae7f92d4dc90db9ab212e415ffc  ./00 Core MGE XE/meshes/grass/rem_sol_grass_02.nif
+63ca695c9552f0ca66b2496c8f66ffdf54bc2aad979c974056e864b241689a29  ./00 Core MGE XE/meshes/grass/rem_sol_grass_02b.nif
+bd47c7432eb5a965119a0cfa65160a64757c6af3124a62c7c36ff8b940d1b42b  ./00 Core MGE XE/meshes/grass/rem_tv_grass.nif
+f27d7fdd2b32e73a903acb0c8321c36e8916f18cc66794cd5cae6f1eb21d302d  ./00 Core MGE XE/meshes/grass/rem_wg_grass_01.nif
+80cd1ac9f0d52df7a3d8442c1a590e1751979ee64c2a876126b8e8a23bf8a7ec  ./00 Core MGE XE/meshes/grass/rem_wg_grass_01b.nif
+c0ff0cff228c431ed54ca00601ca9710b05794ae1ad8bba811e3148dbaa45bc1  ./00 Core MGE XE/meshes/grass/rem_wg_grass_02.nif
+4e541e6bf6776da2aacef1ecd4bfde96a93493f95317f16547dff26f1f92f0a0  ./00 Core MGE XE/meshes/grass/rem_wg_grass_02b.nif
+22e0b1f18fc5b2beccb63a281ddf5690cd0a481158ae014a9a2e36bdad86327d  ./00 Core MGE XE/meshes/grass/rem_wg_grass_03.nif
+a480e299054fb75aecb656957ddcfdfc759d1487fd354fdae1d684b8cd951615  ./00 Core MGE XE/meshes/grass/rem_wg_grass_04.nif
+73338f384c1dd88fd829bc29d6ae2e60221ddbd02a79b348b5e1612f068e2e52  ./00 Core MGE XE/shaders/core-mods/XE Mod Grass.fx
+fe6f92a9a085baad51b0f146a014346066fe77d05a27c01cfaae0079b51fdc60  ./00 Core MGE XE/textures/rem/grass/tx_ac_grass_01.dds
+6634b430e9adf9ea5336417a5a376ffe1f3b0bf499f502e905f779b81b7c0630  ./00 Core MGE XE/textures/rem/grass/tx_ac_grass_02.dds
+ee9f63628121b27cb0d5e78bc751b22d106bd19524abdcc00cdb46f8d7482c74  ./00 Core MGE XE/textures/rem/grass/tx_ac_grass_03.dds
+9c508b21a21a0745df0f49a86e4abd929d0a045fa30d014f252aafd0af28330b  ./00 Core MGE XE/textures/rem/grass/tx_ac_grass_04.dds
+850773d88feb0f751a8b7301ad2ae571d9b82e81878726347ba13555a223214d  ./00 Core MGE XE/textures/rem/grass/tx_al_rock.dds
+f95e21a12a2a44c3be5ce727dec174e340ffae075239a1c09f99e2e925ff8464  ./00 Core MGE XE/textures/rem/grass/tx_bc_grass_03.dds
+deb251a6c448856417255a74b8b5087cd79fb86bd62bffb44e041e82326cb3ef  ./00 Core MGE XE/textures/rem/grass/tx_grass_AI_01.dds
+3757dc18152a737de18399d6db39e022640a3d53c99c24744acdcd1ee49becfc  ./00 Core MGE XE/textures/rem/grass/tx_grass_AI_01b.dds
+7a55b607c657e3568aeb51daa7517d1423a3f6f2d7f4b948f330a305770f09d2  ./00 Core MGE XE/textures/rem/grass/tx_grass_AI_01c.dds
+0362ef76b585984e6c60578483e741f8460de906fc44825bbf82cc7fcf0cafb0  ./00 Core MGE XE/textures/rem/grass/tx_grass_AL.dds
+01cebf77a636272818987c291d3ff44c755ab617c189934c20aff1e2c8899894  ./00 Core MGE XE/textures/rem/grass/tx_grass_AL_b.dds
+8b576f909c92034896c0f93bafca31c5eb7962dea81a33a927b0a1adabba98a8  ./00 Core MGE XE/textures/rem/grass/tx_grass_AT.dds
+e2c4626918488f1ef54832401e3e09e7023dbace0c1a39a5c18699efb42c9473  ./00 Core MGE XE/textures/rem/grass/tx_grass_AT_02.dds
+42ab9e417e9d6a1fd0711f7da324a3e36233de29690661384dfb66ae08a2bb6d  ./00 Core MGE XE/textures/rem/grass/tx_grass_RR_01.dds
+83e8ea24c871a4a210cf5c03c0b224faae22bd4f570ca06b0b2d2ed8df409f0e  ./00 Core MGE XE/textures/rem/grass/tx_grass_RR_02.dds
+a52f2a90af2b02e1720b6f6132bce532dddd00973ddf4cd0eeed76b0df9cee78  ./00 Core MGE XE/textures/rem/grass/tx_grass_TV.dds
+c9cde33be650e93a2b7d80d8946628f43ebf45b06f15437101b9875af75f470f  ./00 Core MGE XE/textures/rem/grass/tx_grass_ai_03.dds
+6500131d0736001bd187349eb87a3903f29384ef06a623c37998b04e022df94d  ./00 Core MGE XE/textures/rem/grass/tx_grass_ai_clover.dds
+188602cf13d30ceea9927f0b584de880eb2cd565ee8f85d0a47b9452a6f1cd55  ./00 Core MGE XE/textures/rem/grass/tx_grass_bc_01.dds
+158f9e2a19aee0f851ac5a472d2fe8581b8ee7f19b4904d18edfa6ac91673cb5  ./00 Core MGE XE/textures/rem/grass/tx_grass_bc_02.dds
+9208fd566db33692dd3de1d70221734bc1a42498612f365819824f3e0e7c7170  ./00 Core MGE XE/textures/rem/grass/tx_grass_gl_01.dds
+82ab6b6f843bd46f440d3ae7a0081162fae01daccd0393d5a2a9490dff6ad1af  ./00 Core MGE XE/textures/rem/grass/tx_grass_gl_01b.dds
+d148289f48663c508c8170dfe516c9914025dac53fe04c2876e73387c3b7be33  ./00 Core MGE XE/textures/rem/grass/tx_grass_gl_01c.dds
+9cb7908b00f5feadf96ffedf8c96951d878242b5a5133e89e7867ef26429c2fc  ./00 Core MGE XE/textures/rem/grass/tx_grass_gm.dds
+6e5013c4ede8840c86187469683ed1cdc675b12cb273f210b30d13d465e0b2cf  ./00 Core MGE XE/textures/rem/grass/tx_grass_solstheim_01.dds
+3de244d0bfaaaf420b7e6e788933dae2e0962ea533d564b9fef724e78f8001a0  ./00 Core MGE XE/textures/rem/grass/tx_grass_solstheim_01b.dds
+9439f6a8c467aaa1ce29a19d5748fbb715b609505165c9e2e88daad247f62676  ./00 Core MGE XE/textures/rem/grass/tx_grass_solstheim_02.dds
+715147f556aaf2c8434169f3eef9ebc5a55554c88a77992f7a55f68d69954fe7  ./00 Core MGE XE/textures/rem/grass/tx_grass_solstheim_02b.dds
+7e5fd2e2a54ecc2d07cf61d097ecbbf4c2ca9d375a9016ddeb498a7e5858254e  ./00 Core MGE XE/textures/rem/grass/tx_grass_wg_01.dds
+513c4c3039d4d3219bf40f2d85c27d20d967a8b7a3854f779a9887a1dc2bf5a7  ./00 Core MGE XE/textures/rem/grass/tx_grass_wg_01b.dds
+9a44d4ce7c38e5e523f6ec3b9a52fb1a814b44e8a615c1096fe0b6291846c606  ./00 Core MGE XE/textures/rem/grass/tx_grass_wg_02.dds
+4d55957b15e9d788caf4c327602a85b50c52e84796fa868f8c38600560aa16fe  ./00 Core MGE XE/textures/rem/grass/tx_grass_wg_02b.dds
+523a7e05f9511e059cc3b4cdbbaeac0a98f102e649eaa7363338def0be780761  ./00 Core MGE XE/textures/rem/grass/tx_rem_rock_wg_01.dds
+f912a3182c0ef77232766be57ddfdd1b4483725b4458e74e026c42c80a52a9f0  ./00 Core OpenMW/Rem_AC.esp
+607e2c1ae2dc470b5dd8e4c56da3ddf11f02b0a1131c49796ed194b36a5c5502  ./00 Core OpenMW/Rem_AI.esp
+8b99f073694548e76ac660b66586c6549c872f8c100bdefcb51faef620bdc24e  ./00 Core OpenMW/Rem_AL.esp
+921b6cb91a8c7a41645fe8a6e047f9450efffb0ccd9124afadc440bf8995ac65  ./00 Core OpenMW/Rem_BC.esp
+bab05aa5361ff0bc1cf5adf136d6c1207da0f477e2dab681f5245f686e130760  ./00 Core OpenMW/Rem_GL.esp
+c8213da3943f4e999ad0802f85dd09263f861277f8323605367a5ce67e84076e  ./00 Core OpenMW/Rem_Solstheim.esp
+034248fa6d9e8a254e7b8799e8875acc3844a22ca129d57e5ed197b6d71c8094  ./00 Core OpenMW/Rem_WG.esp
+b6ac72b5a897ae2695f120e4e4af7dc948d5814e192d2b28dc6bfffb5690e2d0  ./00 Core OpenMW/meshes/grass/rem_ac_grass_01.nif
+cd12bbcf83e313151de3a38b26091eef1ce71b613b500ea18ff386ff55c6b3e3  ./00 Core OpenMW/meshes/grass/rem_ac_grass_03.nif
+87d8ace40646bd64e48bf7a5ceef0cdf5beab86651f182e683f761abeee93e10  ./00 Core OpenMW/meshes/grass/rem_ac_grass_04.nif
+9299e919f8fa161703c41e548246c0b4d599a946bc49872d15dc06e378a194f6  ./00 Core OpenMW/meshes/grass/rem_ai_grass_01.nif
+e98420e394199bad2444c0197a88258c2cbc7236a534a650d7bdbeade1ed6b7b  ./00 Core OpenMW/meshes/grass/rem_ai_grass_01b.nif
+cfb4f46fd855c382d9534ed0be58f977c27c7e8986a029379fe7c96e86cc8871  ./00 Core OpenMW/meshes/grass/rem_ai_grass_01c.nif
+9299e919f8fa161703c41e548246c0b4d599a946bc49872d15dc06e378a194f6  ./00 Core OpenMW/meshes/grass/rem_ai_grass_02.nif
+a5b0f94741212108f995980055bf8cb131798ee8855de997b0d0d74ec002dce1  ./00 Core OpenMW/meshes/grass/rem_ai_grass_03.nif
+fa840e6a4e48c678d7b2390b5ffe144a61449f7bc859ab0a02ccf74bd3877221  ./00 Core OpenMW/meshes/grass/rem_al_grass.nif
+06e3cfc4d15d6d5b02e37097e3068ad4546fa9878fcc443b6ec13e368fa933bb  ./00 Core OpenMW/meshes/grass/rem_al_grass_b.nif
+78fc9665f844ac019f26b109bb63c59beafbe5044235a36dc6435e604eb9d14b  ./00 Core OpenMW/meshes/grass/rem_al_rock.nif
+21ceedcd850cb7c65be2c0a4d93448b068ed653bca27b431c1d2bb2a482a2d51  ./00 Core OpenMW/meshes/grass/rem_at_grass.nif
+e14de79d09652cfc19cdecf191c9a54fde7869ae9001fed486f8926bf5397dd9  ./00 Core OpenMW/meshes/grass/rem_at_grass_02.nif
+71e23d99bbcc3d41e2a36e29bc220a266926ddbbcbe22179c739dc567164747a  ./00 Core OpenMW/meshes/grass/rem_bc_grass_01.nif
+1ef83bcd037b183a100685c74329124df0ff7eea9532f8de810c604d13cd31f0  ./00 Core OpenMW/meshes/grass/rem_bc_grass_02.nif
+8d1d6bd196054b574e32bc87ca1b0a9552b60cf8800b50e03a0e1ee686ad29c1  ./00 Core OpenMW/meshes/grass/rem_bc_grass_03.nif
+4acd54ffd80e0dabf52c54675d0e1e6df1e9bdade83df56d4a86f492ec65a591  ./00 Core OpenMW/meshes/grass/rem_gl_grass_01.nif
+423534c3abfd93f0b4f65b388032342ded4a827c9ef36793159db784d7da6ad6  ./00 Core OpenMW/meshes/grass/rem_gl_grass_01b.nif
+5e7b20023c3be20f37d2d12a54abf02ffb12bd03a09c4b97173f17300bb8fe37  ./00 Core OpenMW/meshes/grass/rem_gl_grass_01c.nif
+c1f3231bc151ce0b79e5c82288188ee0f2561b799ddbb04bfdd84d70a0c014c0  ./00 Core OpenMW/meshes/grass/rem_gm_grass.nif
+21a9a5b5579c8b42780b917b30402c27ad578f6eb2f22d91d420d4aadc3acfb0  ./00 Core OpenMW/meshes/grass/rem_gm_mold_01.nif
+70291b83178255b0807e5a0ded0595fa30b9bef9cd35e826f6e165a9670fcdd8  ./00 Core OpenMW/meshes/grass/rem_gm_parasol_01.nif
+ddfe0e0a939d2eabf58969ed4c1bb8dd9f001e62a84135d4d27d7b41091c12f5  ./00 Core OpenMW/meshes/grass/rem_gm_parasol_02.nif
+4ad79c5df310096832032d509bc427a835047321053ef4a750139d1d2c9b1eb5  ./00 Core OpenMW/meshes/grass/rem_rr_grass_01.nif
+2e4047f9e1b9b86b59c7b3c687d2cd4b008f9ed422a10c0400cb094ac7c9768e  ./00 Core OpenMW/meshes/grass/rem_rr_grass_02.nif
+2e2320c40220ea7d1719cd55b961bb5d4db0ad61f0b56bdc1239532953ee1cd6  ./00 Core OpenMW/meshes/grass/rem_sol_grass_01.nif
+d51f8e743e28002adc7daba000702241a146c9e3492ec9a87f3ce7ff78583ae6  ./00 Core OpenMW/meshes/grass/rem_sol_grass_01b.nif
+296f5cd580cac0219ca02d58e30f62a63b994543b8ca6739f43e0bffcc49c551  ./00 Core OpenMW/meshes/grass/rem_sol_grass_02.nif
+47298cd34dc2abf042398f1e334291cbe054cde512dec9603c2161b0854a4526  ./00 Core OpenMW/meshes/grass/rem_sol_grass_02b.nif
+0a1f1a7a05491062a242cdc6e6eab8d9bb35dcb71799993f5ed892650f646ee8  ./00 Core OpenMW/meshes/grass/rem_tv_grass.nif
+8b5f8352b425f44cca6e823b9e92641c6dd05ace44cfe9550e74a534b3b74e83  ./00 Core OpenMW/meshes/grass/rem_wg_grass_01.nif
+f548711131385115757cba2b4c5a9ae2f18a8c779ac7a35add122dab473996dd  ./00 Core OpenMW/meshes/grass/rem_wg_grass_01b.nif
+0caa2a4662f54d926e7b4707f7cf568fb7052e5a6a9db052ea359838a1174214  ./00 Core OpenMW/meshes/grass/rem_wg_grass_02.nif
+5c3d36a6a2b04f9b615f285361c6e4d433da9e25c1f3bb5baf9f463f7fb52d42  ./00 Core OpenMW/meshes/grass/rem_wg_grass_02b.nif
+22e0b1f18fc5b2beccb63a281ddf5690cd0a481158ae014a9a2e36bdad86327d  ./00 Core OpenMW/meshes/grass/rem_wg_grass_03.nif
+a480e299054fb75aecb656957ddcfdfc759d1487fd354fdae1d684b8cd951615  ./00 Core OpenMW/meshes/grass/rem_wg_grass_04.nif
+fe6f92a9a085baad51b0f146a014346066fe77d05a27c01cfaae0079b51fdc60  ./00 Core OpenMW/textures/rem/grass/tx_ac_grass_01.dds
+6634b430e9adf9ea5336417a5a376ffe1f3b0bf499f502e905f779b81b7c0630  ./00 Core OpenMW/textures/rem/grass/tx_ac_grass_02.dds
+ee9f63628121b27cb0d5e78bc751b22d106bd19524abdcc00cdb46f8d7482c74  ./00 Core OpenMW/textures/rem/grass/tx_ac_grass_03.dds
+9c508b21a21a0745df0f49a86e4abd929d0a045fa30d014f252aafd0af28330b  ./00 Core OpenMW/textures/rem/grass/tx_ac_grass_04.dds
+850773d88feb0f751a8b7301ad2ae571d9b82e81878726347ba13555a223214d  ./00 Core OpenMW/textures/rem/grass/tx_al_rock.dds
+f95e21a12a2a44c3be5ce727dec174e340ffae075239a1c09f99e2e925ff8464  ./00 Core OpenMW/textures/rem/grass/tx_bc_grass_03.dds
+deb251a6c448856417255a74b8b5087cd79fb86bd62bffb44e041e82326cb3ef  ./00 Core OpenMW/textures/rem/grass/tx_grass_AI_01.dds
+3757dc18152a737de18399d6db39e022640a3d53c99c24744acdcd1ee49becfc  ./00 Core OpenMW/textures/rem/grass/tx_grass_AI_01b.dds
+7a55b607c657e3568aeb51daa7517d1423a3f6f2d7f4b948f330a305770f09d2  ./00 Core OpenMW/textures/rem/grass/tx_grass_AI_01c.dds
+0362ef76b585984e6c60578483e741f8460de906fc44825bbf82cc7fcf0cafb0  ./00 Core OpenMW/textures/rem/grass/tx_grass_AL.dds
+01cebf77a636272818987c291d3ff44c755ab617c189934c20aff1e2c8899894  ./00 Core OpenMW/textures/rem/grass/tx_grass_AL_b.dds
+8b576f909c92034896c0f93bafca31c5eb7962dea81a33a927b0a1adabba98a8  ./00 Core OpenMW/textures/rem/grass/tx_grass_AT.dds
+e2c4626918488f1ef54832401e3e09e7023dbace0c1a39a5c18699efb42c9473  ./00 Core OpenMW/textures/rem/grass/tx_grass_AT_02.dds
+42ab9e417e9d6a1fd0711f7da324a3e36233de29690661384dfb66ae08a2bb6d  ./00 Core OpenMW/textures/rem/grass/tx_grass_RR_01.dds
+83e8ea24c871a4a210cf5c03c0b224faae22bd4f570ca06b0b2d2ed8df409f0e  ./00 Core OpenMW/textures/rem/grass/tx_grass_RR_02.dds
+a52f2a90af2b02e1720b6f6132bce532dddd00973ddf4cd0eeed76b0df9cee78  ./00 Core OpenMW/textures/rem/grass/tx_grass_TV.dds
+c9cde33be650e93a2b7d80d8946628f43ebf45b06f15437101b9875af75f470f  ./00 Core OpenMW/textures/rem/grass/tx_grass_ai_03.dds
+6500131d0736001bd187349eb87a3903f29384ef06a623c37998b04e022df94d  ./00 Core OpenMW/textures/rem/grass/tx_grass_ai_clover.dds
+188602cf13d30ceea9927f0b584de880eb2cd565ee8f85d0a47b9452a6f1cd55  ./00 Core OpenMW/textures/rem/grass/tx_grass_bc_01.dds
+158f9e2a19aee0f851ac5a472d2fe8581b8ee7f19b4904d18edfa6ac91673cb5  ./00 Core OpenMW/textures/rem/grass/tx_grass_bc_02.dds
+9208fd566db33692dd3de1d70221734bc1a42498612f365819824f3e0e7c7170  ./00 Core OpenMW/textures/rem/grass/tx_grass_gl_01.dds
+82ab6b6f843bd46f440d3ae7a0081162fae01daccd0393d5a2a9490dff6ad1af  ./00 Core OpenMW/textures/rem/grass/tx_grass_gl_01b.dds
+d148289f48663c508c8170dfe516c9914025dac53fe04c2876e73387c3b7be33  ./00 Core OpenMW/textures/rem/grass/tx_grass_gl_01c.dds
+9cb7908b00f5feadf96ffedf8c96951d878242b5a5133e89e7867ef26429c2fc  ./00 Core OpenMW/textures/rem/grass/tx_grass_gm.dds
+6e5013c4ede8840c86187469683ed1cdc675b12cb273f210b30d13d465e0b2cf  ./00 Core OpenMW/textures/rem/grass/tx_grass_solstheim_01.dds
+3de244d0bfaaaf420b7e6e788933dae2e0962ea533d564b9fef724e78f8001a0  ./00 Core OpenMW/textures/rem/grass/tx_grass_solstheim_01b.dds
+9439f6a8c467aaa1ce29a19d5748fbb715b609505165c9e2e88daad247f62676  ./00 Core OpenMW/textures/rem/grass/tx_grass_solstheim_02.dds
+715147f556aaf2c8434169f3eef9ebc5a55554c88a77992f7a55f68d69954fe7  ./00 Core OpenMW/textures/rem/grass/tx_grass_solstheim_02b.dds
+7e5fd2e2a54ecc2d07cf61d097ecbbf4c2ca9d375a9016ddeb498a7e5858254e  ./00 Core OpenMW/textures/rem/grass/tx_grass_wg_01.dds
+513c4c3039d4d3219bf40f2d85c27d20d967a8b7a3854f779a9887a1dc2bf5a7  ./00 Core OpenMW/textures/rem/grass/tx_grass_wg_01b.dds
+9a44d4ce7c38e5e523f6ec3b9a52fb1a814b44e8a615c1096fe0b6291846c606  ./00 Core OpenMW/textures/rem/grass/tx_grass_wg_02.dds
+4d55957b15e9d788caf4c327602a85b50c52e84796fa868f8c38600560aa16fe  ./00 Core OpenMW/textures/rem/grass/tx_grass_wg_02b.dds
+523a7e05f9511e059cc3b4cdbbaeac0a98f102e649eaa7363338def0be780761  ./00 Core OpenMW/textures/rem/grass/tx_rem_rock_wg_01.dds
+90df37e09f2d5a0fffe4799b332e70652073c1bef672565d491042e6085c557c  ./01a No Mushrooms MGE XE/meshes/grass/rem_ac_grass_03.nif
+90df37e09f2d5a0fffe4799b332e70652073c1bef672565d491042e6085c557c  ./01a No Mushrooms MGE XE/meshes/grass/rem_ac_grass_04.nif
+e97917b6df50bbefb7dc84410802a5f67e8379269594779548ac60c6b45ae093  ./01a No Mushrooms MGE XE/meshes/grass/rem_ai_grass_01b.nif
+7266f6d427da72cfadd6d1f2f1b4d964765137eb1bb8fff4237b593bfadcb95f  ./01a No Mushrooms MGE XE/meshes/grass/rem_ai_grass_03.nif
+31fbf2dc2a0ec7bb5ac771c3e5a7dd1ac619180151b206399102906ad50e390b  ./01a No Mushrooms MGE XE/meshes/grass/rem_bc_grass_02.nif
+b6ac72b5a897ae2695f120e4e4af7dc948d5814e192d2b28dc6bfffb5690e2d0  ./01a No Mushrooms OpenMW/meshes/grass/rem_ac_grass_03.nif
+b6ac72b5a897ae2695f120e4e4af7dc948d5814e192d2b28dc6bfffb5690e2d0  ./01a No Mushrooms OpenMW/meshes/grass/rem_ac_grass_04.nif
+bfdb4c8d43a63eaec7005b747606753b97bf53b23e4a947a9c09b6e872dac9bb  ./01a No Mushrooms OpenMW/meshes/grass/rem_ai_grass_01b.nif
+11bd01bdc4c4b307d6290a8601da11c41c7b327ffd89927dc841ba91d946033a  ./01a No Mushrooms OpenMW/meshes/grass/rem_ai_grass_03.nif
+71e23d99bbcc3d41e2a36e29bc220a266926ddbbcbe22179c739dc567164747a  ./01a No Mushrooms OpenMW/meshes/grass/rem_bc_grass_02.nif
+6c6567e749c8235d8b8aba1878d194c2fdcafcc20cee33536699455f745f1e0f  ./01b Thicker Grass MGE XE/meshes/grass/rem_ac_grass_03.nif
+20fc5dc39c4b49ffb4999de5eaac3327215632c5abab6c4a380c8cab17893b61  ./01b Thicker Grass MGE XE/meshes/grass/rem_ac_grass_04.nif
+870ecc142fe56616f651b43d4fd2a5e96213202d6bd34df6e0bd3ca88a71b707  ./01b Thicker Grass MGE XE/meshes/grass/rem_bc_grass_02.nif
+9a61e20c4fda7157d5952d271690cd19821627941bbfa92d3eef83cf586cdaaa  ./01b Thicker Grass OpenMW/meshes/grass/rem_ac_grass_03.nif
+d02655a0e69226b9bd86a6d85d98be587d9d029d611c7026eb29bf009166f0b0  ./01b Thicker Grass OpenMW/meshes/grass/rem_ac_grass_04.nif
+d7000193990cc25cd28f5f67378e1168a5742de2bed134e0d25dfb4232e27c91  ./01b Thicker Grass OpenMW/meshes/grass/rem_bc_grass_02.nif
+83ca8edd82fded793f5a9c0f8dfb2ffc49f2353ca2595694deb8f3452b944f00  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_ac_grass_01.dds
+672bc0417450fad43a3509c85e309b4203ff94ffd521e610d70d866d139d11f1  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_ac_grass_02.dds
+96217c3a828441e44b1f957f74d1d142c341431b9d12af5b40d92ec53024c073  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_ac_grass_03.dds
+73333aa445c79b353c617ae60933c218f1f2229ab2ff2f6f1b5f66d62c96f6a4  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_ac_grass_04.dds
+07bbc158fbd79dacadcf9daba0b89aefbf87487425a238e371dd848ad947519a  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_al_rock.dds
+1ed2ed273bdef0747a176f09d5b887fc921811ca82911bcca513e8fcbfe5eec9  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_bc_grass_03.dds
+ea0c404eaf21e0aeb6c91a9a6413bafb4282007ec364d9b5598d4e1663a0ce69  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_AI_01.dds
+9b9d0daad131a0e0408eb69a6bf1cf7e07c13fa29124acf4cc46743d9620617e  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_AI_01b.dds
+fc3d9a0d8004662969cd8bb93a5f8d320f837a1d8d595947d0e801ae9a8ab58f  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_AI_01c.dds
+15b966861e3b366c7adabdf64785284c365668ac394159b7f272cd3e5af81456  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_AL.dds
+ec83150e22a7b9462d95bb0bcfa3bc20bdb94136a6f2a8be3eaf3e8ba4d8458e  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_AL_b.dds
+26ab2674a184e81343b4dea29d78e5af1b219fd4f49822df14ffdb49e14f4f55  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_AT.dds
+10ef8823fb1ced89bd1a5e8654e1b201984950e9a1e83934c5c0f1545525b66e  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_AT_02.dds
+a851865f16b394ee7589eac59ae0ab1b539b1c5be6c0526facd34e9856b4fca8  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_RR_01.dds
+1f00389201eaaf6d76861d50de86c1931199c5c1c5836c60d1c27754af209bb1  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_RR_02.dds
+d23daa83a68a60f8fc0b73c5cbb1687672847bce1f590b3b4179494e02620a44  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_TV.dds
+7c12451a9d194a7508e1e93b86525194e4e79bbc8c2047c5788a6a6904fea96b  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_ai_03.dds
+d0b4e6a3bb4e63d65a66fa15637b805897dd5cc3d553343b49259d993d415a1e  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_ai_clover.dds
+89335cf0d51cddc4316fd6d8045741a93bb36870efef1dcaaa25b1d557b1abe1  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_bc_01.dds
+b2a77c58e23e9794c807aa0aae991d11e9ad71faa6e7c0568860f9a2e5845b39  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_bc_02.dds
+427378df1beded5992ba2e8f06b6b5b1cfaed347ac63fd8c1be1387321b689c7  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_gl_01.dds
+dd11437f3309f3ae5eb83146b83cf3e5e989f4597f3940b7b0f3df5242313452  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_gl_01b.dds
+04616d84d28f14fee28d315e064d74c238d3890988114c52c7732061f04e35ef  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_gl_01c.dds
+9262ecb7ff6af9a7534145f712edb7f1cbb01092effbbcee7587f52d4c7f2672  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_gm.dds
+6ee807d939d190f32b35a059dc8483f4b3f2156de18b05f2d6834b854bfdf39e  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_solstheim_01.dds
+26adf99b3d5c92953c96cc015df2f70345149341d2766b3bb23d1e7888b67414  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_solstheim_01b.dds
+54a9e4d96792db9e8e6ea340213210e03424a664acd980842de787c6cf8ffa41  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_solstheim_02.dds
+a137e76efe4da8449fdf19f483209ec3fcfe2f7e4102fb373a01b801f3862125  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_solstheim_02b.dds
+2c047ea304aa8fdfe9a4a91b97b3e1c4c0053935cdb47a96f86c486de9929280  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_wg_01.dds
+ebadda6ad521ec8eec2ff7f08325dd2544db71f715a004ca5a7bebfe3ca5acc7  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_wg_01b.dds
+dbb838dc04b7b5e81c766ee3075b866682050d94a6e0dfdc152f431bea87c7da  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_wg_02.dds
+2fcb5ce74dd951c22360a268ab50abb90d9f8987f2d754a545797a629edc79ca  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_grass_wg_02b.dds
+2816b0277f26c7578366c363790c165756f8bb80570dcc230789f0a47e68af6f  ./02 Vanilla Resolution Textures/textures/rem/grass/tx_rem_rock_wg_01.dds
+31931ee39064ee8586454c1079904844dba8229bd6062a6b13f9c2c65b5af0cf  ./03 TR Plugins/Rem_AC_TR.esp
+16a62f6952a9b1d045e8e8afcce9436318ebd22aa1b80ec6f23a82fb471add20  ./03 TR Plugins/Rem_AI_TR.esp
+614102100cd06f3e854e2f056a7e0dca91fdfd1fb0f537b57ec10fb474fe82a9  ./03 TR Plugins/Rem_AL_TR.esp
+ddb4ababaf21e744578cac196339403483b47dd6846dd5c440f7fe2922b33069  ./03 TR Plugins/Rem_AT_TR.esp
+b804c5af60d547522af73825cd2e888e6dc18a4a2bd4d02f4ad1c750e017760b  ./03 TR Plugins/Rem_BC_TR.esp
+72dc39e4db4d764a87ac98184acbcee5de4b16026ab57a38004da84c53c0f7cf  ./03 TR Plugins/Rem_GL_TR.esp
+32cc7c528e7dbae8996baee75a0172ddd0077047b928ee7fe5a19320b2c73248  ./03 TR Plugins/Rem_RR_TR.esp
+e4a839abceb1b51af56c23f6f8d45646c6a23cdec7a07f4708aacfbb625706dd  ./03 TR Plugins/Rem_VM_TR.esp
+daceea6bf68a5c2f604dc83d1cddb3cbd2c17f4713f1808167d3a2e634df027b  ./03 TR Plugins/Rem_WG_TR.esp
+7227ca7c5ad2017ef266f20ba04909476ccf653f213f95d2fb4f2f721736f9d5  ./04a Legend of Chemua/Rem_LoC.esp
+5df6c893971e13e7e169a594ceb3a210416ac505ea8b222eccd6ffeb4147b91b  ./04b Legend of Chemua Moved/Rem_LoCM.esp

@@ -1,0 +1,13 @@
+.venv/
+.venv*/
+.cache/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# Główny .gitignore forka ma wzorzec *__* (linia 80) — przywracamy pliki pakietu Pythona
+!__init__.py
+!__main__.py

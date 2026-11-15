@@ -1,0 +1,2 @@
+GLOBAL: scripts/rlf_capture/global.lua
+PLAYER: scripts/rlf_capture/player.lua

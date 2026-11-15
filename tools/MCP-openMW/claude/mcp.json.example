@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "openmw-rlf": {
+      "type": "stdio",
+      "command": "/media/precell/Inne/Projekty AI/OpenMWGoDot/tools/MCP-openMW/.venv/bin/openmw-mcp",
+      "args": []
+    }
+  }
+}

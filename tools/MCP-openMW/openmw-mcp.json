@@ -1,0 +1,76 @@
+{
+  "project_root": "auto",
+  "manifest_dir": "Raporty/mcp/manifesty",
+  "targets": {
+    "fork": {
+      "repo": "Fork/repo",
+      "binary": "Fork/install/bin/openmw",
+      "version_file": "Fork/install/share/games/openmw/resources/version",
+      "build_dir": "Fork/build",
+      "settings_defaults": "Fork/repo/files/settings-default.cfg",
+      "binary_markers": {
+        "runtime_localization": "Runtime localization: native loading complete",
+        "world_flora_renderer": "World flora renderer",
+        "experiment_azuras_coast": "Rem_AC diagnostic"
+      }
+    },
+    "official": {
+      "app_id": "org.openmw.OpenMW",
+      "repo": "OpenMW/repo",
+      "expected_version": "0.51.0",
+      "expected_source_commit": "f4bec41444214a7903bebd178389ca22ca13f646",
+      "settings_defaults": "OpenMW/repo/files/settings-default.cfg"
+    }
+  },
+  "experiments": {
+    "azuras-coast-2026-09-18": {
+      "dir": "Fork/experiments/azuras-coast-2026-09-18",
+      "modified_file": "apps/openmw/mwrender/groundcover.cpp",
+      "result_file": "groundcover.cpp.with-azuras-coast",
+      "binary_marker": "Rem_AC diagnostic"
+    }
+  },
+  "profiles": {
+    "fork-test": {
+      "target": "fork",
+      "description": "Fork RLF, izolowany profil testowy (scripts/run-flora-test.sh; lokalny openmw.cfg obok binarki)",
+      "binary_dir": "Fork/install/bin",
+      "global_config_dir": "Fork/install/etc/openmw",
+      "user_config_default": "~/.config/openmw",
+      "user_data_default": "~/.local/share/openmw",
+      "world_cfg": true,
+      "flora_pool_script": "Fork/scripts/run-flora-test.sh",
+      "flora_pool_variant": "all"
+    },
+    "openmwgodot": {
+      "target": "external",
+      "description": "OpenMWGodot (Godot 4): tryb zrzutu gry na danych z konwertera gracza (OpenMWGoDot/tools/capture_godot.py)",
+      "paths": {
+        "tool": "@mcp/../capture_godot.py",
+        "godot": "@mcp/../../Godot_v4.7.2-stable_linux.x86_64",
+        "project": "@mcp/../../godot",
+        "data": "../MorrowindGoDot/base"
+      },
+      "command": ["python3", "{tool}", "--shots", "{shots}", "--out", "{out}", "--godot", "{godot}",
+                  "--project", "{project}", "--data", "{data}"]
+    },
+    "official-ref": {
+      "target": "official",
+      "description": "Oficjalne OpenMW 0.51.0 (Flatpak), profil referencyjny (OpenMW/scripts/run-reference.sh)",
+      "flatpak": true,
+      "binary_dir": "/app/bin",
+      "global_config_dir": "/app/etc/openmw",
+      "user_config_default": "~/.var/app/org.openmw.OpenMW/config/openmw",
+      "user_data_default": "~/.var/app/org.openmw.OpenMW/data/openmw",
+      "cli": {
+        "replace": ["config"],
+        "config": ["OpenMW/config/openmw-ref"],
+        "user-data": "OpenMW/config/openmw-ref-userdata",
+        "data-local": "OpenMW/config/openmw-ref-userdata/data"
+      }
+    }
+  },
+  "catalogs": [
+    {"name": "Remiros 4.1", "file": "@mcp/catalog/remiros-4.1.sha256"}
+  ]
+}
