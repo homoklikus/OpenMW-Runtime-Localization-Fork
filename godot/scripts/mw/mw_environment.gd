@@ -126,15 +126,20 @@ func set_interior(cell: Dictionary) -> void:
 		apply()
 
 # --- woda -----------------------------------------------------------------------------------------
+## Woda: falowanie i wzór liczone ze współrzędnych ŚWIATA – sąsiednie komórki mają na wspólnej krawędzi identyczne
+## wychylenie i kolor (wcześniej współrzędne lokalne płaszczyzny dawały szczeliny i szwy na łączeniach komórek).
 const WATER_SHADER := "shader_type spatial;
 render_mode cull_disabled, specular_schlick_ggx;
 uniform vec4 deep : source_color = vec4(0.05, 0.18, 0.25, 0.75);
 uniform vec4 shallow : source_color = vec4(0.15, 0.35, 0.4, 0.6);
+varying vec2 world_xz;
 void vertex() {
-	VERTEX.y += sin(TIME * 0.8 + VERTEX.x * 0.15) * 0.03 + cos(TIME * 0.6 + VERTEX.z * 0.12) * 0.03;
+	vec3 wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	world_xz = wp.xz;
+	VERTEX.y += sin(TIME * 0.8 + wp.x * 0.15) * 0.03 + cos(TIME * 0.6 + wp.z * 0.12) * 0.03;
 }
 void fragment() {
-	float w = 0.5 + 0.5 * sin(TIME * 0.7 + UV.x * 40.0) * cos(TIME * 0.5 + UV.y * 37.0);
+	float w = 0.5 + 0.5 * sin(TIME * 0.7 + world_xz.x * 0.34) * cos(TIME * 0.5 + world_xz.y * 0.316);
 	ALBEDO = mix(deep.rgb, shallow.rgb, w * 0.4);
 	ALPHA = deep.a;
 	ROUGHNESS = 0.08;

@@ -450,8 +450,7 @@ def test_world_tab_flora_settings_to_conversion(env, qapp, fake_game):
     assert page.fl_source.isEnabled() and not page.gc_legacy.isEnabled()
     page.fl_source.setCurrentIndex(page.fl_source.findData("hybrid"))
     page.fl_density.setValue(1.5)
-    page.fl_excl.setValue(5)
     page.save()
     assert w.core.config["flora"]["source"] == "hybrid" and w.core.config["flora"]["density"] == 1.5
     args = w.core.conversion_steps()[0]["args"]
-    assert args[args.index("--flora") + 1] == "hybrid" and args[args.index("--flora-exclusion") + 1] == "5"
+    assert args[args.index("--flora") + 1] == "hybrid" and args[args.index("--flora-density") + 1] == "1.5"

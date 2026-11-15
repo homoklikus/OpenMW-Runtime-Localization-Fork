@@ -40,6 +40,15 @@ func _run() -> void:
 	check(main.loaded.size() == 4, "4 komórki zewnętrzne wczytane wokół gracza (%d)" % main.loaded.size())
 	var waters := main.find_children("Water", "MeshInstance3D", true, false)
 	check(waters.size() == 4, "woda w każdej komórce zewnętrznej (%d)" % waters.size())
+	# łączenia: sąsiednie płaszczyzny stykają się dokładnie, a falowanie zależy od współrzędnych świata (bez szczelin)
+	var xs := []
+	for wn in waters:
+		xs.append(snappedf((wn as Node3D).global_position.x, 0.001))
+	xs.sort()
+	var size: float = (waters[0].mesh as PlaneMesh).size.x
+	check(absf((xs[2] - xs[0]) - size) < 0.01, "woda: sąsiednie komórki stykają się bez przerwy (%s, %.3f)" % [xs, size])
+	var code: String = (waters[0].mesh.material as ShaderMaterial).shader.code
+	check(code.contains("MODEL_MATRIX") and code.contains("world_xz"), "woda: falowanie we współrzędnych świata")
 	# pora dnia
 	var env: MWEnvironment = main.envr
 	env.time_running = false

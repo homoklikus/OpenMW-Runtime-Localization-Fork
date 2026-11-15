@@ -1,6 +1,6 @@
-"""Roślinność przeniesiona z forka OpenMW RLF: wtyczki groundcover, flora proceduralna, reguły Remirosa."""
+"""Roślinność przeniesiona z forka OpenMW RLF: wtyczki groundcover oraz trawa Remirosa generowana BEZ jego ESP
+(tabela reguł i liczników wkompilowana jak w forku; z moda tylko modele meshes/grass/)."""
 import json
-import math
 import shutil
 from pathlib import Path
 
@@ -16,20 +16,45 @@ from mwconv.synthetic_world import write_flora
 @pytest.fixture(scope="module")
 def flora_dir(tmp_path_factory):
     d = tmp_path_factory.mktemp("flora") / "Flora"
-    return write_flora(d)
+    info = write_flora(d)
+    # „Remiros bez ESP”: katalog z samymi modelami meshes/grass (jak paczka modeli i tekstur)
+    m = d.parent / "RemirosModels"
+    (m / "meshes" / "grass").mkdir(parents=True)
+    for f in ("rem_sy_grass_01.nif", "rem_sy_grass_02.nif"):
+        shutil.copy(d / "meshes" / "grass" / f, m / "meshes" / "grass" / f)
+    info["models_only"] = str(m)
+    return info
 
 
-def _cfg(synth, fl, with_remiros=True, groundcover=True):
-    d = Path(fl["dir"])
-    if not with_remiros:
-        d2 = d.parent / "FloraNoRem"
-        if not d2.exists():
-            shutil.copytree(d, d2)
-            (d2 / "Rem_SY.esp").unlink()
-        d = d2
-    return InstallConfig(data_dirs=[str(synth["dir"]), str(d)], archives=[str(synth["dir"] / "synth.bsa")],
+def synth_table(synth_dir, counts_cell=(0, 0)):
+    """Mała tabela w formacie forka: reguła dla tx_synth_grass + liczniki dla jednej komórki."""
+    from mwconv.world import load_world
+    terrain = flora.Terrain(load_world([str(Path(synth_dir) / "mwg_synthtown.esm")]).lands)
+    keys = terrain.texel_keys(*counts_cell)
+    names = ["tx_synth_grass", "tx_synth_dirt"]
+    entries, groups = [], []
+    for ty in range(16):
+        for tx in range(16):
+            k = keys[ty][tx]
+            if k not in names:
+                continue
+            gs = [(sub, sub % 2, 3) for sub in range(16)] if k == "tx_synth_grass" else []   # dirt: wycięcie autora
+            entries.append((ty * 16 + tx) | (names.index(k) << 8) | (len(gs) << 16))
+            groups += [sub | (st << 4) | (n << 12) for sub, st, n in gs]
+    lh = terrain.land_hash(*counts_cell)
+    return {"source_info": "synthetic test table", "spread_texels": 0.3, "underwater_max_height": -23.0,
+            "retries": 4, "subdivisions": 4,
+            "statics": [[0.7, "rem_sy_grass_01.nif", 0.9, 1.3, 23.0], [0.3, "rem_sy_grass_02.nif", 0.9, 1.3, 23.0],
+                        [1.0, "brak_modelu.nif", 1.0, 1.0, 23.0]],
+            "textures": [["tx_synth_grass", 6.0, 0, 2], ["tx_synth_stone", 4.0, 2, 1]],
+            "texture_names": names, "cells": [[counts_cell[0], counts_cell[1], lh, 0, len(entries), 0]],
+            "entries": entries, "groups": groups}, terrain
+
+
+def _cfg(synth, data_dirs, groundcover=()):
+    return InstallConfig(data_dirs=[str(synth["dir"]), *map(str, data_dirs)], archives=[str(synth["dir"] / "synth.bsa")],
                          content=[str(synth["dir"] / "mwg_synthtown.esm"), str(synth["dir"] / "mwg_synthtown_patch.esp")],
-                         groundcover=[str(d / "mwg_grass.esp")] if groundcover else [])
+                         groundcover=list(groundcover))
 
 
 def _all(out):
@@ -53,89 +78,56 @@ def test_settings_modes_like_fork():
     assert S(density=9, exclusion_distance=-1).normalized().density == 2.0
 
 
-def test_helpers_match_fork():
-    assert flora.surface_weight("tx_ai_grass_dirt_01") == 0.5 and flora.surface_weight("tx_rock_01") == 0.0
-    assert flora.surface_weight("tx_bc_mud_01") == 0.55 and flora.surface_weight("_land_default") == 0.0
-    assert flora.uses_pathgrid_exclusion("tx_road_01") and not flora.uses_pathgrid_exclusion("tx_gl_dirt_grass_01")
-    assert flora.region_family("tx_bc_mud_01") == "bc" and flora.region_family("tx_rm_ash_01") == "ash"
+def test_embedded_fork_table():
+    t = flora.remiros_table()
+    assert len(t.statics) == 102 and len(t.textures) == 39 and len(t.cells) == 715
+    assert t.entries.size == 90210 and t.groups.size == 626204
+    assert all(s[1].startswith("rem_") and s[1].endswith(".nif") for s in t.statics)
     assert flora.hash32(1) == int(flora.hash32_np(np.array([1], np.uint32))[0])
-    assert flora.texture_key("Textures\\Tx_BC_Mud_01.DDS") == "tx_bc_mud_01"
 
 
 def test_plugin_groundcover_and_density(synth_data, flora_dir, tmp_path):
     out = tmp_path / "out"
-    s = run(_cfg(synth_data, flora_dir), Options(out=out, cells=["Synthville"], jobs=1,
-            flora={"groundcover_enabled": True}), log=lambda _m: None)
+    cfg = _cfg(synth_data, [flora_dir["dir"]], [flora_dir["groundcover"]])
+    s = run(cfg, Options(out=out, cells=["Synthville"], jobs=1, flora={"groundcover_enabled": True}), log=lambda _m: None)
     assert s["flora"]["mode"] == "plugins" and s["flora"]["by_source"] == {"plugin": 60}
     idx, rows = _all(out)
     assert {r[1] for r in rows} == {"meshes/grass/synth_gc_01.nif"} and all(r[0] == "ext:0,0" for r in rows)
-    assert (out / "meshes/grass/synth_gc_01.glb").exists()          # model skonwertowany na potrzeby roślinności
-    out2 = tmp_path / "out2"
-    s = run(_cfg(synth_data, flora_dir), Options(out=out2, cells=["Synthville"], jobs=1,
+    assert (out / "meshes/grass/synth_gc_01.glb").exists()
+    s = run(cfg, Options(out=tmp_path / "o2", cells=["Synthville"], jobs=1,
             flora={"groundcover_enabled": True, "groundcover_density": 0.5}), log=lambda _m: None)
     assert s["flora"]["by_source"]["plugin"] == 30                  # DensityCalculator: co druga referencja
 
 
-def test_procedural_generic(synth_data, flora_dir, tmp_path):
+def test_remiros_without_esp(synth_data, flora_dir, tmp_path, monkeypatch):
+    table, terrain = synth_table(synth_data["dir"])
+    monkeypatch.setattr(flora, "_TABLE", flora.RemirosTable(data=table))
     out = tmp_path / "out"
-    cfg = _cfg(synth_data, flora_dir, with_remiros=False, groundcover=False)
-    s = run(cfg, Options(out=out, cells=["Synthville"], jobs=1, flora={"enabled": True, "density": 0.25}),
-            log=lambda _m: None)
+    cfg = _cfg(synth_data, [flora_dir["models_only"]])               # żadnego ESP Remirosa, tylko modele
+    s = run(cfg, Options(out=out, cells=["Synthville"], jobs=1, flora={"enabled": True}), log=lambda _m: None)
     f = s["flora"]
-    assert f["mode"] == "generic" and f["instances"] > 1000, f
-    idx, rows = _all(out)
-    models = {r[1] for r in rows}
-    assert "meshes/f/flora_grass_05.nif" not in models               # > 200 j. – odrzucony jak w forku
-    assert models <= {"meshes/f/flora_grass_01.nif", "meshes/f/flora_bc_grass_01.nif"}
-    from mwconv.world import load_world
-    terrain = flora.Terrain(load_world(cfg.content).lands)
-    for _k, _m, x, y, z, src, *_ in rows[::97]:
-        key = terrain.texture_key_at(x, y)
-        assert flora.surface_weight(key) > 0, key                    # nigdy na kamieniu/drodze/domyślnej
-        assert abs(z - terrain.height_at(x, y)) < 1.0                # na terenie (diament)
-        sl = terrain.slope_np(np.array([x]), np.array([y]))[0]
-        assert np.isnan(sl) or sl <= flora.MAX_SLOPE + 1e-6     # NaN: brzeg świata (brak sąsiedniego LAND)
-    # wykluczenie przy obiektach: żadna roślina w promieniu chaty (synth_hut) + 3 m
-    world = load_world(cfg.content)
-    huts = [mr.ref.pos for k, mc in world.cells.items() for mr in mc.refs.values() if mr.ref.base.lower() == "synth_hut"]
-    for hx, hy, _hz in huts:
-        near = [r for r in rows if math.hypot(r[2] - hx, r[3] - hy) < 150]
-        assert not near, (hx, hy, len(near))
-    # ponownie bez zmian → pominięte; gęstość 2× → ok. 2× więcej roślin
-    s2 = run(cfg, Options(out=out, cells=["Synthville"], jobs=1, flora={"enabled": True, "density": 0.25}),
-             log=lambda _m: None)
-    assert s2.get("flora", {}).get("skipped") or s2["world_load"].get("skipped")
-    s3 = run(cfg, Options(out=out, cells=["Synthville"], jobs=1, flora={"enabled": True, "density": 0.5}),
-             log=lambda _m: None)
-    assert 1.6 < s3["flora"]["instances"] / f["instances"] < 2.4
-
-
-def test_remiros_rules_from_local_plugins(synth_data, flora_dir, tmp_path):
-    out = tmp_path / "out"
-    s = run(_cfg(synth_data, flora_dir, groundcover=False), Options(out=out, cells=["Synthville"], jobs=1,
-            flora={"enabled": True}), log=lambda _m: None)
-    f = s["flora"]
-    assert f["mode"] == "remiros" and set(f["by_source"]) == {"remiros"}, f
+    assert f["mode"] == "remiros" and set(f["by_source"]) == {"remiros"} and f["count_cell_matched" if False else
+                                                                                "count_cells_matched"] == 1, f
     idx, rows = _all(out)
     assert {r[1] for r in rows} == {"meshes/grass/rem_sy_grass_01.nif", "meshes/grass/rem_sy_grass_02.nif"}
-    from mwconv.world import load_world
-    terrain = flora.Terrain(load_world(_cfg(synth_data, flora_dir).content).lands)
-    # komórki z licznikami (0,0),(1,0): ok. tyle roślin, ile autor; tylko na trawie; z = teren + 23
+    assert (out / "meshes/grass/rem_sy_grass_01.glb").exists()
+    # komórka z licznikami: dokładnie 3 rośliny na pole 128 j. trawy (16 pól × 3 = 48 na teksel trawy), ±próby pod wodą
+    grass_texels = sum(1 for row in terrain.texel_keys(0, 0) for k in row if k == "tx_synth_grass")
     n00 = sum(1 for r in rows if r[0] == "ext:0,0")
-    src = flora.GroundcoverIndex.load([flora_dir["remiros"]])
-    author = len(src.instances(0, 0))
-    assert abs(n00 - author) <= max(3, author * 0.02), (n00, author)
-    keys = [terrain.texture_key_at(r[2], r[3]) for r in rows]
-    on_grass = sum(k in ("tx_synth_grass", "_land_default") for k in keys) / len(keys)
-    assert on_grass > 0.85, on_grass          # reszta ≤ 0,3 teksela od krawędzi (jak u autora moda)
-    for r in rows[::53]:
-        h = terrain.height_at(r[2], r[3])
-        assert abs(r[4] - h - 23) < 1.5
-        assert 0.85 < r[6] < 1.35                                    # skala z zakresu statyki
-    # komórki bez licznika (0,1),(1,1): reguły tekstur – też rośliny (tylko na trawie)
-    assert any(r[0] in ("ext:0,1", "ext:1,1") for r in rows)
-    # obrót wg normalnej terenu (rx/ry niezerowe na zboczach)
-    assert any(abs(r[7]) > 0.01 or abs(r[8]) > 0.01 for r in rows)
+    assert abs(n00 - grass_texels * 48) <= 5, (n00, grass_texels * 48)
+    # liczniki: na tekselu „dirt” wycięcie autora (0 roślin) – reguła tekstury dirt nie istnieje, więc 0
+    keys = [terrain.texture_key_at(r[2], r[3]) for r in rows if r[0] == "ext:0,0"]
+    assert sum(k == "tx_synth_grass" for k in keys) / len(keys) > 0.97
+    # komórki bez liczników: reguły tekstur (trawa 6/teksel, kamień 4/teksel z modelem → tylko statyki z modelem)
+    other = [r for r in rows if r[0] != "ext:0,0"]
+    assert other and {terrain.texture_key_at(r[2], r[3]) for r in other} >= {"tx_synth_grass"}
+    for r in rows[::41]:
+        assert abs(r[4] - terrain.height_at(r[2], r[3]) - 23) < 1.5 and 0.85 < r[6] < 1.35
+    assert any(abs(r[7]) > 0.01 or abs(r[8]) > 0.01 for r in rows)   # obrót wg normalnej terenu
+    # bez modeli Remirosa → brak trawy (fork: brak automatycznego rozmieszczenia), bez wyjątku
+    s2 = run(_cfg(synth_data, []), Options(out=tmp_path / "o3", cells=["Synthville"], jobs=1, flora={"enabled": True}),
+             log=lambda _m: None)
+    assert s2["flora"]["mode"] == "none" and s2["flora"]["instances"] == 0
 
 
 def test_groundcover_plugin_detection(flora_dir, synth_data):

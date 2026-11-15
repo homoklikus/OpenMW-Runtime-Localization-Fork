@@ -1,25 +1,24 @@
-"""Roślinność – przeniesione z forka OpenMW RLF i z MCP-openMW (GPL-3.0-or-later, jak OpenMWGodot).
+"""Roślinność – przeniesione z forka OpenMW RLF (GPL-3.0-or-later, jak OpenMWGodot).
 
 Źródła (fork `0.5-world`, 3bfa4c3):
-  apps/openmw/mwrender/groundcover.cpp       groundcover z wtyczek + flora proceduralna (wagi tekstur, nachylenie,
-                                             wykluczenia obiektów i ścieżek PGRD, wybór modelu, skala profilu)
-  apps/openmw/mwrender/remirosgroundcover*   reguły Remirosa (pach75) z licznikami na pole 128 j. (pach76)
-  apps/openmw/mwrender/terrainstorage.cpp    wysokość „diamond”, nachylenie, tekstura LAND w punkcie
+  apps/openmw/mwrender/groundcover.cpp       groundcover z wtyczek (DensityCalculator) + wywołanie reguł Remirosa
+  apps/openmw/mwrender/remirosgroundcover*   trawa Remirosa generowana w grze BEZ jego ESP: tabela reguł tekstur LAND
+                                             i liczników na pola 128 j. (pach75/pach76) wkompilowana w program,
+                                             z moda potrzebne tylko modele i tekstury (meshes/grass/)
+  apps/openmw/mwrender/terrainstorage.cpp    wysokość „diamond”, tekstura LAND w punkcie
   apps/openmw/mwrender/renderingmanager.cpp  mapowanie ustawień: source = automatic | groundcover | hybrid
   components/worldconfig                     [flora] enabled, source, density, exclusion_distance
-MCP-openMW (tools/MCP-openMW): land.py, fflora.py, gcbaseline.py (DensityCalculator), remirosrules.py (derive,
-build_counts, generate_cell) – pythonowe odpowiedniki kodu forka.
+Tabela: converter/mwconv/data/remiros_rules.json.gz = remirosgroundcoverdata.cpp forka (wygenerowana przez
+MCP-openMW z Rem_*.esp; same agregaty, bez współrzędnych roślin). Kod generatora: remirosgroundcovergen.hpp.
 
 Różnica architektury: OpenMW liczy rośliny w trakcie gry (chunki terenu). Tu konwerter liczy je raz, dla każdej
-komórki zewnętrznej, i zapisuje world/flora/<x>_<y>.bin; gra tylko je rysuje (MultiMesh, bez kolizji). Reguły
-Remirosa są wyliczane LOKALNIE z zainstalowanych wtyczek Rem_*.esp (fork miał je wkompilowane) – repozytorium
-nie zawiera żadnych danych moda. Arytmetyka w float64 (fork: float32) – pojedyncze instancje na granicach progów
-mogą się różnić; rozkład i zasady są te same.
+komórki zewnętrznej, i zapisuje world/flora/<x>_<y>.bin; gra tylko je rysuje (MultiMesh, bez kolizji).
+Arytmetyka w float64 (fork: float32) – pojedyncze instancje na granicach progów mogą się różnić.
 
 Format world/flora/<x>_<y>.bin (zlib): "MWFL" u16 wersja, u32 N, następnie kolumny po N:
   u16 model (indeks w index.json „models”), f32 x, f32 y, f32 z (jednostki MW, świat),
   i16 rx, i16 ry, i16 rz (radiany × 10000), u16 skala × 10000, u8 ranga (0–255, do zmniejszania gęstości w grze),
-  u8 źródło (0 = wtyczka groundcover, 1 = proceduralna, 2 = Remiros).
+  u8 źródło (0 = wtyczka groundcover, 2 = Remiros).
 """
 from __future__ import annotations
 
@@ -46,7 +45,6 @@ TWO_PI = 6.2831853071795864769
 FORMAT_VERSION = 1
 
 SOURCES = ("automatic", "groundcover", "hybrid")
-SRC_PLUGIN, SRC_PROCEDURAL, SRC_REMIROS = 0, 1, 2
 
 # --- hash i losowanie (identyczne z forkiem) ------------------------------------------------------------
 
@@ -288,94 +286,14 @@ def is_groundcover_plugin(path) -> bool:
         return False
 
 
-# --- flora proceduralna (groundcover.cpp forka, tryb ogólny) ---------------------------------------------
-
-PROCEDURAL_CANDIDATES = (
-    "meshes/f/flora_grass_01.nif", "meshes/f/flora_grass_02.nif", "meshes/f/flora_grass_03.nif",
-    "meshes/f/flora_grass_04.nif", "meshes/f/flora_grass_05.nif", "meshes/f/flora_grass_06.nif",
-    "meshes/f/flora_grass_07.nif", "meshes/f/flora_bc_grass_01.nif", "meshes/f/flora_bc_grass_02.nif",
-    "meshes/f/flora_ash_grass_b_01.nif", "meshes/f/flora_ash_grass_r_01.nif", "meshes/f/flora_ash_grass_w_01.nif",
-    "meshes/f/flora_bm_grass_01.nif", "meshes/f/flora_bm_grass_02.nif", "meshes/f/flora_bm_grass_03.nif",
-    "meshes/f/flora_bm_grass_04.nif", "meshes/f/flora_bm_grass_05.nif", "meshes/f/flora_bm_grass_06.nif",
-)
-TARGET_FOOTPRINT = 60.0
-REJECT_FOOTPRINT = 200.0
-BASE_CANDIDATES = 32768.0
-MAX_SLOPE = 28.0
-
-
-def surface_weight(key: str) -> float:
-    """getProceduralFloraSurfaceWeight forka (klucz = nazwa pliku tekstury bez rozszerzenia)."""
-    if not key or key == "_land_default":
-        return 0.0
-    for kw in ("rock", "stone", "cliff", "road", "cobble", "lava"):
-        if kw in key:
-            return 0.0
-    grass, dirt = "grass" in key, "dirt" in key
-    if grass and dirt:
-        return 0.5
-    if grass or "clover" in key or "moss" in key:
-        return 1.0
-    if "mud" in key or "swamp" in key:
-        return 0.55
-    if dirt:
-        return 0.35
-    if "sand" in key:
-        return 0.2
-    if "ash" in key:
-        return 0.15
-    return 0.4
-
-
-def uses_pathgrid_exclusion(key: str) -> bool:
-    if not key:
-        return False
-    if "road" in key or "path" in key or "cobble" in key:
-        return True
-    dirt = "dirt" in key
-    natural = "grass" in key or "clover" in key or "moss" in key
-    return dirt and not natural
-
-
-def region_family(key: str) -> str:
-    i = key.find("tx_")
-    if i < 0:
-        return "generic"
-    rest = key[i + 3:]
-    j = rest.find("_")
-    tok = rest[:j] if j > 0 else ""
-    if tok == "bc":
-        return "bc"
-    if tok in ("al", "rr", "rm"):
-        return "ash"
-    if tok in ("sol", "bm"):
-        return "bm"
-    return "generic"
-
-
-def model_family(model: str) -> str:
-    m = model.replace("\\", "/").lower()
-    if "/flora_bc_grass_" in m:
-        return "bc"
-    if "/flora_ash_grass_" in m:
-        return "ash"
-    if "/flora_bm_grass_" in m:
-        return "bm"
-    return "generic"
-
-
-BLOCKING_TYPES = {"STAT", "ACTI", "DOOR", "CONT"}
-NATURAL_KEYWORDS = ("flora", "tree", "plant", "mushroom", "kelp", "fern", "bush", "shrub", "rock", "boulder")
-HIDDEN_MARKERS = {"prisonmarker", "divinemarker", "templemarker", "northmarker"}   # Misc::ResourceHelpers::isHiddenMarker
-
-
 @dataclass
 class Settings:
+    """world.cfg forka ([flora]) + „legacy” [Groundcover] OpenMW."""
     enabled: bool = False
     source: str = "automatic"
-    density: float = 1.0              # 0–2 (flora proceduralna) i mnożnik gęstości wtyczek
-    exclusion_distance: float = 3.0   # metry
-    groundcover_enabled: bool = False   # „legacy” [Groundcover] enabled (gdy [flora] wyłączona)
+    density: float = 1.0              # 0–2: trawa Remirosa i mnożnik gęstości wtyczek
+    exclusion_distance: float = 3.0   # metry (w forku tylko dla flory ogólnej, której tu nie ma – zachowane w ustawieniach)
+    groundcover_enabled: bool = False
     groundcover_density: float = 1.0
 
     def normalized(self) -> "Settings":
@@ -387,7 +305,7 @@ class Settings:
         return s
 
     def modes(self) -> tuple[bool, bool, float]:
-        """(wtyczki groundcover, flora proceduralna, gęstość wtyczek) – jak RenderingManager forka."""
+        """(wtyczki groundcover, trawa proceduralna, gęstość wtyczek) – jak RenderingManager forka."""
         procedural = self.enabled and self.source in ("automatic", "hybrid")
         configured_gc = self.enabled and self.source in ("groundcover", "hybrid")
         legacy = (not self.enabled) and self.groundcover_enabled
@@ -398,316 +316,106 @@ class Settings:
         return plugin, procedural, dens
 
 
-class ModelInfo:
-    """Rozmiary modeli z GLB (granice POSITION) w jednostkach MW."""
+# --- reguły Remirosa (fork: remirosgroundcoverdata.cpp + remirosgroundcovergen.hpp, pach75/pach76) ----------
+#
+# Jak w forku: tabela reguł i liczników jest częścią programu (converter/mwconv/data/remiros_rules.json.gz – ta sama
+# tabela, którą MCP-openMW wygenerował dla forka; agregaty bez współrzędnych roślin). W grze potrzebne są wyłącznie
+# modele i tekstury Remirosa (meshes/grass/…), BEZ jego wtyczek ESP – trawa jest generowana na teksturach LAND.
 
-    def __init__(self, out: Path, base_out: Optional[Path] = None):
-        self.roots = [Path(out)] + ([Path(base_out)] if base_out else [])
-        self._b: dict = {}
-
-    def bounds(self, glb_rel: str) -> Optional[tuple]:
-        """(xmin, xmax, ymin, ymax) MW lub None."""
-        if glb_rel in self._b:
-            return self._b[glb_rel]
-        res = None
-        for r in self.roots:
-            p = r / glb_rel
-            if p.exists():
-                try:
-                    with open(p, "rb") as fh:
-                        head = fh.read(20)
-                        ln, = struct.unpack_from("<I", head, 12)
-                        j = json.loads(fh.read(ln))
-                    mins, maxs = [], []
-                    for me in j.get("meshes", []):
-                        for pr in me.get("primitives", []):
-                            a = j["accessors"][pr["attributes"]["POSITION"]]
-                            if "min" in a and "max" in a:
-                                mins.append(a["min"])
-                                maxs.append(a["max"])
-                    if mins:
-                        mn = np.min(np.array(mins), axis=0)
-                        mx = np.max(np.array(maxs), axis=0)
-                        # Godot (x, y, z) = (mw_x, mw_z, -mw_y) / UPM
-                        res = (mn[0] * UPM, mx[0] * UPM, -mx[2] * UPM, -mn[2] * UPM)
-                except Exception:  # noqa: BLE001
-                    res = None
-                break
-        self._b[glb_rel] = res
-        return res
+DATA_FILE = Path(__file__).with_name("data") / "remiros_rules.json.gz"
+SRC_PLUGIN, SRC_REMIROS = 0, 2
 
 
-def procedural_pool(vfs, models: ModelInfo, glb_of) -> tuple[list, dict]:
-    """Pula modeli trybu ogólnego (wanilia) i skale profilu: odrzucone > 200 j., zmniejszone do 60 j."""
-    pool, scale = [], {}
-    for c in PROCEDURAL_CANDIDATES:
-        if not vfs.exists(c):
-            continue
-        b = models.bounds(glb_of(c))
-        if b is None:
-            continue
-        fp = max(b[1] - b[0], b[3] - b[2])
-        if fp > REJECT_FOOTPRINT:
-            continue
-        pool.append(c)
-        scale[c] = TARGET_FOOTPRINT / fp if fp > TARGET_FOOTPRINT else 1.0
-    return pool, scale
+class RemirosTable:
+    """remirosgroundcoverdata.{hpp,cpp} forka: statyki, reguły tekstur, nazwy tekstur, komórki, wpisy, grupy."""
+
+    def __init__(self, path: Path = DATA_FILE, data: Optional[dict] = None):
+        import base64
+        import gzip
+        d = data if data is not None else json.loads(gzip.open(path).read())
+        self.info = d["source_info"]
+        self.spread = float(d["spread_texels"])
+        self.underwater = float(d["underwater_max_height"])
+        self.retries = int(d["retries"])
+        self.sub = int(d["subdivisions"])
+        self.statics = d["statics"]                 # [share, model, scale_min, scale_max, z_offset]
+        self.textures = d["textures"]               # [texture, density_per_texel, first_static, static_count]
+        self.names = d["texture_names"]
+        self.cells = {(c[0], c[1]): c[2:] for c in d["cells"]}   # (x, y) → [land_hash, first_entry, n_entries, first_group]
+        if "entries" in d:          # postać rozpakowana (testy)
+            self.entries = np.array(d["entries"], dtype="<u4")
+            self.groups = np.array(d["groups"], dtype="<u4")
+        else:
+            self.entries = np.frombuffer(base64.b64decode(d["entries_u32_b64"]), dtype="<u4")
+            self.groups = np.frombuffer(base64.b64decode(d["groups_u32_b64"]), dtype="<u4")
 
 
-def generate_procedural(terrain: Terrain, cx: int, cy: int, density: float, pool: list, pscale: dict,
-                        exclusions: np.ndarray, segments: np.ndarray, excl_dist: float) -> list:
-    """Groundcover::collectInstances forka, tryb ogólny, dla jednej komórki (chunk = komórka)."""
-    if not pool or density <= 0 or not terrain.has_textures(cx, cy):
-        return []
-    n = max(1, int(round(BASE_CANDIDATES * density)))
-    side = int(math.ceil(math.sqrt(n)))
-    idx = np.arange(n, dtype=np.uint32)
-    with np.errstate(over="ignore"):
-        base = (_u32(cx * 0x9E3779B9) ^ _u32(cy * 0x85EBCA6B)) ^ (idx * np.uint32(0xC2B2AE35))
-    gx = (idx % side).astype(np.float64)
-    gy = (idx // side).astype(np.float64)
-    fx = (gx + random01_np(base ^ np.uint32(0x68BC21EB))) / side
-    fy = (gy + random01_np(base ^ np.uint32(0x02E5BE93))) / side
-    keep = (fx < 1.0) & (fy < 1.0)
-    base, fx, fy = base[keep], fx[keep], fy[keep]
-    wx = (cx + fx) * CELL
-    wy = (cy + fy) * CELL
-    h = terrain.height_np(wx, wy)
-    keep = ~np.isnan(h) & (h > 1.0)
-    base, wx, wy, h = base[keep], wx[keep], wy[keep], h[keep]
-    if len(base) == 0:
-        return []
-    slope = terrain.slope_np(wx, wy)
-    keep = ~(slope > MAX_SLOPE)
-    base, wx, wy, h = base[keep], wx[keep], wy[keep], h[keep]
-    keys = terrain.texel_keys(cx, cy)
-    tx = np.clip(((wx / CELL - cx) * TEX_SIZE).astype(np.int64), 0, 15)
-    ty = np.clip(((wy / CELL - cy) * TEX_SIZE).astype(np.int64), 0, 15)
-    uniq = sorted({keys[y][x] for y in range(16) for x in range(16)})
-    kid = {k: i for i, k in enumerate(uniq)}
-    grid = np.array([[kid[keys[y][x]] for x in range(16)] for y in range(16)])
-    tk = grid[ty, tx]
-    wtab = np.array([surface_weight(k) for k in uniq])
-    ptab = np.array([uses_pathgrid_exclusion(k) for k in uniq])
-    ftab = [region_family(k) for k in uniq]
-    w = wtab[tk]
-    keep = (w > 0) & ((w >= 1.0) | (random01_np(base ^ np.uint32(0x4F1BBCDC)) < w))
-    base, wx, wy, h, tk, w = base[keep], wx[keep], wy[keep], h[keep], tk[keep], w[keep]
-    if len(exclusions):
-        inside = np.zeros(len(wx), dtype=bool)
-        for ex, ey, r in exclusions:
-            inside |= (wx - ex) ** 2 + (wy - ey) ** 2 <= r * r
-        keep = ~inside
-        base, wx, wy, h, tk, w = base[keep], wx[keep], wy[keep], h[keep], tk[keep], w[keep]
-    if len(segments) and ptab.any():
-        chk = ptab[tk]
-        hit = np.zeros(len(wx), dtype=bool)
-        c2 = excl_dist * excl_dist
-        for x0, y0, x1, y1 in segments:
-            dx, dy = x1 - x0, y1 - y0
-            l2 = dx * dx + dy * dy
-            if l2 <= 1e-4:
-                d2 = (wx - x0) ** 2 + (wy - y0) ** 2
-            else:
-                t = np.clip(((wx - x0) * dx + (wy - y0) * dy) / l2, 0.0, 1.0)
-                d2 = (wx - (x0 + t * dx)) ** 2 + (wy - (y0 + t * dy)) ** 2
-            hit |= chk & (d2 <= c2)
-        keep = ~hit
-        base, wx, wy, h, tk, w = base[keep], wx[keep], wy[keep], h[keep], tk[keep], w[keep]
-    cs = hash32_np(base ^ np.uint32(0x9E3779B9))
-    keep = (w >= 1.0) | (random01_np(cs ^ np.uint32(0x4F1BBCDC)) < w)
-    cs, wx, wy, h, tk = cs[keep], wx[keep], wy[keep], h[keep], tk[keep]
-    rz = random01_np(cs ^ np.uint32(0xA511E9B3)) * TWO_PI
-    sel = hash32_np(cs ^ np.uint32(0x91E10DA5)).astype(np.int64)
-    fam_models = collections.defaultdict(list)
-    for m in pool:
-        fam_models[model_family(m)].append(m)
-    out = []
-    rnd_scale = random01_np(cs ^ np.uint32(0x63D83595))
-    for i in range(len(cs)):
-        cand = fam_models.get(ftab[tk[i]]) or pool
-        m = cand[sel[i] % len(cand)]
-        sc = (0.8 + rnd_scale[i] * 0.35) * pscale[m]
-        out.append((m, (wx[i], wy[i], h[i]), (0.0, 0.0, rz[i]), sc, SRC_PROCEDURAL))
-    return out
+_TABLE: Optional[RemirosTable] = None
 
 
-def collect_exclusions(world, cx: int, cy: int, models: ModelInfo, glb_of, excl_dist: float) -> np.ndarray:
-    """collectFloraExclusions: STAT/ACTI/DOOR/CONT z komórki i sąsiadów, bez znaczników i natury."""
-    out = []
-    for x in range(cx - 1, cx + 2):
-        for y in range(cy - 1, cy + 2):
-            mc = world.cells.get(f"ext:{x},{y}")
-            if mc is None:
-                continue
-            for mr in mc.refs.values():
-                r = mr.ref
-                bid = r.base.lower()
-                if bid in HIDDEN_MARKERS:
-                    continue
-                o = world.objects.get(bid)
-                if o is None or o.get("type") not in BLOCKING_TYPES or not o.get("model"):
-                    continue
-                model = o["model"].replace("\\", "/").lower()
-                if o.get("type") == "STAT" and any(k in model for k in NATURAL_KEYWORDS):
-                    continue
-                b = models.bounds(glb_of("meshes/" + model if not model.startswith("meshes/") else model))
-                if b is None:
-                    continue
-                rad = math.hypot(max(abs(b[0]), abs(b[1])), max(abs(b[2]), abs(b[3])))
-                rr = rad * abs(r.scale) + excl_dist
-                if rr > 0:
-                    out.append((r.pos[0], r.pos[1], rr))
-    return np.array(out, dtype=np.float64).reshape(-1, 3)
-
-
-def collect_segments(world, cx: int, cy: int) -> np.ndarray:
-    out = []
-    for x in range(cx - 1, cx + 2):
-        for y in range(cy - 1, cy + 2):
-            pg = world.pathgrids.get((x, y))
-            if not pg:
-                continue
-            pts, edges = pg
-            for i, j in edges:
-                a, b = pts[i], pts[j]
-                out.append((a[0], a[1], b[0], b[1]))
-            if not edges:
-                for p in pts:
-                    out.append((p[0], p[1], p[0], p[1]))
-    return np.array(out, dtype=np.float64).reshape(-1, 4)
-
-
-# --- reguły Remirosa (remirosrules.py MCP / remirosgroundcovergen.hpp forka) ------------------------------
-
-SPREAD = 0.3
-UNDERWATER = -23.0
-RETRIES = 4
-SUB = 4
-
-
-def is_remiros_plugin(path) -> bool:
-    return Path(path).name.lower().startswith("rem_") and Path(path).suffix.lower() == ".esp"
-
-
-def remiros_derive(gc: GroundcoverIndex, terrain: Terrain) -> dict:
-    """Tabela „tekstura LAND → gęstość, statyki, skale, wysokość” (MCP derive)."""
-    by_static = collections.defaultdict(lambda: {"n": 0, "tex": collections.Counter(), "smin": 1e9, "smax": -1e9,
-                                                 "dz": []})
-    for (cx, cy), lst in gc.cells.items():
-        for fi, refs in lst:
-            for k, r in enumerate(refs):
-                if r.deleted or not gc.statics.get(r.id):
-                    continue
-                s = by_static[r.id]
-                s["n"] += 1
-                s["tex"][terrain.texture_key_at(r.pos[0], r.pos[1])] += 1
-                s["smin"] = min(s["smin"], r.scale)
-                s["smax"] = max(s["smax"], r.scale)
-                if k % 7 == 0 and len(s["dz"]) < 4000:
-                    h = terrain.height_at(r.pos[0], r.pos[1])
-                    if h is not None:
-                        s["dz"].append(r.pos[2] - h)
-    owner = {sid: s["tex"].most_common(1)[0][0] for sid, s in by_static.items()}
-    area = collections.Counter()
-    for (cx, cy) in terrain.lands:
-        keys = terrain.texel_keys(cx, cy)
-        if keys is None:
-            continue
-        xs = (cx + (np.arange(16) + 0.5) / 16) * CELL
-        ys = (cy + (np.arange(16) + 0.5) / 16) * CELL
-        gxs, gys = np.meshgrid(xs, ys)
-        hh = terrain.height_np(gxs, gys)
-        for ty in range(16):
-            for tx in range(16):
-                if keys[ty][tx] and not math.isnan(hh[ty, tx]) and hh[ty, tx] > UNDERWATER:
-                    area[keys[ty][tx]] += 1
-    textures = collections.defaultdict(lambda: {"refs": 0, "statics": []})
-    for sid, s in by_static.items():
-        t = textures[owner[sid]]
-        t["refs"] += s["n"]
-        dz = sorted(s["dz"])
-        t["statics"].append({"id": sid, "model": gc.statics[sid].replace("\\", "/").rsplit("/", 1)[-1].lower(),
-                             "refs": s["n"], "scale_min": s["smin"], "scale_max": s["smax"],
-                             "z_offset": dz[len(dz) // 2] if dz else 23.0})
-    rules = []
-    for key, t in sorted(textures.items()):
-        a = area.get(key, 0)
-        statics = sorted(t["statics"], key=lambda x: (-x["refs"], x["id"]))
-        for st in statics:
-            st["share"] = st["refs"] / t["refs"]
-        rules.append({"texture": key, "density_per_texel": t["refs"] / a if a else 0.0, "refs": t["refs"],
-                      "statics": statics})
-    rules.sort(key=lambda r: -r["refs"])
-    return {"rules": rules}
-
-
-def remiros_counts(gc: GroundcoverIndex, terrain: Terrain, rules: dict) -> dict:
-    """Liczniki na pole 128 j. i statykę (pach76) – agregaty, bez współrzędnych roślin (MCP build_counts)."""
-    order = [st for r in rules["rules"] for st in r["statics"]]
-    owners = {r["texture"] for r in rules["rules"]}
-    sidx = {st["id"]: i for i, st in enumerate(order)}
-    per_texel = collections.defaultdict(collections.Counter)
-    for (cx, cy) in gc.cells:
-        for _model, r in gc.instances(cx, cy, 1.0):
-            if r.id not in sidx:
-                continue
-            gx, gy = math.floor(r.pos[0] / CELL * 16 * SUB), math.floor(r.pos[1] / CELL * 16 * SUB)
-            sub = (gy % SUB) * SUB + (gx % SUB)
-            per_texel[(gx // SUB, gy // SUB)][(sub, sidx[r.id])] += 1
-    cells = {}
-    cells_with = {(tx // 16, ty // 16) for tx, ty in per_texel}
-    for (cx, cy) in sorted(cells_with | {xy for xy in terrain.lands if xy in gc.cells}):
-        keys = terrain.texel_keys(cx, cy)
-        lh = terrain.land_hash(cx, cy)
-        if keys is None or lh is None:
-            continue
-        entries = {}
-        for ty in range(16):
-            for tx in range(16):
-                key = keys[ty][tx]
-                g = per_texel.get((cx * 16 + tx, cy * 16 + ty))
-                if not g and key not in owners:
-                    continue
-                entries[ty * 16 + tx] = (key, sorted((sub, st, min(k, 255)) for (sub, st), k in (g or {}).items()))
-        cells[(cx, cy)] = (lh, entries)
-    return {"order": order, "cells": cells}
+def remiros_table() -> RemirosTable:
+    global _TABLE
+    if _TABLE is None:
+        _TABLE = RemirosTable()
+    return _TABLE
 
 
 class RemirosModel:
-    def __init__(self, rules: dict, counts: dict, resolve):
-        """resolve(nazwa pliku modelu) → klucz VFS albo None (model nie istnieje: meshes/grass/<nazwa>)."""
+    """RemirosGen::Model: statyki z modelem w VFS (meshes/grass/<plik>), reguły z udziałami tylko istniejących modeli."""
+
+    def __init__(self, table: RemirosTable, resolve):
+        self.t = table
+        self.statics = []
+        self.missing = 0
+        for share, model, smin, smax, dz in table.statics:
+            path = resolve(model)
+            if not path:
+                self.missing += 1
+            self.statics.append((path, smin, smax, dz))
         self.rules = {}
-        for r in rules["rules"]:
-            sts = [s for s in r["statics"] if resolve(s["model"])]
-            tot = sum(s["share"] for s in sts)
-            if not sts or tot <= 0:
+        for tex, dens, first, count in table.textures:
+            total = sum(table.statics[first + i][0] for i in range(count) if self.statics[first + i][0])
+            if total <= 0:
                 continue
             acc, entries = 0.0, []
-            for s in sts:
-                acc += s["share"] / tot
-                entries.append((min(acc, 1.0), resolve(s["model"]), s["scale_min"], s["scale_max"], s["z_offset"]))
-            self.rules[r["texture"]] = (r["density_per_texel"], entries)
-        self.statics = [(resolve(st["model"]), st["scale_min"], st["scale_max"], st["z_offset"])
-                        for st in counts["order"]]
-        self.counts = counts["cells"]
+            for i in range(count):
+                path, smin, smax, dz = self.statics[first + i]
+                if not path:
+                    continue
+                acc += table.statics[first + i][0] / total
+                entries.append((min(acc, 1.0), path, smin, smax, dz))
+            self.rules[tex] = (dens, entries)
 
     def active(self) -> bool:
         return bool(self.rules)
 
 
 def remiros_generate_cell(terrain: Terrain, model: RemirosModel, cx: int, cy: int, density: float = 1.0) -> list:
-    """RemirosGen::collectCell (komórka jako chunk) → [(model, pos, rot, skala, źródło)]."""
+    """RemirosGen::collectCell (komórka = chunk) → [(model, pos, rot, skala, źródło)]."""
+    t = model.t
     keys = terrain.texel_keys(cx, cy)
-    if keys is None:
+    if keys is None or density <= 0:
         return []
-    cnt = model.counts.get((cx, cy))
-    hash_ok = cnt is not None and terrain.land_hash(cx, cy) == cnt[0]
+    rec_tex = [-1] * 256
+    first_group = [0] * 256
+    group_count = [0] * 256
+    c = t.cells.get((cx, cy))
+    if c is not None and terrain.land_hash(cx, cy) == c[0]:
+        nxt = c[3]
+        for i in range(c[2]):
+            e = int(t.entries[c[1] + i])
+            texel = e & 0xFF
+            rec_tex[texel] = (e >> 8) & 0xFF
+            first_group[texel] = nxt
+            group_count[texel] = (e >> 16) & 0xFF
+            nxt += group_count[texel]
     cxu, cyu = (cx * 0x9E3779B9) & M32, (cy * 0x85EBCA6B) & M32
+    sub = float(t.sub)
     out = []
 
     def count_of(d: float, seed: int) -> int:
-        return int(math.floor(d)) + (1 if random01(seed ^ 0x2545F491) < d - math.floor(d) else 0)
+        whole = math.floor(d)
+        return int(whole) + (1 if random01(seed ^ 0x2545F491) < d - whole else 0)
 
     def place(s0: int, attempts: int, offset):
         for attempt in range(attempts):
@@ -715,7 +423,7 @@ def remiros_generate_cell(terrain: Terrain, model: RemirosModel, cx: int, cy: in
             px, py = offset(s)
             wx, wy = px * CELL, py * CELL
             h = terrain.height_at(wx, wy)
-            if h is not None and h > UNDERWATER:
+            if h is not None and h > t.underwater:
                 return wx, wy, h, s
         return None
 
@@ -723,7 +431,7 @@ def remiros_generate_cell(terrain: Terrain, model: RemirosModel, cx: int, cy: in
         wx, wy, h, s = p
         sc = smin + random01(s ^ 0x63D83595) * (smax - smin)
         rz = random01(s ^ 0xA511E9B3) * TWO_PI
-        # obrót wg normalnej terenu (różnice centralne co 128 j.): rotX = asin(n.y), rotY = atan2(-n.x, n.z)
+        # alignToTerrain forka: normalna z różnic centralnych co 128 j.; rotX = asin(n.y), rotY = atan2(-n.x, n.z)
         d = CELL / 64.0
         hx0, hx1 = terrain.height_at(wx - d, wy), terrain.height_at(wx + d, wy)
         hy0, hy1 = terrain.height_at(wx, wy - d), terrain.height_at(wx, wy + d)
@@ -738,21 +446,24 @@ def remiros_generate_cell(terrain: Terrain, model: RemirosModel, cx: int, cy: in
 
     for ty in range(16):
         for tx in range(16):
-            t = ty * 16 + tx
+            texel = ty * 16 + tx
             key = keys[ty][tx]
-            rec = cnt[1].get(t) if hash_ok else None
-            tseed = hash32(cxu ^ cyu ^ ((t * 0xC2B2AE35) & M32))
-            if rec is not None and rec[0] == key:
-                for gi, (sub, st, k) in enumerate(rec[1]):
+            tseed = hash32(cxu ^ cyu ^ ((texel * 0xC2B2AE35) & M32))
+            if rec_tex[texel] >= 0 and t.names[rec_tex[texel]] == key:
+                for gi in range(group_count[texel]):
+                    g = int(t.groups[first_group[texel] + gi])
+                    st = (g >> 4) & 0xFF
+                    if st >= len(model.statics):
+                        continue
                     mdl, smin, smax, dz = model.statics[st]
                     if not mdl:
                         continue
+                    fx, fy = float(g & 3), float((g >> 2) & 3)
                     gseed = hash32(tseed ^ (((gi + 1) * 0x165667B1) & M32))
-                    sxf, syf = float(sub % SUB), float(sub // SUB)
-                    for kk in range(count_of(k * density, gseed)):
-                        p = place(hash32(gseed ^ ((0x9E3779B9 * (kk + 1)) & M32)), RETRIES,
-                                  lambda s: (cx + (tx + (sxf + random01(s ^ 0x68BC21EB)) / SUB) / 16.0,
-                                             cy + (ty + (syf + random01(s ^ 0x02E5BE93)) / SUB) / 16.0))
+                    for k in range(count_of(float((g >> 12) & 0xFF) * density, gseed)):
+                        p = place(hash32(gseed ^ ((0x9E3779B9 * (k + 1)) & M32)), t.retries,
+                                  lambda s: (cx + (tx + (fx + random01(s ^ 0x68BC21EB)) / sub) / 16.0,
+                                             cy + (ty + (fy + random01(s ^ 0x02E5BE93)) / sub) / 16.0))
                         if p is not None:
                             emit(p, mdl, smin, smax, dz)
                 continue
@@ -762,11 +473,11 @@ def remiros_generate_cell(terrain: Terrain, model: RemirosModel, cx: int, cy: in
             dd = rule[0] * density
             if dd <= 0:
                 continue
-            width = 1.0 + 2.0 * SPREAD
+            width = 1.0 + 2.0 * t.spread
             for k in range(count_of(dd, tseed)):
                 p = place(hash32(tseed ^ ((0x9E3779B9 * (k + 1)) & M32)), 1,
-                          lambda s: (cx + (tx + (random01(s ^ 0x68BC21EB) * width - SPREAD)) / 16.0,
-                                     cy + (ty + (random01(s ^ 0x02E5BE93) * width - SPREAD)) / 16.0))
+                          lambda s: (cx + (tx + (random01(s ^ 0x68BC21EB) * width - t.spread)) / 16.0,
+                                     cy + (ty + (random01(s ^ 0x02E5BE93) * width - t.spread)) / 16.0))
                 if p is not None:
                     pick = random01(p[3] ^ 0x91E10DA5)
                     e = next((e for e in rule[1] if pick < e[0]), rule[1][-1])
@@ -818,14 +529,13 @@ def read_cell(path: Path) -> dict:
 
 # --- etap konwersji -----------------------------------------------------------------------------------------
 
-def candidate_models(vfs, cfg_groundcover: list, remiros_files: list, gc: Optional[GroundcoverIndex]) -> set:
-    """Modele potrzebne roślinności (do konwersji NIF → GLB przed generowaniem)."""
-    out = {c for c in PROCEDURAL_CANDIDATES if vfs.exists(c)}
-    if gc is not None:
-        for m in gc.statics.values():
-            k = vfs.resolve_mesh(m) if m else None
-            if k:
-                out.add(k)
+def remiros_models(vfs) -> set:
+    """Modele Remirosa obecne w VFS (meshes/grass/<plik z tabeli>)."""
+    out = set()
+    for _share, model, *_r in remiros_table().statics:
+        k = f"meshes/grass/{model}"
+        if vfs.exists(k):
+            out.add(k)
     return out
 
 
@@ -838,17 +548,15 @@ def export(world, vfs, cfg, out: Path, settings: Settings, keys: list, glb_of, l
     fdir = Path(out) / "world" / "flora"
     state_file = Path(out) / ".mwconv" / "flora_state.json"
     gc_files = list(cfg.groundcover)
-    rem_files = sorted({str(p) for d in cfg.data_dirs if Path(d).is_dir()
-                        for p in Path(d).iterdir() if is_remiros_plugin(p)} | {f for f in gc_files if is_remiros_plugin(f)})
+    rem_present = sorted(remiros_models(vfs)) if procedural else []
     ext = [k for k in keys if k.startswith("ext:")]
-    sig = {"v": FORMAT_VERSION, "settings": s.__dict__, "gc": [(f, os.path.getsize(f)) for f in gc_files],
-           "rem": [(f, os.path.getsize(f)) for f in rem_files], "cells": sorted(ext),
-           "lands": hashlib.sha256(repr(sorted((g, e[2]) for g, e in world.lands.items())).encode()).hexdigest(),
-           "content": [os.path.basename(c) for c in cfg.content]}
+    sig = {"v": FORMAT_VERSION, "table": remiros_table().info, "settings": s.__dict__,
+           "gc": [(f, os.path.getsize(f)) for f in gc_files], "rem": rem_present, "cells": sorted(ext),
+           "lands": hashlib.sha256(repr(sorted((g, e[2]) for g, e in world.lands.items())).encode()).hexdigest()}
     sig_key = hashlib.sha256(json.dumps(sig, sort_keys=True, default=str).encode()).hexdigest()
+    import shutil
     if not plugin and not procedural:
         if fdir.exists():
-            import shutil
             shutil.rmtree(fdir)
         state_file.parent.mkdir(parents=True, exist_ok=True)
         state_file.write_text(json.dumps({"key": sig_key}))
@@ -861,36 +569,25 @@ def export(world, vfs, cfg, out: Path, settings: Settings, keys: list, glb_of, l
             pass
 
     terrain = Terrain(world.lands)
-    models = ModelInfo(out, base_out)
     gc = GroundcoverIndex.load(gc_files) if (plugin and gc_files) else None
     remiros = None
-    if procedural and rem_files:
-        rg = GroundcoverIndex.load(rem_files)
-        rules = remiros_derive(rg, terrain)
-        counts = remiros_counts(rg, terrain, rules)
-
-        def resolve(name, _c={}):
-            if name not in _c:
-                k = f"meshes/grass/{name}"
-                _c[name] = k if vfs.exists(k) else None
-            return _c[name]
-        remiros = RemirosModel(rules, counts, resolve)
+    if procedural:
+        remiros = RemirosModel(remiros_table(), lambda m: f"meshes/grass/{m}" if vfs.exists(f"meshes/grass/{m}") else None)
         if not remiros.active():
+            log("Roślinność: brak modeli Remirosa (meshes/grass/) – trawa proceduralna wyłączona. "
+                "Zainstaluj Remiros' Groundcover jako mod (wystarczą modele i tekstury, bez ESP).")
             remiros = None
-        log(f"Roślinność: reguły Remirosa z {len(rem_files)} wtyczek – "
-            f"{len(remiros.rules) if remiros else 0} tekstur, {len(counts['cells'])} komórek z licznikami")
-    pool, pscale = ([], {})
-    if procedural and remiros is None:
-        pool, pscale = procedural_pool(vfs, models, glb_of)
-    excl = s.exclusion_distance * UPM
+        else:
+            log(f"Roślinność: reguły Remirosa (tabela forka: {remiros_table().info}); modele: "
+                f"{len(rem_present)}, statyk bez modelu: {remiros.missing}")
 
-    import shutil
     if fdir.exists():
         shutil.rmtree(fdir)
     model_index: dict = {}
     models_list: list = []
     cells_out = {}
     stats = collections.Counter()
+    counts_used = 0
     for k in ext:
         cx, cy = (int(v) for v in k[4:].split(","))
         items = []
@@ -899,13 +596,11 @@ def export(world, vfs, cfg, out: Path, settings: Settings, keys: list, glb_of, l
                 mk = vfs.resolve_mesh(m)
                 if mk:
                     items.append((mk, r.pos, r.rot, r.scale, SRC_PLUGIN))
-        if procedural:
-            if remiros is not None:
-                items += remiros_generate_cell(terrain, remiros, cx, cy, s.density)
-            elif pool:
-                items += generate_procedural(terrain, cx, cy, s.density, pool, pscale,
-                                             collect_exclusions(world, cx, cy, models, glb_of, excl),
-                                             collect_segments(world, cx, cy), excl)
+        if remiros is not None:
+            c = remiros_table().cells.get((cx, cy))
+            if c is not None and terrain.land_hash(cx, cy) == c[0]:
+                counts_used += 1
+            items += remiros_generate_cell(terrain, remiros, cx, cy, s.density)
         if not items:
             continue
         for m, *_ in items:
@@ -916,15 +611,14 @@ def export(world, vfs, cfg, out: Path, settings: Settings, keys: list, glb_of, l
         write_cell(fdir / rel, items, model_index)
         cells_out[k] = {"file": rel, "count": len(items)}
         for it in items:
-            stats[("plugin", "procedural", "remiros")[it[4]]] += 1
+            stats["plugin" if it[4] == SRC_PLUGIN else "remiros"] += 1
+    mode = "+".join(x for x, on in (("plugins", gc is not None), ("remiros", remiros is not None)) if on) or "none"
     from .world import write_json
     write_json(fdir / "index.json", {
-        "format": "mwgodot-flora", "version": FORMAT_VERSION,
-        "settings": s.__dict__, "plugin_groundcover": plugin, "procedural": procedural,
-        "mode": "remiros" if remiros else ("generic" if procedural else "plugins"),
+        "format": "mwgodot-flora", "version": FORMAT_VERSION, "settings": s.__dict__, "mode": mode,
         "models": [{"vfs": m, "glb": glb_of(m)} for m in models_list], "cells": cells_out})
     state_file.parent.mkdir(parents=True, exist_ok=True)
     state_file.write_text(json.dumps({"key": sig_key}))
     return {"cells": len(cells_out), "instances": sum(stats.values()), "by_source": dict(stats),
-            "models": len(models_list), "mode": "remiros" if remiros else ("generic" if procedural else "plugins"),
+            "models": len(models_list), "mode": mode, "count_cells_matched": counts_used,
             "seconds": round(time.perf_counter() - t0, 2)}

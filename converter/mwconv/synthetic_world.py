@@ -258,7 +258,6 @@ def write_patch2(data_dir: Path) -> str:
 
 def write_flora(flora_dir: Path) -> dict:
     """Osobny katalog danych (jak mod) do testów roślinności – własne, syntetyczne pliki:
-      meshes/f/flora_grass_01.nif, flora_bc_grass_01.nif   pula flory proceduralnej (nazwy jak w wanilii)
       meshes/grass/synth_gc_01.nif                         model wtyczki groundcover
       meshes/grass/rem_sy_grass_01.nif, _02                modele „Remirosa” (nazwy rem_*)
       mwg_grass.esp                                        wtyczka groundcover (STAT + referencje w komórkach)
@@ -266,9 +265,7 @@ def write_flora(flora_dir: Path) -> dict:
     """
     from .synthetic import make_grass
     flora_dir = Path(flora_dir)
-    models = {"meshes/f/flora_grass_01.nif": make_grass(), "meshes/f/flora_bc_grass_01.nif": make_grass(50, 35),
-              "meshes/f/flora_grass_05.nif": make_grass(400, 40),      # za szeroki (> 200 j.) – odrzucany
-              "meshes/grass/synth_gc_01.nif": make_grass(30, 25),
+    models = {"meshes/grass/synth_gc_01.nif": make_grass(30, 25),
               "meshes/grass/rem_sy_grass_01.nif": make_grass(36, 28), "meshes/grass/rem_sy_grass_02.nif": make_grass(28, 40)}
     for rel, b in models.items():
         p = flora_dir / rel

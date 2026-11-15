@@ -351,7 +351,7 @@ def _flora_settings(opts):
 
 
 def _flora_models(cfg, vfs, opts) -> set:
-    """Modele roślinności do konwersji (pula wanilii, statyki wtyczek groundcover, meshes/grass Remirosa)."""
+    """Modele roślinności do konwersji (statyki wtyczek groundcover, modele Remirosa z meshes/grass)."""
     from . import flora
     s = _flora_settings(opts).normalized()
     plugin, procedural, _d = s.modes()
@@ -359,8 +359,7 @@ def _flora_models(cfg, vfs, opts) -> set:
         return set()
     out = set()
     if procedural:
-        out |= {c for c in flora.PROCEDURAL_CANDIDATES if vfs.exists(c)}
-        out |= {k for k in vfs.list("meshes/grass/", ".nif")}
+        out |= flora.remiros_models(vfs)
     if plugin and cfg.groundcover:
         gc = flora.GroundcoverIndex.load(cfg.groundcover)
         for m in gc.statics.values():
