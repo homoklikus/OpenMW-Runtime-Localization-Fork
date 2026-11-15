@@ -482,7 +482,7 @@ class HomePage(QWidget):
             pm = QPixmap(str(shot))
             if not pm.isNull():
                 return pm.scaled(w, h, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation).copy(0, 0, w, h)
-        return art.user_image("preview", w, h) or art.preview(w, h)
+        return art.user_image("preview", w, h) or art.image_preview(w, h) or art.preview(w, h)
 
 
 class DiagnosticsPage(QWidget):

@@ -187,14 +187,14 @@ Paleta (`theme.py`) to średnie kolorów z próbek grafiki referencyjnej:
 | potwierdzenie / informacja | `#3f8f2c` / `#3a6fb0` |
 | niebo banera | `#5e2e2b`→`#8a4e4b` |
 
-**Baner.** Pejzaż (wulkan, twierdza, grzybowa wieża) jest wycięty z grafiki referencyjnej dostarczonej
-przez autora projektu; nie pochodzi z gry. Plik: `launcher/resources/banner.png` (868×188), wycinek
-bez godła i napisu. Launcher rysuje go wyrównanego do prawej, z przejściem w tło pod tytułem.
+**Baner i podgląd.** Pejzaż (wulkan, twierdza, grzybowa wieża) i ilustracja miasta są wycięte z grafiki
+referencyjnej wygenerowanej przez autora projektu w ChatGPT; nie pochodzą z gry. Pliki:
+`launcher/resources/banner.png` (868×188) i `preview.png` (363×166), bez godła, napisu i podpisu. Launcher rysuje go wyrównanego do prawej, z przejściem w tło pod tytułem.
 Gdy pliku brak, używany jest proceduralny pejzaż (`art.banner`).
 
 **Świadome odstępstwa.** Logo *Morrowind* (znak towarowy Bethesdy) zastępuje własne godło
-(mosiężny pierścień z górami). Ilustracja Balmory w karcie „Stan instalacji” zostaje zastąpiona
-proceduralnymi domami (`art.preview`). Po pierwszym uruchomieniu gry podgląd pokazuje
+(mosiężny pierścień z górami). Podgląd nie ma podpisu „Balmora”, bo to ilustracja, a nie widok z zaimportowanej gry.
+Po pierwszej sesji gry zastępuje go zrzut ostatniego widoku. Po pierwszym uruchomieniu gry podgląd pokazuje
 lokalny zrzut ostatniego widoku (`<zapisy profilu>/last_view.png`), który nigdy nie opuszcza komputera.
 
 **Motyw lokalny (opcjonalny).** Własne obrazy można położyć w `~/.config/openmwgodot/theme/`

@@ -414,3 +414,13 @@ def image_banner(w: int, h: int):
     p.fillRect(0, 0, w, h, bot)
     p.end()
     return pm
+
+
+def image_preview(w: int, h: int):
+    """Ilustracja do karty „Stan instalacji” (resources/preview.png); None, gdy pliku brak."""
+    f = RESOURCES / "preview.png"
+    pm = QPixmap(str(f)) if f.is_file() else QPixmap()
+    if pm.isNull():
+        return None
+    pm = pm.scaled(w, h, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+    return pm.copy((pm.width() - w) // 2, (pm.height() - h) // 2, w, h)

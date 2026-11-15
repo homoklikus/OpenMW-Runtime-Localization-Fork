@@ -51,8 +51,11 @@ i mechanik, warto wrócić do decyzji, bo przepisywanie interpretera od zera to 
 
 ## Grafiki launchera
 
-* `launcher/resources/banner.png` — wycinek pejzażu z grafiki referencyjnej launchera dostarczonej przez
-  autora projektu (sesja 3, 2026-11-15). Według autora nie pochodzi z gry Morrowind. Wycięty bez godła
-  i tytułu. Przed publicznym wydaniem warto potwierdzić licencję źródła obrazu.
-* `launcher/resources/openmwgodot.png`, godło, ikony, pejzaż i podgląd proceduralny — własne, rysowane kodem.
-* Logo *Morrowind* / *The Elder Scrolls* nie jest i nie będzie częścią repozytorium (znak towarowy).
+* `launcher/resources/banner.png` (pejzaż) i `launcher/resources/preview.png` (ilustracja miasta) — wycinki
+  z grafiki referencyjnej launchera, którą autor projektu wygenerował w ChatGPT (sesja 3, 2026-11-15).
+  Nie pochodzą z gry. Wycięte bez godła, tytułu i podpisu. Warunki OpenAI przypisują prawa do wyników
+  użytkownikowi; przed publicznym wydaniem warto to jeszcze potwierdzić w aktualnych warunkach.
+* `launcher/resources/openmwgodot.png`, godło, ikony, pejzaż i podgląd proceduralny (zapasowe) — własne,
+  rysowane kodem.
+* Logo *Morrowind* / *The Elder Scrolls* (znak towarowy Bethesdy) nie jest częścią repozytorium,
+  także w wersji narysowanej przez AI.
