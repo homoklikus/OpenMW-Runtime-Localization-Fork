@@ -27,6 +27,7 @@ from typing import Callable, Iterable, Optional
 import numpy as np
 
 from . import coords
+from . import records as recdec
 from .esm.reader import (MODEL_TYPES, Cell, CellRef, EsmFile, Land, parse_cell, parse_land, parse_object, parse_region,
                          open_esm_stream, read_esm)
 from .vfs import norm
@@ -77,6 +78,7 @@ class World:
     ltex_by_file: dict = field(default_factory=dict)  # nazwa pliku → {INTV: tekstura}
     masters_by_file: dict = field(default_factory=dict)
     pathgrids: dict = field(default_factory=dict)     # (x, y) → (punkty [(x, y, z) świat], krawędzie [(i, j)])
+    records: dict = field(default_factory=dict)       # typ → {id_lower: rekord} (etap 1: postacie, przedmioty, GMST…)
 
     def ltex_resolver(self, fname: str) -> dict:
         """Mapa INTV → tekstura widziana przez plik: własne LTEX, potem LTEX masterów (późniejszy wygrywa).
@@ -119,6 +121,8 @@ def load_world(paths: Iterable, log: Callable[[str], None] = lambda s: None) -> 
         t0 = time.perf_counter()
         for rec in records:
             world.record_counts[rec.type] = world.record_counts.get(rec.type, 0) + 1
+            if rec.type in recdec.DECODERS:
+                recdec.merge(world.records, rec, f.name)
             if rec.type in MODEL_TYPES:
                 o = parse_object(rec)
                 if o is None:

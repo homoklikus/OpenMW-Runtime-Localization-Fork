@@ -36,8 +36,11 @@ from .vfs import Vfs, norm
 from .world import (cell_file_rel, cell_to_json, content_fingerprint, load_world, select_cells, terrain_to_json,
                     write_json)
 
-MODEL_CONVERTER = f"nif2gltf-{__version__}"
-TEXTURE_CONVERTER = f"tex2png-{__version__}"
+# Wersje konwerterów zasobów – zmiana wymusza ponowną konwersję modeli/tekstur, więc są niezależne od wersji
+# pakietu. Eksport świata ma własną wersję (WORLD_EXPORT_VERSION): nowe dane świata bez ponownej konwersji zasobów.
+MODEL_CONVERTER = "nif2gltf-0.1.0"
+TEXTURE_CONVERTER = "tex2png-0.1.0"
+WORLD_EXPORT_VERSION = 2          # 2: world/records/ (etap 1)
 
 _VFS: Optional[Vfs] = None
 _OUT: Optional[Path] = None
@@ -608,7 +611,7 @@ def _run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) 
     vfs_sig = hashlib.sha256("\n".join(f"{k}|{f.source}|{f.size}|{f.mtime:.3f}" for k, f in sorted(vfs.files.items())
                                        if not k.startswith("localization/"))
                              .encode()).hexdigest()
-    export_key = {"v": __version__, "base": str(opts.base_out or ""), "content": content_fingerprint(cfg.content),
+    export_key = {"v": __version__, "world": WORLD_EXPORT_VERSION, "base": str(opts.base_out or ""), "content": content_fingerprint(cfg.content),
                   "flora": opts.flora, "groundcover": content_fingerprint(cfg.groundcover), "cells": sorted(opts.cells),
                   "grids": sorted(map(list, opts.grids)), "all_cells": opts.all_cells, "all_models": opts.all_models,
                   "vfs": vfs_sig}
@@ -720,6 +723,8 @@ def _run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) 
                 o["anim"] = kf_out_rel(kf)
         objs[bid] = o
     write_json(wdir / "objects.json", objs)
+    from . import records as recdec
+    stats["records"] = recdec.export(world.records, wdir, write_json)
     used_regions = {(world.cells[k].cell.region or "").lower() for k in keys} - {""}
     write_json(wdir / "regions.json", {r: world.regions[r] for r in sorted(used_regions) if r in world.regions})
     write_json(wdir / "index.json", {"format": "mwgodot-world", "version": 1, "cells": index})
