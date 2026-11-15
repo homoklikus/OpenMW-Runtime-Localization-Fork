@@ -25,6 +25,9 @@ pass() { echo -e "\e[32m✔ $*\e[0m"; }
 step() { echo -e "\n\e[1m== $* ==\e[0m"; }
 
 step "1. Testy konwertera (pytest)"
+if ! $PY -c "import pytest" 2>/dev/null; then
+  echo "Brak pytest: sudo apt install python3-pytest"; exit 2
+fi
 (cd "$ROOT/converter" && $PY -m pytest -q)
 pass "pytest"
 
