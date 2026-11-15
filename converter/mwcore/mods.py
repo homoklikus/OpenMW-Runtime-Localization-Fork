@@ -22,7 +22,7 @@ from .archive import ArchiveError, Limits, extract
 from .jsonio import read_json, write_json
 from .paths import AppPaths
 
-DATA_DIRS = {"meshes", "textures", "icons", "bookart", "sound", "music", "fonts", "splash", "video", "distantland"}
+DATA_DIRS = {"meshes", "textures", "icons", "bookart", "sound", "music", "fonts", "splash", "video", "distantland", "localization"}
 PLUGIN_EXT = (".esm", ".esp", ".omwaddon")
 
 

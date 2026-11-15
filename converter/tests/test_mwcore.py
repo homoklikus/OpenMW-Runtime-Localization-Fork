@@ -323,3 +323,15 @@ def test_project_needs_import_after_script_update(tmp_path):
     future = time.time() + 5
     os.utime(proj / "scripts" / "a.gd", (future, future))   # skrypt nowszy niż cache (np. po git pull)
     assert launch.project_needs_import(proj)
+
+
+def test_translation_only_mod(paths, tmp_path):
+    """Mod z samymi tłumaczeniami (localization/language/*.yaml, format forka RLF) – katalog danych rozpoznany."""
+    import zipfile
+    z = tmp_path / "Morrowind PL.zip"
+    with zipfile.ZipFile(z, "w") as f:
+        f.writestr("Morrowind PL/localization/language/Morrowind.yaml", "strings: {}\n")
+    store = mods.ModStore(paths)
+    m = store.install(z)
+    assert m.data_root.endswith("Morrowind PL") and m.plugins == []
+    assert "localization/language/morrowind.yaml" in {k.lower() for k in store.file_list(m)}
