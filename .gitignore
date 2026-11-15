@@ -1,0 +1,21 @@
+# Dane gracza i wyniki konwersji – NIGDY do repozytorium
+/out/
+/wyniki/
+*.esm
+*.esp
+*.bsa
+**/Data Files/
+# Godot
+godot/.godot/
+godot/tests/_fixture/
+godot/cs2_cells/
+godot/bin/
+*.import
+# Python / build
+__pycache__/
+*.pyc
+.pytest_cache/
+gdextension/src/*.os
+gdextension/src/*.o
+.sconsign.dblite
+node_modules/

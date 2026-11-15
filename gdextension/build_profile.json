@@ -1,0 +1,4 @@
+{
+  "type": "build_profile",
+  "enabled_classes": ["Object", "RefCounted", "OS", "Engine", "ClassDBSingleton", "EditorPlugin"]
+}
