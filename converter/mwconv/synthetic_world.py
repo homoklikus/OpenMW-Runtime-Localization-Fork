@@ -143,6 +143,10 @@ def write_world(data_dir: Path) -> dict:
     for k, base in enumerate(("synth_hard_nodes", "synth_hard_ctrl", "synth_fire")):
         refnum[0] += 1
         irefs.append(W.ref_subs(refnum[0], base, (-600 + 600 * k, 600, 0)))
+    # drzwi wyjściowe na ulicę (cel bez nazwy komórki = świat zewnętrzny) – punkt startu gry „w mieście”
+    refnum[0] += 1
+    irefs.append(W.ref_subs(refnum[0], "synth_door", (0, -700, 0), (0, 0, 0),
+                            extra={"door_dest": {"pos": [1200, 8150, height_at(1200, 8150)], "rot": [0, 0, math.pi]}}))
     recs.append(W.cell("Synthville, Test House", (0, 0), True, irefs, water=-1000.0,
                        ambient=(0x00404040, 0x00808080, 0x00202020, 0.5)))
 

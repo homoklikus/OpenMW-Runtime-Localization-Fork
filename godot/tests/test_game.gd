@@ -21,6 +21,12 @@ func _run() -> void:
 	for i in 5:
 		await physics_frame
 	check(main.player != null, "gracz utworzony")
+	# start „w mieście”: punkt wyjścia z budynku (cel drzwi wnętrza „Synthville, …” prowadzących na ulicę)
+	var st = main._named_start("Synthville")
+	var exit_pos := MWCoords.mw_to_godot(Vector3(1200, 8150, 0))
+	check(st != null and Vector2(st.origin.x - exit_pos.x, st.origin.z - exit_pos.z).length() < 0.05,
+			"start w mieście = wyjście z budynku (%s)" % [st.origin if st != null else null])
+	check(main._named_start("Nieistniejące Miasto") == null, "nieznane miasto → brak nazwanego startu")
 	check(main.loaded.size() == 4, "4 komórki zewnętrzne wczytane wokół gracza (%d)" % main.loaded.size())
 	var waters := main.find_children("Water", "MeshInstance3D", true, false)
 	check(waters.size() == 4, "woda w każdej komórce zewnętrznej (%d)" % waters.size())

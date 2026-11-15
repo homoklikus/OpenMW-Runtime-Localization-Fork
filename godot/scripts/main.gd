@@ -58,8 +58,9 @@ func _ready() -> void:
 	player.invert_y = bool(settings.get("invert_y", false))
 	add_child(player)
 	_apply_settings()
-	var start := _start_position()
-	player.global_position = start
+	var start_t := _start_transform()
+	player.global_position = start_t.origin
+	player.rotation.y = start_t.basis.get_euler().y
 	if not interior.is_empty():
 		var key := "int:" + interior.to_lower()
 		_load(key)
@@ -101,10 +102,25 @@ func _apply_settings() -> void:
 		cam.far = float(settings.get("view_distance", 1500))
 
 func _start_position() -> Vector3:
+	return _start_transform().origin
+
+## Miejsce startu. Kolejność: --pos (jednostki MW) → nazwane miejsce (--start, ustawienie „start_location”,
+## potem Balmora i Seyda Neen) → środek pierwszej komórki zewnętrznej.
+## Nazwane miejsce: punkt wyjścia z budynku tego miasta (cel drzwi wnętrza „<miasto>, …” prowadzących na
+## zewnątrz) najbliższy środka komórek miasta – ulica przed drzwiami, nie dach ani rzeka.
+func _start_transform() -> Transform3D:
 	var p := arg("pos")
 	if not p.is_empty():
 		var v := p.split(",")
-		return MWCoords.mw_to_godot(Vector3(float(v[0]), float(v[1]), float(v[2])))
+		return Transform3D(Basis(), MWCoords.mw_to_godot(Vector3(float(v[0]), float(v[1]), float(v[2]))))
+	if interior.is_empty():
+		for name in [arg("start"), String(settings.get("start_location", "")), "Balmora", "Seyda Neen"]:
+			if name.is_empty():
+				continue
+			var t = _named_start(name)
+			if t != null:
+				start_name = name
+				return t
 	# środek pierwszej komórki zewnętrznej z indeksu, nad terenem
 	for c in db.cell_index():
 		if not c.get("interior", false) and interior.is_empty():
@@ -116,8 +132,61 @@ func _start_position() -> Vector3:
 				var t := db.get_terrain(cell["terrain"])
 				var o: Array = t["origin_godot"]
 				pos.y = MWTerrain.height_at(t, pos - Vector3(o[0], o[1], o[2])) + 2.0
-			return pos
-	return Vector3(0, 2, 0)
+			return Transform3D(Basis(), pos)
+	return Transform3D(Basis(), Vector3(0, 2, 0))
+
+var start_name := ""
+
+func _named_start(name: String) -> Variant:
+	var lname := name.to_lower()
+	var centre := Vector3.ZERO
+	var n_ext := 0
+	for c in db.cell_index():
+		if not c.get("interior", false) and String(c.get("name", "")).to_lower() == lname:
+			var g: Array = c["grid"]
+			centre += MWCoords.mw_to_godot(Vector3((g[0] + 0.5) * MWCoords.CELL_SIZE, (g[1] + 0.5) * MWCoords.CELL_SIZE, 0))
+			n_ext += 1
+	# punkty wyjścia z budynków miasta (cele drzwi wnętrz „<miasto>, …” prowadzących na zewnątrz)
+	var exits: Array[Transform3D] = []
+	for c in db.cell_index():
+		if not c.get("interior", false) or not String(c.get("name", "")).to_lower().begins_with(lname + ","):
+			continue
+		for r in db.get_cell(c["key"]).get("refs", []):
+			var ex: Dictionary = r.get("extra", {})
+			if not ex.has("door_dest") or not String(ex.get("door_dest_cell", "")).is_empty():
+				continue  # tylko drzwi prowadzące na zewnątrz
+			var g: Dictionary = ex["door_dest"].get("godot", {})
+			var o: Array = g.get("origin", [0, 0, 0])
+			var q: Array = g.get("quat", [0, 0, 0, 1])
+			var pos := Vector3(o[0], o[1], o[2])
+			if db.find_cell(db.exterior_key(MWCoords.cell_of(pos))).is_empty():
+				continue  # komórka poza przekonwertowanym zakresem
+			exits.append(Transform3D(Basis(Quaternion(q[0], q[1], q[2], q[3])), pos + Vector3(0, 0.1, 0)))
+	if n_ext > 0:
+		centre /= n_ext
+	elif not exits.is_empty():
+		for t in exits:
+			centre += t.origin
+		centre /= exits.size()
+	else:
+		return null
+	if not exits.is_empty():
+		var best: Transform3D = exits[0]
+		var best_d := INF
+		for t in exits:
+			var d := Vector2(t.origin.x - centre.x, t.origin.z - centre.z).length()
+			if d < best_d:
+				best_d = d
+				best = t
+		return best
+	# brak wnętrz: środek komórek miasta, nad terenem (może wypaść na dachu – lepsze niż góry obok)
+	var cell := db.get_cell(db.exterior_key(MWCoords.cell_of(centre)))
+	if cell.is_empty() or cell.get("terrain") == null:
+		return null
+	var tr := db.get_terrain(cell["terrain"])
+	var to: Array = tr["origin_godot"]
+	centre.y = MWTerrain.height_at(tr, centre - Vector3(to[0], to[1], to[2])) + 2.0
+	return Transform3D(Basis(), centre)
 
 func _setup_hud() -> void:
 	var cl := CanvasLayer.new()

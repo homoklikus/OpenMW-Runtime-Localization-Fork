@@ -86,7 +86,7 @@ func _phase_build(db: MWWorldDB, models: MWModelCache) -> void:
 	shown.free()
 	# wnętrze osobno
 	var interior := builder.build_cell("int:synthville, test house")
-	check(interior != null and interior.get_node("Refs").get_child_count() == 7, "wnętrze: 7 referencji")
+	check(interior != null and interior.get_node("Refs").get_child_count() == 8, "wnętrze: 8 referencji (z drzwiami wyjściowymi)")
 	if interior:
 		interior.free()
 	var lights := world.find_children("Light", "OmniLight3D", true, false)
