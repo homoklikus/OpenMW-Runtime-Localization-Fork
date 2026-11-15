@@ -27,6 +27,15 @@ func _run() -> void:
 	check(st != null and Vector2(st.origin.x - exit_pos.x, st.origin.z - exit_pos.z).length() < 0.05,
 			"start w mieście = wyjście z budynku (%s)" % [st.origin if st != null else null])
 	check(main._named_start("Nieistniejące Miasto") == null, "nieznane miasto → brak nazwanego startu")
+	# współrzędne testowe w pasku (komórka + pozycja MW), F3 ukrywa
+	var ct: String = main.coords_text()
+	var ps: String = main.position_string()
+	var pos_back := MWCoords.mw_to_godot(Vector3(float(ps.get_slice(",", 0)), float(ps.get_slice(",", 1)), float(ps.get_slice(",", 2))))
+	check(ct.contains("komórka") and ct.contains(ps), "pasek: komórka i pozycja (%s)" % ct.strip_edges())
+	check(pos_back.distance_to(main.player.global_position) < 0.05, "pozycja z paska wraca w to samo miejsce (--pos)")
+	main.show_coords = false
+	check(main.coords_text() == "", "F3: współrzędne ukryte")
+	main.show_coords = true
 	check(main.loaded.size() == 4, "4 komórki zewnętrzne wczytane wokół gracza (%d)" % main.loaded.size())
 	var waters := main.find_children("Water", "MeshInstance3D", true, false)
 	check(waters.size() == 4, "woda w każdej komórce zewnętrznej (%d)" % waters.size())

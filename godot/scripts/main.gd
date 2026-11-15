@@ -230,7 +230,7 @@ func _process(_d: float) -> void:
 			var base := db.get_object(String(r.get_meta("mw_base", "")))
 			hint = "\n[E] %s" % base.get("name", r.get_meta("mw_base", ""))
 	var rname := interior if not interior.is_empty() else String(envr.regions.get(current_region.to_lower(), {}).get("name", current_region))
-	hud.text = "%s  |  dzień %d, %02d:%02d  |  %s%s" % [rname, envr.day + 1, int(envr.game_hour), int(fmod(envr.game_hour, 1.0) * 60), envr.weather, hint]
+	hud.text = "%s  |  dzień %d, %02d:%02d  |  %s%s%s" % [rname, envr.day + 1, int(envr.game_hour), int(fmod(envr.game_hour, 1.0) * 60), envr.weather, coords_text(), hint]
 
 ## Widok z ostatniej sesji – zapisywany lokalnie (katalog zapisów profilu), launcher pokazuje go na ekranie głównym.
 func _notification(what: int) -> void:
@@ -243,7 +243,39 @@ func _notification(what: int) -> void:
 				img.resize(640, int(640.0 * img.get_height() / max(1, img.get_width())), Image.INTERPOLATE_BILINEAR)
 				img.save_png(saves.path_join("last_view.png"))
 
+## Współrzędne do testów (F3 – pokaż/ukryj, F4 – kopiuj do schowka i zapisz w logu).
+## Pozycja w jednostkach Morrowinda (jak w Construction Set i konsoli gry); „--pos=x,y,z” uruchamia grę w tym miejscu.
+var show_coords := true
+
+func position_string() -> String:
+	if player == null:
+		return ""
+	var mw := MWCoords.godot_to_mw(player.global_position)
+	return "%d,%d,%d" % [roundi(mw.x), roundi(mw.y), roundi(mw.z)]
+
+func coords_text() -> String:
+	if not show_coords or player == null:
+		return ""
+	var cell := ""
+	if interior.is_empty():
+		var g := MWCoords.cell_of(player.global_position)
+		cell = "komórka %d,%d" % [g.x, g.y]
+	else:
+		cell = "wnętrze „%s”" % interior
+	var yaw := fposmod(-rad_to_deg(player.rotation.y), 360.0)
+	return "\n%s  |  pozycja %s  |  kierunek %d°  [F3 ukryj, F4 kopiuj]" % [cell, position_string(), roundi(yaw)]
+
 func _unhandled_input(e: InputEvent) -> void:
+	if e is InputEventKey and e.pressed and not e.echo:
+		if e.keycode == KEY_F3:
+			show_coords = not show_coords
+		elif e.keycode == KEY_F4 and player:
+			var line := "--pos=%s" % position_string()
+			if not interior.is_empty():
+				line = "--cell=\"%s\" %s" % [interior, line]
+			DisplayServer.clipboard_set(line)
+			print("MWGODOT_POS ", line)
+			_toast("Skopiowano do schowka: " + line)
 	if e.is_action_pressed("activate") and player:
 		for ch in player.get_children():
 			if ch is Camera3D:
@@ -298,6 +330,15 @@ func _load(key: String) -> void:
 	if n:
 		add_child(n)
 		loaded[key] = n
+
+func _toast(text: String, seconds := 3.0) -> void:
+	var l := Label.new()
+	l.text = text
+	l.position = Vector2(12, 90)
+	var cl := CanvasLayer.new()
+	cl.add_child(l)
+	add_child(cl)
+	get_tree().create_timer(seconds).timeout.connect(cl.queue_free)
 
 func _add_message(text: String) -> void:
 	var l := Label.new()
