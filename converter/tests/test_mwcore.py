@@ -291,3 +291,17 @@ def test_commands_are_lists_without_shell(tmp_path):
     assert cmd[:3] == ["/usr/bin/godot", "--path", str(tmp_path)]
     assert "; rm -rf /" in cmd and "--" in cmd and any(a.startswith("--base=") for a in cmd)
     assert launch.editor_command("g", tmp_path, ua)[1] == "-e"
+
+
+def test_find_godot_official_binary_next_to_project(tmp_path, monkeypatch):
+    from mwcore import launch
+    monkeypatch.setenv("PATH", "")
+    monkeypatch.delenv("MWGODOT_GODOT", raising=False)
+    app = tmp_path / "launcher"
+    app.mkdir()
+    for name in ("Godot_v4.5.1-stable_linux.x86_64", "Godot_v4.7.2-stable_linux.x86_64"):
+        f = tmp_path / name
+        f.write_text("#!/bin/sh\n")
+        f.chmod(0o755)
+    (tmp_path / "Godot_v4.8-stable_linux.x86_64.zip").write_text("")
+    assert launch.find_godot("", app) == str(tmp_path / "Godot_v4.7.2-stable_linux.x86_64")

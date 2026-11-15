@@ -25,6 +25,9 @@ unzip Godot_v4.7.1-stable_linux.x86_64.zip && ln -sf "$PWD/Godot_v4.7.1-stable_l
 godot --version   # 4.7.1.stable.official
 ```
 
+Prościej: połóż plik `Godot_v4.x…_linux.x86_64` (z prawem wykonania) w katalogu głównym projektu. Launcher
+wykryje go sam (przy kilku wybierze najnowszą wersję); git go ignoruje.
+
 ## 2. Testy na danych syntetycznych (bez plików gry)
 
 ```bash

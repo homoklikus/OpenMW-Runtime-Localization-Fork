@@ -23,3 +23,7 @@ node_modules/
 # paczki wydań
 /*.tar.gz
 /*.zip
+
+# binarki Godota położone obok projektu, lokalne raporty
+/Godot_v4*
+/raporty/
