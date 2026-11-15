@@ -110,7 +110,10 @@ mod) są raportowane jako `override_orphans`. ESM/ESP nigdy nie są zapisywane.
 | `scripts/mw/mw_terrain.gd` + `shaders/mw_terrain.gdshader` | siatka 65×65 (triangulacja „diamond” jak w grze), Texture2DArray z palety, mieszanie kafli, VCLR, kolizja trimesh |
 | `scripts/mw/mw_cell_builder.gd` | węzeł komórki: teren + referencje (meta `mw_sid`/`mw_base`/`mw_source`) + światła LIGH |
 | `scripts/mw/mw_cell_editing.gd` | logika CS 2.0: otwarcie, dodawanie, różnice, zapis nadpisań |
-| `scripts/main.gd`, `scripts/player.gd` | gra: strumieniowanie komórek wokół gracza, postać 1-os. (WASD, skok, bieg, latanie) |
+| `scripts/main.gd`, `scripts/player.gd` | gra: strumieniowanie komórek wokół gracza; gracz = `MWActor` + kontroler gracza |
+| `scripts/mw/mw_actor.gd`, `mw_player_controller.gd` | etap 0: wspólny aktor (ruch, kolizja, intencje) i kontroler gracza (wejście, kamera); NPC/stworzenia dostaną kontrolery AI |
+| `scripts/mw/mw_game_state.gd` | etap 0: różnice stanu gry względem danych bazowych, zapis v1 (`docs/FORMAT-ZAPISU.md`) |
+| `scripts/mw/mw_events.gd`, `mw_input.gd`, `mw_menu_key.gd` | etap 0: szyna zdarzeń (stabilne id, bez węzłów), akcje wejścia z domyślnymi klawiszami, menu pauzy |
 | `scripts/mw/mw_controllers.gd` | odtwarzanie kontrolerów (osobny AnimationPlayer na kontroler), CPUParticles3D, biblioteki animacji z `.kf` z cięciem na klipy |
 | `scripts/mw/mw_environment.gd` | pora dnia (skala czasu 30), słońce, niebo, pogoda losowana z szans REGN, otoczenie wnętrz (AMBI), woda |
 | `scripts/mw/mw_travel.gd` | drzwi (DODT/DNAM): wybór celu, przejście wnętrze ↔ świat |

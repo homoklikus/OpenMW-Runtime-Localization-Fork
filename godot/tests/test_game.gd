@@ -38,6 +38,7 @@ func _run() -> void:
 	main.show_coords = true
 	_test_capture(main)
 	_test_save(main)
+	await _test_actor(main)
 	_test_localization(main)
 	check(main.loaded.size() == 4, "4 komórki zewnętrzne wczytane wokół gracza (%d)" % main.loaded.size())
 	var waters := main.find_children("Water", "MeshInstance3D", true, false)
@@ -252,3 +253,48 @@ func _find_ref(main, sid: String) -> Node:
 			if String(n.get_meta("mw_sid", "")) == sid:
 				return n
 	return null
+
+
+## Etap 0: MWActor (wspólny aktor), kontrolery, szyna zdarzeń, akcje wejścia.
+func _test_actor(main) -> void:
+	var p = main.player
+	check(p.kind == "player" and p.controller != null and p.controller.has_method("control")
+			and p.get_node_or_null("Camera3D") != null, "gracz to MWActor z kontrolerem gracza i kamerą")
+	for a in ["menu", "quick_save", "quick_load", "toggle_coords", "copy_position", "activate", "jump"]:
+		check(InputMap.has_action(a), "akcja wejścia %s" % a)
+	# NPC: ten sam aktor, inny kontroler (tu: stały ruch do przodu) – ta sama fizyka ruchu
+	var ctl_src := GDScript.new()
+	ctl_src.source_code = "extends Node\nfunc control(a, _d):\n\ta.move_input = Vector2(0, -1)\n"
+	ctl_src.reload()
+	var npc = preload("res://scripts/mw/mw_actor.gd").new()
+	npc.kind = "npc"
+	npc.record_id = "test_npc"
+	var ctl: Node = ctl_src.new()
+	npc.add_child(ctl)
+	npc.controller = ctl
+	npc.fly = true
+	main.add_child(npc)
+	var start: Vector3 = p.global_position + Vector3(0, 30, 0)
+	npc.global_position = start
+	for i in 30:
+		await physics_frame
+	var moved: Vector3 = npc.global_position - start
+	check(moved.z < -5.0 and absf(moved.x) < 0.01, "NPC (MWActor + własny kontroler) porusza się wg intencji (%s)" % moved)
+	npc.queue_free()
+	# zdarzenia: przeładowanie świata emituje cell_unloaded/cell_loaded, aktywacja – activated(sid, base)
+	var got := {"loaded": 0, "unloaded": 0, "act": []}
+	var on_l := func(_k): got["loaded"] += 1
+	var on_u := func(_k): got["unloaded"] += 1
+	var on_a := func(sid, base, kind): got["act"].append([sid, base, kind])
+	main.events.cell_loaded.connect(on_l)
+	main.events.cell_unloaded.connect(on_u)
+	main.events.activated.connect(on_a)
+	main._apply_state()
+	check(got["unloaded"] == 4 and got["loaded"] == 4, "zdarzenia komórek (%s)" % got)
+	var any_ref: Node = main.loaded.values()[0].get_node("Refs").get_child(0)
+	main.activate(any_ref)
+	check(got["act"].size() == 1 and got["act"][0][0] == String(any_ref.get_meta("mw_sid")) and got["act"][0][2] == "player",
+			"zdarzenie aktywacji ze stabilnym sid (%s)" % [got["act"]])
+	main.events.cell_loaded.disconnect(on_l)
+	main.events.cell_unloaded.disconnect(on_u)
+	main.events.activated.disconnect(on_a)

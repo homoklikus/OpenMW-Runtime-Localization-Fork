@@ -16,6 +16,9 @@ var hud: RichTextLabel
 const Loc := preload("res://scripts/mw/mw_localization.gd")
 const Flora := preload("res://scripts/mw/mw_flora.gd")
 const GameStateScript := preload("res://scripts/mw/mw_game_state.gd")
+const Events := preload("res://scripts/mw/mw_events.gd")
+const MWInput := preload("res://scripts/mw/mw_input.gd")
+var events = Events.new()           # szyna zdarzeń (etap 0)
 var state = GameStateScript.new()   # różnice stanu gry względem danych bazowych (zapis gry)
 var pause_menu: Control
 var loc  # Loc
@@ -34,6 +37,11 @@ func arg(name: String, def := "") -> String:
 	return def
 
 func _ready() -> void:
+	MWInput.register_defaults()
+	var mk := preload("res://scripts/mw/mw_menu_key.gd").new()
+	mk.name = "MenuKey"
+	mk.main = self
+	add_child(mk)
 	var data := arg("data", ProjectSettings.get_setting("mwgodot/data_root", "user://mwdata"))
 	var base := arg("base")
 	if not base.is_empty():
@@ -370,25 +378,21 @@ func coords_text() -> String:
 	return "\n%s  |  pozycja %s  |  kierunek %d°  [lb]F3 ukryj, F4 kopiuj]" % [Loc.escape_bbcode(cell), position_string(), roundi(yaw)]
 
 func _unhandled_input(e: InputEvent) -> void:
-	if e is InputEventKey and e.pressed and not e.echo:
-		if e.keycode == KEY_ESCAPE:
-			toggle_pause_menu()
-			return
-		elif e.keycode == KEY_F5:
-			var r := save_game(quicksave_path())
-			_toast("Zapisano grę (szybki zapis)" if r.is_empty() else "Błąd zapisu: " + r)
-		elif e.keycode == KEY_F9:
-			var w = load_game(quicksave_path())
-			_toast(("Wczytano grę" + ("" if w.is_empty() else ":\n" + "\n".join(w))) if not (w.size() == 1 and String(w[0]).begins_with("BŁĄD")) else String(w[0]))
-		elif e.keycode == KEY_F3:
-			show_coords = not show_coords
-		elif e.keycode == KEY_F4 and player:
-			var line := "--pos=%s" % position_string()
-			if not interior.is_empty():
-				line = "--cell=\"%s\" %s" % [interior, line]
-			DisplayServer.clipboard_set(line)
-			print("MWGODOT_POS ", line)
-			_toast("Skopiowano do schowka: " + line)
+	if e.is_action_pressed("quick_save"):
+		var r := save_game(quicksave_path())
+		_toast("Zapisano grę (szybki zapis)" if r.is_empty() else "Błąd zapisu: " + r)
+	elif e.is_action_pressed("quick_load"):
+		var w = load_game(quicksave_path())
+		_toast(("Wczytano grę" + ("" if w.is_empty() else ":\n" + "\n".join(w))) if not (w.size() == 1 and String(w[0]).begins_with("BŁĄD")) else String(w[0]))
+	elif e.is_action_pressed("toggle_coords"):
+		show_coords = not show_coords
+	elif e.is_action_pressed("copy_position") and player:
+		var line := "--pos=%s" % position_string()
+		if not interior.is_empty():
+			line = "--cell=\"%s\" %s" % [interior, line]
+		DisplayServer.clipboard_set(line)
+		print("MWGODOT_POS ", line)
+		_toast("Skopiowano do schowka: " + line)
 	if e.is_action_pressed("activate") and player:
 		for ch in player.get_children():
 			if ch is Camera3D:
@@ -398,6 +402,7 @@ func _unhandled_input(e: InputEvent) -> void:
 
 ## Aktywacja referencji: na razie drzwi z celem (DODT/DNAM).
 func activate(r: Node) -> bool:
+	events.activated.emit(String(r.get_meta("mw_sid", "")), String(r.get_meta("mw_base", "")), "player")
 	var dest := MWTravel.door_destination(r)
 	if dest.is_empty():
 		return false
@@ -406,6 +411,7 @@ func activate(r: Node) -> bool:
 
 func travel(dest: Dictionary) -> void:
 	for key in loaded.keys():
+		events.cell_unloaded.emit(key)
 		loaded[key].queue_free()
 	loaded.clear()
 	var t: Transform3D = dest["transform"]
@@ -435,6 +441,7 @@ func _update_streaming(_force: bool) -> void:
 			_load(key)
 	for key in loaded.keys():
 		if not want.has(key):
+			events.cell_unloaded.emit(key)
 			loaded[key].queue_free()
 			loaded.erase(key)
 
@@ -443,6 +450,7 @@ func _load(key: String) -> void:
 	if n:
 		add_child(n)
 		loaded[key] = n
+		events.cell_loaded.emit(key)
 
 func _toast(text: String, seconds := 3.0) -> void:
 	var l := Label.new()
@@ -499,6 +507,7 @@ func save_game(path: String) -> String:
 	if err != OK:
 		return "kod %d" % err
 	print("MWGODOT_SAVE ", path)
+	events.game_saved.emit(path)
 	return ""
 
 ## Zwraca listę ostrzeżeń (pusta = zgodny); błąd jako jedyny element "BŁĄD: …". Oryginalny plik zostaje.
@@ -517,6 +526,7 @@ func load_game(path: String) -> Array:
 	warnings.append_array(state.from_dict(d))
 	_apply_state()
 	print("MWGODOT_LOAD ", path, " ostrzeżenia=", warnings.size())
+	events.game_loaded.emit(path, warnings)
 	return warnings
 
 func _apply_state() -> void:
@@ -528,6 +538,7 @@ func _apply_state() -> void:
 	var pos: Array = mw.get("pos", [])
 	var rot: Array = mw.get("rot", [0, 0, 0])
 	for key in loaded.keys():
+		events.cell_unloaded.emit(key)
 		loaded[key].free()
 	loaded.clear()
 	var inter := String(pl.get("interior", ""))
