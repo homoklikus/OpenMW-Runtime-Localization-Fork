@@ -20,6 +20,12 @@ def _grid(s: str) -> tuple:
     return int(x), int(y)
 
 
+def _abs_exe(p):
+    """Ścieżka z ukośnikiem (np. ./Godot_v4…) → pełna, bo Godot jest uruchamiany z innego katalogu."""
+    import os
+    return os.path.abspath(p) if p and os.sep in p else p
+
+
 def cmd_convert(a):
     from .install import InstallConfig, from_morrowind_dir, from_openmw_cfg
     from .pipeline import Options, run
@@ -50,7 +56,7 @@ def cmd_convert(a):
         grids += [(x, y) for x in range(x0, x1 + 1) for y in range(y0, y1 + 1)]
     opts = Options(out=Path(a.out).resolve(), cells=a.cell or [], grids=grids, all_cells=a.all_cells,
                    all_models=a.all_models, all_textures=a.all_textures, jobs=a.jobs, verify_hash=a.verify_hash,
-                   bake_godot=a.bake_godot, bake_project=a.bake_project, bake_compress=a.bake_compress)
+                   bake_godot=_abs_exe(a.bake_godot), bake_project=a.bake_project, bake_compress=a.bake_compress)
     if a.progress_json:
         from . import pipeline
         pipeline.PROGRESS_JSON = True

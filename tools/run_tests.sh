@@ -17,6 +17,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 PY="${PYTHON:-python3}"
+# ścieżka do Godota jako pełna – kroki testów wchodzą do podkatalogów (converter/, launcher/)
+if [[ "$GODOT" == */* ]]; then
+  [[ -x "$GODOT" ]] || { echo "Nie znaleziono Godota: $GODOT"; exit 2; }
+  GODOT="$(cd "$(dirname "$GODOT")" && pwd)/$(basename "$GODOT")"
+fi
 DATA="$WORK/Data Files"
 OUT="$WORK/out"
 PROJ="$WORK/project"
