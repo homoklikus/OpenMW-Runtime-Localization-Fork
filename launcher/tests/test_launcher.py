@@ -456,3 +456,17 @@ def test_world_tab_flora_settings_to_conversion(env, qapp, fake_game):
     assert w.core.config["flora"]["source"] == "hybrid" and w.core.config["flora"]["density"] == 1.5
     args = w.core.conversion_steps()[0]["args"]
     assert args[args.index("--flora") + 1] == "hybrid" and args[args.index("--flora-density") + 1] == "1.5"
+
+
+def test_resolution_combo_detects_screen(env, qapp, monkeypatch):
+    """Launcher: lista rozdzielczości zawiera natywną rozdzielczość ekranu (3440x1440) i zapisuje ją."""
+    from openmwgodot_launcher.page_settings import SettingsPage
+    monkeypatch.setattr(SettingsPage, "screen_sizes", staticmethod(lambda: [(3440, 1440), (2752, 1152)]))
+    w = make_window()
+    page = w.pages["settings"]
+    combo = page.widgets["resolution"][1]
+    page._fill_resolutions(combo, "")
+    assert combo.findData("2752x1152") >= 0 and "(ekran)" in combo.itemText(combo.findData("3440x1440"))
+    combo.setCurrentIndex(combo.findData("2752x1152"))
+    page.save()
+    assert page.values()["resolution"] == "2752x1152"

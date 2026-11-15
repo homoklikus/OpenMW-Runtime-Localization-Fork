@@ -132,6 +132,9 @@ func _model_parts(glb: String) -> Array:
 					bm.alpha_scissor_threshold = 128.0 / 255.0
 					bm.cull_mode = BaseMaterial3D.CULL_BACK      # obie strony z _up_normals
 					bm.disable_receive_shadows = true   # płaskie kępy tuż nad terenem łapały artefakty cienia
+					# kolor wierzchołków w modelach Remirosa to znacznik wiatru MGE XE (np. kamienie: 0,1,1 = bez
+					# kołysania), nie kolor – shader groundcover OpenMW go nie używa (wcześniej: turkusowe kamienie)
+					bm.vertex_color_use_as_albedo = false
 					mesh.surface_set_material(si, bm)
 			out.append([mesh, _relative(m, scene)])
 		scene.free()
@@ -151,6 +154,7 @@ static func _up_normals(src: Mesh) -> ArrayMesh:
 		normals.fill(Vector3.UP)
 		arrays[Mesh.ARRAY_NORMAL] = normals
 		arrays[Mesh.ARRAY_TANGENT] = null
+		arrays[Mesh.ARRAY_COLOR] = null      # znacznik wiatru MGE XE, nie kolor (patrz _model_parts)
 		var idx = arrays[Mesh.ARRAY_INDEX]
 		if src.surface_get_primitive_type(si) == Mesh.PRIMITIVE_TRIANGLES:
 			if idx == null or (idx as PackedInt32Array).is_empty():

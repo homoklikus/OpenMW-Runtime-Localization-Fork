@@ -104,7 +104,11 @@ func _apply_settings() -> void:
 				DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 				var r := String(settings.get("resolution", "1280x720")).split("x")
 				if r.size() == 2:
-					DisplayServer.window_set_size(Vector2i(int(r[0]), int(r[1])))
+					var want := Vector2i(int(r[0]), int(r[1]))
+					var scr := DisplayServer.screen_get_usable_rect(DisplayServer.window_get_current_screen())
+					DisplayServer.window_set_size(want)
+					if scr.size.x > 0:   # wyśrodkuj na bieżącym ekranie (okno 3440x1440 na całą szerokość)
+						DisplayServer.window_set_position(scr.position + (scr.size - want).max(Vector2i.ZERO) / 2)
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if settings.get("vsync", true) else DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = int(settings.get("max_fps", 0))
 	get_viewport().scaling_3d_scale = float(settings.get("scale_3d", 1.0))

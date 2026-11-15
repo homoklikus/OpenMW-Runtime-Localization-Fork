@@ -55,6 +55,9 @@ class SettingsPage(QWidget):
                 wdg.setDecimals(4 if o.hi < 0.1 else 2)
                 wdg.setSingleStep((o.hi - o.lo) / 20)
                 wdg.setRange(o.lo, o.hi)
+            elif o.key == "resolution":
+                wdg = QComboBox()          # standardowe + natywne rozdzielczości ekranów (np. 3440x1440)
+                self._fill_resolutions(wdg, "")
             elif o.key == "game_language":
                 wdg = QComboBox()          # wypełniana w refresh() językami z bieżącej konwersji
             elif o.kind == "str":
@@ -183,6 +186,8 @@ class SettingsPage(QWidget):
             elif isinstance(w, (QSpinBox, QDoubleSpinBox)):
                 w.setValue(v)
             else:
+                if o.key == "resolution" and w.findData(v) < 0:
+                    self._fill_resolutions(w, v)
                 w.setCurrentIndex(max(0, w.findData(v)))
         c = core.config
         self.lang.setCurrentIndex(0 if c["language"] != "en" else 1)
@@ -208,6 +213,23 @@ class SettingsPage(QWidget):
               "Remiros' Groundcover (autor: Remiros) są dołączone do programu – nic nie trzeba instalować."
             + "\nRoślinność jest liczona przy konwersji – po zmianie ustawień uruchom „Aktualizuj” na stronie Konwersja. "
               "Zasięg i gęstość rysowania w grze: zakładka Grafika.")
+
+    @staticmethod
+    def screen_sizes() -> list:
+        """Natywne rozdzielczości ekranów w pikselach fizycznych (logiczny rozmiar × skala HiDPI)."""
+        from PySide6.QtGui import QGuiApplication
+        out = []
+        for sc in QGuiApplication.screens():
+            g, r = sc.geometry(), sc.devicePixelRatio()
+            out.append((round(g.width() * r), round(g.height() * r)))
+        return out
+
+    def _fill_resolutions(self, wdg, current: str) -> None:
+        from mwcore.settings import resolution_choices
+        native = set(f"{w}x{h}" for w, h in self.screen_sizes())
+        wdg.clear()
+        for r in resolution_choices(self.screen_sizes(), current):
+            wdg.addItem(r + ("  (ekran)" if r in native else ""), r)
 
     def values(self) -> dict:
         out = {}

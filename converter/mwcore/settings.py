@@ -30,7 +30,8 @@ GAME_SCHEMA: list[Opt] = [
     Opt("window_mode", "graphics", "choice", "windowed", "Tryb okna", "Window mode",
         ("windowed", "fullscreen", "exclusive")),
     Opt("resolution", "graphics", "choice", "1280x720", "Rozdzielczość (okno)", "Resolution (window)",
-        ("1280x720", "1600x900", "1920x1080", "2560x1440", "3840x2160")),
+        ("1280x720", "1600x900", "1920x1080", "2560x1080", "2560x1440", "3440x1440", "3840x1600", "3840x2160",
+         "5120x1440")),
     Opt("scale_3d", "graphics", "float", 1.0, "Skala renderowania 3D", "3D render scale", lo=0.5, hi=1.0),
     Opt("vsync", "graphics", "bool", True, "Synchronizacja pionowa", "V-Sync"),
     Opt("max_fps", "graphics", "int", 0, "Limit FPS (0 = brak)", "FPS limit (0 = none)", lo=0, hi=360),
@@ -75,6 +76,25 @@ LAUNCHER_DEFAULTS: dict[str, Any] = {
 }
 
 
+def normalize_resolution(v) -> str | None:
+    """„SZERxWYS” w rozsądnych granicach (640×360 … 15360×8640) albo None."""
+    import re
+    m = re.fullmatch(r"\s*(\d{3,5})\s*[x×]\s*(\d{3,5})\s*", str(v))
+    if not m:
+        return None
+    w, h = int(m.group(1)), int(m.group(2))
+    return f"{w}x{h}" if 640 <= w <= 15360 and 360 <= h <= 8640 else None
+
+
+def resolution_choices(screens: list[tuple[int, int]] = (), current: str = "") -> list[str]:
+    """Lista dla launchera: standardowe + natywne rozdzielczości podłączonych ekranów + bieżąca, posortowane."""
+    opt = next(o for o in GAME_SCHEMA if o.key == "resolution")
+    vals = set(opt.choices) | {f"{w}x{h}" for w, h in screens if normalize_resolution(f"{w}x{h}")}
+    if normalize_resolution(current):
+        vals.add(normalize_resolution(current))
+    return sorted(vals, key=lambda r: tuple(int(x) for x in r.split("x")))
+
+
 def validate_game(values: dict) -> dict:
     """Uzupełnia brakujące wartości domyślnymi i odrzuca niepoprawne (bez wyjątków)."""
     out = {}
@@ -89,6 +109,8 @@ def validate_game(values: dict) -> dict:
             elif o.kind == "float":
                 v = float(v)
                 v = max(o.lo, min(o.hi, v)) if o.lo is not None else v
+            elif o.key == "resolution":
+                v = normalize_resolution(v) or o.default   # także rozdzielczość wykryta z ekranu (spoza listy)
             elif o.kind == "choice":
                 v = v if v in o.choices else o.default
             else:

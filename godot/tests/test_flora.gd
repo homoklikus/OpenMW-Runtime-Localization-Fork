@@ -38,6 +38,8 @@ func _init() -> void:
 			check(mmi.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, "bez cieni")
 			check(mmi.visibility_range_end > 0, "zasięg widoczności")
 			var mat = mmi.multimesh.mesh.surface_get_material(0)
+			check(mat is BaseMaterial3D and not mat.vertex_color_use_as_albedo, "kolor wierzchołków (znacznik wiatru MGE) nie barwi")
+			check(mmi.multimesh.mesh.surface_get_arrays(0)[Mesh.ARRAY_COLOR] == null, "bez kolorów wierzchołków w siatce")
 			check(mat is BaseMaterial3D and mat.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR, "test alfa")
 			n += mmi.multimesh.instance_count
 		check(node.find_children("*", "StaticBody3D", true, false).is_empty(), "roślinność bez kolizji")

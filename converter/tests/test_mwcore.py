@@ -360,3 +360,15 @@ def test_groundcover_plugin_mod_goes_to_groundcover_list(paths, tmp_path, synth_
     assert args[i + 1].endswith("mwg_grass.esp")
     assert args[args.index("--flora") + 1] == "hybrid" and args[args.index("--flora-density") + 1] == "0.5"
     assert conversion.convert_args(res.config, tmp_path / "o")[args.index("--flora") + 1] == "off"
+
+
+def test_resolution_any_screen_size():
+    """Rozdzielczość: natywna rozdzielczość ekranu spoza listy (np. ultrawide 3440x1440) jest akceptowana."""
+    from mwcore import settings as S
+    assert S.validate_game({"resolution": "3440x1440"})["resolution"] == "3440x1440"
+    assert S.validate_game({"resolution": "2752x1152"})["resolution"] == "2752x1152"   # dowolny ekran
+    assert S.validate_game({"resolution": "abc"})["resolution"] == "1280x720"
+    assert S.validate_game({"resolution": "99999x10"})["resolution"] == "1280x720"
+    ch = S.resolution_choices([(3440, 1440), (2752, 1152)], "1366x768")
+    assert {"3440x1440", "2752x1152", "1366x768", "1920x1080"} <= set(ch)
+    assert ch == sorted(ch, key=lambda r: tuple(map(int, r.split("x"))))
