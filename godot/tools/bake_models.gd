@@ -21,6 +21,7 @@ func _init() -> void:
 	var only := arg("only")
 	var list := arg("list")  # plik z listą GLB (po jednym w linii) – wypiekanie przyrostowe
 	var cache := MWModelCache.new(data)
+	cache.use_baked = false  # zawsze ze świeżego GLB – inaczej ponowne wypiekanie powielało starą scenę
 	var files: Array[String] = []
 	if not list.is_empty():
 		for line in FileAccess.get_file_as_string(list).split("\n"):

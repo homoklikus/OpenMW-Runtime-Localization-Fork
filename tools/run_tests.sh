@@ -91,6 +91,24 @@ step "6b. Wypiekanie GLB → .scn (tekstury VRAM) i porównanie"
    --content mwg_synthtown.esm --content mwg_synthtown_patch.esp --content mwg_synthtown_patch2.esp \
    --cell Synthville --out "$OUT" --bake-godot "$GODOT" --bake-project "$ROOT/godot" | grep -E "Wypiekanie|Gotowe")
 run_gd test_bake.gd --data="$OUT"
+# przyrostowo: bez zmian → nic do wypiekania; po zmianie tekstury → ponownie tylko modele, które jej używają
+BAKE=(--data "$DATA" --archive "$DATA/synth.bsa" --content mwg_synthtown.esm --content mwg_synthtown_patch.esp
+      --content mwg_synthtown_patch2.esp --cell Synthville --out "$OUT" --bake-godot "$GODOT" --bake-project "$ROOT/godot")
+R=$(cd "$ROOT/converter" && $PY -m mwconv convert "${BAKE[@]}")
+[[ "$R" == *"'todo': 0"* ]] || { echo "BŁĄD: ponowne wypiekanie bez zmian"; echo "$R" | tail -5; exit 1; }
+sleep 1.1; touch "$OUT/textures/tx_synth_roof.png"
+R=$(cd "$ROOT/converter" && $PY -m mwconv convert "${BAKE[@]}")
+N=$(echo "$R" | sed -n "s/.*'todo': \([0-9]*\).*/\1/p" | head -1)
+[[ "$N" -ge 1 && "$N" -lt 8 ]] || { echo "BŁĄD: po zmianie tekstury wypieczono $N modeli (oczekiwano części)"; exit 1; }
+pass "wypiekanie przyrostowe (zmiana tekstury → $N modeli)"
+# po przeniesieniu katalogu wyników: stare sceny ignorowane (pełne ścieżki do tekstur), konwersja wypieka od nowa
+rm -rf "$WORK/moved"; cp -a "$OUT" "$WORK/moved"; mv "$OUT" "$OUT.orig"
+MOVED=("${BAKE[@]}"); MOVED[${#MOVED[@]}-5]="$WORK/moved"
+R=$(cd "$ROOT/converter" && $PY -m mwconv convert "${MOVED[@]}")
+N=$(echo "$R" | sed -n "s/.*'todo': \([0-9]*\).*/\1/p" | head -1)
+[[ "$N" -ge 8 ]] || { echo "BŁĄD: po przeniesieniu wypieczono $N modeli (oczekiwano wszystkich)"; exit 1; }
+run_gd test_bake.gd --data="$WORK/moved"; mv "$OUT.orig" "$OUT"
+pass "wypiekanie po przeniesieniu katalogu ($N modeli)"
 if ls "$ROOT/godot/bin/"libmw_native* >/dev/null 2>&1; then
   run_gd test_gdextension.gd
 else

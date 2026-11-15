@@ -28,6 +28,17 @@ static func resolve_root(primary: String, rel: String) -> String:
 			return r
 	return primary
 
+## Wypieczone sceny są ważne tylko w katalogu, w którym powstały (pełne ścieżki do tekstur .res):
+## baked/.bake_version = "wersja|katalog". Inny katalog (przeniesione dane) ⇒ modele z GLB, bez błędów.
+var _baked_ok := {}
+
+func _baked_valid(root_dir: String) -> bool:
+	if not _baked_ok.has(root_dir):
+		var stamp := FileAccess.get_file_as_string(root_dir.path_join("baked/.bake_version")).strip_edges()
+		var dir := stamp.get_slice("|", 1)
+		_baked_ok[root_dir] = not dir.is_empty() and dir.simplify_path() == root_dir.simplify_path()
+	return _baked_ok[root_dir]
+
 func get_scene(glb_rel: String) -> PackedScene:
 	if _cache.has(glb_rel):
 		return _cache[glb_rel]
@@ -36,7 +47,7 @@ func get_scene(glb_rel: String) -> PackedScene:
 	var path := root_dir.path_join(glb_rel)
 	var ps: PackedScene = null
 	var baked := root_dir.path_join("baked").path_join(glb_rel.get_basename() + ".scn")
-	if use_baked and FileAccess.file_exists(baked) and FileAccess.file_exists(path) \
+	if use_baked and _baked_valid(root_dir) and FileAccess.file_exists(baked) and FileAccess.file_exists(path) \
 			and FileAccess.get_modified_time(baked) >= FileAccess.get_modified_time(path):
 		ps = ResourceLoader.load(baked, "PackedScene", ResourceLoader.CACHE_MODE_REUSE) as PackedScene
 		if ps:

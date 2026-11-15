@@ -373,6 +373,11 @@ def _assets_only(cfg, opts, vfs, cache, state, stats, run_id, T0, log) -> dict:
     return stats
 
 
+# Wersja formatu/algorytmu wypiekania. Zmiana ⇒ jednorazowe ponowne wypieczenie wszystkich modeli.
+# 2: wypiekanie zawsze ze świeżego GLB (wcześniej naprawione tekstury nie trafiały do starych scen).
+BAKE_VERSION = 2
+
+
 def _glb_textures(glb: Path) -> list:
     """Pliki tekstur, do których odwołuje się GLB (images[].uri) – tylko nagłówek i blok JSON."""
     import struct
@@ -393,10 +398,14 @@ def bake(opts: Options, stats: dict, log) -> None:
     import subprocess
     out = opts.out
     todo = []
+    stamp = out / "baked" / ".bake_version"
+    # wersja + katalog: sceny .scn odwołują się do tekstur pełną ścieżką – po przeniesieniu katalogu od nowa
+    want = f"{BAKE_VERSION}|{os.path.abspath(out)}"
+    stale_all = not stamp.exists() or stamp.read_text().strip() != want
     for glb in sorted((out / "meshes").rglob("*.glb")):
         rel = glb.relative_to(out).as_posix()
         scn = out / "baked" / (rel[:-4] + ".scn")
-        if not scn.exists():
+        if stale_all or not scn.exists():
             todo.append(rel)
             continue
         t_scn = scn.stat().st_mtime
@@ -405,6 +414,7 @@ def bake(opts: Options, stats: dict, log) -> None:
             todo.append(rel)
     stats["bake"] = {"todo": len(todo)}
     if not todo:
+        log(f"Wypiekanie: {stats['bake']} (wszystko aktualne)")
         return
     emit("stage", stage="bake", total=len(todo))
     lst = out / ".mwconv" / "bake_list.txt"
@@ -417,6 +427,9 @@ def bake(opts: Options, stats: dict, log) -> None:
     line = next((x for x in r.stdout.splitlines() if x.startswith("BAKE ")), "")
     stats["bake"].update(json.loads(line[5:]) if line else {"error": r.stderr[-500:]})
     stats["bake"]["seconds"] = round(time.perf_counter() - t, 2)
+    if r.returncode == 0:
+        stamp.parent.mkdir(parents=True, exist_ok=True)
+        stamp.write_text(want)
     log(f"Wypiekanie: {stats['bake']}")
 
 
