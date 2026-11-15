@@ -37,6 +37,7 @@ func _run() -> void:
 	check(main.coords_text() == "", "F3: współrzędne ukryte")
 	main.show_coords = true
 	_test_capture(main)
+	_test_save(main)
 	_test_localization(main)
 	check(main.loaded.size() == 4, "4 komórki zewnętrzne wczytane wokół gracza (%d)" % main.loaded.size())
 	var waters := main.find_children("Water", "MeshInstance3D", true, false)
@@ -154,3 +155,100 @@ func _test_capture(main) -> void:
 	cam.fov = 75
 	main.player.global_position = saved_pos
 	main.player.rotation.y = saved_rot
+
+
+## Etap 0: GameState i zapis v1 – stan referencji, pozycja, czas; migracje; zgodność wtyczek; nieznane sekcje.
+func _test_save(main) -> void:
+	var GS = main.GameStateScript
+	var dir := ProjectSettings.globalize_path("user://test_saves")
+	DirAccess.make_dir_recursive_absolute(dir)
+	for f in DirAccess.get_files_at(dir):
+		DirAccess.remove_absolute(dir.path_join(f))
+	var path := dir.path_join("t1.mwsave")
+	# referencja z modelem w jednej z wczytanych komórek
+	var target: Node3D = null
+	for key in main.loaded:
+		for n in main.loaded[key].get_node("Refs").get_children():
+			if n.get_node_or_null("Model") != null:
+				target = n
+				break
+		if target:
+			break
+	check(target != null, "zapis: jest referencja z modelem")
+	if target == null:
+		return
+	var sid := String(target.get_meta("mw_sid"))
+	main.state.set_enabled(sid, false)
+	var node := _find_ref(main, sid)
+	check(node != null and node.get_meta("mw_disabled", false) and node.get_node_or_null("Model") == null,
+			"GameState: wyłączona referencja przebudowana bez modelu (%s)" % sid)
+	var pos0: Vector3 = main.player.global_position + Vector3(3, 0, -2)
+	main.player.global_position = pos0
+	main.player.rotation.y = 1.25
+	main.envr.game_hour = 17.5
+	main.envr.day = 3
+	check(main.save_game(path) == "", "zapis gry v1")
+	var raw: Dictionary = GS.read_file(path)
+	check(raw.get("format") == "mwgodot-save" and int(raw.get("version")) == 1 and raw["refs"].has(sid)
+			and raw["header"]["content"].size() >= 2, "plik zapisu: format, wersja, stan referencji, lista wtyczek (%s)"
+			% [JSON.stringify(raw).left(300)])
+	# zmiany po zapisie…
+	main.state.set_enabled(sid, true)
+	check(_find_ref(main, sid).get_node_or_null("Model") != null, "GameState: ponowne włączenie przywraca model")
+	main.player.global_position += Vector3(40, 0, 40)
+	main.envr.game_hour = 8.0
+	# …i odczyt
+	var w: Array = main.load_game(path)
+	check(w.is_empty(), "odczyt bez ostrzeżeń dla tych samych danych (%s)" % [w])
+	check(main.player.global_position.distance_to(pos0) < 0.01 and absf(main.player.rotation.y - 1.25) < 1e-4,
+			"odczyt: pozycja i kierunek gracza")
+	check(is_equal_approx(main.envr.game_hour, 17.5) and main.envr.day == 3, "odczyt: czas gry")
+	check(not main.state.is_enabled(sid) and _find_ref(main, sid).get_meta("mw_disabled", false),
+			"odczyt: stan referencji odtworzony w świecie")
+	check(main.loaded.size() == 4, "odczyt: komórki wokół gracza wczytane (%d)" % main.loaded.size())
+	# atomowość: poprzednia wersja jako .bak
+	main.save_game(path)
+	check(FileAccess.file_exists(path + ".bak") and not FileAccess.file_exists(path + ".tmp"), "zapis atomowy z kopią .bak")
+	# zgodność: brak wtyczki, zmieniona wtyczka, nowa wtyczka – ostrzeżenia, obiekty w zapisie zostają
+	var h: Dictionary = main.save_header()
+	var h2 := h.duplicate(true)
+	h2["content"][1]["sha256"] = "x"
+	h2["content"].append({"name": "Brakujacy.esp", "sha256": "y"})
+	var ws: Array = GS.compatibility(h2, h)
+	check(ws.size() == 2 and String(ws[0]).contains("zmieniła") and String(ws[1]).contains("brak wtyczki"),
+			"zgodność: zmieniona i brakująca wtyczka (%s)" % [ws])
+	var h3 := h.duplicate(true)
+	h3["content"].reverse()
+	check(str(GS.compatibility(h3, h)).contains("kolejność"), "zgodność: zmiana kolejności ładowania")
+	# nieznana sekcja (z nowszej gry tej samej wersji formatu) i wpis dla brakującej wtyczki – zachowane
+	raw = GS.read_file(path)
+	raw["ai_future"] = {"x": 1}
+	raw["refs"]["brakujacy.esp#7"] = {"enabled": false}
+	GS.write_file(path, raw)
+	w = main.load_game(path)
+	check(str(w).contains("ai_future"), "odczyt: ostrzeżenie o nieznanej sekcji")
+	main.save_game(path)
+	raw = GS.read_file(path)
+	check(raw.has("ai_future") and raw["refs"].has("brakujacy.esp#7"), "ponowny zapis zachowuje nieznane sekcje i wpisy brakujących wtyczek")
+	# migracje: nowsza wersja – błąd i oryginał nietknięty; stara wersja – kopia przed migracją
+	raw["version"] = 99
+	GS.write_file(dir.path_join("future.mwsave"), raw)
+	w = main.load_game(dir.path_join("future.mwsave"))
+	check(w.size() == 1 and String(w[0]).begins_with("BŁĄD") and int(GS.read_file(dir.path_join("future.mwsave"))["version"]) == 99,
+			"zapis z nowszej wersji: błąd, plik bez zmian")
+	raw["version"] = 0
+	GS.write_file(dir.path_join("old.mwsave"), raw)
+	w = main.load_game(dir.path_join("old.mwsave"))
+	check(not str(w).contains("BŁĄD") and FileAccess.file_exists(dir.path_join("old.mwsave.v0.bak")),
+			"migracja v0 → v1 z kopią bezpieczeństwa")
+	check(main.load_game(dir.path_join("nie_ma.mwsave"))[0].begins_with("BŁĄD"), "brak pliku: czytelny błąd")
+	# sprzątanie stanu dla dalszych testów
+	main.state.from_dict({})
+	main._apply_state()
+
+func _find_ref(main, sid: String) -> Node:
+	for key in main.loaded:
+		for n in main.loaded[key].get_node("Refs").get_children():
+			if String(n.get_meta("mw_sid", "")) == sid:
+				return n
+	return null

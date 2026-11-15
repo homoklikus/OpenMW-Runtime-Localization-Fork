@@ -16,6 +16,9 @@
 * MCP-openMW 0.8.0 przeniesiony do repozytorium (`tools/MCP-openMW`, wcześniej w forku na zamrożonej gałęzi
   `0.5-world`): profil zewnętrzny `openmwgodot` (zrzuty OpenMWGodot z tą samą kamerą co OpenMW, porównania
   z każdym profilem), wykrywanie folderu `OpenMW RLF` obok repozytorium.
+* Etap 0: `GameState` (różnice stanu gry względem danych bazowych) i zapis gry v1 (`docs/FORMAT-ZAPISU.md`):
+  F5/F9 szybki zapis/odczyt, Esc menu pauzy; zgodność wtyczek, migracje z kopią, zapisy atomowe;
+  referencje wyłączone w stanie gry nie są rysowane.
 * Woda: falowanie i wzór we współrzędnych świata – bez szczelin na łączeniach komórek.
 * Gra `mw_flora.gd`: MultiMesh, bez kolizji i cieni, test alfa, normalne w górę; zasięg i gęstość w ustawieniach.
 * Launcher: zakładka Świat (odpowiednik world.cfg forka), opcje roślinności w zakładce Grafika.

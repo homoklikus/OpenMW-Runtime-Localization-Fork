@@ -15,6 +15,9 @@ var hud: RichTextLabel
 ## preload zamiast class_name: gra działa też bez ponownego importu projektu po aktualizacji skryptów
 const Loc := preload("res://scripts/mw/mw_localization.gd")
 const Flora := preload("res://scripts/mw/mw_flora.gd")
+const GameStateScript := preload("res://scripts/mw/mw_game_state.gd")
+var state = GameStateScript.new()   # różnice stanu gry względem danych bazowych (zapis gry)
+var pause_menu: Control
 var loc  # Loc
 var current_region := ""
 var settings := {}
@@ -45,6 +48,8 @@ func _ready() -> void:
 	db = MWWorldDB.new(data, project)
 	models = MWModelCache.new(data)
 	builder = MWCellBuilder.new(db, models)
+	builder.state = state
+	state.ref_changed.connect(_on_ref_changed)
 	if bool(settings.get("grass", true)):
 		var fl = Flora.new(models, data, MWModelCache.base_roots)
 		if fl.is_active():
@@ -356,7 +361,16 @@ func coords_text() -> String:
 
 func _unhandled_input(e: InputEvent) -> void:
 	if e is InputEventKey and e.pressed and not e.echo:
-		if e.keycode == KEY_F3:
+		if e.keycode == KEY_ESCAPE:
+			toggle_pause_menu()
+			return
+		elif e.keycode == KEY_F5:
+			var r := save_game(quicksave_path())
+			_toast("Zapisano grę (szybki zapis)" if r.is_empty() else "Błąd zapisu: " + r)
+		elif e.keycode == KEY_F9:
+			var w = load_game(quicksave_path())
+			_toast(("Wczytano grę" + ("" if w.is_empty() else ":\n" + "\n".join(w))) if not (w.size() == 1 and String(w[0]).begins_with("BŁĄD")) else String(w[0]))
+		elif e.keycode == KEY_F3:
 			show_coords = not show_coords
 		elif e.keycode == KEY_F4 and player:
 			var line := "--pos=%s" % position_string()
@@ -436,3 +450,147 @@ func _add_message(text: String) -> void:
 	var cl := CanvasLayer.new()
 	cl.add_child(l)
 	add_child(cl)
+
+
+# --- stan gry: zapis i odczyt (etap 0) ---------------------------------------------------------------
+
+func saves_dir() -> String:
+	var s := arg("saves")
+	return s if not s.is_empty() else ProjectSettings.globalize_path("user://saves")
+
+func quicksave_path() -> String:
+	return saves_dir().path_join("quicksave.mwsave")
+
+## Nagłówek zapisu: profil, lista treści z manifestu konwersji (wtyczki + SHA-256, kolejność ładowania),
+## odcisk danych bazowych – do wykrywania niezgodności przy odczycie.
+func save_header() -> Dictionary:
+	var content := []
+	var man = MWWorldDB._read_json(db.data_root.path_join("world/manifest.json"))
+	if man is Dictionary:
+		for c in man.get("content", []):
+			content.append({"name": c.get("name", ""), "sha256": c.get("sha256", "")})
+	return {"profile": arg("profile", "default"), "character": "", "content": content,
+		"base_fingerprint": JSON.stringify(content).sha256_text(), "world_format": 1,
+		"created": Time.get_datetime_string_from_system(), "game": "OpenMWGodot"}
+
+func capture_state() -> void:
+	state.time = {"day": envr.day, "hour": envr.game_hour}
+	var cam := player.get_node_or_null("Camera3D") as Camera3D
+	var p := MWCoords.godot_to_mw(player.global_position)
+	state.player = {"interior": interior, "fly": player.fly,
+		"mw": {"pos": [p.x, p.y, p.z], "rot": [-(cam.rotation.x if cam else 0.0), 0.0, -player.rotation.y]}}
+
+## Zwraca "" albo opis błędu.
+func save_game(path: String) -> String:
+	if player == null:
+		return "gra nie jest uruchomiona"
+	capture_state()
+	var err := GameStateScript.write_file(path, state.to_dict(save_header()))
+	if err != OK:
+		return "kod %d" % err
+	print("MWGODOT_SAVE ", path)
+	return ""
+
+## Zwraca listę ostrzeżeń (pusta = zgodny); błąd jako jedyny element "BŁĄD: …". Oryginalny plik zostaje.
+func load_game(path: String) -> Array:
+	var raw := GameStateScript.read_file(path)
+	if raw.has("error"):
+		return ["BŁĄD: " + String(raw["error"])]
+	var old_version := int(raw.get("version", 0))
+	var m := GameStateScript.migrate(raw)
+	if m.has("error"):
+		return ["BŁĄD: " + String(m["error"])]
+	if m.get("migrated", false):
+		GameStateScript.backup_before_migration(path, old_version)
+	var d: Dictionary = m["data"]
+	var warnings := GameStateScript.compatibility(d.get("header", {}), save_header())
+	warnings.append_array(state.from_dict(d))
+	_apply_state()
+	print("MWGODOT_LOAD ", path, " ostrzeżenia=", warnings.size())
+	return warnings
+
+func _apply_state() -> void:
+	envr.day = int(state.time.get("day", 0))
+	envr.game_hour = float(state.time.get("hour", 9.0))
+	envr.apply()
+	var pl: Dictionary = state.player
+	var mw: Dictionary = pl.get("mw", {})
+	var pos: Array = mw.get("pos", [])
+	var rot: Array = mw.get("rot", [0, 0, 0])
+	for key in loaded.keys():
+		loaded[key].free()
+	loaded.clear()
+	var inter := String(pl.get("interior", ""))
+	interior = inter
+	if pos.size() == 3:
+		player.global_position = MWCoords.mw_to_godot(Vector3(pos[0], pos[1], pos[2]))
+	player.rotation.y = -float(rot[2])
+	var cam := player.get_node_or_null("Camera3D") as Camera3D
+	if cam:
+		cam.rotation.x = -float(rot[0])
+	player.fly = bool(pl.get("fly", false))
+	player.velocity = Vector3.ZERO
+	if not inter.is_empty():
+		var key := "int:" + inter.to_lower()
+		_load(key)
+		envr.set_interior(db.get_cell(key))
+	else:
+		envr.set_interior({})
+		_update_streaming(true)
+
+## Zmiana referencji w GameState → przebudowa tylko jej węzła w wczytanych komórkach.
+func _on_ref_changed(sid: String) -> void:
+	for key in loaded:
+		var refs_node: Node = loaded[key].get_node_or_null("Refs")
+		if refs_node == null:
+			continue
+		for n in refs_node.get_children():
+			if String(n.get_meta("mw_sid", "")) == sid:
+				for r in db.get_cell(key).get("refs", []):
+					if String(r.get("sid", "")) == sid:
+						var nn := builder.build_ref(state.apply_to_ref(r))
+						refs_node.add_child(nn)
+						refs_node.move_child(nn, n.get_index())
+						n.free()
+						return
+
+## Menu pauzy (Esc): wróć, szybki zapis/odczyt, wyjście. Szkielet UI etapu 0.
+func toggle_pause_menu() -> void:
+	if pause_menu == null:
+		pause_menu = _build_pause_menu()
+	pause_menu.visible = not pause_menu.visible
+	get_tree().paused = pause_menu.visible
+	if DisplayServer.get_name() != "headless":
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if pause_menu.visible else Input.MOUSE_MODE_CAPTURED
+
+func _build_pause_menu() -> Control:
+	var cl := CanvasLayer.new()
+	cl.layer = 10
+	cl.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(cl)
+	var panel := PanelContainer.new()
+	panel.name = "PauseMenu"
+	panel.process_mode = Node.PROCESS_MODE_ALWAYS
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	var box := VBoxContainer.new()
+	box.custom_minimum_size = Vector2(320, 0)
+	panel.add_child(box)
+	var title := Label.new()
+	title.text = "Pauza"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(title)
+	for item in [["Wróć do gry", func(): toggle_pause_menu()],
+			["Szybki zapis (F5)", func(): _toast("Zapisano grę" if save_game(quicksave_path()).is_empty() else "Błąd zapisu")],
+			["Szybki odczyt (F9)", func():
+				var w = load_game(quicksave_path())
+				toggle_pause_menu()
+				_toast("Wczytano grę" if w.is_empty() else "\n".join(w))],
+			["Wyjdź z gry", func(): get_tree().quit()]]:
+		var b := Button.new()
+		b.text = item[0]
+		b.pressed.connect(item[1])
+		box.add_child(b)
+	cl.add_child(panel)
+	panel.position = (get_viewport().get_visible_rect().size - panel.get_combined_minimum_size()) / 2.0
+	panel.visible = false
+	return panel

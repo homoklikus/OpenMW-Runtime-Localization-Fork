@@ -9,6 +9,7 @@ var editor_mode := false        # CS 2.0: bez kolizji terenu, modele jako dzieci
 var with_lights := true
 var with_water := true
 var show_markers := false
+var state = null                # mw_game_state.gd – różnice stanu gry (gra; w CS 2.0 brak)
 var flora = null                # mw_flora.gd – roślinność komórek zewnętrznych (gra; w CS 2.0 wyłączona)       # znaczniki edytora widoczne także poza CS 2.0 (diagnostyka)
 var stats := {"cells": 0, "refs": 0, "missing_model": 0, "no_model": 0, "markers": 0, "build_ms": 0.0}
 
@@ -52,7 +53,7 @@ func build_cell(key: String) -> Node3D:
 	refs_node.name = "Refs"
 	root.add_child(refs_node)
 	for r in c.get("refs", []):
-		var n := build_ref(r)
+		var n := build_ref(state.apply_to_ref(r) if state != null else r)
 		if n:
 			refs_node.add_child(n)
 	if flora != null and not editor_mode and not c.get("interior", false):
@@ -74,6 +75,10 @@ func build_ref(r: Dictionary) -> Node3D:
 	if r.has("extra"):
 		n.set_meta("mw_extra", r["extra"])
 	stats.refs += 1
+	if r.get("disabled", false):     # wyłączona w GameState (Disable, usunięta, podniesiona…) – węzeł bez modelu
+		n.set_meta("mw_disabled", true)
+		n.visible = false
+		return n
 	if is_hidden_marker(String(r.get("base", ""))):
 		n.set_meta("mw_marker", true)
 		stats.markers += 1
