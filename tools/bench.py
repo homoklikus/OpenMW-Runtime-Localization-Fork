@@ -80,7 +80,9 @@ def run_convert(data: Path, out: Path, jobs: int, extra=()) -> tuple[dict, float
     if r.returncode != 0:
         print(r.stdout[-3000:], r.stderr[-3000:])
         raise SystemExit("konwersja nie powiodła się")
-    rep = json.loads((out / "reports" / "conversion.json").read_text())
+    full, inc = out / "reports" / "conversion.json", out / "reports" / "conversion_last_incremental.json"
+    src = inc if inc.exists() and inc.stat().st_mtime > full.stat().st_mtime else full
+    rep = json.loads(src.read_text())
     ru = resource.getrusage(resource.RUSAGE_CHILDREN)
     return rep["stats"], el, ru.ru_maxrss / 1024.0
 

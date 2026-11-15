@@ -49,8 +49,12 @@ def cmd_convert(a):
         x0, y0, x1, y1 = (int(v) for v in a.grid_range.split(","))
         grids += [(x, y) for x in range(x0, x1 + 1) for y in range(y0, y1 + 1)]
     opts = Options(out=Path(a.out).resolve(), cells=a.cell or [], grids=grids, all_cells=a.all_cells,
-                   all_models=a.all_models, all_textures=a.all_textures, jobs=a.jobs, verify_hash=a.verify_hash)
-    print("Instalacja:", json.dumps(cfg.to_dict(), ensure_ascii=False, indent=1))
+                   all_models=a.all_models, all_textures=a.all_textures, jobs=a.jobs, verify_hash=a.verify_hash,
+                   bake_godot=a.bake_godot, bake_project=a.bake_project, bake_compress=a.bake_compress)
+    if a.progress_json:
+        from . import pipeline
+        pipeline.PROGRESS_JSON = True
+    print("Instalacja:", json.dumps(cfg.to_dict(), ensure_ascii=False, indent=1), flush=True)
     stats = run(cfg, opts)
     print(json.dumps({k: stats[k] for k in ("models", "textures", "world_export", "total_seconds") if k in stats},
                      ensure_ascii=False, indent=1))
@@ -192,6 +196,10 @@ def main(argv=None):
     c.add_argument("--out", required=True)
     c.add_argument("--jobs", type=int, default=0, help="liczba procesów (domyślnie min(4, CPU))")
     c.add_argument("--verify-hash", action="store_true", help="zawsze licz SHA-256 (bez skrótu rozmiar+mtime)")
+    c.add_argument("--bake-godot", default="", help="binarka Godota: wypiecz GLB → .scn z teksturami VRAM")
+    c.add_argument("--bake-project", default="", help="katalog projektu Godota (domyślnie ../godot)")
+    c.add_argument("--bake-compress", default="s3tc", choices=["s3tc", "bptc", "etc2", "astc", "lossless"])
+    c.add_argument("--progress-json", action="store_true", help="postęp jako linie JSON (dla launchera)")
     c.set_defaults(fn=cmd_convert)
     n = sp.add_parser("nif2glb", help="jeden NIF → GLB")
     n.add_argument("input")

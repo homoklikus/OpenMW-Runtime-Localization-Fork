@@ -27,7 +27,8 @@ from typing import Callable, Iterable, Optional
 import numpy as np
 
 from . import coords
-from .esm.reader import (MODEL_TYPES, Cell, CellRef, EsmFile, Land, parse_cell, parse_land, parse_object, read_esm)
+from .esm.reader import (MODEL_TYPES, Cell, CellRef, EsmFile, Land, parse_cell, parse_land, parse_object, parse_region,
+                         open_esm_stream, read_esm)
 from .vfs import norm
 
 FORMAT = "mwgodot-world"
@@ -47,7 +48,7 @@ def model_glb_rel(model: str) -> str:
     return n.rsplit(".", 1)[0] + ".glb"
 
 
-@dataclass
+@dataclass(slots=True)
 class MergedRef:
     sid: str
     ref: CellRef
@@ -72,6 +73,7 @@ class World:
     lands: dict = field(default_factory=dict)         # (x, y) → (Land, ltex_map, source)
     record_counts: dict = field(default_factory=dict)
     warnings: list = field(default_factory=list)
+    regions: dict = field(default_factory=dict)       # id_lower → dict
     ltex_by_file: dict = field(default_factory=dict)  # nazwa pliku → {INTV: tekstura}
     masters_by_file: dict = field(default_factory=dict)
 
@@ -86,12 +88,25 @@ class World:
         return merged
 
 
+def content_fingerprint(paths: Iterable) -> list:
+    import hashlib
+    fp = []
+    for p in paths:
+        p = Path(p)
+        h = hashlib.sha256()
+        with open(p, "rb") as fh:
+            for chunk in iter(lambda: fh.read(1 << 20), b""):
+                h.update(chunk)
+        fp.append([p.name, p.stat().st_size, h.hexdigest()])
+    return fp
+
+
 def load_world(paths: Iterable, log: Callable[[str], None] = lambda s: None) -> World:
     paths = list(paths)
     world = World([])
     names_lower = [Path(p).name.lower() for p in paths]
     for fi, path in enumerate(paths):
-        f = read_esm(path)  # pliki czytane po kolei – w pamięci jest naraz tylko jeden surowy plik
+        f, records = open_esm_stream(path)  # rekordy strumieniowo – bez listy wszystkich rekordów
         world.content.append(f)
         # LTEX są lokalne dla pliku: VTEX odwołuje się do LTEX tego samego pliku (INTV + 1)
         ltex_local: dict[int, str] = {}
@@ -101,7 +116,7 @@ def load_world(paths: Iterable, log: Callable[[str], None] = lambda s: None) -> 
             if m.lower() not in names_lower[:fi]:
                 world.warnings.append(f"{f.name}: master {m} nie jest załadowany wcześniej")
         t0 = time.perf_counter()
-        for rec in f.records:
+        for rec in records:
             world.record_counts[rec.type] = world.record_counts.get(rec.type, 0) + 1
             if rec.type in MODEL_TYPES:
                 o = parse_object(rec)
@@ -123,6 +138,14 @@ def load_world(paths: Iterable, log: Callable[[str], None] = lambda s: None) -> 
                     ltex_local[struct.unpack_from("<I", iv, 0)[0]] = tex
             elif rec.type == "CELL":
                 _merge_cell(world, parse_cell(rec), f, names_lower)
+            elif rec.type == "REGN":
+                rg = parse_region(rec)
+                if rg:
+                    if rec.deleted:
+                        world.regions.pop(rg["id"].lower(), None)
+                    else:
+                        rg["source"] = f.name
+                        world.regions[rg["id"].lower()] = rg
             elif rec.type == "LAND":
                 ld = parse_land(rec)
                 if ld.deleted:
@@ -130,7 +153,6 @@ def load_world(paths: Iterable, log: Callable[[str], None] = lambda s: None) -> 
                 else:
                     world.lands[ld.grid] = (ld, None, f.name)  # mapa LTEX rozwiązywana po wczytaniu wszystkiego
         log(f"{f.name}: {f.num_records} rekordów w {time.perf_counter() - t0:.2f} s")
-        f.records = []  # surowe podrekordy nie są już potrzebne – zwalniamy pamięć
     for g, (ld, _none, src) in list(world.lands.items()):
         world.lands[g] = (ld, world.ltex_resolver(src), src)
     return world
@@ -255,9 +277,18 @@ def cell_to_json(mc: MergedCell, world: World) -> dict:
         "refs": [ref_to_json(mr, world) for mr in sorted(mc.refs.values(), key=lambda m: m.sid)],
     }
     if c.ambient:
-        j["ambient"] = c.ambient
-    if c.water is not None:
-        j["water_height_m"] = c.water * coords.SCALE
+        a = c.ambient
+        rgb = lambda v: [v & 0xFF, (v >> 8) & 0xFF, (v >> 16) & 0xFF]  # noqa: E731 – kolory TES3: 0x00BBGGRR
+        j["ambient"] = {**a, "ambient_rgb": rgb(a["ambient"]), "sunlight_rgb": rgb(a["sunlight"]),
+                        "fog_rgb": rgb(a["fog"])}
+    if c.interior:
+        j["has_water"] = bool(c.flags & 0x02)
+        j["behave_like_exterior"] = bool(c.flags & 0x80)
+        if c.water is not None:
+            j["water_height_m"] = c.water * coords.SCALE
+    else:
+        j["has_water"] = True
+        j["water_height_m"] = 0.0  # poziom morza w świecie zewnętrznym
     if not c.interior:
         j["origin_godot"] = coords.pos_to_godot((c.grid[0] * coords.CELL_SIZE, c.grid[1] * coords.CELL_SIZE, 0)).tolist()
         j["terrain"] = f"terrain/{c.grid[0]}_{c.grid[1]}.json" if tuple(c.grid) in world.lands else None

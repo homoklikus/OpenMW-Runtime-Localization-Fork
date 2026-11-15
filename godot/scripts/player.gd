@@ -18,6 +18,7 @@ func _ready() -> void:
 	col.position.y = 0.9
 	add_child(col)
 	cam = Camera3D.new()
+	cam.name = "Camera3D"
 	cam.position.y = 1.65
 	cam.far = 4000.0
 	add_child(cam)

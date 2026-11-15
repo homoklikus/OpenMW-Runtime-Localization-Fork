@@ -61,6 +61,7 @@ step "5. Godot: testy"
 run_gd test_import.gd --data="$OUT"
 run_gd test_editor_import.gd
 run_gd test_controllers.gd --data="$OUT"
+run_gd test_game.gd --data="$OUT" --project="$WORK/project_game"
 run_gd test_world.gd --data="$OUT" --project="$PROJ"
 step "6. Ponowny import z nowym pluginem (zmiany CS 2.0 muszą przetrwać)"
 (cd "$ROOT/converter" && $PY -c "from mwconv.synthetic_world import write_patch2; write_patch2('$DATA')")
@@ -68,6 +69,11 @@ step "6. Ponowny import z nowym pluginem (zmiany CS 2.0 muszą przetrwać)"
    --content mwg_synthtown.esm --content mwg_synthtown_patch.esp --content mwg_synthtown_patch2.esp \
    --cell Synthville --out "$OUT" | grep -E "Modele|Tekstury|Gotowe")
 run_gd test_world.gd --data="$OUT" --project="$PROJ" --phase=verify --expect-source=mwg_synthtown_patch2.esp
+step "6b. Wypiekanie GLB → .scn (tekstury VRAM) i porównanie"
+(cd "$ROOT/converter" && $PY -m mwconv convert --data "$DATA" --archive "$DATA/synth.bsa" \
+   --content mwg_synthtown.esm --content mwg_synthtown_patch.esp --content mwg_synthtown_patch2.esp \
+   --cell Synthville --out "$OUT" --bake-godot "$GODOT" --bake-project "$ROOT/godot" | grep -E "Wypiekanie|Gotowe")
+run_gd test_bake.gd --data="$OUT"
 if ls "$ROOT/godot/bin/"libmw_native* >/dev/null 2>&1; then
   run_gd test_gdextension.gd
 else

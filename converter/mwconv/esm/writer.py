@@ -75,7 +75,7 @@ def ref_subs(frmr: int, base: str, pos, rot=(0, 0, 0), scale: float = 1.0, delet
 def cell(name: str, grid=(0, 0), interior: bool = False, refs: Iterable[list[bytes]] = (), region: str | None = None,
          moved: Iterable[tuple[int, tuple, list[bytes]]] = (), water: float | None = None,
          ambient: tuple | None = None) -> bytes:
-    flags = 1 if interior else 0x40 if False else 0
+    flags = (1 | (0x02 if water is not None else 0)) if interior else 0
     s = [sub("NAME", zs(name)), sub("DATA", struct.pack("<Iii", flags, *grid))]
     if region:
         s.append(sub("RGNN", zs(region)))
@@ -108,3 +108,10 @@ def land(grid, heights: np.ndarray, vtex: np.ndarray | None = None, colors: np.n
     if vtex is not None:
         s.append(sub("VTEX", untranspose_vtex(np.asarray(vtex, np.uint16)).astype("<u2").tobytes()))
     return record("LAND", s)
+
+
+def region(id_: str, name: str, weather: dict, color=(120, 160, 90)) -> bytes:
+    from .reader import WEATHERS
+    w = bytes(int(weather.get(k, 0)) for k in WEATHERS)
+    return record("REGN", [sub("NAME", zs(id_)), sub("FNAM", zs(name)), sub("WEAT", w),
+                           sub("CNAM", bytes([*color, 0]))])

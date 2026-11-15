@@ -10,6 +10,9 @@ var player: CharacterBody3D
 var loaded := {}  # key → Node3D
 var radius := 1
 var interior := ""
+var envr: MWEnvironment
+var hud: Label
+var current_region := ""
 
 func arg(name: String, def := "") -> String:
 	for a in OS.get_cmdline_user_args():
@@ -31,7 +34,13 @@ func _ready() -> void:
 		push_error("Brak danych świata w %s – uruchom konwerter (README)." % data)
 		_add_message("Brak danych świata w:\n%s\nUruchom konwerter mwconv (patrz docs/DEBIAN13.md)." % data)
 		return
-	_setup_environment()
+	envr = MWEnvironment.new()
+	envr.name = "Environment"
+	var regs = MWWorldDB._read_json(data.path_join("world/regions.json"))
+	if regs is Dictionary:
+		envr.regions = regs
+	add_child(envr)
+	_setup_hud()
 	player = preload("res://scripts/player.gd").new() as CharacterBody3D
 	player.name = "Player"
 	add_child(player)
@@ -40,6 +49,7 @@ func _ready() -> void:
 	if not interior.is_empty():
 		var key := "int:" + interior.to_lower()
 		_load(key)
+		envr.set_interior(db.get_cell(key))
 	else:
 		_update_streaming(true)
 
@@ -62,26 +72,71 @@ func _start_position() -> Vector3:
 			return pos
 	return Vector3(0, 2, 0)
 
-func _setup_environment() -> void:
-	var env := WorldEnvironment.new()
-	var e := Environment.new()
-	e.background_mode = Environment.BG_SKY
-	e.sky = Sky.new()
-	e.sky.sky_material = ProceduralSkyMaterial.new()
-	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	e.fog_enabled = true
-	e.fog_density = 0.0015
-	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.environment = e
-	add_child(env)
-	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-55, -30, 0)
-	sun.shadow_enabled = true
-	add_child(sun)
+func _setup_hud() -> void:
+	var cl := CanvasLayer.new()
+	hud = Label.new()
+	hud.position = Vector2(12, 8)
+	cl.add_child(hud)
+	add_child(cl)
 
 func _process(_d: float) -> void:
-	if player and interior.is_empty():
+	if player == null:
+		return
+	if interior.is_empty():
 		_update_streaming(false)
+		var g := MWCoords.cell_of(player.global_position)
+		var c := db.get_cell(db.exterior_key(g))
+		var reg := String(c.get("region", ""))
+		if reg != current_region:
+			current_region = reg
+			envr.set_region(reg)
+	var hint := ""
+	var cam := player.get_node_or_null("Camera3D") as Camera3D
+	if cam == null:
+		for ch in player.get_children():
+			if ch is Camera3D:
+				cam = ch
+	if cam:
+		var r := MWTravel.pick(cam)
+		if r:
+			var base := db.get_object(String(r.get_meta("mw_base", "")))
+			hint = "\n[E] %s" % base.get("name", r.get_meta("mw_base", ""))
+	var rname := interior if not interior.is_empty() else String(envr.regions.get(current_region.to_lower(), {}).get("name", current_region))
+	hud.text = "%s  |  dzień %d, %02d:%02d  |  %s%s" % [rname, envr.day + 1, int(envr.game_hour), int(fmod(envr.game_hour, 1.0) * 60), envr.weather, hint]
+
+func _unhandled_input(e: InputEvent) -> void:
+	if e.is_action_pressed("activate") and player:
+		for ch in player.get_children():
+			if ch is Camera3D:
+				var r := MWTravel.pick(ch)
+				if r:
+					activate(r)
+
+## Aktywacja referencji: na razie drzwi z celem (DODT/DNAM).
+func activate(r: Node) -> bool:
+	var dest := MWTravel.door_destination(r)
+	if dest.is_empty():
+		return false
+	travel(dest)
+	return true
+
+func travel(dest: Dictionary) -> void:
+	for key in loaded.keys():
+		loaded[key].queue_free()
+	loaded.clear()
+	var t: Transform3D = dest["transform"]
+	if String(dest.get("cell_key", "")) != "":
+		interior = String(dest["cell_name"])
+		_load(dest["cell_key"])
+		envr.set_interior(db.get_cell(dest["cell_key"]))
+	else:
+		interior = ""
+		envr.set_interior({})
+		player.global_position = t.origin
+		_update_streaming(true)
+	player.global_position = t.origin
+	player.rotation.y = t.basis.get_euler().y
+	player.velocity = Vector3.ZERO
 
 func _update_streaming(_force: bool) -> void:
 	var g := MWCoords.cell_of(player.global_position)

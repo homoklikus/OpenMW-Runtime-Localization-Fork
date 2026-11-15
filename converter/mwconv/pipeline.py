@@ -32,7 +32,8 @@ from .nif.reader import NifError, parse
 from .nif2gltf import NifToGltf, TextureRef
 from .textures import convert_texture, texture_out_rel
 from .vfs import Vfs, norm
-from .world import (cell_file_rel, cell_to_json, load_world, select_cells, terrain_to_json, write_json)
+from .world import (cell_file_rel, cell_to_json, content_fingerprint, load_world, select_cells, terrain_to_json,
+                    write_json)
 
 MODEL_CONVERTER = f"nif2gltf-{__version__}"
 TEXTURE_CONVERTER = f"tex2png-{__version__}"
@@ -146,8 +147,19 @@ class Options:
     all_models: bool = False
     all_textures: bool = False
     jobs: int = 0
-    verify_hash: bool = False   # True: liczy SHA-256 zawsze; False: pomija pliki o tym samym rozmiarze i mtime
+    verify_hash: bool = False
+    bake_godot: str = ""        # ścieżka do binarki Godota ⇒ wypiekanie GLB → .scn z teksturami VRAM
+    bake_project: str = ""      # katalog projektu Godota (z tools/bake_models.gd)
+    bake_compress: str = "s3tc"   # True: liczy SHA-256 zawsze; False: pomija pliki o tym samym rozmiarze i mtime
     max_tasks_per_child: int = 200
+
+
+PROGRESS_JSON = False  # True: postęp jako linie JSON na stdout (launcher Godota)
+
+
+def emit(event: str, **kw):
+    if PROGRESS_JSON:
+        print("MWPROGRESS " + json.dumps({"event": event, **kw}, ensure_ascii=False), flush=True)
 
 
 class Progress:
@@ -160,6 +172,8 @@ class Progress:
     def step(self, n: int = 1):
         self.done += n
         now = time.perf_counter()
+        if PROGRESS_JSON and (now - self.last > 0.25 or self.done == self.total):
+            emit("progress", stage=self.label, done=self.done, total=self.total)
         if now - self.last > 1.0 or self.done == self.total:
             self.last = now
             el = now - self.t0
@@ -228,6 +242,64 @@ def _run_jobs(fn, keys: list[str], cfg: InstallConfig, opts: Options, label: str
     return results
 
 
+def _assets_only(cfg, opts, vfs, cache, state, stats, run_id, T0, log) -> dict:
+    """Świat bez zmian: tylko przyrostowe sprawdzenie modeli i tekstur (np. zmieniony luźny plik NIF)."""
+    out = opts.out
+    needed = set(state.get("needed_models", []))
+    todo = [k for k in sorted(needed) if k in vfs.files and
+            _needs(cache, "model", k, vfs, MODEL_CONVERTER, opts.verify_hash, out)[0]]
+    _run_jobs(convert_model_job, todo, cfg, opts, "models", log, cache, "model", MODEL_CONVERTER, vfs, stats)
+    stats.setdefault("models", {})["skipped_unchanged"] = len(needed) - len(todo)
+    tex = set(state.get("land_textures", []))
+    for k in needed:
+        c = cache.get("model", k)
+        if c and c["deps"]:
+            tex.update(c["deps"])
+    if opts.all_textures:
+        tex |= {k for k in vfs.list("textures/") if k.endswith((".dds", ".tga", ".bmp"))}
+    ttodo = [k for k in sorted(tex) if k in vfs.files and
+             _needs(cache, "texture", k, vfs, TEXTURE_CONVERTER, opts.verify_hash, out)[0]]
+    _run_jobs(convert_texture_job, ttodo, cfg, opts, "textures", log, cache, "texture", TEXTURE_CONVERTER, vfs, stats)
+    stats.setdefault("textures", {})["skipped_unchanged"] = len(tex) - len(ttodo)
+    if opts.bake_godot:
+        bake(opts, stats, log)
+    stats["total_seconds"] = round(time.perf_counter() - T0, 3)
+    stats["main_peak_rss_mb"] = round(_rss_mb(), 1)
+    write_json(out / "reports" / "conversion_last_incremental.json", {"stats": stats})
+    cache.run_finish(run_id, stats)
+    cache.close()
+    log(f"Gotowe w {stats['total_seconds']} s (świat bez zmian).")
+    emit("done", seconds=stats["total_seconds"], errors=0, unchanged=True)
+    return stats
+
+
+def bake(opts: Options, stats: dict, log) -> None:
+    """Wypiekanie GLB, dla których brak aktualnej sceny .scn (przyrostowo)."""
+    import subprocess
+    out = opts.out
+    todo = []
+    for glb in sorted((out / "meshes").rglob("*.glb")):
+        rel = glb.relative_to(out).as_posix()
+        scn = out / "baked" / (rel[:-4] + ".scn")
+        if not scn.exists() or scn.stat().st_mtime < glb.stat().st_mtime:
+            todo.append(rel)
+    stats["bake"] = {"todo": len(todo)}
+    if not todo:
+        return
+    emit("stage", stage="bake", total=len(todo))
+    lst = out / ".mwconv" / "bake_list.txt"
+    lst.write_text("\n".join(todo))
+    project = opts.bake_project or str(Path(__file__).resolve().parents[2] / "godot")
+    t = time.perf_counter()
+    r = subprocess.run([opts.bake_godot, "--headless", "--path", project, "-s", "res://tools/bake_models.gd", "--",
+                        f"--data={out}", f"--list={lst}", f"--compress={opts.bake_compress}"],
+                       capture_output=True, text=True)
+    line = next((x for x in r.stdout.splitlines() if x.startswith("BAKE ")), "")
+    stats["bake"].update(json.loads(line[5:]) if line else {"error": r.stderr[-500:]})
+    stats["bake"]["seconds"] = round(time.perf_counter() - t, 2)
+    log(f"Wypiekanie: {stats['bake']}")
+
+
 def run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) -> dict:
     out = opts.out
     out.mkdir(parents=True, exist_ok=True)
@@ -238,6 +310,7 @@ def run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) -
     T0 = time.perf_counter()
 
     # 1. VFS
+    emit("stage", stage="vfs")
     t = time.perf_counter()
     vfs = Vfs.from_install(cfg.data_dirs, cfg.archives)
     stats["vfs"] = {"files": len(vfs.files), "nif": len(vfs.list("meshes/", ".nif")),
@@ -246,10 +319,25 @@ def run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) -
     log(f"VFS: {stats['vfs']['files']} plików ({stats['vfs']['nif']} NIF) z {len(cfg.data_dirs)} katalogów i "
         f"{len(cfg.archives)} archiwów")
 
-    # 2. świat
+    # 2. świat – pominięcie, gdy ESM/ESP (SHA-256), wybór komórek, VFS i wersja są te same co ostatnio
     t = time.perf_counter()
+    vfs_sig = hashlib.sha256("\n".join(f"{k}|{f.source}|{f.size}|{f.mtime:.3f}" for k, f in sorted(vfs.files.items()))
+                             .encode()).hexdigest()
+    export_key = {"v": __version__, "content": content_fingerprint(cfg.content), "cells": sorted(opts.cells),
+                  "grids": sorted(map(list, opts.grids)), "all_cells": opts.all_cells, "all_models": opts.all_models,
+                  "vfs": vfs_sig}
+    state_file = out / ".mwconv" / "export_state.json"
+    state = json.loads(state_file.read_text()) if state_file.exists() else {}
+    if state.get("key") == export_key and (out / "world" / "manifest.json").exists():
+        stats["world_load"] = {"skipped": True, "reason": "bez zmian (ESM/ESP, wybór, VFS)",
+                               "seconds": round(time.perf_counter() - t, 3)}
+        stats["world_export"] = {"skipped": True}
+        log("Świat bez zmian – pomijam wczytanie ESM/ESP i eksport")
+        return _assets_only(cfg, opts, vfs, cache, state, stats, run_id, T0, log)
+    emit("stage", stage="world")
     world = load_world(cfg.content, log)
-    stats["world_load"] = {"content": [f.name for f in world.content], "records": sum(world.record_counts.values()),
+    stats["world_load"] = {"content": [f.name for f in world.content],
+                           "records": sum(world.record_counts.values()),
                            "cells": len(world.cells), "lands": len(world.lands), "objects": len(world.objects),
                            "seconds": round(time.perf_counter() - t, 3), "rss_mb": round(_rss_mb(), 1)}
 
@@ -357,6 +445,8 @@ def run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) -
                 o["anim"] = kf_out_rel(kf)
         objs[bid] = o
     write_json(wdir / "objects.json", objs)
+    used_regions = {(world.cells[k].cell.region or "").lower() for k in keys} - {""}
+    write_json(wdir / "regions.json", {r: world.regions[r] for r in sorted(used_regions) if r in world.regions})
     write_json(wdir / "index.json", {"format": "mwgodot-world", "version": 1, "cells": index})
     manifest = {
         "format": "mwgodot-world", "version": 1, "converter": __version__,
@@ -372,6 +462,10 @@ def run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) -
                              "refs": sum(i["refs"] for i in index), "seconds": round(time.perf_counter() - t, 3),
                              "missing_models": sorted(missing_models)}
 
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text(json.dumps({"key": export_key, "needed_models": sorted(needed_models),
+                                      "land_textures": sorted(k for k in land_tex_keys.values() if k)}))
+
     # 7. raport
     errors = [{"key": r["key"], "error": r["error"]} for r in model_results if r["status"] != "ok"]
     diag = {}
@@ -381,6 +475,8 @@ def run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) -
             rep = c["report"]
             if rep.get("lossy") or rep.get("unsupported") or rep.get("missing_textures"):
                 diag[k] = {x: rep.get(x) for x in ("lossy", "unsupported", "missing_textures", "skipped_shapes")}
+    if opts.bake_godot:
+        bake(opts, stats, log)
     stats["total_seconds"] = round(time.perf_counter() - T0, 3)
     stats["main_peak_rss_mb"] = round(_rss_mb(), 1)
     stats["children_peak_rss_mb"] = round(resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss / 1024.0, 1)
@@ -388,4 +484,5 @@ def run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) -
     cache.run_finish(run_id, stats)
     cache.close()
     log(f"Gotowe w {stats['total_seconds']} s. Raport: {out / 'reports' / 'conversion.json'}")
+    emit("done", seconds=stats["total_seconds"], errors=len(errors), cells=len(keys))
     return stats

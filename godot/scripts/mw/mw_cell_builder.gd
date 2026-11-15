@@ -7,6 +7,7 @@ var db: MWWorldDB
 var models: MWModelCache
 var editor_mode := false        # CS 2.0: bez kolizji terenu, modele jako dzieci bez właściciela
 var with_lights := true
+var with_water := true
 var stats := {"cells": 0, "refs": 0, "missing_model": 0, "no_model": 0, "build_ms": 0.0}
 
 func _init(world_db: MWWorldDB, model_cache: MWModelCache) -> void:
@@ -27,6 +28,15 @@ func build_cell(key: String) -> Node3D:
 		var tn := MWTerrain.build(t, db.data_root, not editor_mode)
 		if tn:
 			root.add_child(tn)
+	if with_water and c.get("has_water", false):
+		if c.get("interior", false):
+			root.add_child(MWEnvironment.water_plane(600.0, float(c.get("water_height_m", 0.0))))
+		elif c.has("origin_godot"):
+			var o: Array = c["origin_godot"]
+			var size := MWCoords.CELL_SIZE / MWCoords.UNITS_PER_METER
+			var w := MWEnvironment.water_plane(size, float(c.get("water_height_m", 0.0)))
+			w.position = Vector3(o[0] + size / 2.0, w.position.y, o[2] - size / 2.0)
+			root.add_child(w)
 	var refs_node := Node3D.new()
 	refs_node.name = "Refs"
 	root.add_child(refs_node)

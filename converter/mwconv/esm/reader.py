@@ -129,7 +129,7 @@ def parse_header(rec: Record) -> EsmHeader:
 # dekodery szczegółowe
 # ------------------------------------------------------------------------------------------------
 
-@dataclass
+@dataclass(slots=True)
 class CellRef:
     frmr: int
     refnum: int
@@ -143,7 +143,7 @@ class CellRef:
     extra: dict = field(default_factory=dict)
 
 
-@dataclass
+@dataclass(slots=True)
 class Cell:
     name: str
     flags: int
@@ -240,7 +240,7 @@ def parse_cell(rec: Record) -> Cell:
     return cell
 
 
-@dataclass
+@dataclass(slots=True)
 class Land:
     grid: tuple
     flags: int
@@ -259,7 +259,7 @@ def decode_heights(vhgt: bytes) -> np.ndarray:
     out = np.empty((65, 65))
     out[:, 0] = col0
     out[:, 1:] = col0[:, None] + np.cumsum(d[:, 1:], axis=1)
-    return out * 8.0
+    return (out * 8.0).astype(np.float32)
 
 
 def encode_heights(h: np.ndarray) -> bytes:
@@ -355,6 +355,26 @@ def parse_object(rec: Record) -> Optional[dict]:
     return o
 
 
+WEATHERS = ["clear", "cloudy", "foggy", "overcast", "rain", "thunder", "ash", "blight", "snow", "blizzard"]
+
+
+def parse_region(rec: Record) -> Optional[dict]:
+    rid = rec.zstr("NAME")
+    if rid is None:
+        return None
+    o = {"id": rid, "name": rec.zstr("FNAM") or rid}
+    w = rec.get("WEAT")
+    if w:
+        o["weather"] = {WEATHERS[i]: int(b) for i, b in enumerate(w[:len(WEATHERS)])}
+    c = rec.get("CNAM")
+    if c and len(c) >= 3:
+        o["map_color"] = [c[0], c[1], c[2]]
+    snd = [_zs(s.data[:32]) for s in rec.subs if s.name == "SNAM"]
+    if snd:
+        o["sounds"] = snd
+    return o
+
+
 @dataclass
 class EsmFile:
     path: str
@@ -363,6 +383,24 @@ class EsmFile:
     header: EsmHeader
     records: list[Record]
     num_records: int = 0
+
+
+def open_esm_stream(path) -> tuple["EsmFile", Iterator[Record]]:
+    """Strumieniowy odczyt: nagłówek od razu, rekordy jako generator (bez listy wszystkich rekordów w pamięci)."""
+    p = Path(path)
+    data = p.read_bytes()
+    it = iter_records(data, p.name)
+    first = next(it, None)
+    if first is None:
+        raise FormatError(f"{p.name}: pusty plik")
+    hdr = parse_header(first)
+    f = EsmFile(str(p), p.name, hashlib.sha256(data).hexdigest(), hdr, [], 0)
+
+    def gen():
+        for rec in it:
+            f.num_records += 1
+            yield rec
+    return f, gen()
 
 
 def read_esm(path) -> EsmFile:
