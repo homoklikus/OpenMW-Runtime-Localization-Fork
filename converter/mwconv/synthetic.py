@@ -1,4 +1,4 @@
-"""Własne, syntetyczne zasoby testowe (licencja MIT/CC0 – wygenerowane kodem, bez danych Bethesdy).
+"""Własne, syntetyczne zasoby testowe (licencja projektu GPL-3.0-or-later – wygenerowane kodem, bez danych Bethesdy).
 
 Tworzy w katalogu docelowym strukturę „Data Files”:
   meshes/synth/test_hut.nif        – domek: ściany (NiTriShape), dach (NiTriStrips + kolory wierzchołków),

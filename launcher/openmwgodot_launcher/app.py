@@ -704,7 +704,8 @@ class MainWindow(QWidget):
                                    "ZeniMax Media Inc. Projekt nie jest z nimi powiązany.\n\n"
                                    f"Silnik: Godot Engine ({art.GODOT_URL}) – Godot Foundation i społeczność Godota. "
                                    "Projekt nie jest oficjalnym produktem Godot Foundation.\n"
-                                   f"{art.GODOT_LOGO_CREDIT}.\n\nKod: licencja MIT.")
+                                   f"{art.GODOT_LOGO_CREDIT}.\n\nKod: licencja GNU GPL w wersji 3 lub późniejszej (jak OpenMW). "
+                                   "Kod źródłowy: github.com/homoklikus/OpenMW-Runtime-Localization-Fork (gałąź OpenMWGoDot).")
 
     def message(self, title: str, text: str, kind: str = "info"):
         self.last_message = text

@@ -1,4 +1,4 @@
-"""Czytnik plików ESM/ESP Morrowinda (TES3). Implementacja własna (MIT) na podstawie publicznych opisów
+"""Czytnik plików ESM/ESP Morrowinda (TES3). Implementacja własna (GPL-3.0-or-later) na podstawie publicznych opisów
 formatu (UESP „Mod File Format”).
 
 Plik to ciąg rekordów: [typ 4B][rozmiar u32][nagłówek u32][flagi u32] + podrekordy [nazwa 4B][rozmiar u32][dane].

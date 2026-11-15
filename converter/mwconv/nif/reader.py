@@ -1,6 +1,6 @@
 """Czytnik plików NIF w wersji NetImmerse 4.0.0.2 (Morrowind) oraz 4.0.0.0.
 
-Implementacja własna projektu (licencja MIT), napisana na podstawie publicznej specyfikacji formatu
+Implementacja własna projektu (licencja GPL-3.0-or-later), napisana na podstawie publicznej specyfikacji formatu
 `nif.xml` projektu NifTools (licencja BSD). Nie zawiera kodu OpenMW.
 
 Format 4.0.0.2 nie zapisuje rozmiarów bloków, więc każdy blok trzeba odczytać w całości. Nieznany

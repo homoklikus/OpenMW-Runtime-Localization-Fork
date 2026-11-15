@@ -7,7 +7,7 @@ name = "mwconv"
 version = "0.1.0"
 description = "Konwerter danych Morrowinda (NIF/ESM/ESP/BSA/LAND) do glTF i modelu świata dla MWGodot"
 requires-python = ">=3.10"
-license = {text = "MIT"}
+license = {text = "GPL-3.0-or-later"}
 dependencies = ["numpy>=1.24", "pillow>=10.1"]
 
 [project.optional-dependencies]

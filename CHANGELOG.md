@@ -1,5 +1,13 @@
 # Zmiany
 
+## 0.3.1 — 2026-11-15: licencja GPL-3.0-or-later
+
+* Licencja całego projektu zmieniona z MIT na **GPL-3.0-or-later** (jak OpenMW), żeby móc korzystać z kodu
+  forka OpenMW RLF i oryginalnego OpenMW. Projekt opublikowany na gałęzi `OpenMWGoDot` repozytorium
+  `homoklikus/OpenMW-Runtime-Localization-Fork`; gałąź `0.5-world` zamrożona (blokada + tag `0.5-world-final`).
+* Poprawki po pierwszym uruchomieniu u gracza: katalog konwersji poza repozytorium, uszkodzone tekstury przy
+  duplikatach .dds/.tga, wypiekanie ze świeżego GLB, ukryte znaczniki edytora, start w mieście, współrzędne (F3/F4).
+
 ## 0.3 — 2026-11-15 (sesja 3): osobny launcher
 
 * **Nowy launcher Qt 6 (PySide6)** `launcher/`: ekran główny 1024×683 wg grafiki referencyjnej (menu boczne,

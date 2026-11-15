@@ -27,4 +27,5 @@ cd converter && python3 -m mwconv convert --openmw-cfg ~/.config/openmw/openmw.c
 godot --path ../godot -- --data=$HOME/.local/share/mwgodot/mwdata
 ```
 
-Licencja kodu: MIT (patrz `docs/LICENCJE.md` – w tym decyzja o ewentualnym przejściu na GPLv3).
+Licencja kodu: **GPL-3.0-or-later** (jak OpenMW – projekt może korzystać z kodu forka OpenMW RLF i oryginalnego
+OpenMW). Copyright © 2026 OpenMWGodot contributors. Szczegóły i licencje grafik: `docs/LICENCJE.md`.

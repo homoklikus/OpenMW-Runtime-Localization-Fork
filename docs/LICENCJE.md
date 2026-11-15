@@ -1,4 +1,4 @@
-# Licencje i dystrybucja — analiza (sesja 1)
+# Licencje i dystrybucja
 
 > To analiza techniczna, nie porada prawna. Przed publicznym wydaniem warto ją potwierdzić z prawnikiem.
 
@@ -13,29 +13,29 @@
 
 ## Kod projektu
 
-Obecnie: **MIT** dla całego repozytorium (konwerter, projekt Godot, wtyczka CS 2.0, GDExtension).
-Konwerter jest implementacją własną, napisaną na podstawie publicznych opisów formatów:
+**Decyzja (2026-11-15): GPL-3.0-or-later dla całego repozytorium** (konwerter, launcher, projekt Godot,
+wtyczka CS 2.0, GDExtension) — ta sama licencja co OpenMW. Powód: projekt będzie korzystał z kodu forka
+OpenMW RLF i być może oryginalnego OpenMW (np. interpreter MWScript, mechaniki, loader NIF), a to wymaga
+licencji zgodnej z GPLv3. Pełny tekst: `LICENSE`. Copyright © 2026 OpenMWGodot contributors.
+
+Konsekwencje:
+
+* kod OpenMW i forka RLF (GPLv3) można przenosić — z zachowaniem informacji o prawach autorskich
+  i oznaczeniem pochodzenia (plik, wersja/commit OpenMW) w nagłówku przeniesionego pliku i w tym dokumencie;
+* każdy rozpowszechniany build (paczka, wydanie) musi mieć dostępny kod źródłowy — repozytorium jest
+  publiczne (`homoklikus/OpenMW-Runtime-Localization-Fork`, gałąź `OpenMWGoDot`);
+* GPL praktycznie wyklucza wydania na konsole (zamknięte SDK);
+* MCP-openMW (`tools/MCP-openMW` w forku, GPLv3) może być teraz użyty także jako kod.
+
+Kod napisany w sesjach 1–3 jest implementacją własną, powstałą na podstawie publicznych opisów formatów:
 
 | Źródło wiedzy | Licencja | Sposób użycia |
 |---|---|---|
 | NifTools `nif.xml` | BSD-3-Clause | opis formatu NIF (fakty o układzie pól) |
 | UESP „Mod File Format” (TES3) | CC BY-SA (tekst) | opis formatu ESM/ESP/BSA – fakty, bez kopiowania tekstu |
-| kod OpenMW 0.51 (fork RLF) | **GPLv3** | tylko odczyt w celu potwierdzenia konwencji (stała `UnitsPerMeter`, kolejność obrotów referencji, wzór triangulacji „diamond”, zerowanie transformacji korzenia NIF, semantyka skinu). Żaden fragment kodu nie został skopiowany ani przetłumaczony 1:1. |
-| MCP-openMW (`tools/MCP-openMW` w forku) | w repozytorium GPLv3; nagłówek `nif.py` deklaruje przeniesienie układu rekordów „1:1 z components/nif/*.cpp” | **nie użyty jako kod** – traktuję go jako utwór zależny od GPL. Konsultowany wyłącznie jako opis formatu. |
+| kod OpenMW 0.51 (fork RLF) | GPLv3 | odczyt w celu potwierdzenia konwencji (stała `UnitsPerMeter`, kolejność obrotów referencji, triangulacja „diamond”, zerowanie transformacji korzenia NIF, semantyka skinu, lista ukrytych znaczników). Do sesji 3 żaden fragment nie został skopiowany. |
 
-### Decyzja do podjęcia przez Ciebie (wpływa na dalsze prace)
-
-* **Zostajemy przy MIT** → nie wolno włączać kodu OpenMW (ani MCP-openMW) do MWGodot. Mechaniki
-  (formuły walki, AI, MWScript) implementujemy samodzielnie na podstawie dokumentacji i obserwacji.
-* **Przechodzimy na GPLv3 (całość lub runtime)** → możemy legalnie przenosić komponenty OpenMW
-  (np. interpreter MWScript, mechaniki, loader NIF w C++ jako GDExtension). Godot (MIT), godot-cpp (MIT),
-  numpy (BSD), Pillow (MIT-CMU) są zgodne z GPLv3. Konsekwencje: każdy rozpowszechniany build musi mieć
-  dostępny kod źródłowy; GPL praktycznie wyklucza wydania na konsole (zamknięte SDK).
-* Wariant mieszany: konwerter i CS 2.0 MIT, runtime gry GPLv3 — możliwy, jeśli granica jest czysta
-  (osobne programy komunikujące się plikami; `world/` i GLB to dane, nie linkowanie).
-
-Rekomendacja: dopóki nie potrzebujemy kodu OpenMW — MIT (większa swoboda). Gdy dojdziemy do MWScript
-i mechanik, warto wrócić do decyzji, bo przepisywanie interpretera od zera to duży koszt.
+Przeniesiony kod OpenMW (od sesji 4): *na razie brak* — każdy przeniesiony fragment dopisujemy tutaj.
 
 ## Zależności i narzędzia
 
@@ -44,6 +44,8 @@ i mechanik, warto wrócić do decyzji, bo przepisywanie interpretera od zera to 
 | Godot 4.5.1 | MIT | tak (silnik/eksport) – wymaga zachowania informacji o licencji (także FreeType, ENet, mbedTLS itd. wg `COPYRIGHT.txt` Godota) |
 | godot-cpp 4.5 | MIT | tak (w GDExtension) |
 | Python 3, numpy, Pillow | PSF, BSD-3, MIT-CMU | tak, jeśli dołączymy konwerter z interpreterem (np. PyInstaller) – wtedy dołączamy ich licencje |
+| PySide6 (Qt 6) | LGPL-3.0 | launcher; zgodne z GPLv3 (w paczce samodzielnej: dołączyć licencje Qt) |
+| py7zr | LGPL-2.1-or-later | launcher (archiwa modów); zgodne z GPLv3 |
 | SQLite (moduł `sqlite3` Pythona) | domena publiczna | – |
 | pytest, scons | MIT | nie (narzędzia deweloperskie) |
 | Khronos glTF-Validator (npm) | Apache-2.0 | nie (tylko testy) |
