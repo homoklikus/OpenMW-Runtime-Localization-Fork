@@ -159,7 +159,7 @@ def test_mod_install_zip_and_7z(paths, tmp_path, synth_data):
     store = mods.ModStore(paths)
     m = store.install(make_mod_zip(tmp_path, synth_data))
     assert m.id == "mod-a" and m.data_root.endswith("Data Files")
-    assert m.plugins == [{"file": "mod_a.esp", "masters": ["Morrowind.esm"], "is_master": False}]
+    assert m.plugins == [{"file": "mod_a.esp", "masters": ["Morrowind.esm"], "is_master": False, "groundcover": False}]
     assert "textures/tx_synth_planks.dds" in store.file_list(m)
     import py7zr
     src = tmp_path / "src7"
@@ -335,3 +335,28 @@ def test_translation_only_mod(paths, tmp_path):
     m = store.install(z)
     assert m.data_root.endswith("Morrowind PL") and m.plugins == []
     assert "localization/language/morrowind.yaml" in {k.lower() for k in store.file_list(m)}
+
+
+def test_groundcover_plugin_mod_goes_to_groundcover_list(paths, tmp_path, synth_data):
+    """Mod z trawą (np. Remiros): wtyczka rozpoznana jako groundcover → osobna lista, nie content (jak openmw.cfg)."""
+    import zipfile
+    from mwconv.synthetic_world import write_flora
+    fl = write_flora(tmp_path / "fl")
+    z = tmp_path / "Grass.zip"
+    with zipfile.ZipFile(z, "w") as f:
+        f.write(fl["groundcover"], "Grass/mwg_grass.esp")
+        f.write(Path(fl["dir"]) / "meshes/grass/synth_gc_01.nif", "Grass/meshes/grass/synth_gc_01.nif")
+    store = mods.ModStore(paths)
+    m = store.install(z)
+    assert m.plugins[0]["groundcover"] is True
+    from mwconv.install import InstallConfig
+    base = InstallConfig(data_dirs=[str(synth_data["dir"])], content=[str(synth_data["dir"] / "mwg_synthtown.esm")])
+    res = mods.resolve(base, [m.id], store)
+    assert [Path(c).name for c in res.config.content] == ["mwg_synthtown.esm"]
+    assert [Path(g).name for g in res.config.groundcover] == ["mwg_grass.esp"]
+    args = conversion.convert_args(res.config, tmp_path / "o", flora={"enabled": True, "source": "hybrid",
+                                                                      "density": 0.5})
+    i = args.index("--groundcover")
+    assert args[i + 1].endswith("mwg_grass.esp")
+    assert args[args.index("--flora") + 1] == "hybrid" and args[args.index("--flora-density") + 1] == "0.5"
+    assert conversion.convert_args(res.config, tmp_path / "o")[args.index("--flora") + 1] == "off"

@@ -39,6 +39,11 @@ GAME_SCHEMA: list[Opt] = [
     Opt("view_distance", "graphics", "int", 1500, "Odległość widzenia [m]", "View distance [m]", lo=200, hi=6000),
     Opt("water", "graphics", "bool", True, "Woda", "Water"),
     Opt("fog", "graphics", "bool", True, "Mgła i pogoda (postprocessing)", "Fog and weather"),
+    # roślinność wyliczona przez konwerter (Ustawienia → Świat): rysowanie w grze
+    Opt("grass", "graphics", "bool", True, "Roślinność (trawa)", "Groundcover (grass)"),
+    Opt("grass_distance", "graphics", "int", 90, "Zasięg roślinności [m]", "Groundcover distance [m]", lo=20, hi=400),
+    Opt("grass_density", "graphics", "float", 1.0, "Gęstość roślinności w grze", "Groundcover density in game",
+        lo=0.1, hi=1.0),
     Opt("mouse_sensitivity", "controls", "float", 0.0025, "Czułość myszy", "Mouse sensitivity", lo=0.0005, hi=0.01),
     Opt("invert_y", "controls", "bool", False, "Odwróć oś Y", "Invert Y axis"),
     # lokalizacja runtime (fork OpenMW RLF): „auto” = język launchera, „original” = bez tłumaczenia,
@@ -63,6 +68,9 @@ LAUNCHER_DEFAULTS: dict[str, Any] = {
     "launch_args": "",              # dodatkowe parametry Godota (dzielone bezpiecznie, bez powłoki)
     "godot_version": "",            # zapamiętana wersja (sprawdzana tylko na żądanie lub po grze – nie przy starcie)
     "wizard_done": False,
+    # roślinność (odpowiednik world.cfg forka OpenMW RLF: [flora] i [Groundcover]) – wpływa na konwersję
+    "flora": {"enabled": False, "source": "automatic", "density": 1.0, "exclusion_distance": 3.0,
+              "groundcover_enabled": False, "groundcover_density": 1.0},
     "wizard_step": 0,
 }
 

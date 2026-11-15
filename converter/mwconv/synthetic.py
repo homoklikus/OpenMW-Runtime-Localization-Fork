@@ -247,6 +247,24 @@ def make_crate() -> bytes:
     return nb.to_bytes()
 
 
+def make_grass(width: float = 40.0, height: float = 30.0, tex: str = "tx_synth_grass.tga") -> bytes:
+    """Kępka trawy: dwa skrzyżowane czworokąty z testem alfa (jak modele groundcover)."""
+    nb = NifBuilder()
+    root = nb.add("NiNode", name="synth_grass")
+    w, h = width / 2, height
+    V = np.array([[-w, 0, 0], [w, 0, 0], [w, 0, h], [-w, 0, h], [0, -w, 0], [0, w, 0], [0, w, h], [0, -w, h]],
+                 np.float32)
+    N = np.tile(np.array([[0, 0, 1]], np.float32), (8, 1))
+    UV = np.array([[0, 1], [1, 1], [1, 0], [0, 0]] * 2, np.float32)
+    T = np.array([[0, 1, 2], [0, 2, 3], [4, 5, 6], [4, 6, 7]], np.uint16)
+    d = nb.add("NiTriShapeData", vertices=V, normals=N, uvs=[UV], triangles=T)
+    alpha = nb.add("NiAlphaProperty", name="", flags=0x12EC | (1 << 9), threshold=128)
+    stencil = nb.add("NiStencilProperty", name="", draw_mode=3)
+    sh = nb.add("NiTriShape", name="tri grass", data=d, properties=_textured(nb, tex, extra_props=(alpha, stencil)))
+    nb.set(root, children=[sh])
+    return nb.to_bytes()
+
+
 def make_windmill() -> bytes:
     nb = NifBuilder()
     root = nb.add("NiNode", name="test_windmill")

@@ -8,7 +8,8 @@ var models: MWModelCache
 var editor_mode := false        # CS 2.0: bez kolizji terenu, modele jako dzieci bez właściciela
 var with_lights := true
 var with_water := true
-var show_markers := false       # znaczniki edytora widoczne także poza CS 2.0 (diagnostyka)
+var show_markers := false
+var flora = null                # mw_flora.gd – roślinność komórek zewnętrznych (gra; w CS 2.0 wyłączona)       # znaczniki edytora widoczne także poza CS 2.0 (diagnostyka)
 var stats := {"cells": 0, "refs": 0, "missing_model": 0, "no_model": 0, "markers": 0, "build_ms": 0.0}
 
 ## Obiekty-znaczniki Morrowinda: punkty docelowe zaklęć i skryptów (Interwencja Almsivi/Boska,
@@ -54,6 +55,10 @@ func build_cell(key: String) -> Node3D:
 		var n := build_ref(r)
 		if n:
 			refs_node.add_child(n)
+	if flora != null and not editor_mode and not c.get("interior", false):
+		var fl: Node3D = flora.build_cell(key)
+		if fl:
+			root.add_child(fl)
 	stats.cells += 1
 	stats.build_ms += (Time.get_ticks_usec() - t0) / 1000.0
 	return root

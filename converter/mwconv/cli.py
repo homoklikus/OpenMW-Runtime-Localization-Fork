@@ -47,6 +47,14 @@ def cmd_convert(a):
                     p = Path(d) / c
                     break
         cfg.content.append(str(p.resolve()))
+    for g in a.groundcover or []:
+        p = Path(g)
+        if not p.is_absolute():
+            for d in reversed(cfg.data_dirs):
+                if (Path(d) / g).exists():
+                    p = Path(d) / g
+                    break
+        cfg.groundcover.append(str(p.resolve()))
     if not cfg.content:
         print("Brak plików ESM/ESP (użyj --content, --openmw-cfg albo --morrowind)", file=sys.stderr)
         return 2
@@ -56,7 +64,10 @@ def cmd_convert(a):
         grids += [(x, y) for x in range(x0, x1 + 1) for y in range(y0, y1 + 1)]
     opts = Options(out=Path(a.out).resolve(), cells=a.cell or [], grids=grids, all_cells=a.all_cells,
                    all_models=a.all_models, all_textures=a.all_textures, jobs=a.jobs, verify_hash=a.verify_hash,
-                   bake_godot=_abs_exe(a.bake_godot), bake_project=a.bake_project, bake_compress=a.bake_compress)
+                   bake_godot=_abs_exe(a.bake_godot), bake_project=a.bake_project, bake_compress=a.bake_compress,
+                   flora={"enabled": a.flora != "off", "source": a.flora if a.flora != "off" else "automatic",
+                          "density": a.flora_density, "exclusion_distance": a.flora_exclusion,
+                          "groundcover_enabled": a.legacy_groundcover, "groundcover_density": a.groundcover_density})
     if a.progress_json:
         from . import pipeline
         pipeline.PROGRESS_JSON = True
@@ -235,6 +246,15 @@ def main(argv=None):
     c.add_argument("--bake-compress", default="s3tc", choices=["s3tc", "bptc", "etc2", "astc", "lossless"])
     c.add_argument("--progress-json", action="store_true", help="postęp jako linie JSON (dla launchera)")
     c.add_argument("--base-out", default="", help="współdzielona konwersja bazowa: zapisuj tylko zasoby różne od bazy")
+    # roślinność (fork OpenMW RLF: world.cfg [flora] + [Groundcover])
+    c.add_argument("--flora", default="off", choices=["off", "automatic", "groundcover", "hybrid"],
+                   help="roślinność: proceduralna (automatic), z wtyczek groundcover, albo obie (hybrid)")
+    c.add_argument("--flora-density", type=float, default=1.0, help="gęstość 0–2")
+    c.add_argument("--flora-exclusion", type=float, default=3.0, help="odstęp od dróg i obiektów [m], 0–20")
+    c.add_argument("--groundcover", action="append", help="wtyczka groundcover (openmw.cfg: groundcover=)")
+    c.add_argument("--legacy-groundcover", action="store_true",
+                   help="wtyczki groundcover bez [flora] (jak [Groundcover] enabled w OpenMW)")
+    c.add_argument("--groundcover-density", type=float, default=1.0, help="gęstość wtyczek groundcover 0–1")
     v = sp.add_parser("verify", help="weryfikacja wyników (uszkodzone oznacza do naprawy przez convert)")
     v.add_argument("--out", required=True)
     v.add_argument("--deep", action="store_true", help="sprawdź strukturę plików (wolniej)")

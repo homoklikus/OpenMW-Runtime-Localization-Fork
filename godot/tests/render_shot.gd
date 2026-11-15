@@ -95,7 +95,12 @@ func _init() -> void:
 		cam.look_at_from_position(cam.position, vec(arg("look"), Vector3(1, 2, 0)))
 	else:
 		var db := MWWorldDB.new(data, arg("project", ""))
-		var builder := MWCellBuilder.new(db, MWModelCache.new(data))
+		var mc := MWModelCache.new(data)
+		var builder := MWCellBuilder.new(db, mc)
+		var fl = load("res://scripts/mw/mw_flora.gd").new(mc, data)
+		if fl.is_active():
+			fl.distance = 400.0
+			builder.flora = fl
 		for c in db.cell_index():
 			if c.get("interior", false):
 				continue

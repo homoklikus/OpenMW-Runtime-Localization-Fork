@@ -131,7 +131,8 @@ class LauncherCore:
         godot = launch.find_godot(self.config["godot_path"], APP_ROOT) if self.config["bake"] else None
         project = launch.find_project(self.config["project_dir"], APP_ROOT)
         return conversion.steps(plan, scope or self.config["conversion_scope"],
-                                bake_godot=godot or "", bake_project=str(project) if (godot and project) else "")
+                                bake_godot=godot or "", bake_project=str(project) if (godot and project) else "",
+                                flora=self.config["flora"])
 
     def status(self) -> conversion.OutStatus:
         plan = self.plan()

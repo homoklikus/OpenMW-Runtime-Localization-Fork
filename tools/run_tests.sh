@@ -109,6 +109,14 @@ N=$(echo "$R" | sed -n "s/.*'todo': \([0-9]*\).*/\1/p" | head -1)
 [[ "$N" -ge 8 ]] || { echo "BŁĄD: po przeniesieniu wypieczono $N modeli (oczekiwano wszystkich)"; exit 1; }
 run_gd test_bake.gd --data="$WORK/moved"; mv "$OUT.orig" "$OUT"
 pass "wypiekanie po przeniesieniu katalogu ($N modeli)"
+step "6c. Roślinność (wtyczka groundcover + reguły Remirosa z lokalnych wtyczek, MultiMesh)"
+FLORA="$WORK/Flora"
+(cd "$ROOT/converter" && $PY -c "from mwconv.synthetic_world import write_flora; write_flora('$FLORA')")
+(cd "$ROOT/converter" && $PY -m mwconv convert --data "$DATA" --data "$FLORA" --archive "$DATA/synth.bsa" \
+   --content mwg_synthtown.esm --content mwg_synthtown_patch.esp --groundcover mwg_grass.esp \
+   --flora hybrid --cell Synthville --out "$WORK/flora_out" | grep -E "Roślinność|Gotowe")
+run_gd test_flora.gd --data="$WORK/flora_out"
+
 if ls "$ROOT/godot/bin/"libmw_native* >/dev/null 2>&1; then
   run_gd test_gdextension.gd
 else

@@ -437,3 +437,21 @@ def test_game_language_setting_from_conversion(env, qapp, fake_game):
     page.save()
     rs = json.loads(Path(w.core.runtime_args()[2].split("=", 1)[1]).read_text())
     assert rs["game_language"] == "pl" and rs["qa_source"] == "MojMod.esp"
+
+
+def test_world_tab_flora_settings_to_conversion(env, qapp, fake_game):
+    """Świat (world.cfg forka): ustawienia roślinności zapisane w launcherze i przekazane do konwertera."""
+    w = make_window()
+    w.core.set_install(str(fake_game))
+    page = w.pages["settings"]
+    w.show_page("settings")
+    assert not page.fl_source.isEnabled() and page.gc_legacy.isEnabled()
+    page.fl_enabled.setChecked(True)
+    assert page.fl_source.isEnabled() and not page.gc_legacy.isEnabled()
+    page.fl_source.setCurrentIndex(page.fl_source.findData("hybrid"))
+    page.fl_density.setValue(1.5)
+    page.fl_excl.setValue(5)
+    page.save()
+    assert w.core.config["flora"]["source"] == "hybrid" and w.core.config["flora"]["density"] == 1.5
+    args = w.core.conversion_steps()[0]["args"]
+    assert args[args.index("--flora") + 1] == "hybrid" and args[args.index("--flora-exclusion") + 1] == "5"

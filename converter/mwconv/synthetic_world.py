@@ -253,3 +253,61 @@ def write_patch2(data_dir: Path) -> str:
     p.write_bytes(W.header([("mwg_synthtown.esm", esm_size)], len(recs), desc="Synthetic patch 2", is_master=False)
                   + b"".join(recs))
     return str(p)
+
+
+
+def write_flora(flora_dir: Path) -> dict:
+    """Osobny katalog danych (jak mod) do testów roślinności – własne, syntetyczne pliki:
+      meshes/f/flora_grass_01.nif, flora_bc_grass_01.nif   pula flory proceduralnej (nazwy jak w wanilii)
+      meshes/grass/synth_gc_01.nif                         model wtyczki groundcover
+      meshes/grass/rem_sy_grass_01.nif, _02                modele „Remirosa” (nazwy rem_*)
+      mwg_grass.esp                                        wtyczka groundcover (STAT + referencje w komórkach)
+      Rem_SY.esp                                           wtyczka w stylu Remirosa: rośliny tylko na teksturze trawy
+    """
+    from .synthetic import make_grass
+    flora_dir = Path(flora_dir)
+    models = {"meshes/f/flora_grass_01.nif": make_grass(), "meshes/f/flora_bc_grass_01.nif": make_grass(50, 35),
+              "meshes/f/flora_grass_05.nif": make_grass(400, 40),      # za szeroki (> 200 j.) – odrzucany
+              "meshes/grass/synth_gc_01.nif": make_grass(30, 25),
+              "meshes/grass/rem_sy_grass_01.nif": make_grass(36, 28), "meshes/grass/rem_sy_grass_02.nif": make_grass(28, 40)}
+    for rel, b in models.items():
+        p = flora_dir / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(b)
+
+    def grass_texel(x, y):
+        h = height_at(x, y)
+        return abs(y - 6000) >= 700 and h <= 900
+
+    import random
+    rng = random.Random(7)
+    # wtyczka groundcover: 60 roślin w komórce (0,0)
+    refs, refnum = [], 0
+    for _ in range(60):
+        x, y = rng.uniform(200, 8000), rng.uniform(200, 5000)
+        refnum += 1
+        refs.append(W.ref_subs(refnum, "synth_gc", (x, y, height_at(x, y)), (0, 0, rng.uniform(0, 6.28)),
+                               rng.uniform(0.8, 1.2)))
+    recs = [W.stat("synth_gc", "grass\\synth_gc_01.nif"), W.cell("", (0, 0), False, refs)]
+    gc = flora_dir / "mwg_grass.esp"
+    gc.write_bytes(W.header([("mwg_synthtown.esm", 0)], len(recs), desc="synthetic groundcover", is_master=False)
+                   + b"".join(recs))
+    # „Remiros”: rośliny tylko na teksturze trawy, gęstość ~6 na teksel w komórkach (0,0) i (1,0)
+    recs = [W.stat("grs_sy_a", "grass\\rem_sy_grass_01.nif"), W.stat("grs_sy_b", "grass\\rem_sy_grass_02.nif")]
+    for g in ((0, 0), (1, 0)):
+        refs, refnum = [], 0
+        for ty in range(16):
+            for tx in range(16):
+                for k in range(6):
+                    x = g[0] * CELL + (tx + rng.random()) * 512
+                    y = g[1] * CELL + (ty + rng.random()) * 512
+                    if not grass_texel(g[0] * CELL + (tx + 0.5) * 512, g[1] * CELL + (ty + 0.5) * 512):
+                        continue
+                    refnum += 1
+                    sid = "grs_sy_a" if k < 4 else "grs_sy_b"
+                    refs.append(W.ref_subs(refnum, sid, (x, y, height_at(x, y) + 23), (0, 0, 0), rng.uniform(0.9, 1.3)))
+        recs.append(W.cell("", g, False, refs))
+    rem = flora_dir / "Rem_SY.esp"
+    rem.write_bytes(W.header([("mwg_synthtown.esm", 0)], len(recs), desc="synthetic remiros-style", is_master=False)
+                    + b"".join(recs))
+    return {"groundcover": str(gc), "remiros": str(rem), "dir": str(flora_dir)}

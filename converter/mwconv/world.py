@@ -76,6 +76,7 @@ class World:
     regions: dict = field(default_factory=dict)       # id_lower → dict
     ltex_by_file: dict = field(default_factory=dict)  # nazwa pliku → {INTV: tekstura}
     masters_by_file: dict = field(default_factory=dict)
+    pathgrids: dict = field(default_factory=dict)     # (x, y) → (punkty [(x, y, z) świat], krawędzie [(i, j)])
 
     def ltex_resolver(self, fname: str) -> dict:
         """Mapa INTV → tekstura widziana przez plik: własne LTEX, potem LTEX masterów (późniejszy wygrywa).
@@ -149,6 +150,14 @@ def load_world(paths: Iterable, log: Callable[[str], None] = lambda s: None) -> 
                     else:
                         rg["source"] = f.name
                         world.regions[rg["id"].lower()] = rg
+            elif rec.type == "PGRD":
+                pg = parse_pathgrid(rec)
+                if pg is not None:
+                    grid, pts, edges = pg
+                    if rec.deleted:
+                        world.pathgrids.pop(grid, None)
+                    else:
+                        world.pathgrids[grid] = (pts, edges)
             elif rec.type == "LAND":
                 ld = parse_land(rec)
                 if ld.deleted:
@@ -159,6 +168,37 @@ def load_world(paths: Iterable, log: Callable[[str], None] = lambda s: None) -> 
     for g, (ld, _none, src) in list(world.lands.items()):
         world.lands[g] = (ld, world.ltex_resolver(src), src)
     return world
+
+
+def parse_pathgrid(rec):
+    """PGRD komórki zewnętrznej → ((x, y), punkty w układzie świata MW, krawędzie). Wnętrza pomijamy
+    (używane tylko do wykluczeń roślinności). Format: DATA x,y,granularity,count; PGRP 16 B/punkt
+    (x, y, z int32 względem początku komórki, auto u8, liczba połączeń u8); PGRC – indeksy u32 kolejno."""
+    import struct
+    data = rec.get("DATA")
+    if data is None or len(data) < 12:
+        return None
+    gx, gy, _gran, _count = struct.unpack_from("<iiHH", data, 0)
+    name = rec.zstr("NAME") or ""
+    if gx == 0 and gy == 0 and name:          # wnętrze (komórka nazwana, siatka 0,0)
+        return None
+    pts_raw = rec.get("PGRP") or b""
+    n = len(pts_raw) // 16
+    pts, conns = [], []
+    ox, oy = gx * 8192, gy * 8192
+    for i in range(n):
+        x, y, z, _auto, c = struct.unpack_from("<iiiBB", pts_raw, i * 16)
+        pts.append((ox + x, oy + y, z))
+        conns.append(c)
+    pgrc = rec.get("PGRC") or b""
+    idx = list(struct.unpack_from(f"<{len(pgrc) // 4}I", pgrc, 0)) if pgrc else []
+    edges, k = [], 0
+    for i, c in enumerate(conns):
+        for j in idx[k:k + c]:
+            if j < n:
+                edges.append((i, j))
+        k += c
+    return (gx, gy), pts, edges
 
 
 def _merge_cell(world: World, c: Cell, f: EsmFile, names_lower: list[str]):

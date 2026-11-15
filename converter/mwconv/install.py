@@ -14,6 +14,7 @@ class InstallConfig:
     data_dirs: list[str] = field(default_factory=list)   # rosnący priorytet
     archives: list[str] = field(default_factory=list)    # pełne ścieżki, rosnący priorytet
     content: list[str] = field(default_factory=list)     # pełne ścieżki ESM/ESP w kolejności ładowania
+    groundcover: list[str] = field(default_factory=list) # wtyczki roślinności (openmw.cfg: groundcover=) – osobno od content
     origin: str = ""
 
     def to_dict(self):
@@ -45,7 +46,7 @@ def _find_case_insensitive(dirs: list[str], name: str) -> Optional[str]:
 def from_openmw_cfg(path) -> InstallConfig:
     path = Path(path)
     cfg = InstallConfig(origin=str(path))
-    data, content, archives = [], [], []
+    data, content, archives, groundcover = [], [], [], []
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
@@ -62,6 +63,8 @@ def from_openmw_cfg(path) -> InstallConfig:
             content.append(v)
         elif k == "fallback-archive":
             archives.append(v)
+        elif k == "groundcover":
+            groundcover.append(v)
     cfg.data_dirs = data
     for a in archives:
         p = _find_case_insensitive(data, a)
@@ -73,6 +76,10 @@ def from_openmw_cfg(path) -> InstallConfig:
         p = _find_case_insensitive(data, c)
         if p:
             cfg.content.append(p)
+    for g in groundcover:
+        p = _find_case_insensitive(data, g)
+        if p:
+            cfg.groundcover.append(p)
     return cfg
 
 

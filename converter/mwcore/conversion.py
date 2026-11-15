@@ -102,13 +102,29 @@ class Plan:
 
 def make_plan(converted: Path, profile_data: Path, base_cfg: InstallConfig, resolution) -> Plan:
     base_out = Path(converted) / "base"
-    has_mods = len(resolution.config.data_dirs) > len(base_cfg.data_dirs) or resolution.config.content != base_cfg.content
+    has_mods = (len(resolution.config.data_dirs) > len(base_cfg.data_dirs) or resolution.config.content != base_cfg.content
+                or list(resolution.config.groundcover) != list(base_cfg.groundcover))
     return Plan(base_out, (Path(profile_data) / "out") if has_mods else None, base_cfg,
                 resolution.config if has_mods else None, resolution.signature)
 
 
+FLORA_DEFAULTS = {"enabled": False, "source": "automatic", "density": 1.0, "exclusion_distance": 3.0,
+                  "groundcover_enabled": False, "groundcover_density": 1.0}
+
+
+def flora_args(flora: dict | None) -> list[str]:
+    """Ustawienia roślinności (launcher → Świat, odpowiednik world.cfg forka) → argumenty konwertera."""
+    f = {**FLORA_DEFAULTS, **(flora or {})}
+    a = ["--flora", str(f["source"]) if f["enabled"] else "off",
+         "--flora-density", f"{float(f['density']):g}", "--flora-exclusion", f"{float(f['exclusion_distance']):g}",
+         "--groundcover-density", f"{float(f['groundcover_density']):g}"]
+    if f["groundcover_enabled"]:
+        a.append("--legacy-groundcover")
+    return a
+
+
 def convert_args(cfg: InstallConfig, out: Path, scope: str = "full", base_out: Path | None = None,
-                 jobs: int = 0, bake_godot: str = "", bake_project: str = "") -> list[str]:
+                 jobs: int = 0, bake_godot: str = "", bake_project: str = "", flora: dict | None = None) -> list[str]:
     """Argumenty `python -m mwconv convert` (lista – bez składania poleceń powłoki)."""
     a = ["-m", "mwconv", "convert", "--progress-json", "--out", str(out)]
     for d in cfg.data_dirs:
@@ -117,6 +133,9 @@ def convert_args(cfg: InstallConfig, out: Path, scope: str = "full", base_out: P
         a += ["--archive", arc]
     for c in cfg.content:
         a += ["--content", c]
+    for g in getattr(cfg, "groundcover", []) or []:
+        a += ["--groundcover", g]
+    a += flora_args(flora)
     if scope == "balmora":
         a += ["--cell", "Balmora", "--grid-range=-4,-4,-1,-1"]
     else:

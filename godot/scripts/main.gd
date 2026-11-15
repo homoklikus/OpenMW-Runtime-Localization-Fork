@@ -14,6 +14,7 @@ var envr: MWEnvironment
 var hud: RichTextLabel
 ## preload zamiast class_name: gra działa też bez ponownego importu projektu po aktualizacji skryptów
 const Loc := preload("res://scripts/mw/mw_localization.gd")
+const Flora := preload("res://scripts/mw/mw_flora.gd")
 var loc  # Loc
 var current_region := ""
 var settings := {}
@@ -40,6 +41,13 @@ func _ready() -> void:
 	db = MWWorldDB.new(data, project)
 	models = MWModelCache.new(data)
 	builder = MWCellBuilder.new(db, models)
+	if bool(settings.get("grass", true)):
+		var fl = Flora.new(models, data, MWModelCache.base_roots)
+		if fl.is_active():
+			fl.distance = float(settings.get("grass_distance", 90))
+			fl.density = float(settings.get("grass_density", 1.0))
+			builder.flora = fl
+			print("MWGODOT_FLORA tryb=", fl.index.get("mode", ""), " komórki=", fl.index.get("cells", {}).size())
 	loc = Loc.create(data, MWModelCache.base_roots, String(settings.get("game_language", "auto")),
 			String(settings.get("language", "")), String(settings.get("qa_source", "")))
 	if loc.is_active():
@@ -217,7 +225,7 @@ func _process(_d: float) -> void:
 		# tryb testu integracyjnego (launcher): raport i wyjście z kodem zależnym od błędów ładowania
 		var st := {"cells": loaded.size(), "models": models.stats if models else {}, "data": db.data_root if db else "",
 			"base_roots": MWModelCache.base_roots, "settings_profile": settings.get("profile", ""),
-			"max_fps": Engine.max_fps}
+			"max_fps": Engine.max_fps, "flora": builder.flora.stats if builder.flora else {}}
 		print("MWGODOT_STATS ", JSON.stringify(st))
 		get_tree().quit(0 if models and models.stats.failed == 0 and loaded.size() > 0 else 3)
 	if player == null:

@@ -4,13 +4,14 @@
 from __future__ import annotations
 
 import subprocess
+from pathlib import Path
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel,
                                QLineEdit, QPushButton, QSpinBox, QTabWidget, QVBoxLayout, QWidget)
 
-from mwcore import launch
+from mwcore import conversion, launch
 from mwcore.settings import GAME_SCHEMA
 
 from .art import serif_font
@@ -37,7 +38,7 @@ class SettingsPage(QWidget):
         self.widgets = {}
         forms = {}
         for sec, name in (("graphics", "Grafika"), ("audio", "Dźwięk"), ("controls", "Sterowanie"),
-                          ("language", "Język"), ("advanced", "Zaawansowane")):
+                          ("language", "Język"), ("world", "Świat"), ("advanced", "Zaawansowane")):
             w = QWidget()
             f = QFormLayout(w)
             forms[sec] = f
@@ -74,6 +75,34 @@ class SettingsPage(QWidget):
         self.lang_info.setWordWrap(True)
         self.lang_info.setProperty("class", "muted")
         forms["language"].addRow("", self.lang_info)
+        # świat: roślinność (odpowiednik world.cfg forka OpenMW RLF) – liczona przy konwersji
+        f = forms["world"]
+        self.fl_enabled = QCheckBox("Roślinność generowana przy konwersji ([flora] enabled)")
+        f.addRow("", self.fl_enabled)
+        self.fl_source = QComboBox()
+        self.fl_source.addItem("Automatyczna – proceduralna (reguły Remirosa, jeśli zainstalowany)", "automatic")
+        self.fl_source.addItem("Z wtyczek groundcover", "groundcover")
+        self.fl_source.addItem("Obie (hybryda)", "hybrid")
+        f.addRow("Źródło", self.fl_source)
+        self.fl_density = QDoubleSpinBox()
+        self.fl_density.setRange(0.0, 2.0)
+        self.fl_density.setSingleStep(0.1)
+        f.addRow("Gęstość (0–2)", self.fl_density)
+        self.fl_excl = QDoubleSpinBox()
+        self.fl_excl.setRange(0.0, 20.0)
+        self.fl_excl.setSuffix(" m")
+        f.addRow("Odstęp od dróg i obiektów", self.fl_excl)
+        self.gc_legacy = QCheckBox("Wtyczki groundcover bez roślinności proceduralnej ([Groundcover] enabled)")
+        f.addRow("", self.gc_legacy)
+        self.gc_density = QDoubleSpinBox()
+        self.gc_density.setRange(0.0, 1.0)
+        self.gc_density.setSingleStep(0.1)
+        f.addRow("Gęstość wtyczek groundcover (0–1)", self.gc_density)
+        self.world_info = QLabel("")
+        self.world_info.setWordWrap(True)
+        self.world_info.setProperty("class", "muted")
+        f.addRow("", self.world_info)
+        self.fl_enabled.toggled.connect(self._world_enable)
         # zaawansowane
         f = forms["advanced"]
         self.godot = QLineEdit()
@@ -112,6 +141,11 @@ class SettingsPage(QWidget):
         drow.addWidget(b_logs)
         drow.addWidget(b_test)
         f.addRow("Diagnostyka", drow)
+
+    def _world_enable(self, on: bool):
+        for w in (self.fl_source, self.fl_density, self.fl_excl):
+            w.setEnabled(on)
+        self.gc_legacy.setEnabled(not on)     # jak w forku: [Groundcover] działa tylko bez [flora]
 
     def _pick_file(self, edit):
         p, _ = QFileDialog.getOpenFileName(self, "Plik wykonywalny Godota")
@@ -162,6 +196,21 @@ class SettingsPage(QWidget):
         self.args.setText(c["launch_args"] or "")
         self.minimize.setChecked(bool(c["minimize_on_play"]))
         self.bake.setChecked(bool(c["bake"]))
+        fl = {**conversion.FLORA_DEFAULTS, **(c["flora"] or {})}
+        self.fl_enabled.setChecked(bool(fl["enabled"]))
+        self.fl_source.setCurrentIndex(max(0, self.fl_source.findData(fl["source"])))
+        self.fl_density.setValue(float(fl["density"]))
+        self.fl_excl.setValue(float(fl["exclusion_distance"]))
+        self.gc_legacy.setChecked(bool(fl["groundcover_enabled"]))
+        self.gc_density.setValue(float(fl["groundcover_density"]))
+        self._world_enable(self.fl_enabled.isChecked())
+        res = core.resolution(False)
+        gcs = [Path(g).name for g in (res.config.groundcover if res else [])]
+        self.world_info.setText(
+            ("Wtyczki groundcover: " + ", ".join(gcs) if gcs else "Brak wtyczek groundcover (mody z trawą, np. Remiros, "
+             "są rozpoznawane automatycznie przy instalacji).")
+            + "\nRoślinność jest liczona przy konwersji – po zmianie ustawień uruchom „Aktualizuj” na stronie Konwersja. "
+              "Zasięg i gęstość rysowania w grze: zakładka Grafika.")
 
     def values(self) -> dict:
         out = {}
@@ -189,5 +238,9 @@ class SettingsPage(QWidget):
         c["launch_args"] = self.args.text().strip()
         c["minimize_on_play"] = self.minimize.isChecked()
         c["bake"] = self.bake.isChecked()
+        c["flora"] = {"enabled": self.fl_enabled.isChecked(), "source": self.fl_source.currentData(),
+                      "density": round(self.fl_density.value(), 2), "exclusion_distance": round(self.fl_excl.value(), 2),
+                      "groundcover_enabled": self.gc_legacy.isChecked(),
+                      "groundcover_density": round(self.gc_density.value(), 2)}
         c.save()
         self.win.conv_runner.python = core.python()

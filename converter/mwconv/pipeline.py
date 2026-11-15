@@ -165,6 +165,7 @@ class Options:
     bake_project: str = ""      # katalog projektu Godota (z tools/bake_models.gd)
     bake_compress: str = "s3tc"   # True: liczy SHA-256 zawsze; False: pomija pliki o tym samym rozmiarze i mtime
     max_tasks_per_child: int = 200
+    flora: Optional[dict] = None  # ustawienia roślinności (flora.Settings) – None = wyłączona
 
 
 PROGRESS_JSON = False  # True: postęp jako linie JSON na stdout (launcher Godota)
@@ -342,6 +343,47 @@ def _deps(cache: Cache, key: str) -> list:
     if (c is None or not c.get("deps")) and _Base.cache is not None:
         c = _Base.cache.get("model", key)
     return (c or {}).get("deps") or []
+
+
+def _flora_settings(opts):
+    from . import flora
+    return flora.Settings(**{k: v for k, v in (opts.flora or {}).items() if k in flora.Settings.__dataclass_fields__})
+
+
+def _flora_models(cfg, vfs, opts) -> set:
+    """Modele roślinności do konwersji (pula wanilii, statyki wtyczek groundcover, meshes/grass Remirosa)."""
+    from . import flora
+    s = _flora_settings(opts).normalized()
+    plugin, procedural, _d = s.modes()
+    if not plugin and not procedural:
+        return set()
+    out = set()
+    if procedural:
+        out |= {c for c in flora.PROCEDURAL_CANDIDATES if vfs.exists(c)}
+        out |= {k for k in vfs.list("meshes/grass/", ".nif")}
+    if plugin and cfg.groundcover:
+        gc = flora.GroundcoverIndex.load(cfg.groundcover)
+        for m in gc.statics.values():
+            k = vfs.resolve_mesh(m) if m else None
+            if k:
+                out.add(k)
+    return out
+
+
+def _flora(world, vfs, cfg, out, opts, keys, log) -> dict:
+    from . import flora
+    from .world import model_glb_rel
+    emit("stage", stage="flora")
+    try:
+        r = flora.export(world, vfs, cfg, out, _flora_settings(opts), keys, model_glb_rel, log,
+                         base_out=opts.base_out)
+    except Exception as e:  # noqa: BLE001 – błąd roślinności nie może przerwać konwersji
+        log(f"Roślinność: błąd {type(e).__name__}: {e}")
+        emit("warning", message=f"Roślinność: {type(e).__name__}: {e}")
+        return {"error": str(e)}
+    if r.get("cells") is not None:
+        log(f"Roślinność ({r['mode']}): {r['instances']} roślin w {r['cells']} komórkach, {r['seconds']} s")
+    return r
 
 
 def _localization(cfg, vfs, out, log) -> dict:
@@ -552,7 +594,8 @@ def _run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) 
     vfs_sig = hashlib.sha256("\n".join(f"{k}|{f.source}|{f.size}|{f.mtime:.3f}" for k, f in sorted(vfs.files.items())
                                        if not k.startswith("localization/"))
                              .encode()).hexdigest()
-    export_key = {"v": __version__, "base": str(opts.base_out or ""), "content": content_fingerprint(cfg.content), "cells": sorted(opts.cells),
+    export_key = {"v": __version__, "base": str(opts.base_out or ""), "content": content_fingerprint(cfg.content),
+                  "flora": opts.flora, "groundcover": content_fingerprint(cfg.groundcover), "cells": sorted(opts.cells),
                   "grids": sorted(map(list, opts.grids)), "all_cells": opts.all_cells, "all_models": opts.all_models,
                   "vfs": vfs_sig}
     state_file = out / ".mwconv" / "export_state.json"
@@ -586,6 +629,8 @@ def _run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) 
                     missing_models.add(o["model"])
     if opts.all_models:
         needed_models |= set(vfs.list("meshes/", ".nif")) | set(vfs.list("meshes/", ".kf"))
+    flora_models = _flora_models(cfg, vfs, opts)
+    needed_models |= flora_models
     for mk in list(needed_models):
         if mk.endswith(".nif"):
             kf = sibling_kf(vfs, mk)
@@ -675,6 +720,7 @@ def _run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) 
     }
     write_json(wdir / "manifest.json", manifest)
     stats["localization"] = _localization(cfg, vfs, out, log)
+    stats["flora"] = _flora(world, vfs, cfg, out, opts, keys, log)
     stats["world_export"] = {"cells": len(keys), "terrain": len(terrain_json), "objects": len(objs),
                              "refs": sum(i["refs"] for i in index), "seconds": round(time.perf_counter() - t, 3),
                              "missing_models": sorted(missing_models)}

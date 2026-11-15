@@ -55,6 +55,14 @@ def _sha256(p: Path) -> str:
     return h.hexdigest()
 
 
+def _is_groundcover(path) -> bool:
+    try:
+        from mwconv.flora import is_groundcover_plugin
+        return is_groundcover_plugin(path)
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def find_data_root(root: Path) -> Path:
     """Najpłytszy katalog wyglądający na „Data Files” (podkatalogi danych lub pliki ESP/ESM/BSA)."""
     best = None
@@ -122,7 +130,8 @@ class ModStore:
                     try:
                         h = read_header(f)
                         plugins.append({"file": f.name, "masters": [m for m, _ in h.masters],
-                                        "is_master": f.suffix.lower() == ".esm" or bool(h.flags & 1)})
+                                        "is_master": f.suffix.lower() == ".esm" or bool(h.flags & 1),
+                                        "groundcover": _is_groundcover(f)})
                     except Exception as e:  # noqa: BLE001
                         raise ModError(f"uszkodzony plugin {f.name}: {e}") from None
             archives = sorted(f.name for f in root.iterdir() if f.is_file() and f.suffix.lower() == ".bsa")
@@ -193,7 +202,8 @@ class Resolution:
 def resolve(base: InstallConfig, enabled_mod_ids: list[str], store: ModStore,
             base_files: set[str] | None = None) -> Resolution:
     """Kolejność: pliki ESM (baza, potem mody), następnie ESP (baza, potem mody) – jak w grze."""
-    cfg = InstallConfig(list(base.data_dirs), list(base.archives), [], origin=base.origin)
+    cfg = InstallConfig(list(base.data_dirs), list(base.archives), [], groundcover=list(base.groundcover),
+                        origin=base.origin)
     esm, esp = [], []
     for c in base.content:
         (esm if c.lower().endswith(".esm") else esp).append(c)
@@ -214,6 +224,9 @@ def resolve(base: InstallConfig, enabled_mod_ids: list[str], store: ModStore,
         cfg.data_dirs.append(str(root))
         cfg.archives.extend(str(root / a) for a in m.archives)
         for p in m.plugins:
+            if p.get("groundcover"):          # wtyczka roślinności: osobna lista (openmw.cfg groundcover=), nie content
+                cfg.groundcover.append(str(root / p["file"]))
+                continue
             (esm if p["is_master"] else esp).append(str(root / p["file"]))
         sig.update(f"{m.id}:{m.archive_sha256};".encode())
         for f in store.file_list(m):
