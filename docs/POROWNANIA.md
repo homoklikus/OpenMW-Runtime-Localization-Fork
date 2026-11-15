@@ -13,3 +13,7 @@ Narzędzie: serwer MCP-openMW (`OpenMW RLF/MCP-openMW`) + profil **`openmwgodot`
   trafiają do repozytorium).
 * Serwery MCP uruchamiane przez Claude Desktop potrzebują zmiennych ekranu (`DISPLAY`, `XAUTHORITY`,
   `WAYLAND_DISPLAY`, `XDG_RUNTIME_DIR`) w sekcji `env` wpisu w `claude_desktop_config.json`.
+
+Zgodnie z planem (rewizja 2.0, §2.7 i §6): porównania wizualne są **referencyjne** – nie blokują rozwoju
+progami podobieństwa obrazu. Zgodność obowiązkową (dane, rozmieszczenie, ID, mechanika, skrypty, zapisy)
+sprawdzamy liczbowo (np. `openmw_remiros_compare`, porównania rekordów).

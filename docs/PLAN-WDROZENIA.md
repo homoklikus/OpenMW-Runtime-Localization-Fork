@@ -1,170 +1,489 @@
-# OpenMWGodot — plan wdrożenia całej gry (etapami)
+# OpenMWGodot — plan wdrożenia całej gry
 
-Stan na 2026-11-15. Dokument nadrzędny: kolejność prac, kontrakty i kryteria odbioru. Zmiany planu wpisujemy
-tutaj (z datą), a nie w rozmowie.
+**Rewizja 2.0 — 2026-11-15**
 
-## 1. Zasady, które chronią poprzednie etapy
+Gałąź rozwojowa: `OpenMWGoDot`  
+Punkt odniesienia OpenMW RLF: `0.5-world-final`  
+Poprzednia roadmapa (rewizja 1): `docs/archiwum/PLAN-WDROZENIA-rev1.md`
 
-1. **Najpierw fundamenty, potem treść.** Rzeczy, które najczęściej „wywracają” projekt, ustalamy na samym
-   początku (etap 0), zanim powstanie pierwsza mechanika: stan gry, zapis, model postaci (aktora), zdarzenia,
-   wejście, szkielet UI. Późniejsze etapy tylko je *wypełniają*.
-2. **Kontrakty z wersją.** Każda granica między częściami ma opisany format z numerem wersji:
-   dane konwertera (`world/…`, `mwgodot-world vN`), API runtime (`MWWorldDB`, `GameState`, usługi),
-   format zapisu. Zmiana niezgodna = nowa wersja + migracja + test; nigdy „po cichu”.
-3. **Konwerter tylko dokłada.** Nowy etap dodaje nowe pliki/pola do `world/`; istniejących nie zmienia.
-   Gra ignoruje pola, których jeszcze nie zna.
-4. **Dane bazowe są tylko do odczytu.** Wszystko, co zmienia się w trakcie gry (pozycje, włącz/wyłącz,
-   ekwipunek, zmienne, dziennik), żyje w `GameState` jako różnica względem danych bazowych. Dzięki temu
-   zapis gry, skrypty i CS 2.0 nie wchodzą sobie w drogę.
-5. **Etap jest zamknięty dopiero po odbiorze:** testy automatyczne (dane syntetyczne, w repo) + porównanie
-   z OpenMW na prawdziwych danych (lokalnie, przez MCP) + wpis w CHANGELOG i w tym planie.
-6. **Regresja jest pilnowana stale.** Zestaw ujęć porównawczych i testów rośnie z każdym etapem i jest
-   uruchamiany po każdej zmianie. Etap nie może pogorszyć wyniku wcześniejszego.
-7. **Licencje bez zmian:** żadnych zasobów Bethesdy w repozytorium ani artefaktach; zrzuty i wyniki
-   porównań z prawdziwych danych zostają lokalnie (`OpenMW RLF/Raporty/…`). W repo tylko liczby i kod.
-8. **Tory równoległe** (launcher, CS 2.0, narzędzia MCP) nie mogą blokować toru głównego (runtime) i
-   odwrotnie — łączy je wyłącznie `mwcore` i format danych.
+## 1. Cel projektu
 
-## 2. Gdzie jesteśmy
+OpenMWGodot ma umożliwiać uruchomienie Morrowinda na silniku Godot, z zachowaniem oryginalnego świata, mechaniki gry, fabuły, modów i obsługi lokalizacji.
 
-| Obszar | Stan |
+Projekt nie jest rekonstrukcją świata wykonywaną ręcznie. Oryginalne pliki Morrowinda pozostają źródłem danych, które są lokalnie konwertowane do formatu wykorzystywanego przez Godota.
+
+Wizualnie projekt może rozwijać się jako remaster. Zgodność mechaniki i danych nie oznacza obowiązku kopiowania ograniczeń renderera OpenMW.
+
+**Priorytet: działająca gra rozwijana małymi, weryfikowalnymi etapami.**
+
+## 2. Zasady architektoniczne
+
+### 2.1. Oddzielenie danych bazowych od stanu gry
+
+- Dane świata utworzone przez konwerter są traktowane jako niemodyfikowalne podczas rozgrywki.
+- `GameState` przechowuje zmiany: pozycje obiektów, ekwipunek, stan postaci, zmienne skryptów, zadania i inne informacje.
+- Construction Set zapisuje zmiany w osobnych warstwach edycyjnych, nie w plikach stanu rozgrywki.
+- Zapis gry nie może zależeć od ścieżek do scen Godota ani od tymczasowych identyfikatorów węzłów.
+
+### 2.2. Stabilne identyfikatory
+
+Każdy rekord i każda instancja obiektu w świecie musi mieć stabilną tożsamość.
+
+Rozróżniamy:
+
+- ID definicji rekordu, np. typ NPC, przedmiotu czy drzwi.
+- ID konkretnej instancji w komórce świata.
+- ID dynamicznych instancji utworzonych podczas gry.
+- Informację o źródłowym pluginie i warstwach nadpisania.
+
+Nie wolno opierać trwałych identyfikatorów wyłącznie na indeksie tablicy, kolejności importu, ścieżce do pliku GLB ani nazwie węzła Godota.
+
+Konwerter musi uwzględniać semantykę identyfikacji referencji w ESM/ESP, także przy nadpisaniach i zmianie kolejności modów.
+
+### 2.3. Wersjonowanie formatów
+
+Wersjonowaniu podlegają:
+
+- Format danych świata.
+- Schematy rekordów.
+- API warstwy runtime.
+- Format zapisu gry.
+- Manifest profilu/modów.
+
+**Nie zamrażamy całego schematu danych na etapie 2.**
+
+Stabilizujemy podstawowy kontrakt, ale dopuszczamy rozszerzanie i kontrolowane zmiany niekompatybilne.
+
+Zmiana niekompatybilna wymaga nowej wersji i odpowiedniej migracji lub ponownej konwersji. Nie wolno zmieniać znaczenia istniejącego pola bez zmiany wersji.
+
+### 2.4. Bezpieczne zapisy gry
+
+Zapis zawiera:
+
+- Wersję formatu.
+- Identyfikator postaci i profilu.
+- Manifest zestawu aktywnych modów oraz ich kolejności ładowania.
+- Identyfikator lub odcisk wersji danych bazowych.
+- Zmiany przechowywane przez `GameState`.
+- Informacje potrzebne do migracji.
+
+Migracje powinny zachowywać nieznane, zgodne dane, jeśli to możliwe.
+
+Brakujący mod lub rekord nie może powodować cichego usuwania obiektów z zapisu.
+
+W przypadku niezgodności system powinien wykrywać problem, informować użytkownika i zachowywać oryginalny zapis.
+
+Zapisy atomowe, kopie bezpieczeństwa przed migracją oraz testy odtwarzania są obowiązkowe.
+
+### 2.5. Wspólny model aktora
+
+`MWActor` jest wspólną podstawą gracza, NPC i stworzeń.
+
+Udostępnia wspólne mechanizmy dotyczące pozycji, ruchu, statystyk, animacji, efektów i stanu.
+
+Różnice między typami aktorów implementujemy przez wyspecjalizowane komponenty lub kontrolery.
+
+Nie tworzymy trzech niezależnych silników postaci.
+
+### 2.6. Oddzielne komponenty
+
+Launcher, konwerter, runtime Godot, Construction Set i MCP mogą rozwijać się niezależnie.
+
+Łączą je dokumentowane kontrakty danych, wspólne usługi oraz jawne interfejsy.
+
+Nie zakładamy, że zmiana komponentu wymaga przebudowy wszystkich pozostałych.
+
+### 2.7. Testowanie
+
+Weryfikacja ma trzy poziomy:
+
+1. Automatyczne testy syntetyczne.
+2. Integracyjne testy na rzeczywistych danych Morrowinda, wykonywane lokalnie.
+3. Porównania z OpenMW tam, gdzie rzeczywiście istnieje wymóg zgodności.
+
+Nie wymagamy podobieństwa piksel po pikselu.
+
+Oddzielnie oceniamy poprawność geometrii, rozmieszczenia obiektów, logiki gry, mechaniki, animacji i wyglądu.
+
+Świadoma poprawa oświetlenia czy efektów wizualnych nie jest regresją tylko dlatego, że obraz różni się od OpenMW.
+
+### 2.8. Wymagania dotyczące zasobów
+
+Nie publikujemy oryginalnych ani przekonwertowanych zasobów Morrowinda w repozytorium.
+
+Konwersja odbywa się lokalnie z instalacji posiadanej przez użytkownika.
+
+Dane referencyjne zawierające zasoby gry pozostają poza publicznymi artefaktami.
+
+## 3. Aktualny stan projektu
+
+Stan wynikający z dotychczasowej dokumentacji oraz prac do commita `193afc0`.
+
+| Obszar | Status |
 |---|---|
-| Konwerter: NIF→glTF (geometria, materiały, skin, kontrolery, cząsteczki, `.kf`), tekstury, BSA/VFS, ESM (obiekty z modelem, CELL, LAND, LTEX, REGN, PGRD), wypiekanie `.scn` | działa na pełnej grze |
-| Świat w grze: teren, obiekty statyczne, światła, wnętrza, drzwi, woda, pora dnia i pogoda (uproszczone), roślinność Remirosa (7 regionów zgodne z OpenMW co do rośliny) | działa |
-| Lokalizacja runtime (port forka) | działa (nazwy); dialogi/książki czekają na UI |
-| Launcher (konwersja, mody, profile, ustawienia), CS 2.0 (komórki, teren, rekordy) | działa |
-| Postacie, animacje postaci, skrypty, dialogi, ekwipunek, walka, magia, AI, dźwięk, zapis gry, UI gry | **brak** |
-| Znane rozjazdy z OpenMW: oświetlenie/mgła/niebo jaśniejsze i bardziej niebieskie; obiekty wyłączane skryptem widoczne (Raven Rock); NPC w pozie T | do etapów 1, 3, 5 |
+| Konwerter NIF, KF, tekstur, ESM/ESP, BSA | Działający prototyp na pełnej instalacji gry |
+| Teren i statyczne obiekty świata | Działają |
+| Wnętrza i drzwi | Działają, przejścia korzystają z teleportacji |
+| Woda, pogoda, cykl dnia | Podstawowa implementacja |
+| Remiros Groundcover | Działa w siedmiu regionach |
+| Lokalizacja YAML | Podstawowa obsługa nazw |
+| Launcher i manager modów | Działający prototyp |
+| Construction Set 2.0 | Działający prototyp |
+| MCP i zrzuty porównawcze | Narzędzia istnieją, stanowisko porównawcze jest rozwijane |
+| Pełny model NPC i stworzeń | Nieukończony |
+| Skrypty, dialogi, RPG i AI | Nieukończone |
+| Zapis gry, pełne UI i audio | Nieukończone |
 
-## 3. Etapy toru głównego
+Status „działa” nie oznacza kompletnej zgodności z OpenMW ani braku błędów.
 
-Każdy etap: **cel → zakres → kontrakt, który zamraża → odbiór (testy + MCP)**.
+## 4. Roadmapa główna
 
-### Etap 0 — Fundamenty runtime i stanowisko porównań  *(następny)*
+### Etap 0 — Fundamenty runtime
 
-Cel: szkielet, na którym wszystkie dalsze etapy tylko dokładają funkcje.
+**Priorytet: najwyższy.**
 
-* `GameState` (autoload): różnice względem danych bazowych — referencje (pozycja, włączona/wyłączona,
-  usunięta, licznik, właściciel), zmienne globalne i lokalne skryptów, czas gry, gracz; zdarzenia zmian.
-* Format zapisu gry v1 = serializacja `GameState` (JSON + kompresja), wersja + migracje; zapis/odczyt
-  działa od razu, choć zapisuje mało (pozycja, czas, włączone/wyłączone). Każdy następny etap dopisuje swoje
-  pole — format się nie zmienia, rośnie.
-* Model aktora: jeden węzeł `MWActor` dla gracza, NPC i stworzeń (dane rekordu + stan + „wygląd”);
-  gracz przestaje być osobnym bytem. Na razie tylko pozycja/ruch.
-* Szyna zdarzeń (aktywacja, wejście do komórki, zmiana czasu…) i warstwa wejścia (akcje, nie klawisze).
-* Szkielet UI gry: motyw, okna, kursor/tryb menu, pierwsze okno (HUD + menu pauzy z zapisem/odczytem).
-* Obsługa referencji wyłączonych w danych (flaga w ESM) — fundament pod skrypty.
-* **Stanowisko porównań**: lista ujęć referencyjnych (8 ujęć roślinności + miasta: Seyda Neen, Balmora,
-  Vivec; wnętrza; noc; deszcz), uruchamiana jednym poleceniem, z metrykami (różnica obrazu, histogram
-  kolorów, udział roślinności) zapisywanymi lokalnie; wynik liczbowy w raporcie testów.
-* Kontrakt: API `GameState`, format zapisu v1, `MWActor`, zdarzenia, akcje wejścia.
-* Odbiór: wszystkie obecne funkcje działają na nowym szkielecie bez zmian w obrazie (te same ujęcia, te same
-  liczby); zapis → wyjście → odczyt przywraca pozycję i czas.
+Zakres:
 
-### Etap 1 — Świat statyczny 1:1 z OpenMW
+- `GameState` jako centralny system zmian świata.
+- Stabilne ID rekordów i referencji.
+- Format zapisu v1 oraz migracje.
+- Manifest aktywnego profilu modów.
+- `MWActor` jako wspólny model postaci.
+- System zdarzeń i akcji wejścia.
+- Obsługa obiektów początkowo wyłączonych.
+- Minimalny HUD, menu pauzy oraz zapis/odczyt.
+- Integracja obecnego stanowiska porównawczego.
 
-Cel: zanim pojawią się postacie, świat ma wyglądać jak w OpenMW, żeby późniejsze porównania mierzyły
-tylko nowe rzeczy.
+**Odbiór:**
 
-* Oświetlenie, niebo, słońce, mgła i pogoda wg wartości zastępczych Morrowind.ini (kolory pory dnia per
-  pogoda, przejścia), światło otoczenia wnętrz, opcjonalne cienie (domyślnie jak OpenMW).
-* Teren: kalibracja mieszania tekstur (narzędzie MCP `openmw_land_texture_mapping_check`), woda (kolor,
-  przezroczystość, odbicia uproszczone), roślinność: jasność względem terenu.
-* Odległość widzenia, wczytywanie bez przycięć; daleki ląd (uproszczony) jako opcja.
-* Kontrakt: parametry środowiska z danych (`world/environment.json` z fallbacków).
-* Odbiór: wszystkie ujęcia referencyjne w progu podobieństwa do OpenMW (próg ustalony w etapie 0).
+Można przemieszczać się po świecie, zapisać grę, zakończyć proces, uruchomić grę ponownie i wrócić do tej samej pozycji oraz czasu gry.
 
-### Etap 2 — Komplet rekordów w danych (bez użycia w grze)
+Stan wyłączonych lub zmienionych obiektów pozostaje zachowany.
 
-Cel: konwerter eksportuje wszystkie rekordy potrzebne do końca projektu, zanim powstanie kod, który ich
-używa — dzięki temu dalsze etapy nie zmieniają formatu danych.
+Dotychczasowe funkcje świata nie ulegają regresji.
 
-* NPC_, CREA, RACE, CLAS, FACT, BSGN, SKIL, MGEF, SPEL, ENCH, ALCH/INGR, przedmioty (pełne pola), LEVI/LEVC,
-  GMST, GLOB, DIAL/INFO (filtry), SCPT (tekst + skompilowane dane), SOUN/SNDG, BODY, PGRD (jest).
-* Scalanie wg kolejności ładowania i nadpisań jak w OpenMW; lokalizacja nakładana na nowe pola.
-* Kontrakt: `mwgodot-world v2` (opis pól w `docs/FORMAT-SWIATA.md`).
-* Odbiór: testy syntetyczne + porównanie z odczytem OpenMW przez MCP (nowe narzędzie: zrzut rekordu
-  i porównanie pól dla losowej próbki 1000 rekordów każdego typu).
+### Etap 1 — Komplet podstawowych danych postaci i przedmiotów
 
-### Etap 3 — Postacie i animacje
+Rozszerzamy konwerter o pola wymagane przez kolejne funkcje.
 
-* Składanie NPC z części ciała (rasa, płeć, głowa, włosy, ubiór, zbroja) i stworzeń; szkielet
-  `base_anim` + `.kf`; animacje bezczynności, chodu, biegu; wybór ekwipunku do pokazania.
-* Kontrakt: „wygląd” w `MWActor` (lista części + szkielet + zestaw animacji).
-* Odbiór: ujęcia Seyda Neen i Balmory z NPC zgodne z OpenMW (sylwetka, ubiór, poza); brak pozy T.
+Priorytetowe typy:
 
-### Etap 4 — Gracz i interakcja ze światem
+- `NPC_`, `CREA`, `RACE`, `CLAS`, `FACT`.
+- `BODY`, `BSGN`, `SKIL`.
+- Rekordy przedmiotów i ich właściwości.
+- `GMST`, `GLOB`.
+- Podstawowe dane statystyk.
 
-* Kontroler postaci zgodny z OpenMW (prędkości, skok, kolizje, pływanie, upadek), aktywacja, podnoszenie,
-  pojemniki, zamki i pułapki (podstawowo), ekwipunek gracza w `GameState`.
-* Okna: ekwipunek, pojemnik, podpowiedzi przedmiotów (z lokalizacją).
-* Odbiór: scenariusze testowe (podnieś → zapisz → wczytaj → przedmiot w ekwipunku i zniknął ze świata).
+Pozostałe typy (`MGEF`, `SPEL`, `ENCH`, `ALCH`, `INGR`, `LEVI`, `LEVC`, `DIAL`, `INFO`, `SCPT`, `SOUN`, `SNDG` i inne) rozwijamy zgodnie z potrzebami następnych etapów.
 
-### Etap 5 — Skrypty MWScript
+Nie wymagamy ukończenia i ostatecznego zamrożenia wszystkich schematów przed rozpoczęciem pracy nad NPC.
 
-* Kompilator w konwerterze (tekst SCPT → drzewo/kod pośredni w `world/scripts/`) + maszyna w runtime;
-  zmienne globalne/lokalne w `GameState`, skrypty startowe, funkcje dodawane grupami (świat → przedmioty →
-  aktorzy → dialogi → reszta), raport nieobsłużonych funkcji.
-* Odbiór: Enable/Disable (Raven Rock niewidoczny na starcie), skrypty startowe Seyda Neen, liczba
-  nieobsłużonych wywołań w pełnej grze spada etapami do zera; porównanie przebiegu skryptu z OpenMW
-  (nowe narzędzie MCP: ślad skryptu).
+**Odbiór:**
 
-### Etap 6 — Dialogi, dziennik, zadania
+Poprawna interpretacja rekordów i nadpisań w reprezentatywnej próbie danych porównanych z OpenMW.
 
-* Filtry INFO, tematy, powitania, perswazja (podstawowo), wyniki dialogów (skrypty z etapu 5), dziennik,
-  zadania; teksty z lokalizacji (gotowe dane z etapu 1 portu).
-* Odbiór: początek gry (Seyda Neen → Balmora, zadanie Caiusa) przechodzi od początku do końca.
+Nie stosujemy sztywnej liczby 1000 rekordów każdego typu. Dla dużych kategorii używamy próbkowania, a przypadki graniczne testujemy celowo.
 
-### Etap 7 — Mechanika RPG
+### Etap 2 — NPC, stworzenia i animacje
 
-* Atrybuty, umiejętności, poziomy, efekty magiczne, czary, zaklinanie, alchemia, walka (wręcz, dystans,
-  magia), obrażenia, śmierć, handel, usługi (nauka, podróże, tworzenie czarów).
-* Odbiór: wzory porównane z OpenMW (tabele wyników dla tych samych wejść).
+Zakres:
 
-### Etap 8 — AI i nawigacja
+- Składanie postaci z części ciała.
+- Rasy, płeć, głowy i włosy.
+- Ubrania, zbroje i broń.
+- Szkielety, animacje bazowe i pliki `.kf`.
+- Animacje bezczynności, chodzenia i biegania.
+- Poprawne pozycjonowanie postaci w komórkach.
+- Współpraca z `MWActor`.
 
-* Nawigacja (PGRD + navmesh Godota), pakiety AI (wander, travel, escort, follow, activate), walka AI,
-  przestępstwa i straże.
-* Odbiór: scenariusze (straż reaguje na kradzież; NPC wraca na miejsce).
+Na tym etapie NPC mogą być statyczni lub używać prostych zachowań demonstracyjnych.
 
-### Etap 9 — Dźwięk i muzyka
+Nie implementujemy jeszcze pełnego AI.
 
-* Dźwięki obiektów i kroków, otoczenie regionów, muzyka (eksploracja/walka), głosy.
+**Odbiór:**
 
-### Etap 10 — Pełne UI i menu
+Seyda Neen i Balmora są zaludnione poprawnymi modelami NPC. Stworzenia są widoczne w odpowiednich miejscach i mają podstawowe animacje.
 
-* Mapa lokalna i świata, okno postaci, magia, książki i zwoje, alchemia, menu główne, ustawienia w grze,
-  tworzenie postaci.
+Brak pozy T dla poprawnie obsługiwanych modeli.
 
-### Etap 11 — Wydanie
+### Etap 3 — Gracz, przedmioty i podstawowe interakcje
 
-* Wydajność (LOD, strumieniowanie w tle), paczki Linux/Windows, dokumentacja gracza.
+Zakres:
 
-## 4. Tory równoległe
+- Docelowy kontroler postaci.
+- Ruch, skok, pływanie, upadek i kolizje.
+- Aktywowanie obiektów.
+- Podnoszenie i odkładanie przedmiotów.
+- Pojemniki.
+- Podstawowe zamki i pułapki.
+- Ekwipunek.
+- Podpowiedzi przedmiotów i lokalizacja.
+- Minimalny system audio: zdarzenia, kroki i interakcje.
 
-| Tor | Zakres | Zależność |
-|---|---|---|
-| Launcher | port forka etap 3: funkcje modów bez Nexusa | `mwcore`; niezależny od runtime |
-| Construction Set 2.0 | edycja nowych rekordów wraz z etapem 2; skrypty po etapie 5 | format danych |
-| Narzędzia MCP | rozwijane wtedy, gdy etap ich potrzebuje (niżej) | — |
+**Odbiór:**
 
-## 5. Narzędzia MCP (rozwijane wg potrzeb)
+Gracz podnosi przedmiot, wkłada go do pojemnika, zapisuje grę, odczytuje zapis i zastaje przedmiot we właściwym miejscu.
 
-| Etap | Narzędzie | Po co |
-|---|---|---|
-| 0 | profil `openmwgodot` w `openmw_capture_*` | jedno wywołanie robi zrzut OpenMW **i** naszej gry z tą samą kamerą oraz liczy metryki (dziś robione ręcznie przez `override.cfg`) |
-| 0 | `openmw_parity_suite` | lista ujęć referencyjnych + wynik regresji |
-| 2 | `openmw_record_dump` / `_compare` | pola rekordu wg OpenMW vs `world/` |
-| 3 | `openmw_actor_inspect` | części ciała, szkielet, animacje NPC wg OpenMW |
-| 5 | `openmw_script_trace` | przebieg skryptu w OpenMW (Lua) do porównania z naszą maszyną |
-| 7 | `openmw_formula_probe` | wyniki wzorów (obrażenia, ceny, szanse) dla zadanych wejść |
+Interakcje zachowują trwałą tożsamość obiektów.
 
-Zmiany w MCP-openMW idą do jego repozytorium (`Fork/repo/tools/MCP-openMW`, gałąź `0.5-world`) — za zgodą,
-bo to repozytorium forka.
+### Etap 4 — Podstawy postaci RPG
 
-## 6. Najbliższe kroki
+Zakres:
 
-1. Zatwierdzenie tego planu (ewentualne zmiany kolejności).
-2. Push oczekującego commitu (tryb zrzutu) — po zatwierdzeniu.
-3. Etap 0: najpierw stanowisko porównań (profil `openmwgodot` w MCP), potem `GameState` i zapis v1, potem
-   przeniesienie gracza na `MWActor`.
+- Atrybuty i umiejętności.
+- Rasy, klasy i znaki zodiaku.
+- Początkowe statystyki.
+- Zdrowie, mana, kondycja.
+- Podstawowa reprezentacja efektów i wyposażenia.
+- Minimalny interfejs tworzenia postaci.
+
+Pełna oprawa graficzna kreatora może zostać dopracowana później.
+
+**Odbiór:**
+
+Można stworzyć postać z właściwymi parametrami początkowymi, zapisać ją i poprawnie odtworzyć.
+
+### Etap 5 — MWScript i logika świata
+
+Zakres:
+
+- Konwersja lub kompilacja skryptów do formatu wykonywalnego przez runtime.
+- Maszyna wykonująca skrypty.
+- Zmienne globalne i lokalne.
+- Skrypty startowe.
+- Obsługa referencji.
+- Funkcje `Enable` i `Disable`.
+- Funkcje związane z przedmiotami i aktorami.
+- Raportowanie nieobsługiwanych instrukcji.
+
+Wdrażamy grupami, zgodnie z faktycznymi zależnościami.
+
+**Odbiór:**
+
+Skrypty wpływają na świat w sposób zgodny z OpenMW.
+
+Obiekty wyłączone na początku gry, w tym odpowiednie elementy Raven Rock, nie są widoczne przed aktywacją.
+
+Stan skryptów przeżywa zapis i odczyt gry.
+
+### Etap 6 — Dialogi, zadania i dziennik
+
+Zakres:
+
+- `DIAL` i `INFO`.
+- Filtry dialogowe.
+- Tematy i powitania.
+- Dziennik i etapy zadań.
+- Wyniki dialogów i ich skrypty.
+- Podstawowa perswazja.
+- Lokalizacja dialogów.
+
+**Odbiór:**
+
+Gracz może rozmawiać z Caiusem Cosadesem, otrzymać zadanie i zobaczyć prawidłowy wpis w dzienniku.
+
+To test działającego fragmentu fabuły, nie deklaracja pełnej grywalności początku Morrowinda.
+
+### Etap 7 — Walka, magia i pozostała mechanika RPG
+
+Zakres:
+
+- Walka wręcz i dystansowa.
+- Trafienia, obrażenia i śmierć.
+- Magia, efekty i zaklęcia.
+- Mikstury, alchemia i zaklinanie.
+- Rozwój umiejętności.
+- Awansowanie postaci.
+- Handel i podstawowe usługi.
+- Mechanika podróży i pozostałych usług NPC.
+
+**Odbiór:**
+
+Podstawowe scenariusze walki, rzucania czarów, handlu i awansowania działają.
+
+Wzory mechaniki są porównywane z OpenMW na tych samych wejściach.
+
+### Etap 8 — AI, nawigacja i reakcje świata
+
+Zakres:
+
+- Nawigacja z wykorzystaniem danych `PGRD` i odpowiednich rozwiązań Godota.
+- Pakiety AI: wander, travel, escort, follow, activate.
+- Wykrywanie zagrożeń.
+- AI walki.
+- Przestępstwa, świadkowie i strażnicy.
+- Zachowania niezależne od aktualnie renderowanych komórek.
+- Zapisywanie stanu aktorów.
+
+**Odbiór:**
+
+NPC poruszają się zgodnie z oczekiwaniami, reagują na gracza i zachowują logiczny stan po zmianie komórki oraz odczycie zapisu.
+
+Straż reaguje na wykryte przestępstwo.
+
+### Etap 9 — Integracja pełnej rozgrywki
+
+To etap, w którym wcześniejsze mechaniki zaczynają być oceniane jako jedna gra.
+
+Zakres:
+
+- Integracja zadań z AI, walką i usługami.
+- Scenariusze obejmujące wiele komórek.
+- Przestępstwa, podróżowanie i efekty magiczne w rzeczywistych zadaniach.
+- Testy stanów granicznych skryptów.
+- Testy zapisu i migracji.
+- Testy przy zmianach modów.
+
+**Odbiór:**
+
+Można przejść uzgodniony fragment początku Morrowinda od utworzenia postaci, przez Seyda Neen, do wykonania zadania w Balmorze.
+
+Scenariusz zawiera prawdziwe interakcje, dialogi, wymagane zachowania NPC i trwały zapis gry.
+
+### Etap 10 — Pełny interfejs i oprawa
+
+Zakres:
+
+- Mapa lokalna i świata.
+- Pełne menu postaci, magii, alchemii i ekwipunku.
+- Książki i zwoje.
+- Pełny kreator postaci.
+- Ustawienia dostępne w grze.
+- Dźwięki otoczenia, głosy i muzyka kontekstowa.
+- Dopracowanie nieba, mgły, wody, cieni i oświetlenia.
+- Ulepszenia graficzne remastera.
+
+Część tych prac można prowadzić wcześniej, równolegle, jeżeli nie blokują podstaw rozgrywki.
+
+**Odbiór:**
+
+Pełen zestaw najważniejszych ekranów i systemów prezentacji działa, a rozgrywka pozostaje zgodna z wcześniejszymi etapami.
+
+### Etap 11 — Wydajność, kompatybilność i wydanie
+
+Zakres:
+
+- Streaming świata i zasobów.
+- LOD oraz optymalizacja pamięci.
+- Ograniczanie przycięć.
+- Prefetch wnętrz i płynne przejścia.
+- Opcjonalne maskowanie teleportacji animacją drzwi.
+- Testy na rozbudowanych zestawach modów.
+- Instalatory i paczki Linux/Windows.
+- Dokumentacja użytkownika.
+
+**Odbiór:**
+
+Gra działa stabilnie na docelowych platformach, ma określone wymagania sprzętowe i przechodzi zestaw scenariuszy regresyjnych.
+
+Bezszybowe przejścia nie wymagają fizycznego umieszczania wszystkich wnętrz wewnątrz modeli budynków.
+
+Optymalizacja powinna być prowadzona przez cały projekt, a nie rozpoczynana dopiero na etapie 11.
+
+## 5. Tory równoległe
+
+### Launcher
+
+Niezależna aplikacja desktopowa.
+
+Rozwijamy:
+
+- Konwersję zasobów.
+- Instalowanie i aktywowanie modów.
+- Profile.
+- Ustawienia.
+- Przycisk „Graj”.
+- Uruchamianie Construction Set.
+
+Nie dublujemy logiki konwertera.
+
+Nie dodajemy obsługi osobistego klucza Nexus API bez zatwierdzonego mechanizmu integracji.
+
+### Construction Set 2.0
+
+Rozwijany równolegle z formatem danych.
+
+Wspiera stopniowo nowe kategorie rekordów, dialogi, skrypty i edycję świata.
+
+Zmiany edytora nie mogą modyfikować oryginalnych zasobów Morrowinda ani zapisów rozgrywki.
+
+### MCP-openMW
+
+Narzędzia porównawcze rozwijamy na aktywnej gałęzi `OpenMWGoDot`, w katalogu `tools/MCP-openMW/`, dopóki nie zostanie podjęta decyzja o osobnym repozytorium.
+
+Gałąź `0.5-world` pozostaje zamrożona i nie może być modyfikowana.
+
+MCP może nadal wykorzystywać zainstalowany fork OpenMW jako środowisko referencyjne.
+
+Potrzebne narzędzia:
+
+| Etap | Narzędzie |
+|---|---|
+| 0 | Profil porównawczy OpenMW ↔ Godot i zestaw regresji |
+| 1 | Porównywanie rekordów |
+| 2 | Inspekcja modeli i animacji aktorów |
+| 5 | Śledzenie skryptów |
+| 7 | Porównanie wzorów RPG |
+| 8 | Porównanie zachowań AI |
+
+Nie wszystkie narzędzia muszą powstać od razu.
+
+## 6. Zasady testowania i odbioru
+
+Każdy etap musi mieć:
+
+- Zdefiniowany cel.
+- Testy automatyczne.
+- Scenariusz integracyjny.
+- Informację o znanych ograniczeniach.
+- Potwierdzenie testów lokalnych, jeśli dotyczą rzeczywistych zasobów gry.
+- Aktualizację dokumentacji i `CHANGELOG.md`.
+
+Rozróżniamy:
+
+**Zgodność obowiązkowa:** dane świata, rozmieszczenie obiektów, identyfikatory, mechanika RPG, logika skryptów, zadania, stany zapisów.
+
+**Zgodność referencyjna:** sylwetki modeli, animacje, tekstury, oświetlenie, woda, mgła i efekty wizualne.
+
+Świadome ulepszenia graficzne mogą odbiegać od OpenMW, pod warunkiem że nie powodują błędów geometrii lub rozgrywki.
+
+Nie wymagamy wielogodzinnego ręcznego sprawdzania każdej drobnej poprawki.
+
+Rozszerzamy automatyczne testy regresji, ale nie blokujemy rozwoju arbitralnymi progami podobieństwa obrazu.
+
+## 7. Kamienie milowe dla użytkownika
+
+| Kamień milowy | Rezultat |
+|---|---|
+| A — Świat pamięta | Można zapisać i wczytać rozgrywkę |
+| B — Świat żyje wizualnie | NPC i stworzenia mają poprawne modele oraz animacje |
+| C — Świat reaguje | Można korzystać z ekwipunku i przedmiotów |
+| D — Świat opowiada | Działają dialogi, skrypty i zadania |
+| E — Świat walczy | Działają magia, walka, statystyki i AI |
+| F — Morrowind jest grywalny | Da się przejść kompletny fragment fabuły |
+| G — Remaster | Rozbudowana oprawa, optymalizacja i kompatybilność |
+
+Kamienie milowe służą do oceny postępów, nie zastępują etapów technicznych.
+
+## 8. Najbliższe działania
+
+1. Ukończyć etap 0, wykorzystując istniejący system porównań i MCP.
+2. W pierwszej kolejności przygotować stabilną identyfikację referencji, `GameState`, manifest profilu i zapis v1.
+3. Przenieść sterowanie gracza na wspólny model `MWActor`.
+4. Zweryfikować zapis i odczyt na rzeczywistym świecie Morrowinda.
+5. Rozpocząć import kompletnych postaci i animacji.
+6. Kontynuować prace nad launcherem i CS 2.0 równolegle.
+
+Nie powtarzamy już opublikowanych commitów ani prac, które zostały ukończone i potwierdzone testami.
+
+## 9. Zarządzanie zmianami planu
+
+Roadmapa jest dokumentem aktualizowanym wraz z rozwojem projektu.
+
+Każda istotna zmiana kolejności, kontraktu lub kryterium odbioru powinna być odnotowana w dokumencie.
+
+Opus zachowuje autonomię techniczną w zakresie implementacji.
+
+Nie rozpoczynamy przebudowy stabilnych systemów bez konkretnej potrzeby i uzasadnienia.
+
+**Nadrzędna zasada: każda większa faza powinna przybliżać nas do działającej, grywalnej wersji Morrowinda, a nie wyłącznie do bardziej rozbudowanego szkieletu silnika.**
