@@ -40,12 +40,23 @@ TEXTURE_CONVERTER = f"tex2png-{__version__}"
 
 _VFS: Optional[Vfs] = None
 _OUT: Optional[Path] = None
+_BASE: Optional[Path] = None
+_BASE_TEX: frozenset = frozenset()
+CANCEL = False  # ustawiane przez SIGTERM/SIGINT – bezpieczne przerwanie po bieżących zasobach
 
 
-def _worker_init(cfg: dict, out: str):
-    global _VFS, _OUT
+class Cancelled(Exception):
+    pass
+
+
+def _worker_init(cfg: dict, out: str, base: str = "", base_tex: frozenset = frozenset()):
+    import signal
+    global _VFS, _OUT, _BASE, _BASE_TEX
+    signal.signal(signal.SIGINT, signal.SIG_IGN)  # przerwanie obsługuje proces główny
     _VFS = Vfs.from_install(cfg["data_dirs"], cfg["archives"])
     _OUT = Path(out)
+    _BASE = Path(base) if base else None
+    _BASE_TEX = base_tex
 
 
 def _rss_mb() -> float:
@@ -68,7 +79,8 @@ def convert_model_job(key: str) -> dict:
             return None
         if k not in deps:
             deps.append(k)
-        png = out / texture_out_rel(k)
+        # tekstura dostępna w bazowej (współdzielonej) konwersji ⇒ odwołanie do niej zamiast kopii
+        png = (_BASE if (_BASE is not None and k in _BASE_TEX) else out) / texture_out_rel(k)
         uri = os.path.relpath(png, out_path.parent).replace(os.sep, "/")
         return TextureRef(uri=uri, source_path=k)
 
@@ -148,6 +160,7 @@ class Options:
     all_textures: bool = False
     jobs: int = 0
     verify_hash: bool = False
+    base_out: Optional[Path] = None  # współdzielona konwersja bazowa (profil = nakładka tylko z różnicami)
     bake_godot: str = ""        # ścieżka do binarki Godota ⇒ wypiekanie GLB → .scn z teksturami VRAM
     bake_project: str = ""      # katalog projektu Godota (z tools/bake_models.gd)
     bake_compress: str = "s3tc"   # True: liczy SHA-256 zawsze; False: pomija pliki o tym samym rozmiarze i mtime
@@ -201,33 +214,68 @@ def _needs(cache: Cache, kind: str, key: str, vfs: Vfs, converter: str, verify: 
 
 
 def _run_jobs(fn, keys: list[str], cfg: InstallConfig, opts: Options, label: str, log, cache: Cache, kind: str,
-              converter: str, vfs: Vfs, stats: dict):
+              converter: str, vfs: Vfs, stats: dict, base_tex: frozenset = frozenset()):
     jobs = opts.jobs or max(1, min(4, (os.cpu_count() or 2)))
     prog = Progress(label, len(keys), log)
     results = []
+    emit("stage", stage=label, total=len(keys))
     if not keys:
         return results
     t0 = time.perf_counter()
-    if jobs == 1:
-        _worker_init(cfg.to_dict(), str(opts.out))
-        it = map(fn, keys)
-        executor = None
-    else:
-        executor = cf.ProcessPoolExecutor(max_workers=jobs, initializer=_worker_init,
-                                          initargs=(cfg.to_dict(), str(opts.out)),
-                                          max_tasks_per_child=opts.max_tasks_per_child)
-        it = executor.map(fn, keys, chunksize=8)
+    initargs = (cfg.to_dict(), str(opts.out), str(opts.base_out or ""), base_tex)
+    executor = None
+    cancelled = False
+
+    def record(res):
+        info = vfs.info(res["key"])
+        cache.put(kind, res["key"], source=info.source, sha256=res["sha256"], size=info.size, mtime=info.mtime,
+                  converter=converter, status=res["status"], error=res["error"], outputs=res["outputs"],
+                  deps=res["deps"], report=res["report"], duration_ms=res["duration_ms"])
+        results.append(res)
+        if res["status"] != "ok":
+            emit("asset_error", stage=label, key=res["key"], error=res["error"])
+        prog.step()
+
     try:
-        for res in it:
-            info = vfs.info(res["key"])
-            cache.put(kind, res["key"], source=info.source, sha256=res["sha256"], size=info.size, mtime=info.mtime,
-                      converter=converter, status=res["status"], error=res["error"], outputs=res["outputs"],
-                      deps=res["deps"], report=res["report"], duration_ms=res["duration_ms"])
-            results.append(res)
-            prog.step()
+        if jobs == 1:
+            _worker_init(*initargs)
+            import signal
+            signal.signal(signal.SIGINT, _on_signal)
+            for k in keys:
+                if CANCEL:
+                    cancelled = True
+                    break
+                record(fn(k))
+        else:
+            executor = cf.ProcessPoolExecutor(max_workers=jobs, initializer=_worker_init, initargs=initargs,
+                                              max_tasks_per_child=opts.max_tasks_per_child)
+            pending = set()
+            it = iter(keys)
+            for _ in range(jobs * 4):  # ograniczona kolejka – szybka reakcja na anulowanie, kontrola RAM
+                k = next(it, None)
+                if k is None:
+                    break
+                pending.add(executor.submit(fn, k))
+            while pending:
+                done, pending = cf.wait(pending, timeout=0.5, return_when=cf.FIRST_COMPLETED)
+                for f in done:
+                    record(f.result())
+                if CANCEL:
+                    cancelled = True
+                    for f in pending:
+                        f.cancel()
+                    for f in cf.as_completed([f for f in pending if not f.cancelled()]):
+                        record(f.result())  # dokończone zadania też zapisujemy
+                    break
+                for _ in range(len(done)):
+                    k = next(it, None)
+                    if k is not None:
+                        pending.add(executor.submit(fn, k))
+    except cf.process.BrokenProcessPool:
+        cancelled = True  # procesy robocze zabite (np. sygnał do grupy procesów)
     finally:
         if executor:
-            executor.shutdown()
+            executor.shutdown(wait=True, cancel_futures=True)
     el = time.perf_counter() - t0
     ok = [r for r in results if r["status"] == "ok"]
     stats[label] = {
@@ -237,30 +285,79 @@ def _run_jobs(fn, keys: list[str], cfg: InstallConfig, opts: Options, label: str
         "output_mb": round(sum(r["out_size"] for r in results) / 1e6, 3),
         "worker_peak_rss_mb": round(max((r["rss_mb"] for r in results), default=0), 1),
         "mean_ms": round(sum(r["duration_ms"] for r in results) / len(results), 2),
-        "max_ms": round(max(r["duration_ms"] for r in results), 2), "jobs": jobs,
-    }
+        "max_ms": round(max(r["duration_ms"] for r in results), 2) if results else 0, "jobs": jobs,
+    } if results else {"converted": 0, "ok": 0, "errors": 0, "seconds": round(el, 3), "jobs": jobs}
+    if cancelled:
+        stats[label]["cancelled"] = True
+        raise Cancelled(label)
     return results
+
+
+def _on_signal(signum, frame):
+    global CANCEL
+    CANCEL = True
+
+
+def _in_base(base_cache: Optional[Cache], base_out: Optional[Path], kind: str, key: str, vfs: Vfs,
+             converter: str) -> bool:
+    """Czy zasób jest już poprawnie przekonwertowany w bazie i pochodzi z tego samego pliku źródłowego."""
+    if base_cache is None:
+        return False
+    prev = base_cache.get(kind, key)
+    info = vfs.info(key)
+    if prev is None or info is None or prev["status"] != "ok" or prev["converter"] != converter:
+        return False
+    if prev["source"] != info.source or prev["size"] != info.size or abs((prev["mtime"] or 0) - info.mtime) > 1e-3:
+        return False
+    return all((base_out / o).exists() for o in (prev["outputs"] or []))
+
+
+class _Base:
+    """Dostęp do współdzielonej konwersji bazowej (tylko do odczytu)."""
+    cache: Optional[Cache] = None
+    out: Optional[Path] = None
+    tex: frozenset = frozenset()
+
+
+def _plan(cache: Cache, kind: str, keys, vfs: Vfs, converter: str, opts: Options) -> tuple[list, int, int]:
+    """(do konwersji, bez zmian, z bazy) – zasoby obecne w bazie nie są kopiowane do nakładki profilu."""
+    todo, skipped, from_base = [], 0, 0
+    for k in sorted(keys):
+        if k not in vfs.files:
+            continue
+        if _in_base(_Base.cache, _Base.out, kind, k, vfs, converter):
+            from_base += 1
+            continue
+        if _needs(cache, kind, k, vfs, converter, opts.verify_hash, opts.out)[0]:
+            todo.append(k)
+        else:
+            skipped += 1
+    return todo, skipped, from_base
+
+
+def _deps(cache: Cache, key: str) -> list:
+    c = cache.get("model", key)
+    if (c is None or not c.get("deps")) and _Base.cache is not None:
+        c = _Base.cache.get("model", key)
+    return (c or {}).get("deps") or []
 
 
 def _assets_only(cfg, opts, vfs, cache, state, stats, run_id, T0, log) -> dict:
     """Świat bez zmian: tylko przyrostowe sprawdzenie modeli i tekstur (np. zmieniony luźny plik NIF)."""
     out = opts.out
     needed = set(state.get("needed_models", []))
-    todo = [k for k in sorted(needed) if k in vfs.files and
-            _needs(cache, "model", k, vfs, MODEL_CONVERTER, opts.verify_hash, out)[0]]
-    _run_jobs(convert_model_job, todo, cfg, opts, "models", log, cache, "model", MODEL_CONVERTER, vfs, stats)
-    stats.setdefault("models", {})["skipped_unchanged"] = len(needed) - len(todo)
+    todo, skipped, from_base = _plan(cache, "model", needed, vfs, MODEL_CONVERTER, opts)
+    _run_jobs(convert_model_job, todo, cfg, opts, "models", log, cache, "model", MODEL_CONVERTER, vfs, stats,
+              _Base.tex)
+    stats.setdefault("models", {}).update(skipped_unchanged=skipped, from_base=from_base, needed=len(needed))
     tex = set(state.get("land_textures", []))
     for k in needed:
-        c = cache.get("model", k)
-        if c and c["deps"]:
-            tex.update(c["deps"])
+        tex.update(_deps(cache, k))
     if opts.all_textures:
         tex |= {k for k in vfs.list("textures/") if k.endswith((".dds", ".tga", ".bmp"))}
-    ttodo = [k for k in sorted(tex) if k in vfs.files and
-             _needs(cache, "texture", k, vfs, TEXTURE_CONVERTER, opts.verify_hash, out)[0]]
+    ttodo, tskip, tbase = _plan(cache, "texture", tex, vfs, TEXTURE_CONVERTER, opts)
     _run_jobs(convert_texture_job, ttodo, cfg, opts, "textures", log, cache, "texture", TEXTURE_CONVERTER, vfs, stats)
-    stats.setdefault("textures", {})["skipped_unchanged"] = len(tex) - len(ttodo)
+    stats.setdefault("textures", {}).update(skipped_unchanged=tskip, from_base=tbase)
     if opts.bake_godot:
         bake(opts, stats, log)
     stats["total_seconds"] = round(time.perf_counter() - T0, 3)
@@ -300,10 +397,77 @@ def bake(opts: Options, stats: dict, log) -> None:
     log(f"Wypiekanie: {stats['bake']}")
 
 
+class ConversionLocked(Exception):
+    pass
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+
+
+def acquire_lock(out: Path) -> Path:
+    """Blokada katalogu wyników: tylko jedna konwersja naraz; martwa blokada (proces nie żyje) jest przejmowana."""
+    lock = out / ".mwconv" / "convert.lock"
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    if lock.exists():
+        try:
+            info = json.loads(lock.read_text())
+            if _pid_alive(int(info.get("pid", -1))) and int(info["pid"]) != os.getpid():
+                raise ConversionLocked(f"konwersja już trwa (PID {info['pid']})")
+        except (ValueError, KeyError, json.JSONDecodeError):
+            pass
+    tmp = lock.with_suffix(".tmp")
+    tmp.write_text(json.dumps({"pid": os.getpid(), "started": time.time()}))
+    os.replace(tmp, lock)
+    return lock
+
+
 def run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) -> dict:
+    """Konwersja z blokadą katalogu, obsługą anulowania (SIGTERM/SIGINT) i opcjonalną bazą współdzieloną.
+    Anulowanie: zakończone zasoby zostają w cache (zapisy atomowe), stan eksportu świata nie jest zapisywany,
+    więc kolejne uruchomienie wznawia pracę od miejsca przerwania."""
+    import signal
+    global CANCEL
+    CANCEL = False
+    opts.out.mkdir(parents=True, exist_ok=True)
+    lock = acquire_lock(opts.out)
+    old = {s_: signal.signal(s_, _on_signal) for s_ in (signal.SIGTERM, signal.SIGINT)}
+    _Base.cache, _Base.out, _Base.tex = None, None, frozenset()
+    try:
+        if opts.base_out and Path(opts.base_out).resolve() != Path(opts.out).resolve():
+            bc = Path(opts.base_out) / ".mwconv" / "cache.sqlite"
+            if bc.exists():
+                _Base.cache, _Base.out = Cache(bc, readonly=True), Path(opts.base_out)
+        return _run(cfg, opts, log)
+    except Cancelled as e:
+        log(f"Przerwano (etap {e}). Ukończone zasoby zachowane – uruchom ponownie, aby wznowić.")
+        emit("cancelled", stage=str(e))
+        return {"cancelled": True, "stage": str(e)}
+    finally:
+        for s_, h in old.items():
+            signal.signal(s_, h)
+        if _Base.cache is not None:
+            _Base.cache.close()
+        try:
+            lock.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def _run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) -> dict:
     out = opts.out
     out.mkdir(parents=True, exist_ok=True)
     cache = Cache(out / ".mwconv" / "cache.sqlite")
+    if cache.recovered_from:
+        log(f"Uszkodzona baza cache odłożona jako {cache.recovered_from} – zasoby zostaną zweryfikowane")
+        emit("warning", message="cache odtworzony po uszkodzeniu")
+        (out / ".mwconv" / "export_state.json").unlink(missing_ok=True)  # pełna weryfikacja i eksport
     run_id = cache.run_start({"cfg": cfg.to_dict(), "cells": opts.cells, "grids": opts.grids,
                               "all_cells": opts.all_cells, "all_models": opts.all_models})
     stats: dict = {"version": __version__, "started": time.strftime("%Y-%m-%d %H:%M:%S")}
@@ -318,12 +482,15 @@ def run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) -
                     "seconds": round(time.perf_counter() - t, 3)}
     log(f"VFS: {stats['vfs']['files']} plików ({stats['vfs']['nif']} NIF) z {len(cfg.data_dirs)} katalogów i "
         f"{len(cfg.archives)} archiwów")
+    if _Base.cache is not None:
+        _Base.tex = frozenset(k for k in vfs.list("textures/")
+                              if _in_base(_Base.cache, _Base.out, "texture", k, vfs, TEXTURE_CONVERTER))
 
     # 2. świat – pominięcie, gdy ESM/ESP (SHA-256), wybór komórek, VFS i wersja są te same co ostatnio
     t = time.perf_counter()
     vfs_sig = hashlib.sha256("\n".join(f"{k}|{f.source}|{f.size}|{f.mtime:.3f}" for k, f in sorted(vfs.files.items()))
                              .encode()).hexdigest()
-    export_key = {"v": __version__, "content": content_fingerprint(cfg.content), "cells": sorted(opts.cells),
+    export_key = {"v": __version__, "base": str(opts.base_out or ""), "content": content_fingerprint(cfg.content), "cells": sorted(opts.cells),
                   "grids": sorted(map(list, opts.grids)), "all_cells": opts.all_cells, "all_models": opts.all_models,
                   "vfs": vfs_sig}
     state_file = out / ".mwconv" / "export_state.json"
@@ -364,25 +531,17 @@ def run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) -
                 needed_models.add(kf)
 
     # 4. modele
-    todo, skipped = [], 0
-    for k in sorted(needed_models):
-        need, _why = _needs(cache, "model", k, vfs, MODEL_CONVERTER, opts.verify_hash, out)
-        if need:
-            todo.append(k)
-        else:
-            skipped += 1
-    log(f"Modele: {len(needed_models)} potrzebnych, {len(todo)} do konwersji, {skipped} bez zmian")
+    todo, skipped, from_base = _plan(cache, "model", needed_models, vfs, MODEL_CONVERTER, opts)
+    log(f"Modele: {len(needed_models)} potrzebnych, {len(todo)} do konwersji, {skipped} bez zmian, {from_base} z bazy")
     model_results = _run_jobs(convert_model_job, todo, cfg, opts, "models", log, cache, "model", MODEL_CONVERTER,
-                              vfs, stats)
-    stats.setdefault("models", {})["skipped_unchanged"] = skipped
-    stats["models"]["needed"] = len(needed_models)
+                              vfs, stats, _Base.tex)
+    stats.setdefault("models", {}).update(skipped_unchanged=skipped, from_base=from_base, needed=len(needed_models))
 
     # 5. tekstury: zależności wszystkich potrzebnych modeli + teren
     tex_needed: set[str] = set()
     for k in needed_models:
-        c = cache.get("model", k)
-        if c and c["deps"] and k.endswith(".nif"):
-            tex_needed.update(c["deps"])
+        if k.endswith(".nif"):
+            tex_needed.update(_deps(cache, k))
     land_tex_keys: dict[str, Optional[str]] = {}
 
     def land_tex(name: str) -> Optional[str]:
@@ -405,16 +564,10 @@ def run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) -
 
     if opts.all_textures:
         tex_needed |= {k for k in vfs.list("textures/") if k.endswith((".dds", ".tga", ".bmp"))}
-    ttodo, tskip = [], 0
-    for k in sorted(tex_needed):
-        need, _ = _needs(cache, "texture", k, vfs, TEXTURE_CONVERTER, opts.verify_hash, out)
-        if need:
-            ttodo.append(k)
-        else:
-            tskip += 1
-    log(f"Tekstury: {len(tex_needed)} potrzebnych, {len(ttodo)} do konwersji, {tskip} bez zmian")
+    ttodo, tskip, tbase = _plan(cache, "texture", tex_needed, vfs, TEXTURE_CONVERTER, opts)
+    log(f"Tekstury: {len(tex_needed)} potrzebnych, {len(ttodo)} do konwersji, {tskip} bez zmian, {tbase} z bazy")
     _run_jobs(convert_texture_job, ttodo, cfg, opts, "textures", log, cache, "texture", TEXTURE_CONVERTER, vfs, stats)
-    stats.setdefault("textures", {})["skipped_unchanged"] = tskip
+    stats.setdefault("textures", {}).update(skipped_unchanged=tskip, from_base=tbase)
 
     # 6. świat → JSON
     t = time.perf_counter()
@@ -463,8 +616,11 @@ def run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) -
                              "missing_models": sorted(missing_models)}
 
     state_file.parent.mkdir(parents=True, exist_ok=True)
-    state_file.write_text(json.dumps({"key": export_key, "needed_models": sorted(needed_models),
-                                      "land_textures": sorted(k for k in land_tex_keys.values() if k)}))
+    tmp_state = state_file.with_suffix(".tmp")
+    tmp_state.write_text(json.dumps({"key": export_key, "needed_models": sorted(needed_models), "complete": True,
+                                     "base_out": str(opts.base_out) if _Base.out else None,
+                                     "land_textures": sorted(k for k in land_tex_keys.values() if k)}))
+    os.replace(tmp_state, state_file)
 
     # 7. raport
     errors = [{"key": r["key"], "error": r["error"]} for r in model_results if r["status"] != "ok"]

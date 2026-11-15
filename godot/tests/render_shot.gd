@@ -46,17 +46,6 @@ func _init() -> void:
 	cam.fov = 60
 	scene.add_child(cam)
 
-	if mode == "launcher":
-		scene.queue_free()
-		var l := (load("res://launcher.tscn") as PackedScene).instantiate()
-		root.add_child(l)
-		for i in 10:
-			await process_frame
-		await RenderingServer.frame_post_draw
-		root.get_texture().get_image().save_png(out)
-		print("SHOT ", out)
-		quit(0)
-		return
 	if mode == "effects":
 		var cache := MWModelCache.new(data)
 		var items := [["meshes/synth/hard_particles.glb", Vector3(-2, 0, 0), 0.6], ["meshes/synth/hard_controllers.glb", Vector3(2, 0, 0), 1.0],

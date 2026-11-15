@@ -8,6 +8,9 @@ extends RefCounted
 ##   mw_blend_mode / mw_cull / mw_billboard → ustawienia materiałów
 
 var data_root: String
+## Dodatkowe katalogi danych przeszukiwane po data_root (np. wspólna konwersja bazowa, gdy data_root
+## to nakładka profilu z modami). Ustawiane przez grę i Construction Set z argumentu --base.
+static var base_roots: PackedStringArray = []
 var use_baked := true      # wypieczone sceny (.scn, tekstury VRAM) z <data>/baked, jeśli nowsze niż GLB
 var _cache := {}           # glb_rel → PackedScene (lub null przy błędzie)
 var stats := {"loaded": 0, "failed": 0, "load_ms": 0.0, "instances": 0}
@@ -16,13 +19,23 @@ var errors: Array[String] = []
 func _init(root: String) -> void:
 	data_root = root
 
+## Pierwszy katalog (data_root, potem base_roots), w którym istnieje plik rel.
+static func resolve_root(primary: String, rel: String) -> String:
+	if FileAccess.file_exists(primary.path_join(rel)):
+		return primary
+	for r in base_roots:
+		if FileAccess.file_exists(r.path_join(rel)):
+			return r
+	return primary
+
 func get_scene(glb_rel: String) -> PackedScene:
 	if _cache.has(glb_rel):
 		return _cache[glb_rel]
 	var t0 := Time.get_ticks_usec()
-	var path := data_root.path_join(glb_rel)
+	var root_dir := resolve_root(data_root, glb_rel)
+	var path := root_dir.path_join(glb_rel)
 	var ps: PackedScene = null
-	var baked := data_root.path_join("baked").path_join(glb_rel.get_basename() + ".scn")
+	var baked := root_dir.path_join("baked").path_join(glb_rel.get_basename() + ".scn")
 	if use_baked and FileAccess.file_exists(baked) and FileAccess.file_exists(path) \
 			and FileAccess.get_modified_time(baked) >= FileAccess.get_modified_time(path):
 		ps = ResourceLoader.load(baked, "PackedScene", ResourceLoader.CACHE_MODE_REUSE) as PackedScene

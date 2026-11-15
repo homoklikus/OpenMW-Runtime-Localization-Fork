@@ -4,6 +4,8 @@
 
 ```bash
 sudo apt install python3 python3-numpy python3-pil python3-pytest git xvfb
+# launcher (Qt 6) i archiwa 7z modów
+sudo apt install python3-pyside6.qtwidgets python3-py7zr
 # opcjonalnie: GDExtension (C++)
 sudo apt install build-essential scons
 # opcjonalnie: walidator glTF
@@ -34,14 +36,17 @@ NODE_PATH=~/.local/lib/gltfv/node_modules GODOT=godot ./tools/run_tests.sh
 python3 tools/bench.py --work /tmp/mwbench   # benchmark syntetyczny
 ```
 
-## 3a. Najprościej: launcher
+## 3a. Najprościej: launcher OpenMWGodot
 
 ```bash
-godot --path mwgodot/godot          # scena startowa = launcher
+./tools/install_launcher.sh    # jednorazowo: polecenie `openmwgodot` + skrót w menu KDE (bez sudo)
+openmwgodot                    # albo bez instalacji: launcher/openmwgodot-launcher
 ```
-„Wykryj” sprawdza typowe miejsca (openmw.cfg natywny i Flatpak, Steam, GOG/Wine), „Konwertuj” uruchamia
-konwerter w tle z paskiem postępu (Balmora i okolice albo cała gra, opcjonalne wypiekanie scen pod GPU),
-„Graj” startuje grę z przekonwertowanymi danymi. Ustawienia: `~/.local/share/godot/app_userdata/MWGodot (eksperyment)/mwgodot_settings.cfg`.
+Pierwsze uruchomienie otwiera kreator: język → wskazanie Morrowinda (Wykryj: Steam, Steam Flatpak, GOG,
+Wine, openmw.cfg) → walidacja → katalog danych → konwersja z paskiem postępu. Potem w małym oknie:
+„Graj”, Konwersja (aktualizacja, weryfikacja, naprawa, czyszczenie, anulowanie/wznawianie), Mody
+(instalacja ZIP/7z, kolejność, konflikty), Ustawienia, Construction Set, profile. Godot startuje dopiero
+po „Graj” / „Construction Set”. Szczegóły: `docs/LAUNCHER.md`.
 
 ## 3b. Pierwszy krok na prawdziwych plikach: skan NIF
 
@@ -105,7 +110,9 @@ python3 -m mwconv convert --data "/ścieżka/Data Files" \
 
 ```bash
 # gra bez launchera (strumieniowanie komórek; WASD, mysz, spacja, Shift, F = latanie, E = drzwi/aktywacja)
-godot --path mwgodot/godot res://main.tscn -- --data=$HOME/.local/share/mwgodot/mwdata
+godot --path mwgodot/godot -- --data=$HOME/.local/share/mwgodot/mwdata
+# z nakładką modów i ustawieniami (tak uruchamia launcher):
+#   -- --data=<profil>/out --base=<converted>/base --settings=<profil>/runtime_settings.json --profile=<id>
 # wnętrze:
 godot --path mwgodot/godot -- --data=$HOME/.local/share/mwgodot/mwdata --cell="Balmora, Caius Cosades' House"
 # start w punkcie (jednostki MW):

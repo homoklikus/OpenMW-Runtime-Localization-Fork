@@ -89,6 +89,23 @@ func _enter_tree() -> void:
 	dock.add_child(status)
 	add_control_to_dock(DOCK_SLOT_RIGHT_UL, dock)
 	EditorInterface.get_selection().selection_changed.connect(_on_selection)
+	_apply_cmdline()
+
+## Argumenty z launchera: godot -e --path … -- --data=… --project=… [--base=…] [--profile=…]
+func _apply_cmdline() -> void:
+	var args := {}
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--") and a.contains("="):
+			var kv := a.substr(2).split("=", true, 1)
+			args[kv[0]] = kv[1]
+	if args.has("base"):
+		MWModelCache.base_roots = PackedStringArray([args["base"]])
+	if args.has("data"):
+		data_edit.text = args["data"]
+		if args.has("project"):
+			project_edit.text = args["project"]
+		_load_world()
+		status.text += "  (profil: %s)" % args.get("profile", "-")
 
 func _build_record_ui() -> void:
 	var l := Label.new()

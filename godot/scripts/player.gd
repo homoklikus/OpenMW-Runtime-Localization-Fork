@@ -6,6 +6,7 @@ extends CharacterBody3D
 @export var fly_speed := 25.0
 @export var jump_velocity := 4.5
 @export var mouse_sens := 0.0025
+@export var invert_y := false
 var fly := false
 var cam: Camera3D
 
@@ -29,7 +30,8 @@ func _ready() -> void:
 func _unhandled_input(e: InputEvent) -> void:
 	if e is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		rotate_y(-e.relative.x * mouse_sens)
-		cam.rotation.x = clampf(cam.rotation.x - e.relative.y * mouse_sens, -1.5, 1.5)
+		var dy: float = e.relative.y * (-1.0 if invert_y else 1.0)
+		cam.rotation.x = clampf(cam.rotation.x - dy * mouse_sens, -1.5, 1.5)
 	elif e.is_action_pressed("toggle_fly"):
 		fly = not fly
 	elif e is InputEventKey and e.pressed and e.keycode == KEY_ESCAPE:

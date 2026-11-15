@@ -13,6 +13,8 @@ var interior := ""
 var envr: MWEnvironment
 var hud: Label
 var current_region := ""
+var settings := {}
+var launched_by_launcher := false
 
 func arg(name: String, def := "") -> String:
 	for a in OS.get_cmdline_user_args():
@@ -21,19 +23,27 @@ func arg(name: String, def := "") -> String:
 	return def
 
 func _ready() -> void:
-	var data := arg("data", MWLauncher.load_settings().get("data_root",
-		ProjectSettings.get_setting("mwgodot/data_root", "user://mwdata")))
+	var data := arg("data", ProjectSettings.get_setting("mwgodot/data_root", "user://mwdata"))
+	var base := arg("base")
+	if not base.is_empty():
+		MWModelCache.base_roots = PackedStringArray([ProjectSettings.globalize_path(base)])
+	settings = _load_settings(arg("settings"))
+	launched_by_launcher = not arg("profile").is_empty()
 	var project := arg("project", ProjectSettings.get_setting("mwgodot/project_root", "user://mw_project"))
 	data = ProjectSettings.globalize_path(data)
 	project = ProjectSettings.globalize_path(project)
-	radius = int(ProjectSettings.get_setting("mwgodot/load_radius", 1))
+	radius = int(settings.get("load_radius", ProjectSettings.get_setting("mwgodot/load_radius", 1)))
 	interior = arg("cell", ProjectSettings.get_setting("mwgodot/start_cell", ""))
 	db = MWWorldDB.new(data, project)
 	models = MWModelCache.new(data)
 	builder = MWCellBuilder.new(db, models)
+	builder.with_water = bool(settings.get("water", true))
 	if db.cell_index().is_empty():
 		push_error("Brak danych świata w %s – uruchom konwerter (README)." % data)
 		_add_message("Brak danych świata w:\n%s\nUruchom konwerter mwconv (patrz docs/DEBIAN13.md)." % data)
+		if launched_by_launcher:
+			printerr("MWGODOT_ERROR brak danych świata: ", data)
+			get_tree().quit(2)  # launcher pokaże błąd z kodem wyjścia
 		return
 	envr = MWEnvironment.new()
 	envr.name = "Environment"
@@ -44,7 +54,10 @@ func _ready() -> void:
 	_setup_hud()
 	player = preload("res://scripts/player.gd").new() as CharacterBody3D
 	player.name = "Player"
+	player.mouse_sens = float(settings.get("mouse_sensitivity", player.mouse_sens))
+	player.invert_y = bool(settings.get("invert_y", false))
 	add_child(player)
+	_apply_settings()
 	var start := _start_position()
 	player.global_position = start
 	if not interior.is_empty():
@@ -53,6 +66,39 @@ func _ready() -> void:
 		envr.set_interior(db.get_cell(key))
 	else:
 		_update_streaming(true)
+
+static func _load_settings(path: String) -> Dictionary:
+	if path.is_empty() or not FileAccess.file_exists(path):
+		return {}
+	var d = JSON.parse_string(FileAccess.get_file_as_string(path))
+	return d if d is Dictionary else {}
+
+## Ustawienia z launchera (plik --settings): tylko opcje obsługiwane przez Runtime.
+func _apply_settings() -> void:
+	if settings.is_empty():
+		return
+	var mode := String(settings.get("window_mode", "windowed"))
+	if DisplayServer.get_name() != "headless":
+		match mode:
+			"fullscreen":
+				DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+			"exclusive":
+				DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
+			_:
+				DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+				var r := String(settings.get("resolution", "1280x720")).split("x")
+				if r.size() == 2:
+					DisplayServer.window_set_size(Vector2i(int(r[0]), int(r[1])))
+		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if settings.get("vsync", true) else DisplayServer.VSYNC_DISABLED)
+	Engine.max_fps = int(settings.get("max_fps", 0))
+	get_viewport().scaling_3d_scale = float(settings.get("scale_3d", 1.0))
+	var sh := String(settings.get("shadows", "medium"))
+	envr.sun.shadow_enabled = sh != "off"
+	RenderingServer.directional_shadow_atlas_set_size({"low": 1024, "medium": 2048, "high": 4096}.get(sh, 2048), true)
+	envr.env.fog_enabled = bool(settings.get("fog", true))
+	var cam := player.get_node_or_null("Camera3D") as Camera3D
+	if cam:
+		cam.far = float(settings.get("view_distance", 1500))
 
 func _start_position() -> Vector3:
 	var p := arg("pos")
@@ -80,7 +126,18 @@ func _setup_hud() -> void:
 	cl.add_child(hud)
 	add_child(cl)
 
+var _frames := 0
+
 func _process(_d: float) -> void:
+	_frames += 1
+	var autotest := int(arg("autotest-frames", "0"))
+	if autotest > 0 and _frames == autotest:
+		# tryb testu integracyjnego (launcher): raport i wyjście z kodem zależnym od błędów ładowania
+		var st := {"cells": loaded.size(), "models": models.stats if models else {}, "data": db.data_root if db else "",
+			"base_roots": MWModelCache.base_roots, "settings_profile": settings.get("profile", ""),
+			"max_fps": Engine.max_fps}
+		print("MWGODOT_STATS ", JSON.stringify(st))
+		get_tree().quit(0 if models and models.stats.failed == 0 and loaded.size() > 0 else 3)
 	if player == null:
 		return
 	if interior.is_empty():
@@ -104,6 +161,17 @@ func _process(_d: float) -> void:
 			hint = "\n[E] %s" % base.get("name", r.get_meta("mw_base", ""))
 	var rname := interior if not interior.is_empty() else String(envr.regions.get(current_region.to_lower(), {}).get("name", current_region))
 	hud.text = "%s  |  dzień %d, %02d:%02d  |  %s%s" % [rname, envr.day + 1, int(envr.game_hour), int(fmod(envr.game_hour, 1.0) * 60), envr.weather, hint]
+
+## Widok z ostatniej sesji – zapisywany lokalnie (katalog zapisów profilu), launcher pokazuje go na ekranie głównym.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST and DisplayServer.get_name() != "headless":
+		var saves := arg("saves")
+		if not saves.is_empty() and player != null:
+			var img := get_viewport().get_texture().get_image()
+			if img:
+				DirAccess.make_dir_recursive_absolute(saves)
+				img.resize(640, int(640.0 * img.get_height() / max(1, img.get_width())), Image.INTERPOLATE_BILINEAR)
+				img.save_png(saves.path_join("last_view.png"))
 
 func _unhandled_input(e: InputEvent) -> void:
 	if e.is_action_pressed("activate") and player:

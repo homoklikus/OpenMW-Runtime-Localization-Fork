@@ -23,6 +23,14 @@ Godot 4.5 (gra)  ←── ta sama warstwa danych ──→  Construction Set 2.
                                 <projekt>/overrides/cells/**.json  (zmiany projektu, nigdy ESM/ESP)
 ```
 
+## Komponenty (od sesji 3)
+
+A. **Launcher** Qt 6/PySide6 (`launcher/`) – osobny program, nie scena Godota; B. **Konwerter** `mwconv`
+(CLI, działa samodzielnie); C. **Runtime** (`godot/`, `main.tscn`); D. **Construction Set 2.0**
+(`godot/addons/mw_cs2`, osobny proces `godot -e`); E. **`mwcore`** (`converter/mwcore`) – wspólna warstwa
+danych: profile, konfiguracja, mody, kolejność, konflikty, stan konwersji, procesy. Szczegóły:
+`LAUNCHER.md`.
+
 ## Konwerter `mwconv` (katalog `converter/`)
 
 | Moduł | Rola |
@@ -107,7 +115,6 @@ mod) są raportowane jako `override_orphans`. ESM/ESP nigdy nie są zapisywane.
 | `scripts/mw/mw_environment.gd` | pora dnia (skala czasu 30), słońce, niebo, pogoda losowana z szans REGN, otoczenie wnętrz (AMBI), woda |
 | `scripts/mw/mw_travel.gd` | drzwi (DODT/DNAM): wybór celu, przejście wnętrze ↔ świat |
 | `scripts/mw/mw_terrain_editing.gd` | pędzle terenu CS 2.0, zapis nadpisań terenu, raycast w teren |
-| `scripts/mw/mw_launcher.gd`, `scripts/launcher.gd` | launcher: wykrywanie instalacji, Python, konwersja w tle z postępem, start gry |
 | `tools/bake_models.gd` | wypiekanie GLB → `.scn` + tekstury `PortableCompressedTexture2D` (S3TC/BPTC/ETC2/ASTC), deduplikacja |
 | `addons/mw_cs2/` | wtyczka edytora: panel, lista komórek, otwieranie jako scena robocza, informacje o referencji, dodawanie obiektów (z undo), zapis nadpisań |
 

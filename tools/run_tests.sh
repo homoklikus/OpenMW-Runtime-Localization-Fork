@@ -28,6 +28,14 @@ step "1. Testy konwertera (pytest)"
 (cd "$ROOT/converter" && $PY -m pytest -q)
 pass "pytest"
 
+step "1b. Launcher Qt (offscreen; z prawdziwym Godotem: gra + Construction Set)"
+if $PY -c "import PySide6" 2>/dev/null; then
+  (cd "$ROOT/launcher" && QT_QPA_PLATFORM=offscreen MWGODOT_REAL_GODOT="$(command -v "$GODOT" || echo "$GODOT")" $PY -m pytest -q tests)
+  pass "launcher"
+else
+  echo "(pominięto – brak PySide6: sudo apt install python3-pyside6.qtwidgets)"
+fi
+
 step "2. Dane syntetyczne + konwersja"
 (cd "$ROOT/converter" && $PY -m mwconv synth --out "$DATA" >/dev/null)
 (cd "$ROOT/converter" && $PY -m mwconv convert --data "$DATA" --archive "$DATA/synth.bsa" \
@@ -75,12 +83,6 @@ step "6b. Wypiekanie GLB → .scn (tekstury VRAM) i porównanie"
    --content mwg_synthtown.esm --content mwg_synthtown_patch.esp --content mwg_synthtown_patch2.esp \
    --cell Synthville --out "$OUT" --bake-godot "$GODOT" --bake-project "$ROOT/godot" | grep -E "Wypiekanie|Gotowe")
 run_gd test_bake.gd --data="$OUT"
-step "6c. Launcher: układ katalogów jak w grze (syntetyczny ESM pod nazwą Morrowind.esm)"
-FAKE="$WORK/fake_game"; mkdir -p "$FAKE"; cp -r "$DATA" "$FAKE/Data Files"
-mv "$FAKE/Data Files/mwg_synthtown.esm" "$FAKE/Data Files/Morrowind.esm"; rm -f "$FAKE/Data Files/"mwg_synthtown_patch*.esp
-cp "$FAKE/Data Files/synth.bsa" "$FAKE/Data Files/Morrowind.bsa"
-printf '[Archives]\n[Game Files]\nGameFile0=Morrowind.esm\n' > "$FAKE/Morrowind.ini"
-run_gd test_launcher.gd --install="$FAKE" --out="$WORK/launcher_out"
 if ls "$ROOT/godot/bin/"libmw_native* >/dev/null 2>&1; then
   run_gd test_gdextension.gd
 else
@@ -96,7 +98,6 @@ if [[ $RENDER == 1 ]]; then
     --data="$OUT" --project="$PROJ" --out="$WORK/shot_world.png" --mode=world --cam=40,60,-60 --look=117,10,-117 2>/dev/null | grep SHOT || true
   eval $XV "$GODOT" --path "$ROOT/godot" --rendering-driver opengl3 -s res://tests/render_shot.gd -- \
     --data="$OUT" --out="$WORK/shot_effects.png" --mode=effects 2>/dev/null | grep SHOT || true
-  eval $XV "$GODOT" --path "$ROOT/godot" --rendering-driver opengl3 -s res://tests/render_shot.gd -- \
-    --out="$WORK/shot_launcher.png" --mode=launcher 2>/dev/null | grep SHOT || true
+  (cd "$ROOT/launcher" && QT_QPA_PLATFORM=offscreen $PY tools/screenshots.py "$WORK" >/dev/null 2>&1 && echo "SHOT launcher (Qt)") || true
 fi
 echo -e "\n\e[32mWSZYSTKIE TESTY ZALICZONE\e[0m  (wyniki: $WORK)"

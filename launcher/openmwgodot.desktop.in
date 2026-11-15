@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=OpenMWGodot
+GenericName=Launcher gry
+Comment=Eksperymentalny port Morrowinda na Godot 4 – konwersja, mody, profile, gra
+Exec=@EXEC@
+Icon=openmwgodot
+Terminal=false
+Categories=Game;RolePlaying;
+StartupWMClass=OpenMWGodot

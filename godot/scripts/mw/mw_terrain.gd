@@ -96,7 +96,7 @@ static func _material(t: Dictionary, data_root: String) -> ShaderMaterial:
 		for p in palette:
 			var img: Image = null
 			if not String(p).is_empty():
-				img = Image.load_from_file(data_root.path_join(p))
+				img = Image.load_from_file(MWModelCache.resolve_root(data_root, p).path_join(p))
 			if img == null:
 				img = Image.create(LAYER_SIZE, LAYER_SIZE, false, Image.FORMAT_RGBA8)
 				img.fill(Color(0.5, 0.5, 0.45))

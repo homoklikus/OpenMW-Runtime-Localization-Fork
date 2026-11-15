@@ -54,8 +54,21 @@ def cmd_convert(a):
     if a.progress_json:
         from . import pipeline
         pipeline.PROGRESS_JSON = True
-    print("Instalacja:", json.dumps(cfg.to_dict(), ensure_ascii=False, indent=1), flush=True)
-    stats = run(cfg, opts)
+    if a.base_out:
+        opts.base_out = Path(a.base_out).resolve()
+    if a.progress_json:
+        print(f"Źródła: {len(cfg.data_dirs)} katalogów danych, {len(cfg.archives)} archiwów, "
+              f"pluginy: {', '.join(Path(c).name for c in cfg.content)}", flush=True)
+    else:
+        print("Instalacja:", json.dumps(cfg.to_dict(), ensure_ascii=False, indent=1), flush=True)
+    from .pipeline import ConversionLocked
+    try:
+        stats = run(cfg, opts)
+    except ConversionLocked as e:
+        print(f"BŁĄD: {e}", file=sys.stderr)
+        return 3
+    if stats.get("cancelled"):
+        return 130
     print(json.dumps({k: stats[k] for k in ("models", "textures", "world_export", "total_seconds") if k in stats},
                      ensure_ascii=False, indent=1))
     return 0
@@ -163,6 +176,21 @@ def cmd_inspect(a):
     return 0
 
 
+def cmd_verify(a):
+    from .maintenance import verify
+    r = verify(Path(a.out), a.deep, not a.no_mark)
+    print(json.dumps(r, ensure_ascii=False, indent=1))
+    return 0 if r["ok"] else 1
+
+
+def cmd_clean(a):
+    from .maintenance import clean
+    r = clean(Path(a.out), a.yes)
+    print(json.dumps({"count": len(r["orphans"]), "deleted": r["deleted"], "freed_bytes": r["freed_bytes"],
+                      "orphans": r["orphans"][:200]}, ensure_ascii=False, indent=1))
+    return 0
+
+
 def cmd_scan(a):
     from .install import InstallConfig, from_morrowind_dir, from_openmw_cfg
     from .scan import scan
@@ -200,6 +228,16 @@ def main(argv=None):
     c.add_argument("--bake-project", default="", help="katalog projektu Godota (domyślnie ../godot)")
     c.add_argument("--bake-compress", default="s3tc", choices=["s3tc", "bptc", "etc2", "astc", "lossless"])
     c.add_argument("--progress-json", action="store_true", help="postęp jako linie JSON (dla launchera)")
+    c.add_argument("--base-out", default="", help="współdzielona konwersja bazowa: zapisuj tylko zasoby różne od bazy")
+    v = sp.add_parser("verify", help="weryfikacja wyników (uszkodzone oznacza do naprawy przez convert)")
+    v.add_argument("--out", required=True)
+    v.add_argument("--deep", action="store_true", help="sprawdź strukturę plików (wolniej)")
+    v.add_argument("--no-mark", action="store_true", help="tylko raport, bez oznaczania do naprawy")
+    v.set_defaults(fn=cmd_verify)
+    cl = sp.add_parser("clean", help="nieużywane pliki w katalogu wyników (usuwa tylko z --yes)")
+    cl.add_argument("--out", required=True)
+    cl.add_argument("--yes", action="store_true")
+    cl.set_defaults(fn=cmd_clean)
     c.set_defaults(fn=cmd_convert)
     n = sp.add_parser("nif2glb", help="jeden NIF → GLB")
     n.add_argument("input")

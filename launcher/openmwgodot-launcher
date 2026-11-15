@@ -1,0 +1,5 @@
+#!/bin/sh
+# Uruchomienie launchera OpenMWGodot z repozytorium lub katalogu aplikacji (bez instalacji).
+HERE="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+cd "$HERE" || exit 1
+exec "${PYTHON:-python3}" -m openmwgodot_launcher "$@"
