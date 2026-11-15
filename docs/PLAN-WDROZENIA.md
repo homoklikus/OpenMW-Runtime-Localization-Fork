@@ -487,3 +487,8 @@ Opus zachowuje autonomię techniczną w zakresie implementacji.
 Nie rozpoczynamy przebudowy stabilnych systemów bez konkretnej potrzeby i uzasadnienia.
 
 **Nadrzędna zasada: każda większa faza powinna przybliżać nas do działającej, grywalnej wersji Morrowinda, a nie wyłącznie do bardziej rozbudowanego szkieletu silnika.**
+## Załącznik: stan realizacji
+
+| Data | Etap | Stan |
+|---|---|---|
+| 2026-11-16 | 0 | **Ukończony.** Stabilne ID referencji (`<plik źródłowy>#<refnum>`, niezależne od kolejności modów – już były); `GameState` + zapis v1 (`docs/FORMAT-ZAPISU.md`) z manifestem wtyczek profilu, migracjami, kopiami i zapisem atomowym; `MWActor` + kontroler gracza; szyna zdarzeń; akcje wejścia; HUD + menu pauzy (Esc), F5/F9, `--load`. Stanowisko porównań: MCP-openMW 0.8.0 w `tools/MCP-openMW`, profil `openmwgodot`. Odbiór na prawdziwych danych: zapis → nowy proces → odczyt daje identyczny obraz (bajt w bajt); 8 ujęć regresji bez zmian po przebudowie gracza. Obiekty „początkowo wyłączone”: mechanizm w `GameState` gotowy; w Morrowindzie wyłączają je skrypty (np. Raven Rock) – pełne działanie w etapie 5. |
