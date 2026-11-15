@@ -132,6 +132,9 @@ static func _fix_materials(mi: MeshInstance3D, node_extras: Dictionary) -> void:
 			continue
 		var bm := m as BaseMaterial3D
 		var ex := extras_of(bm)
+		# Godot 4.7 nie włącza już sam kolorów wierzchołków z glTF – ustawiamy jawnie (4.5 robił to automatycznie)
+		if (mi.mesh.surface_get_format(s) & Mesh.ARRAY_FORMAT_COLOR) and ex.get("mw_vertex_colors", true):
+			bm.vertex_color_use_as_albedo = true
 		var bmode: String = ex.get("mw_blend_mode", "")
 		if bmode.ends_with("/ONE"):
 			bm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
