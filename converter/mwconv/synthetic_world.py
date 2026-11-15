@@ -163,6 +163,7 @@ def write_world(data_dir: Path) -> dict:
     # przeniesienie skrzynki 5 (x = 9400 → komórka (1,0)) do komórki (1,1)
     mv = [(master_ix | crate5, (1, 1), W.ref_subs(master_ix | crate5, "synth_crate", (9600, 12500, height_at(9600, 12500))))]
     g_crate2 = (int((900 + 2 * 1700) // CELL), 0)
+    prec.append(W.stat("synth_crate", "synth\\test_crate.nif", "MISC", "Skrzynka (zmieniona przez plugin)"))
     prec.append(W.cell("Synthville", g_hut0, False, [moved, added]))
     prec.append(W.cell("Synthville", g_crate2, False, [deleted]))
     prec.append(W.cell("Synthville", (1, 0), False, [], moved=mv))

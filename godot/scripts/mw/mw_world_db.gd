@@ -59,8 +59,53 @@ func find_cell(key: String) -> Dictionary:
 func exterior_key(g: Vector2i) -> String:
 	return "ext:%d,%d" % [g.x, g.y]
 
+var _object_overrides = null
+
+## Rekord bazowy z nałożonymi zmianami projektu (overrides/objects.json: id → pola).
 func get_object(base_id: String) -> Dictionary:
-	return _objects.get(base_id.to_lower(), {})
+	var o: Dictionary = _objects.get(base_id.to_lower(), {})
+	var ov: Dictionary = object_overrides().get(base_id.to_lower(), {})
+	if ov.is_empty():
+		return o
+	var r := o.duplicate(true)
+	for k in ov:
+		r[k] = ov[k]
+	r["project_modified"] = true
+	return r
+
+func object_overrides() -> Dictionary:
+	if _object_overrides == null:
+		_object_overrides = {}
+		if not project_root.is_empty():
+			var d = _read_json(project_root.path_join("overrides/objects.json"))
+			if d is Dictionary:
+				_object_overrides = d.get("objects", {})
+	return _object_overrides
+
+func save_object_override(base_id: String, fields: Dictionary) -> Error:
+	if project_root.is_empty():
+		return ERR_UNCONFIGURED
+	var all := object_overrides().duplicate(true)
+	var cur: Dictionary = all.get(base_id.to_lower(), {})
+	for k in fields:
+		cur[k] = fields[k]
+	all[base_id.to_lower()] = cur
+	_object_overrides = all
+	return _write_json(project_root.path_join("overrides/objects.json"),
+		{"format": "mwgodot-object-overrides", "version": 1, "objects": all})
+
+## Konflikty modów w komórce: referencje zmieniane przez więcej niż jeden plik + nadpisania projektu.
+func cell_conflicts(key: String) -> Array:
+	var out := []
+	for r in get_cell(key).get("refs", []):
+		var chain: Array = r.get("overridden", [])
+		if not chain.is_empty() or r.get("project_modified", false):
+			var full := chain.duplicate()
+			full.append(r.get("source", "?"))
+			if r.get("project_modified", false):
+				full.append("projekt")
+			out.append({"sid": r["sid"], "base": r.get("base", ""), "chain": full})
+	return out
 
 func objects() -> Dictionary:
 	return _objects
@@ -147,10 +192,33 @@ func save_overrides(key: String, ov: Dictionary) -> Error:
 	invalidate(key)
 	return err
 
+func terrain_override_path(g: Vector2i) -> String:
+	return "" if project_root.is_empty() else project_root.path_join("overrides/terrain/%d_%d.json" % [g.x, g.y])
+
+## Teren komórki (import + ewentualne nadpisanie projektu z CS 2.0).
 func get_terrain(rel: String) -> Dictionary:
 	if rel.is_empty():
 		return {}
 	if not _terrain.has(rel):
 		var t = _read_json(data_root.path_join("world").path_join(rel))
-		_terrain[rel] = t if t is Dictionary else {}
+		var td: Dictionary = t if t is Dictionary else {}
+		if not td.is_empty() and td.has("grid"):
+			var g := Vector2i(int(td["grid"][0]), int(td["grid"][1]))
+			var p := terrain_override_path(g)
+			if not p.is_empty():
+				var ov = _read_json(p)
+				if ov is Dictionary:
+					for k in ov:
+						if k not in ["format", "version", "grid"]:
+							td[k] = ov[k]
+					td["project_modified"] = true
+		_terrain[rel] = td
 	return _terrain[rel]
+
+func save_terrain_override(g: Vector2i, ov: Dictionary) -> Error:
+	var p := terrain_override_path(g)
+	if p.is_empty():
+		return ERR_UNCONFIGURED
+	var err := _write_json(p, ov)
+	_terrain.erase("terrain/%d_%d.json" % [g.x, g.y])
+	return err

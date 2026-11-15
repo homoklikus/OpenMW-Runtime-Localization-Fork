@@ -129,6 +129,9 @@ def load_world(paths: Iterable, log: Callable[[str], None] = lambda s: None) -> 
                 o["source"] = f.name
                 if "model" in o:
                     o["glb"] = model_glb_rel(o["model"])
+                prev = world.objects.get(k)
+                if prev is not None:
+                    o["overridden"] = prev.get("overridden", []) + [prev["source"]]
                 world.objects[k] = o
             elif rec.type == "LTEX":
                 import struct

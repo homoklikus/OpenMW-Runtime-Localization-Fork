@@ -16,6 +16,19 @@ var objects_list: ItemList
 var status: Label
 var db: MWWorldDB
 var models: MWModelCache
+# teren
+var terrain_mode: CheckButton
+var terrain_op: OptionButton
+var terrain_radius: SpinBox
+var terrain_strength: SpinBox
+var terrain_texture: LineEdit
+var terrain_edit: MWTerrainEditing
+var _painting := false
+# rekordy i konflikty
+var extra_edit: TextEdit
+var base_edit_json: TextEdit
+var conflicts_list: ItemList
+var _selected_ref: Node3D
 
 func _enter_tree() -> void:
 	dock = VBoxContainer.new()
@@ -56,6 +69,17 @@ func _enter_tree() -> void:
 	add_btn.text = "Dodaj obiekt przy zaznaczeniu"
 	add_btn.pressed.connect(_add_object)
 	dock.add_child(add_btn)
+	dock.add_child(HSeparator.new())
+	_build_record_ui()
+	dock.add_child(HSeparator.new())
+	_build_terrain_ui()
+	dock.add_child(HSeparator.new())
+	var cl := Label.new()
+	cl.text = "Konflikty modów w komórce (sid: łańcuch plików):"
+	dock.add_child(cl)
+	conflicts_list = ItemList.new()
+	conflicts_list.custom_minimum_size = Vector2(0, 90)
+	dock.add_child(conflicts_list)
 	var save_btn := Button.new()
 	save_btn.text = "Zapisz nadpisania projektu"
 	save_btn.pressed.connect(_save)
@@ -65,6 +89,119 @@ func _enter_tree() -> void:
 	dock.add_child(status)
 	add_control_to_dock(DOCK_SLOT_RIGHT_UL, dock)
 	EditorInterface.get_selection().selection_changed.connect(_on_selection)
+
+func _build_record_ui() -> void:
+	var l := Label.new()
+	l.text = "Pola referencji (JSON, np. owner, lock_level, count):"
+	dock.add_child(l)
+	extra_edit = TextEdit.new()
+	extra_edit.custom_minimum_size = Vector2(0, 60)
+	dock.add_child(extra_edit)
+	var b := Button.new()
+	b.text = "Zastosuj pola referencji"
+	b.pressed.connect(_apply_extra)
+	dock.add_child(b)
+	var l2 := Label.new()
+	l2.text = "Rekord bazowy (JSON pól do nadpisania: name, glb, light…):"
+	dock.add_child(l2)
+	base_edit_json = TextEdit.new()
+	base_edit_json.custom_minimum_size = Vector2(0, 60)
+	dock.add_child(base_edit_json)
+	var b2 := Button.new()
+	b2.text = "Zapisz rekord bazowy w projekcie"
+	b2.pressed.connect(_save_base)
+	dock.add_child(b2)
+
+func _build_terrain_ui() -> void:
+	terrain_mode = CheckButton.new()
+	terrain_mode.text = "Pędzel terenu (LPM w widoku 3D)"
+	dock.add_child(terrain_mode)
+	terrain_op = OptionButton.new()
+	for n in ["Podnieś", "Obniż", "Wygładź", "Spłaszcz", "Maluj teksturę"]:
+		terrain_op.add_item(n)
+	dock.add_child(terrain_op)
+	terrain_radius = _spin("Promień [m]", 1.0, 50.0, 4.0)
+	terrain_strength = _spin("Siła [m / 0–1]", 0.01, 10.0, 0.25)
+	terrain_texture = LineEdit.new()
+	terrain_texture.placeholder_text = "tekstura do malowania, np. textures/tx_synth_dirt.png"
+	dock.add_child(terrain_texture)
+
+func _spin(label: String, mn: float, mx: float, v: float) -> SpinBox:
+	var h := HBoxContainer.new()
+	var l := Label.new()
+	l.text = label
+	h.add_child(l)
+	var sb := SpinBox.new()
+	sb.min_value = mn
+	sb.max_value = mx
+	sb.step = 0.01
+	sb.value = v
+	h.add_child(sb)
+	dock.add_child(h)
+	return sb
+
+func _apply_extra() -> void:
+	if _selected_ref == null:
+		return
+	var d = JSON.parse_string(extra_edit.text)
+	if d is Dictionary:
+		_selected_ref.set_meta("mw_extra", d)
+		status.text = "Pola referencji ustawione (zapisz nadpisania, by utrwalić)."
+	else:
+		status.text = "Niepoprawny JSON."
+
+func _save_base() -> void:
+	if _selected_ref == null or db == null:
+		return
+	var d = JSON.parse_string(base_edit_json.text)
+	if not (d is Dictionary):
+		status.text = "Niepoprawny JSON."
+		return
+	var err := db.save_object_override(String(_selected_ref.get_meta("mw_base", "")), d)
+	status.text = "Rekord bazowy %s: %s" % [_selected_ref.get_meta("mw_base", ""), error_string(err)]
+
+func _handles(object: Object) -> bool:
+	return terrain_mode != null and terrain_mode.button_pressed and _current_root() != null
+
+func _forward_3d_gui_input(camera: Camera3D, event: InputEvent) -> int:
+	if not terrain_mode.button_pressed or db == null:
+		return EditorPlugin.AFTER_GUI_INPUT_PASS
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		_painting = event.pressed
+		if _painting:
+			_stroke(camera, event.position)
+		return EditorPlugin.AFTER_GUI_INPUT_STOP
+	if event is InputEventMouseMotion and _painting:
+		_stroke(camera, event.position)
+		return EditorPlugin.AFTER_GUI_INPUT_STOP
+	return EditorPlugin.AFTER_GUI_INPUT_PASS
+
+func _stroke(camera: Camera3D, pos: Vector2) -> void:
+	if terrain_edit == null:
+		terrain_edit = MWTerrainEditing.new(db)
+	var hit = terrain_edit.raycast(camera.project_ray_origin(pos), camera.project_ray_normal(pos))
+	if hit == null:
+		return
+	var op := terrain_op.selected
+	var flat := terrain_edit.height_at(hit)
+	var changed := terrain_edit.brush(op, hit, terrain_radius.value, terrain_strength.value, flat, terrain_texture.text)
+	var root := _current_root()
+	for g in changed:
+		var tn := root.get_node_or_null("Terrain_%d_%d" % [g.x, g.y])
+		if tn:
+			var nt := MWTerrain.build(terrain_edit.terrain_dict(g), db.data_root, false)
+			var idx := tn.get_index()
+			tn.free()
+			root.add_child(nt)
+			root.move_child(nt, idx)
+	status.text = "Teren: %d komórek zmienionych (niezapisane)" % changed.size()
+
+func _fill_conflicts(key: String) -> void:
+	conflicts_list.clear()
+	if db == null:
+		return
+	for c in db.cell_conflicts(key):
+		conflicts_list.add_item("%s (%s): %s" % [c["sid"], c["base"], " → ".join(c["chain"])])
 
 func _exit_tree() -> void:
 	if dock:
@@ -124,6 +261,7 @@ func _open_selected() -> void:
 	root.free()
 	ResourceSaver.save(ps, path)
 	EditorInterface.open_scene_from_path(path)
+	_fill_conflicts(key)
 	status.text = "Otwarto %s (plik roboczy %s – bez zasobów gry)" % [key, path]
 
 func _current_root() -> Node3D:
@@ -141,6 +279,15 @@ func _on_selection() -> void:
 		return
 	var n: Node = nodes[0]
 	if n.has_meta("mw_sid"):
+		_selected_ref = n as Node3D
+		extra_edit.text = JSON.stringify(n.get_meta("mw_extra", {}), " ")
+		if db:
+			var base := db.get_object(String(n.get_meta("mw_base", "")))
+			var shown := {}
+			for k in ["name", "glb", "light"]:
+				if base.has(k):
+					shown[k] = base[k]
+			base_edit_json.text = JSON.stringify(shown, " ")
 		var mw: Dictionary = MWCoords.transform_to_ref_fields((n as Node3D).transform)["mw"]
 		info.text = "sid: %s\nbaza: %s\nźródło: %s\nMW pos: %s\nMW rot: %s\nskala: %.3f" % [
 			n.get_meta("mw_sid"), n.get_meta("mw_base"), n.get_meta("mw_source", ""),
@@ -175,6 +322,8 @@ func _save() -> void:
 	var ed := MWCellEditing.new(db, models)
 	var ov := ed.compute_overrides(root)
 	var err := db.save_overrides(root.get_meta("mw_cell_key"), ov)
-	status.text = "Zapisano nadpisania (%s): zmienione %d, dodane %d, usunięte %d → %s" % [
-		error_string(err), ov["modified"].size(), ov["added"].size(), ov["deleted"].size(),
+	var tn := terrain_edit.save() if terrain_edit else 0
+	status.text = "Zapisano nadpisania (%s): zmienione %d, dodane %d, usunięte %d, teren: %d komórek → %s" % [
+		error_string(err), ov["modified"].size(), ov["added"].size(), ov["deleted"].size(), tn,
 		db.override_path(root.get_meta("mw_cell_key"))]
+	_fill_conflicts(root.get_meta("mw_cell_key"))

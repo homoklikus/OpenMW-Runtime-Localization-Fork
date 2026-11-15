@@ -62,6 +62,7 @@ run_gd test_import.gd --data="$OUT"
 run_gd test_editor_import.gd
 run_gd test_controllers.gd --data="$OUT"
 run_gd test_game.gd --data="$OUT" --project="$WORK/project_game"
+run_gd test_cs2.gd --data="$OUT" --project="$WORK/project_cs2"
 run_gd test_world.gd --data="$OUT" --project="$PROJ"
 step "6. Ponowny import z nowym pluginem (zmiany CS 2.0 muszą przetrwać)"
 (cd "$ROOT/converter" && $PY -c "from mwconv.synthetic_world import write_patch2; write_patch2('$DATA')")
