@@ -98,16 +98,51 @@ def cmd_synth(a):
     return 0
 
 
+def _hexdump(data: bytes, start: int, length: int = 96, mark: int | None = None) -> str:
+    lines = []
+    start = max(0, start)
+    for off in range(start - start % 16, min(len(data), start + length), 16):
+        chunk = data[off:off + 16]
+        hx = " ".join(("[" if mark is not None and off + i == mark else "") + f"{b:02x}" for i, b in enumerate(chunk))
+        asc = "".join(chr(b) if 32 <= b < 127 else "." for b in chunk)
+        lines.append(f"{off:08x}  {hx:<50s} {asc}")
+    return "\n".join(lines)
+
+
 def cmd_inspect(a):
     p = Path(a.input)
     ext = p.suffix.lower()
-    if ext == ".nif":
-        from .nif.reader import read_file
-        nf = read_file(p)
+    if ext in (".nif", ".kf"):
+        from .nif.reader import NifError, parse
+        data = p.read_bytes()
+        try:
+            nf = parse(data, p.name)
+        except NifError as e:
+            print("BŁĄD:", e)
+            print(f"blok: {e.block_index} typu {e.block_type}, początek bloku @ {e.block_start}, błąd @ {e.offset}")
+            for b in e.partial[-5:]:
+                print(f"  poprawnie odczytany: {b.index:4d} {b.type:28s} {b.get('name', '')}")
+            if e.block_start is not None:
+                print("bajty od początku błędnego bloku ([ = miejsce błędu):")
+                print(_hexdump(data, e.block_start, 128, e.offset))
+            return 1
         for b in nf.blocks:
             nm = b.get("name", "")
-            print(f"{b.index:4d} {b.type:28s} {nm}")
+            extra = ""
+            if b.type in ("NiTriShapeData", "NiTriStripsData"):
+                extra = f"  v={b['num_vertices']} uv={len(b['uvs'])}"
+            elif b.type == "NiSourceTexture":
+                extra = f"  {b.get('file')}"
+            elif "Controller" in b.type:
+                extra = f"  target={b.get('target')} data={b.get('data', '-')}"
+            print(f"{b.index:4d} {b.type:28s} {nm}{extra}")
         print("korzenie:", nf.roots, "nadmiarowe bajty:", nf.trailing)
+        if a.convert:
+            from .nif2gltf import NifToGltf
+            _glb, rep = NifToGltf(nf, p.name).convert()
+            print(json.dumps({k: rep.to_dict()[k] for k in ("nodes", "meshes", "triangles", "lossy", "unsupported",
+                                                           "missing_textures", "skipped_shapes")},
+                             ensure_ascii=False, indent=1))
     elif ext in (".esm", ".esp", ".omwaddon"):
         from .esm.reader import read_esm
         f = read_esm(p)
@@ -122,6 +157,21 @@ def cmd_inspect(a):
         for k, e in sorted(arc.entries.items()):
             print(f"{e.size:10d} {k}")
     return 0
+
+
+def cmd_scan(a):
+    from .install import InstallConfig, from_morrowind_dir, from_openmw_cfg
+    from .scan import scan
+    cfg = from_openmw_cfg(a.openmw_cfg) if a.openmw_cfg else from_morrowind_dir(a.morrowind) if a.morrowind \
+        else InstallConfig()
+    cfg.data_dirs += [str(Path(d).resolve()) for d in a.data or []]
+    cfg.archives += [str(Path(x).resolve()) for x in a.archive or []]
+    res = scan(cfg.data_dirs, cfg.archives, a.jobs, a.limit)
+    Path(a.out).write_text(json.dumps(res, ensure_ascii=False, indent=1))
+    print(f"plików {res['files']}, poprawnych {res['ok']}, błędnych {res['failed']} w {res['seconds']} s → {a.out}")
+    for g, v in list(res["error_groups"].items())[:10]:
+        print(f"  {v['count']:5d} × {g}")
+    return 0 if res["failed"] == 0 else 1
 
 
 def main(argv=None):
@@ -152,8 +202,18 @@ def main(argv=None):
     s.add_argument("--out", required=True)
     s.add_argument("--patch2", action="store_true", help="dodatkowy plugin (test ponownego importu)")
     s.set_defaults(fn=cmd_synth)
-    i = sp.add_parser("inspect", help="podgląd pliku")
+    i = sp.add_parser("inspect", help="podgląd pliku (NIF/KF/ESM/ESP/BSA); przy błędzie NIF – lokalizacja i zrzut bajtów")
     i.add_argument("input")
+    i.add_argument("--convert", action="store_true", help="NIF: pokaż też raport konwersji")
+    sc = sp.add_parser("scan", help="odczyt i konwersja w pamięci wszystkich NIF/KF z VFS → raport problemów")
+    sc.add_argument("--openmw-cfg")
+    sc.add_argument("--morrowind")
+    sc.add_argument("--data", action="append")
+    sc.add_argument("--archive", action="append")
+    sc.add_argument("--jobs", type=int, default=0)
+    sc.add_argument("--limit", type=int, default=0)
+    sc.add_argument("--out", default="nif_scan.json")
+    sc.set_defaults(fn=cmd_scan)
     i.set_defaults(fn=cmd_inspect)
     a = ap.parse_args(argv)
     return a.fn(a)

@@ -94,6 +94,10 @@ class GltfBuilder:
                 return i
         return self._append("images", {"uri": uri, "name": name or uri})
 
+    def image_bytes(self, data: bytes, mime: str = "image/png", name: str = "") -> int:
+        bv = self.buffer_view(data)
+        return self._append("images", {"bufferView": bv, "mimeType": mime, "name": name})
+
     def texture(self, image: int, sampler: int) -> int:
         for i, t in enumerate(self._list("textures")):
             if t["source"] == image and t["sampler"] == sampler:

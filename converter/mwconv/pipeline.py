@@ -71,6 +71,8 @@ def convert_model_job(key: str) -> dict:
         uri = os.path.relpath(png, out_path.parent).replace(os.sep, "/")
         return TextureRef(uri=uri, source_path=k)
 
+    if key.endswith(".kf"):
+        return _convert_kf_job(key, data, sha, out, t0)
     try:
         nif = parse(data, key)
         glb, rep = NifToGltf(nif, key, resolve).convert()
@@ -85,6 +87,35 @@ def convert_model_job(key: str) -> dict:
     except (NifError, Exception) as e:  # noqa: BLE001 – błąd zasobu nie może przerwać całej konwersji
         r, status, err, size = None, "error", f"{type(e).__name__}: {e}", 0
     return {"key": key, "sha256": sha, "status": status, "error": err, "report": r, "deps": deps,
+            "outputs": [rel] if status == "ok" else [], "out_size": size, "in_size": len(data),
+            "duration_ms": (time.perf_counter() - t0) * 1000, "rss_mb": _rss_mb()}
+
+
+def kf_out_rel(key: str) -> str:
+    return key.rsplit(".", 1)[0] + ".anim.json"
+
+
+def sibling_kf(vfs: Vfs, mesh_key: str) -> Optional[str]:
+    """Konwencja gry: animacje modelu „dir/name.nif” leżą w „dir/xname.kf”."""
+    d, _, f = mesh_key.rpartition("/")
+    k = f"{d}/x{f.rsplit('.', 1)[0]}.kf" if d else f"x{f.rsplit('.', 1)[0]}.kf"
+    return k if k in vfs.files else None
+
+
+def _convert_kf_job(key, data, sha, out, t0):
+    from .kf2anim import convert_kf
+    rel = kf_out_rel(key)
+    try:
+        doc, rep = convert_kf(parse(data, key), key)
+        p = out / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        tmp = p.with_suffix(".tmp")
+        tmp.write_text(json.dumps(doc, ensure_ascii=False, separators=(",", ":")))
+        os.replace(tmp, p)
+        r, status, err, size = rep.to_dict(), "ok", None, p.stat().st_size
+    except Exception as e:  # noqa: BLE001
+        r, status, err, size = None, "error", f"{type(e).__name__}: {e}", 0
+    return {"key": key, "sha256": sha, "status": status, "error": err, "report": r, "deps": [],
             "outputs": [rel] if status == "ok" else [], "out_size": size, "in_size": len(data),
             "duration_ms": (time.perf_counter() - t0) * 1000, "rss_mb": _rss_mb()}
 
@@ -237,7 +268,12 @@ def run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) -
                 else:
                     missing_models.add(o["model"])
     if opts.all_models:
-        needed_models |= set(vfs.list("meshes/", ".nif"))
+        needed_models |= set(vfs.list("meshes/", ".nif")) | set(vfs.list("meshes/", ".kf"))
+    for mk in list(needed_models):
+        if mk.endswith(".nif"):
+            kf = sibling_kf(vfs, mk)
+            if kf:
+                needed_models.add(kf)
 
     # 4. modele
     todo, skipped = [], 0
@@ -257,7 +293,7 @@ def run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) -
     tex_needed: set[str] = set()
     for k in needed_models:
         c = cache.get("model", k)
-        if c and c["deps"]:
+        if c and c["deps"] and k.endswith(".nif"):
             tex_needed.update(c["deps"])
     land_tex_keys: dict[str, Optional[str]] = {}
 
@@ -316,6 +352,9 @@ def run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) -
             mk = vfs.resolve_mesh(o["model"])
             c = cache.get("model", mk) if mk else None
             o["glb_ok"] = bool(c and c["status"] == "ok")
+            kf = sibling_kf(vfs, mk) if mk else None
+            if kf:
+                o["anim"] = kf_out_rel(kf)
         objs[bid] = o
     write_json(wdir / "objects.json", objs)
     write_json(wdir / "index.json", {"format": "mwgodot-world", "version": 1, "cells": index})

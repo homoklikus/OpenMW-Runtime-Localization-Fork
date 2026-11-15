@@ -20,6 +20,7 @@ from typing import Callable, Optional
 
 import numpy as np
 
+from . import controllers as ctl
 from . import coords
 from .gltf import ARRAY_BUFFER, ELEMENT_ARRAY_BUFFER, FLOAT, UBYTE, UINT, USHORT, GltfBuilder
 from .nif.reader import (NODE_TYPES, PARTICLE_TYPES, TRI_TYPES, Block, NifFile, controller_chain, extra_chain,
@@ -104,6 +105,8 @@ class NifToGltf:
         self.material_cache: dict[str, int] = {}
         self.pending_skins: list[tuple[int, Block, Block, int]] = []  # (gltf mesh node, shape, skininst, nvert)
         self.markers = False
+        self._embedded: dict[int, int] = {}
+        self.pending_channels: list[tuple] = []  # (gltf node, path, times, values, interp)
         self.aabb = [np.full(3, np.inf), np.full(3, -np.inf)]
 
     # ------------------------------------------------------------------------------------------
@@ -206,7 +209,12 @@ class NifToGltf:
         if t in TRI_TYPES:
             self._shape(b, gi, world, props, collision, hidden or bool(flags & 1))
         elif t in PARTICLE_TYPES:
-            self.rep.note("unsupported", f"system cząsteczek {t} ({b.get('name', '')}) – pominięty (planowane: GPUParticles3D)")
+            pj = self._particles(b, props)
+            if pj:
+                extras["mw_particles"] = pj
+                self.rep.note("lossy", "system cząsteczek → CPUParticles3D (parametry przybliżone, extras.mw_particles)")
+            else:
+                self.rep.note("unsupported", f"system cząsteczek {t} ({b.get('name', '')}) bez kontrolera – pominięty")
         elif t == "NiLines":
             self.rep.note("unsupported", "NiLines – pominięte")
 
@@ -236,6 +244,47 @@ class NifToGltf:
         return gi
 
     _names: set
+
+    def _particles(self, b: Block, props: dict) -> Optional[dict]:
+        ctrl = None
+        for c in controller_chain(self.nif, b.get("controller", -1)):
+            if c.type in ("NiParticleSystemController", "NiBSPArrayController"):
+                ctrl = c
+                break
+        if ctrl is None:
+            return None
+        em = self.nif.block(ctrl.get("emitter", -1))
+        emitter = em.get("name", "") if em is not None else ""
+        tex_uri = None
+        texp = props.get("NiTexturingProperty")
+        if texp is not None and "base" in texp.get("textures", {}):
+            src = self.nif.block(texp["textures"]["base"].get("source", -1))
+            if src is not None and src.get("external"):
+                tr = self.resolve(src.get("file") or "")
+                if tr:
+                    tex_uri = tr.uri
+                    if tr.source_path and tr.source_path not in self.rep.textures:
+                        self.rep.textures.append(tr.source_path)
+                elif src.get("file") not in self.rep.missing_textures:
+                    self.rep.missing_textures.append(src.get("file"))
+        blend = "alpha"
+        al = props.get("NiAlphaProperty")
+        if al is not None and al["flags"] & 1:
+            dst = (al["flags"] >> 5) & 0xF
+            blend = "add" if dst == 0 else "alpha"
+        mods, color_keys = [], None
+        for ref in ("particle_modifier", "particle_collider"):
+            for m in extra_chain(self.nif, ctrl.get(ref, -1)):
+                mj = ctl.modifier_json(m, self.nif)
+                if mj:
+                    mods.append(mj)
+                    if not mj.get("supported", True):
+                        self.rep.note("lossy", f"modyfikator cząsteczek {m.type} – pominięty")
+                if m.type == "NiParticleColorModifier":
+                    cd = self.nif.block(m.get("data", -1))
+                    if cd is not None:
+                        color_keys = ctl.keys_json(cd.get("keys"))
+        return ctl.particles(ctrl, b, emitter, tex_uri, blend, mods, color_keys)
 
     def _unique_name(self, n: str) -> str:
         if not hasattr(self, "_names"):
@@ -338,11 +387,20 @@ class NifToGltf:
         prim = {"attributes": attrs, "indices": ind, "mode": 4}
         if material is not None:
             prim["material"] = material
+        morph_weights = None
+        for c in controller_chain(self.nif, b.get("controller", -1)):
+            if c.type == "NiGeomMorpherController" and not collision:
+                morph_weights = self._morph(c, d, prim, n, name)
         mextras = {"mw_shape": name}
         if collision:
             mextras["mw_collision"] = True
         mi = self.g.mesh(name or f"mesh_{b.index}", [prim], mextras)
         self.g.doc["nodes"][gi]["mesh"] = mi
+        if morph_weights is not None:
+            ntg, times, w = morph_weights
+            self.g.doc["meshes"][mi]["weights"] = [0.0] * ntg
+            if times is not None:
+                self.pending_channels.append((gi, "weights", times, w.reshape(-1), "LINEAR"))
         if skin_inst is not None and "JOINTS_0" in attrs:
             self.pending_skins.append((gi, b, skin_inst, n))
         if collision:
@@ -363,22 +421,55 @@ class NifToGltf:
                 self.aabb[0] = np.minimum(self.aabb[0], wg.min(axis=0))
                 self.aabb[1] = np.maximum(self.aabb[1], wg.max(axis=0))
 
+    def _morph(self, c: Block, d: Block, prim: dict, n: int, shape: str):
+        md = self.nif.block(c.get("data", -1))
+        if md is None or md.type != "NiMorphData" or len(md["morphs"]) < 2:
+            return None
+        base = md["morphs"][0]["vertices"].astype(np.float64)
+        rel = bool(md.get("relative", 1))
+        targets, keysets = [], []
+        for m in md["morphs"][1:]:
+            v = m["vertices"].astype(np.float64)
+            if len(v) != n:
+                self.rep.note("unsupported", f"{shape}: morf o innej liczbie wierzchołków – pominięty")
+                return None
+            delta = v if rel else v - base
+            acc = self.g.accessor((coords.dir_to_godot(delta) * coords.SCALE).astype(np.float32), FLOAT,
+                                  ARRAY_BUFFER, minmax=True)
+            targets.append({"POSITION": acc})
+            keysets.append(m["keys"])
+        prim["targets"] = targets
+        ts = sorted({float(t) for k in keysets if k.get("times") is not None for t in k["times"]})
+        if not ts:
+            return len(targets), None, None
+        w = np.array([[float(ctl.sample_keys(k, t, 1)[0]) if k.get("times") is not None and len(k["times"]) else 0.0
+                       for k in keysets] for t in ts], dtype=np.float32)
+        times = scene_time(np.array(ts, np.float64), c)
+        if not rel:
+            self.rep.note("lossy", f"{shape}: morfy bezwzględne zamienione na względne")
+        return len(targets), times.astype(np.float32), w
+
     # ------------------------------------------------------------------------------------------
     def _tex(self, slot: dict, slot_name: str, shape: str) -> Optional[dict]:
         src = self.nif.block(slot.get("source", -1))
         if src is None:
             return None
+        embedded = None
         if not src.get("external"):
-            self.rep.note("unsupported", f"{shape}: tekstura wewnętrzna (NiPixelData) w slocie {slot_name} – pominięta")
-            return None
-        fname = src.get("file") or ""
-        tr = self.resolve(fname)
-        if tr is None:
-            if fname not in self.rep.missing_textures:
-                self.rep.missing_textures.append(fname)
-            return None
-        if tr.source_path and tr.source_path not in self.rep.textures:
-            self.rep.textures.append(tr.source_path)
+            embedded = self._embedded_image(src, shape, slot_name)
+            if embedded is None:
+                return None
+            fname = f"<wewnętrzna {src.get('pixel_data')}>"
+            tr = None
+        else:
+            fname = src.get("file") or ""
+            tr = self.resolve(fname)
+            if tr is None:
+                if fname not in self.rep.missing_textures:
+                    self.rep.missing_textures.append(fname)
+                return None
+            if tr.source_path and tr.source_path not in self.rep.textures:
+                self.rep.textures.append(tr.source_path)
         clamp = slot.get("clamp", 3)
         filt = slot.get("filter", 2)
         mag, minf = {0: (GL_NEAREST, GL_NEAREST), 1: (GL_LINEAR, GL_LINEAR),
@@ -388,12 +479,41 @@ class NifToGltf:
         smp = self.g.sampler({"magFilter": mag, "minFilter": minf,
                               "wrapS": GL_CLAMP if clamp in (0, 1) else GL_REPEAT,
                               "wrapT": GL_CLAMP if clamp in (0, 2) else GL_REPEAT})
-        img = self.g.image_uri(tr.uri, fname)
+        img = embedded if embedded is not None else self.g.image_uri(tr.uri, fname)
         tex = self.g.texture(img, smp)
         info = {"index": tex}
         if slot.get("uv_set", 0):
             info["texCoord"] = int(min(slot["uv_set"], 1))
-        return {"info": info, "ref": tr, "file": fname}
+        return {"info": info, "ref": tr or TextureRef(uri=f"#embedded{img}"), "file": fname}
+
+    def _embedded_image(self, src: Block, shape: str, slot: str) -> Optional[int]:
+        """NiPixelData (RGB/RGBA, pierwszy poziom mip) → PNG osadzony w GLB."""
+        key = src.get("pixel_data", -1)
+        if key in self._embedded:
+            return self._embedded[key]
+        pd = self.nif.block(key)
+        if pd is None or pd.type != "NiPixelData" or not pd.get("mipmaps"):
+            self.rep.note("unsupported", f"{shape}: tekstura wewnętrzna bez NiPixelData ({slot})")
+            return None
+        fmt, bpp = pd["format"], pd["bytes_per_pixel"]
+        w, h, off = pd["mipmaps"][0]
+        mode = {(0, 3): "RGB", (1, 4): "RGBA"}.get((fmt, bpp))
+        if mode is None:
+            self.rep.note("unsupported", f"tekstura wewnętrzna w formacie {fmt}/{bpp} B (paleta/DXT) – pominięta")
+            return None
+        import io
+
+        from PIL import Image
+        raw = pd["pixels"][off:off + w * h * bpp]
+        if len(raw) < w * h * bpp:
+            self.rep.note("unsupported", f"{shape}: uszkodzone NiPixelData")
+            return None
+        buf = io.BytesIO()
+        Image.frombytes(mode, (w, h), raw).save(buf, "PNG")
+        idx = self.g.image_bytes(buf.getvalue(), "image/png", f"embedded_{key}")
+        self._embedded[key] = idx
+        self.rep.note("lossy", "tekstura wewnętrzna (NiPixelData) osadzona w GLB jako PNG")
+        return idx
 
     def _material(self, props: dict, shape: str, has_vc: bool) -> int:
         mat = props.get("NiMaterialProperty")
@@ -477,6 +597,33 @@ class NifToGltf:
         if zbuf is not None:
             ex["mw_zbuffer"] = {"test": bool(zbuf["flags"] & 1), "write": bool(zbuf["flags"] & 2)}
         ex["mw_vertex_colors"] = has_vc
+        mctl = []
+        if mat is not None:
+            for c in controller_chain(self.nif, mat.get("controller", -1)):
+                d = self.nif.block(c.get("data", -1))
+                j = ctl.alpha(c, d) if c.type == "NiAlphaController" else \
+                    ctl.mat_color(c, d) if c.type == "NiMaterialColorController" else None
+                if j:
+                    mctl.append(j)
+                    if j["type"] == "alpha" and "alphaMode" not in m:
+                        m["alphaMode"] = "BLEND"
+                else:
+                    self.rep.note("unsupported", f"kontroler {c.type} na NiMaterialProperty – pominięty")
+        if texp is not None:
+            for c in controller_chain(self.nif, texp.get("controller", -1)):
+                if c.type == "NiFlipController":
+                    uris = []
+                    for sref in c.get("sources", []):
+                        sb = self.nif.block(sref)
+                        tr = self.resolve(sb.get("file") or "") if sb is not None and sb.get("external") else None
+                        uris.append(tr.uri if tr else None)
+                        if tr and tr.source_path and tr.source_path not in self.rep.textures:
+                            self.rep.textures.append(tr.source_path)
+                    mctl.append(ctl.flip(c, uris))
+                else:
+                    self.rep.note("unsupported", f"kontroler {c.type} na NiTexturingProperty – pominięty")
+        if mctl:
+            ex["mw_mat_controllers"] = mctl
         if ex:
             m["extras"] = ex
         key = json.dumps(m, sort_keys=True)
@@ -578,23 +725,44 @@ class NifToGltf:
                     for path, arr_t, arr_v, interp in self._kf_tracks(d, b):
                         if arr_t is None or len(arr_t) == 0:
                             continue
-                        ttimes = (arr_t * c.get("frequency", 1.0) + c.get("phase", 0.0)).astype(np.float32)
+                        ttimes = scene_time(arr_t, c).astype(np.float32)
                         tmin, tmax = min(tmin, float(ttimes.min())), max(tmax, float(ttimes.max()))
                         ia = self.g.accessor(ttimes, FLOAT, minmax=True)
                         oa = self.g.accessor(arr_v.astype(np.float32), FLOAT)
                         samplers.append({"input": ia, "output": oa, "interpolation": interp})
                         channels.append({"sampler": len(samplers) - 1, "target": {"node": gi, "path": path}})
-                elif c.type in ("NiVisController", "NiUVController", "NiAlphaController", "NiMaterialColorController",
-                                "NiGeomMorpherController", "NiFlipController", "NiPathController", "NiLookAtController",
-                                "NiRollController", "NiParticleSystemController", "NiBSPArrayController",
-                                "NiLightColorController"):
+                elif c.type in ("NiVisController", "NiUVController", "NiLookAtController", "NiRollController"):
+                    d = self.nif.block(c.get("data", -1))
+                    if c.type == "NiVisController":
+                        j = ctl.vis(c, d)
+                    elif c.type == "NiUVController":
+                        j = ctl.uv(c, d)
+                    elif c.type == "NiLookAtController":
+                        tb = self.nif.block(c.get("lookat", -1))
+                        j = {"type": "lookat", **ctl.timing(c), "target": tb.get("name", "") if tb else ""}
+                        self.rep.note("lossy", "NiLookAtController – zapisany w extras (loader: look_at co klatkę)")
+                    else:
+                        j = {"type": "roll", **ctl.timing(c), "keys": ctl.keys_json(d.get("keys")) if d else None}
+                        self.rep.note("lossy", "NiRollController – zapisany w extras (loader: obrót wokół osi X)")
+                    if j:
+                        self.g.doc["nodes"][gi].setdefault("extras", {}).setdefault("mw_controllers", []).append(j)
+                elif c.type == "NiPathController":
+                    tr = ctl.path_track(c, self.nif.block(c.get("path_data", -1)), self.nif.block(c.get("percent_data", -1)))
+                    if tr is not None:
+                        ts, pos = tr
+                        ts = scene_time(ts, c).astype(np.float32)
+                        self.pending_channels.append((gi, "translation", ts, coords.pos_to_godot(pos), "LINEAR"))
+                        self.rep.note("lossy", "NiPathController – próbkowany do ścieżki translacji (30 Hz)")
+                elif c.type in ("NiGeomMorpherController", "NiParticleSystemController", "NiBSPArrayController"):
+                    pass  # obsłużone przy geometrii / cząsteczkach
+                elif c.type != "NiKeyframeController":
                     self.rep.note("unsupported", f"kontroler {c.type} – jeszcze nie konwertowany")
-            # kontrolery na właściwościach (np. NiMaterialColorController, NiFlipController)
-            for pr in b.get("properties", []):
-                pb = self.nif.block(pr)
-                if pb is not None:
-                    for c in controller_chain(self.nif, pb.get("controller", -1)):
-                        self.rep.note("unsupported", f"kontroler {c.type} na {pb.type} – jeszcze nie konwertowany")
+        for gi, path, ts, vals, interp in self.pending_channels:
+            tmin, tmax = min(tmin, float(ts.min())), max(tmax, float(ts.max()))
+            ia = self.g.accessor(np.asarray(ts, np.float32), FLOAT, minmax=True)
+            oa = self.g.accessor(np.asarray(vals, np.float32), FLOAT)
+            samplers.append({"input": ia, "output": oa, "interpolation": interp})
+            channels.append({"sampler": len(samplers) - 1, "target": {"node": gi, "path": path}})
         if channels:
             anim = {"name": "default", "channels": channels, "samplers": samplers,
                     "extras": {"mw_text_keys": self.rep.text_keys, "mw_time_range": [tmin, tmax]}}
@@ -634,6 +802,12 @@ class NifToGltf:
             s = np.repeat(sc["values"].reshape(-1, 1), 3, axis=1)
             out.append(_hermite_track("scale", sc, s, lambda v: np.repeat(np.asarray(v).reshape(-1, 1), 3, axis=1), self.rep))
         return out
+
+
+def scene_time(key_times, c) -> np.ndarray:
+    """Czas klucza kontrolera → czas sceny: t_klucza = t_sceny · frequency + phase."""
+    f = float(c.get("frequency", 1.0)) or 1.0
+    return (np.asarray(key_times, np.float64) - float(c.get("phase", 0.0))) / f
 
 
 def _fix_quat_signs(q: np.ndarray) -> np.ndarray:

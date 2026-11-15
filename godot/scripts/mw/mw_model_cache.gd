@@ -30,6 +30,16 @@ func get_scene(glb_rel: String) -> PackedScene:
 			if root:
 				postprocess(root)
 				_own(root, root)
+				var cst := MWControllers.apply(root, path.get_base_dir())
+				stats.controllers = stats.get("controllers", 0) + cst.controllers
+				stats.particles = stats.get("particles", 0) + cst.particles
+				# animacje z pliku .kf (konwencja gry: dir/xname.kf → dir/xname.anim.json)
+				var anim_path := path.get_base_dir().path_join("x" + path.get_file().get_basename() + ".anim.json")
+				var adoc := MWControllers.load_anim_json(anim_path)
+				if not adoc.is_empty():
+					MWControllers.attach_anim_library(root, adoc)
+					stats.anim_libraries = stats.get("anim_libraries", 0) + 1
+				_own(root, root)
 				ps = PackedScene.new()
 				if ps.pack(root) != OK:
 					ps = null

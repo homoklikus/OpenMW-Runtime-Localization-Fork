@@ -24,7 +24,16 @@ VER_4002 = 0x04000002
 
 
 class NifError(Exception):
-    pass
+    """Błąd odczytu NIF. Atrybuty diagnostyczne: offset, block_index, block_type, block_start, partial
+    (bloki odczytane poprawnie przed błędem) – używane przez `mwconv inspect`."""
+
+    def __init__(self, msg, **diag):
+        super().__init__(msg)
+        self.offset = diag.get("offset")
+        self.block_index = diag.get("block_index")
+        self.block_type = diag.get("block_type")
+        self.block_start = diag.get("block_start")
+        self.partial = diag.get("partial", [])
 
 
 @dataclass
@@ -567,25 +576,39 @@ def _r_flip_ctrl(r, f):
 
 
 def _r_particle_ctrl(r, f):
+    """NiParticleSystemController / NiBSPArrayController (4.0.0.2). Nazwy pól wg nif.xml."""
     _timecontroller(r, f)
-    r.skip(6 * 4 + 12 + 16 + 3 * 4)  # prędkość, odchylenia, kąty, normalna, kolor, rozmiar, czasy emisji
-    r.u8()
-    r.skip(3 * 4)
-    r.u16()
-    r.vec3()
+    f["speed"] = r.f32()
+    f["speed_random"] = r.f32()
+    f["vertical_direction"] = r.f32()
+    f["vertical_angle"] = r.f32()
+    f["horizontal_direction"] = r.f32()
+    f["horizontal_angle"] = r.f32()
+    f["normal"] = r.vec3()
+    f["color"] = r.floats(4)
+    f["size"] = r.f32()
+    f["emit_start"] = r.f32()
+    f["emit_stop"] = r.f32()
+    f["unknown_byte"] = r.u8()
+    f["emit_rate"] = r.f32()
+    f["lifetime"] = r.f32()
+    f["lifetime_random"] = r.f32()
+    f["emit_flags"] = r.u16()      # bit 0: używaj emit_rate (inaczej liczba cząsteczek / czas)
+    f["start_random"] = r.vec3()
     f["emitter"] = r.ref()
-    r.u16()
-    r.f32()
-    r.u16()
-    r.f32()
-    r.f32()
+    f["unknown_short2"] = r.u16()
+    f["unknown_float13"] = r.f32()
+    f["unknown_short3"] = r.u16()
+    f["unknown_float14"] = r.f32()
+    f["unknown_float15"] = r.f32()
     n = r.count(r.u16())
-    r.u16()
-    r.skip(n * 40)
-    r.skip(4)
+    f["num_particles"] = n
+    f["num_valid"] = r.u16()
+    r.skip(n * 40)                  # stan cząsteczek (prędkość, czasy, wierzchołek) – nieistotny przy imporcie
+    f["unknown_ref"] = r.ref()
     f["particle_modifier"] = r.ref()
     f["particle_collider"] = r.ref()
-    r.u8()
+    f["static_target_bound"] = r.u8()
 
 
 def _r_keyframe_data(r, f):
@@ -640,7 +663,11 @@ def _r_color_modifier(r, f):
 
 def _r_gravity(r, f):
     _modifier(r, f)
-    r.skip(4 + 4 + 4 + 12 + 12)
+    f["decay"] = r.f32()
+    f["force"] = r.f32()
+    f["type"] = r.u32()      # 0 = kierunkowa (wiatr), 1 = punktowa
+    f["position"] = r.vec3()
+    f["direction"] = r.vec3()
 
 
 def _r_bomb(r, f):
@@ -662,8 +689,9 @@ def _r_spherical_collider(r, f):
 
 def _r_rotation_modifier(r, f):
     _modifier(r, f)
-    r.u8()
-    r.skip(12 + 4)
+    f["random_initial_axis"] = r.u8()
+    f["initial_axis"] = r.vec3()
+    f["rotation_speed"] = r.f32()
 
 
 def _r_nothing(r, f):
@@ -728,17 +756,27 @@ def parse(data: bytes, name: str = "<nif>") -> NifFile:
     if nl < 0 or not (head.startswith("NetImmerse File Format") or head.startswith("Gamebryo File Format")):
         raise NifError(f"{name}: brak nagłówka NIF")
     r = _R(data, name, nl + 1)
+    blocks: list[Block] = []
+    cur = {"i": None, "t": None, "start": None}
+
+    def fail(msg):
+        return NifError(f"{name}: {msg}", offset=r.pos, block_index=cur["i"], block_type=cur["t"],
+                        block_start=cur["start"], partial=blocks)
     try:
         version = r.u32()
         if version not in (VER_4002, VER_4000):
             raise NifError(f"nieobsługiwana wersja NIF 0x{version:08x} (obsługiwane: 4.0.0.2, 4.0.0.0)")
         n = r.count(r.u32())
-        blocks = []
         for i in range(n):
             start = r.pos
+            cur.update(i=i, t=None, start=start)
             t = r.string()
+            cur["t"] = t
             fn = READERS.get(t)
             if fn is None:
+                if not (t.isprintable() and t.startswith(("Ni", "Root", "Avoid", "BS"))):
+                    raise NifError(f"śmieci zamiast nazwy typu bloku {i} na offsecie {start} "
+                                   f"(poprzedni blok {blocks[-1].type if blocks else '-'} odczytany za krótko/za długo?)")
                 raise NifError(f"nieznany typ bloku {t!r} (blok {i}, offset {start})")
             b = Block(i, t)
             try:
@@ -746,12 +784,11 @@ def parse(data: bytes, name: str = "<nif>") -> NifFile:
             except (FormatError, NifError) as e:
                 raise NifError(f"blok {i} {t}: {e}") from None
             blocks.append(b)
+        cur.update(i=None, t="(lista korzeni)", start=r.pos)
         roots = [r.i32() for _ in range(r.count(r.u32()))]
         trailing = r.remaining()
-    except FormatError as e:
-        raise NifError(f"{name}: {e}") from None
-    except NifError as e:
-        raise NifError(f"{name}: {e}") from None
+    except (FormatError, NifError) as e:
+        raise fail(str(e).replace(name + ": ", "")) from None
     return NifFile(version, head, blocks, [i for i in roots if 0 <= i < len(blocks)], trailing)
 
 

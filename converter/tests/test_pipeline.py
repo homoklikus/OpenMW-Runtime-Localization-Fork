@@ -19,11 +19,11 @@ def test_incremental_and_resume(synth_data, tmp_path):
     out = tmp_path / "out"
     opts = Options(out=out, cells=["Synthville"], jobs=1)
     s1 = run(_cfg(src), opts, log=lambda _m: None)
-    assert s1["models"]["ok"] == 5 and s1["models"]["errors"] == 0
+    assert s1["models"]["ok"] == 9 and s1["models"]["errors"] == 0
     assert s1["textures"]["ok"] == 8
     # drugi przebieg: nic do zrobienia
     s2 = run(_cfg(src), opts, log=lambda _m: None)
-    assert s2["models"]["skipped_unchanged"] == 5 and "converted" not in s2["models"]
+    assert s2["models"]["skipped_unchanged"] == 9 and "converted" not in s2["models"]
     # zmiana mtime bez zmiany treści → SHA-256 potwierdza brak zmian
     nif = src / "meshes" / "synth" / "test_crate.nif"
     os.utime(nif, (1, 1))

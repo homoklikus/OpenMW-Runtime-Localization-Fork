@@ -69,6 +69,8 @@ def colors_for(grid) -> np.ndarray:
 def write_world(data_dir: Path) -> dict:
     data_dir = Path(data_dir)
     write_assets(data_dir)
+    from .synthetic_hard import write_hard
+    write_hard(data_dir)
     recs = []
     recs.append(W.ltex("synth_grass", 0, "tx_synth_grass.tga"))
     recs.append(W.ltex("synth_dirt", 1, "tx_synth_dirt.tga"))
@@ -80,6 +82,9 @@ def write_world(data_dir: Path) -> dict:
     recs.append(W.stat("synth_bsa_crate", "synth\\bsa_crate.nif"))
     recs.append(W.stat("synth_door", "synth\\test_crate.nif", "DOOR", "Drzwi testowe"))
     recs.append(W.light("synth_lamp", None, 512, (255, 190, 120)))
+    recs.append(W.stat("synth_hard_nodes", "synth\\hard_nodes.nif"))
+    recs.append(W.stat("synth_hard_ctrl", "synth\\hard_controllers.nif", "ACTI"))
+    recs.append(W.stat("synth_fire", "synth\\hard_particles.nif", "ACTI"))
 
     refnum = [0]
 
@@ -134,6 +139,9 @@ def write_world(data_dir: Path) -> dict:
         irefs.append(W.ref_subs(refnum[0], "synth_crate", (k * 100 - 100, 0, 0), (0, 0, math.radians(20 * k))))
     refnum[0] += 1
     irefs.append(W.ref_subs(refnum[0], "synth_lamp", (0, 0, 180)))
+    for k, base in enumerate(("synth_hard_nodes", "synth_hard_ctrl", "synth_fire")):
+        refnum[0] += 1
+        irefs.append(W.ref_subs(refnum[0], base, (-600 + 600 * k, 600, 0)))
     recs.append(W.cell("Synthville, Test House", (0, 0), True, irefs, water=-1000.0,
                        ambient=(0x00404040, 0x00808080, 0x00202020, 0.5)))
 
