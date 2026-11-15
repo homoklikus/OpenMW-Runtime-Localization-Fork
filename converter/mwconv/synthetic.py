@@ -161,7 +161,7 @@ def tex_checker(size=64, a=(200, 200, 200), b=(60, 90, 160)):
 def tex_ground(color, size=64, seed=0):
     rng = np.random.default_rng(seed)
     a = np.clip(np.array(color)[None, None, :] + rng.normal(0, 12, (size, size, 3)), 0, 255).astype(np.uint8)
-    return Image.fromarray(a, "RGB")
+    return Image.fromarray(a)  # uint8 H×W×3 → RGB (parametr mode jest przestarzały w Pillow 11+)
 
 
 def save_dds(im: Image.Image, path: Path, fmt: str):
