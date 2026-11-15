@@ -86,6 +86,12 @@ func _ready() -> void:
 	player.global_position = start_t.origin
 	player.rotation.y = start_t.basis.get_euler().y
 	_apply_capture()
+	var lp := arg("load")
+	if not lp.is_empty():
+		var lw := load_game(lp)
+		print("MWGODOT_LOADED ", lp, " ", JSON.stringify(lw))
+		if not lw.is_empty():
+			_toast("\n".join(lw), 8.0)
 	if not interior.is_empty():
 		var key := "int:" + interior.to_lower()
 		_load(key)
@@ -236,6 +242,7 @@ var _frames := 0
 ##   --camera=x,y,z   pozycja kamery (jednostki MW)      --look=yaw,pitch  radiany jak w OpenMW
 ##                    (yaw 0 = północ/+Y, zgodnie z ruchem wskazówek; pitch > 0 = w dół)
 ##   --hour=12  --weather=clear  --fov=60 (pionowe, jak OpenMW)  --screenshot=PLIK.png  --shot-frames=120
+##   --save=PLIK.mwsave (zapis gry w chwili zrzutu)   --load=PLIK.mwsave (także poza trybem zrzutu: wczytanie przy starcie)
 ## Kamera stoi w miejscu (latanie), czas zatrzymany, pasek ukryty; po zrzucie gra kończy się (--quit=0: zostaje).
 func _apply_capture() -> void:
 	var c := arg("camera")
@@ -279,6 +286,9 @@ func _capture_tick() -> void:
 	var err := img.save_png(shot)
 	print("MWGODOT_SHOT ", shot, " ", img.get_width(), "x", img.get_height(), " err=", err,
 		" flora=", JSON.stringify(builder.flora.stats if builder.flora else {}))
+	var sp := arg("save")
+	if not sp.is_empty():
+		print("MWGODOT_SAVED ", sp, " ", save_game(sp))
 	if arg("quit", "1") != "0":
 		get_tree().quit(0 if err == OK else 4)
 
