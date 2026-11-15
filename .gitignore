@@ -19,3 +19,7 @@ gdextension/src/*.os
 gdextension/src/*.o
 .sconsign.dblite
 node_modules/
+
+# paczki wydań
+/*.tar.gz
+/*.zip
