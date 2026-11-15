@@ -1,5 +1,13 @@
 # Zmiany
 
+## 0.5 — 2026-11-15: roślinność z forka OpenMW RLF (etap 2, `docs/PORT-RLF.md`)
+
+* Konwerter `mwconv/flora.py`: wtyczki groundcover (openmw.cfg `groundcover=`, mody rozpoznawane automatycznie),
+  flora proceduralna (wagi tekstur, nachylenie, wykluczenia obiektów i ścieżek PGRD), reguły Remirosa liczone
+  lokalnie z `Rem_*.esp`; pliki `world/flora/<x>_<y>.bin`; czytnik ESM czyta PGRD.
+* Gra `mw_flora.gd`: MultiMesh, bez kolizji i cieni, test alfa, normalne w górę; zasięg i gęstość w ustawieniach.
+* Launcher: zakładka Świat (odpowiednik world.cfg forka), opcje roślinności w zakładce Grafika.
+
 ## 0.4 — 2026-11-15: lokalizacja runtime z forka OpenMW RLF (etap 1, `docs/PORT-RLF.md`)
 
 * Konwerter: pliki `localization/language/<wtyczka>.yaml` (format forka) w kolejności ładowania →
