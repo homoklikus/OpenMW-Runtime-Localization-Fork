@@ -29,11 +29,11 @@ step "1. Testy konwertera (pytest)"
 pass "pytest"
 
 step "1b. Launcher Qt (offscreen; z prawdziwym Godotem: gra + Construction Set)"
-if $PY -c "import PySide6" 2>/dev/null; then
+if $PY -c "from PySide6.QtWidgets import QApplication" 2>/dev/null; then
   (cd "$ROOT/launcher" && QT_QPA_PLATFORM=offscreen MWGODOT_REAL_GODOT="$(command -v "$GODOT" || echo "$GODOT")" $PY -m pytest -q tests)
   pass "launcher"
 else
-  echo "(pominięto – brak PySide6: sudo apt install python3-pyside6.qtwidgets)"
+  echo "(pominięto – PySide6 niedostępne lub brak bibliotek Qt: sudo apt install python3-pyside6.qtwidgets)"
 fi
 
 step "2. Dane syntetyczne + konwersja"
