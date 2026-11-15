@@ -247,8 +247,10 @@ def _run_jobs(fn, keys: list[str], cfg: InstallConfig, opts: Options, label: str
                     break
                 record(fn(k))
         else:
-            executor = cf.ProcessPoolExecutor(max_workers=jobs, initializer=_worker_init, initargs=initargs,
-                                              max_tasks_per_child=opts.max_tasks_per_child)
+            extra = {}
+            if sys.version_info >= (3, 11):  # recykling procesów (ograniczenie RAM); Python 3.10 go nie ma
+                extra["max_tasks_per_child"] = opts.max_tasks_per_child
+            executor = cf.ProcessPoolExecutor(max_workers=jobs, initializer=_worker_init, initargs=initargs, **extra)
             pending = set()
             it = iter(keys)
             for _ in range(jobs * 4):  # ograniczona kolejka – szybka reakcja na anulowanie, kontrola RAM

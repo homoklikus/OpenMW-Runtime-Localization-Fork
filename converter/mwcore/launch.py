@@ -22,9 +22,8 @@ def find_godot(configured: str = "", app_root: Path | None = None) -> str | None
         if c and Path(c).is_file() and os.access(c, os.X_OK):
             return c
     # oficjalne pliki z godotengine.org położone obok projektu, np. Godot_v4.7.2-stable_linux.x86_64
-    roots = [Path(__file__).resolve().parents[2]]
-    if app_root:
-        roots += [Path(app_root), Path(app_root).parent]
+    roots = [Path(app_root), Path(app_root).parent] if app_root else []
+    roots.append(Path(__file__).resolve().parents[2])
     for r in roots:
         found = sorted((f for f in r.glob("Godot_v4*") if f.is_file() and os.access(f, os.X_OK)
                         and not f.name.endswith((".zip", ".tar.gz", ".tar.xz"))), key=lambda f: f.name, reverse=True)
