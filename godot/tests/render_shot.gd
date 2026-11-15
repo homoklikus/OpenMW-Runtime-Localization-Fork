@@ -46,6 +46,36 @@ func _init() -> void:
 	cam.fov = 60
 	scene.add_child(cam)
 
+	if mode == "launcher":
+		scene.queue_free()
+		var l := (load("res://launcher.tscn") as PackedScene).instantiate()
+		root.add_child(l)
+		for i in 10:
+			await process_frame
+		await RenderingServer.frame_post_draw
+		root.get_texture().get_image().save_png(out)
+		print("SHOT ", out)
+		quit(0)
+		return
+	if mode == "effects":
+		var cache := MWModelCache.new(data)
+		var items := [["meshes/synth/hard_particles.glb", Vector3(-2, 0, 0), 0.6], ["meshes/synth/hard_controllers.glb", Vector3(2, 0, 0), 1.0],
+			["meshes/synth/hard_nodes.glb", Vector3(0, 0, -6), 0.0]]
+		for it in items:
+			var n := cache.instantiate(it[0])
+			n.position = it[1]
+			scene.add_child(n)
+		var water := MWEnvironment.water_plane(30.0, -0.05)
+		scene.add_child(water)
+		cam.position = Vector3(0, 3.5, 7)
+		cam.look_at_from_position(cam.position, Vector3(0, 0.8, -1))
+		for i in 40:
+			await process_frame
+		await RenderingServer.frame_post_draw
+		root.get_texture().get_image().save_png(out)
+		print("SHOT ", out)
+		quit(0)
+		return
 	if mode == "models":
 		var cache := MWModelCache.new(data)
 		var items := [

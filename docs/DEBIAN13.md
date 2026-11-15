@@ -13,13 +13,14 @@ sudo apt install nodejs npm
 Konwerter potrzebuje tylko Pythona ≥ 3.10, numpy i Pillow ≥ 10.1 (w trixie: 3.13 / 2.2 / 11.1).
 Blender **nie** jest potrzebny, GPU też nie.
 
-Godot 4.5 nie jest pakietem Debiana — użyj oficjalnej binarki (lub Flatpaka `org.godotengine.Godot`):
+Projekt działa na Godocie **4.5.1 i 4.7.1** (oba przetestowane pełnym zestawem testów). Godot nie jest
+pakietem Debiana — użyj oficjalnej binarki (lub Flatpaka `org.godotengine.Godot`), np. 4.7.1:
 
 ```bash
 mkdir -p ~/opt/godot && cd ~/opt/godot
-wget https://github.com/godotengine/godot/releases/download/4.5.1-stable/Godot_v4.5.1-stable_linux.x86_64.zip
-unzip Godot_v4.5.1-stable_linux.x86_64.zip && ln -sf "$PWD/Godot_v4.5.1-stable_linux.x86_64" ~/.local/bin/godot
-godot --version   # 4.5.1.stable.official
+wget https://github.com/godotengine/godot/releases/download/4.7.1-stable/Godot_v4.7.1-stable_linux.x86_64.zip
+unzip Godot_v4.7.1-stable_linux.x86_64.zip && ln -sf "$PWD/Godot_v4.7.1-stable_linux.x86_64" ~/.local/bin/godot
+godot --version   # 4.7.1.stable.official
 ```
 
 ## 2. Testy na danych syntetycznych (bez plików gry)
@@ -32,6 +33,30 @@ npm install --prefix ~/.local/lib/gltfv gltf-validator
 NODE_PATH=~/.local/lib/gltfv/node_modules GODOT=godot ./tools/run_tests.sh
 python3 tools/bench.py --work /tmp/mwbench   # benchmark syntetyczny
 ```
+
+## 3a. Najprościej: launcher
+
+```bash
+godot --path mwgodot/godot          # scena startowa = launcher
+```
+„Wykryj” sprawdza typowe miejsca (openmw.cfg natywny i Flatpak, Steam, GOG/Wine), „Konwertuj” uruchamia
+konwerter w tle z paskiem postępu (Balmora i okolice albo cała gra, opcjonalne wypiekanie scen pod GPU),
+„Graj” startuje grę z przekonwertowanymi danymi. Ustawienia: `~/.local/share/godot/app_userdata/MWGodot (eksperyment)/mwgodot_settings.cfg`.
+
+## 3b. Pierwszy krok na prawdziwych plikach: skan NIF
+
+Zanim przekonwertujesz świat, sprawdź czytnik na wszystkich modelach (nic nie jest zapisywane poza raportem
+z metadanymi):
+
+```bash
+cd mwgodot/converter
+python3 -m mwconv scan --openmw-cfg ~/.var/app/org.openmw.OpenMW/config/openmw/openmw.cfg --out ~/nif_scan.json
+# szczegóły jednego problematycznego pliku (lokalizacja błędu, ostatnie poprawne bloki, zrzut bajtów):
+python3 -m mwconv inspect "/ścieżka/Data Files/meshes/x/ex_hlaalu_b_01.nif" --convert
+```
+`nif_scan.json` zawiera: liczbę plików poprawnych/błędnych, błędy pogrupowane wg typu bloku i komunikatu
+(z przykładami), histogram typów bloków, listę strat konwersji i brakujących tekstur. Ten plik (bez
+zasobów gry) wystarczy mi do poprawek czytnika.
 
 ## 3. Konwersja Twojej instalacji Morrowinda — Balmora
 
@@ -70,14 +95,17 @@ python3 -m mwconv convert --data "/ścieżka/Data Files" \
 * Ponowne uruchomienie przetwarza tylko zmienione pliki (SHA-256). Przerwaną konwersję wystarczy
   uruchomić ponownie. `--verify-hash` wymusza sumy SHA-256 zamiast skrótu rozmiar+mtime.
 * Pełna gra (pomiar czasu, nie zalecane na start): `--all-cells --all-models --all-textures`.
+* Wypiekanie scen z teksturami pod GPU (szybsze wczytywanie gry): `--bake-godot $(which godot)
+  --bake-project mwgodot/godot` (domyślnie S3TC; `--bake-compress bptc|etc2|astc|lossless`). Wynik: `<out>/baked/`.
+* Postęp w formacie dla innych programów: `--progress-json` (linie `MWPROGRESS {...}`).
 * Raport: `<out>/reports/conversion.json` (czasy, przepustowość, pamięć, rozmiary, błędy i diagnostyka
   modeli – elementy przeniesione w przybliżeniu lub pominięte).
 
 ## 4. Gra i Construction Set 2.0
 
 ```bash
-# gra (strumieniowanie komórek wokół gracza; WASD, mysz, spacja, Shift, F = latanie)
-godot --path mwgodot/godot -- --data=$HOME/.local/share/mwgodot/mwdata
+# gra bez launchera (strumieniowanie komórek; WASD, mysz, spacja, Shift, F = latanie, E = drzwi/aktywacja)
+godot --path mwgodot/godot res://main.tscn -- --data=$HOME/.local/share/mwgodot/mwdata
 # wnętrze:
 godot --path mwgodot/godot -- --data=$HOME/.local/share/mwgodot/mwdata --cell="Balmora, Caius Cosades' House"
 # start w punkcie (jednostki MW):
@@ -91,8 +119,13 @@ Edytor: `godot -e --path mwgodot/godot` → panel **MW CS 2.0** (prawy górny do
 2. wybierz komórkę → **Otwórz komórkę** (powstaje scena robocza `res://cs2_cells/*.tscn` — tylko
    transformacje i metadane, bez zasobów gry);
 3. przesuwaj/obracaj/skaluj referencje gizmem Godota, usuwaj klawiszem Delete, dodawaj z listy obiektów;
-4. **Zapisz nadpisania projektu** → `<projekt>/overrides/cells/...json`. Gra wczytuje je automatycznie
-   (`--project=` lub ustawienie `mwgodot/project_root`).
+4. pola referencji (właściciel, zamek, liczba…) i rekord bazowy (nazwa, model, światło) edytujesz w panelu
+   jako JSON;
+5. **pędzel terenu**: zaznacz „Pędzel terenu”, wybierz operację (podnieś, obniż, wygładź, spłaszcz, maluj
+   teksturę), promień i siłę, maluj lewym przyciskiem w widoku 3D; krawędzie sąsiednich komórek pozostają zgodne;
+6. lista **konfliktów modów** pokazuje referencje zmieniane przez kilka plików (łańcuch ESM → ESP → projekt);
+7. **Zapisz nadpisania projektu** → `<projekt>/overrides/cells|terrain/...json`, `overrides/objects.json`.
+   Gra wczytuje je automatycznie (`--project=` lub ustawienie `mwgodot/project_root`).
 
 Ustawienia domyślne są w `project.godot` (`mwgodot/data_root`, `mwgodot/project_root`, `mwgodot/start_cell`).
 

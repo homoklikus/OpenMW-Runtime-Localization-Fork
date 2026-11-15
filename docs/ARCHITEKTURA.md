@@ -40,7 +40,10 @@ Godot 4.5 (gra)  ←── ta sama warstwa danych ──→  Construction Set 2.
 | `world.py` | scalanie wg kolejności ładowania, stabilne ID, eksport komórek/terenu/obiektów |
 | `install.py` | wykrywanie konfiguracji: `openmw.cfg` lub `Morrowind.ini` + „Data Files” |
 | `cache.py`, `pipeline.py` | konwersja przyrostowa, równoległa, wznawialna, z raportem i pomiarami |
-| `synthetic*.py` | własne dane testowe („Synthville”) |
+| `synthetic*.py` | własne dane testowe („Synthville”, trudne przypadki NIF, pliki uszkodzone) |
+| `controllers.py` | kontrolery bez odpowiednika w glTF → `extras` (vis, UV, alfa, kolor, flip, cząsteczki) |
+| `kf2anim.py` | pliki `.kf` → `*.anim.json` (ścieżki wg nazw węzłów, klipy z kluczy tekstowych) |
+| `scan.py` | skan wszystkich NIF/KF z VFS → raport problemów (bez zapisu modeli) |
 
 ### Układ współrzędnych
 
@@ -100,11 +103,34 @@ mod) są raportowane jako `override_orphans`. ESM/ESP nigdy nie są zapisywane.
 | `scripts/mw/mw_cell_builder.gd` | węzeł komórki: teren + referencje (meta `mw_sid`/`mw_base`/`mw_source`) + światła LIGH |
 | `scripts/mw/mw_cell_editing.gd` | logika CS 2.0: otwarcie, dodawanie, różnice, zapis nadpisań |
 | `scripts/main.gd`, `scripts/player.gd` | gra: strumieniowanie komórek wokół gracza, postać 1-os. (WASD, skok, bieg, latanie) |
+| `scripts/mw/mw_controllers.gd` | odtwarzanie kontrolerów (osobny AnimationPlayer na kontroler), CPUParticles3D, biblioteki animacji z `.kf` z cięciem na klipy |
+| `scripts/mw/mw_environment.gd` | pora dnia (skala czasu 30), słońce, niebo, pogoda losowana z szans REGN, otoczenie wnętrz (AMBI), woda |
+| `scripts/mw/mw_travel.gd` | drzwi (DODT/DNAM): wybór celu, przejście wnętrze ↔ świat |
+| `scripts/mw/mw_terrain_editing.gd` | pędzle terenu CS 2.0, zapis nadpisań terenu, raycast w teren |
+| `scripts/mw/mw_launcher.gd`, `scripts/launcher.gd` | launcher: wykrywanie instalacji, Python, konwersja w tle z postępem, start gry |
+| `tools/bake_models.gd` | wypiekanie GLB → `.scn` + tekstury `PortableCompressedTexture2D` (S3TC/BPTC/ETC2/ASTC), deduplikacja |
 | `addons/mw_cs2/` | wtyczka edytora: panel, lista komórek, otwieranie jako scena robocza, informacje o referencji, dodawanie obiektów (z undo), zapis nadpisań |
 
 Scena robocza CS 2.0 (`res://cs2_cells/*.tscn`) zawiera **tylko** transformacje i metadane referencji;
 modele i teren są dziećmi bez właściciela, odtwarzanymi przy otwarciu przez `mw_cell_root.gd` z danych
 gracza. Zweryfikowane testem: plik `.tscn` nie zawiera siatek ani ścieżek do zasobów gry.
+
+## Kontrolery, cząsteczki i animacje (sesja 2)
+
+* Morfy (NiGeomMorpherController) → natywne morph targets glTF + kanał `weights`; NiPathController →
+  próbkowana ścieżka translacji; reszta (vis, UV, alfa, kolor materiału, flip, lookat, roll) → `extras`,
+  które loader zamienia na ścieżki Animation. Czas klucza = czas sceny · frequency + phase.
+* Cząsteczki → `extras.mw_particles` → CPUParticles3D (działa też w trybie zgodności GL), emiter = węzeł
+  z kontrolera, gradient z NiParticleColorModifier, krzywa skali z NiParticleGrowFade, grawitacja z NiGravity.
+* `.kf`: konwencja gry `dir/name.nif` ↔ `dir/xname.kf`; loader dołącza bibliotekę klipów do modelu.
+
+## Wydajność (sesja 2)
+
+* ESM czytany strumieniowo (bez listy wszystkich rekordów), `slots` w strukturach referencji.
+* Przebieg bez zmian pomija wczytanie ESM/ESP i eksport świata (klucz: SHA-256 plików treści, wybór
+  komórek, sygnatura VFS, wersja konwertera) — tylko przyrostowe sprawdzenie modeli i tekstur.
+* Wypiekanie: modele `.scn` + współdzielone tekstury skompresowane pod GPU; loader wybiera wypieczoną
+  scenę, gdy jest nowsza niż GLB.
 
 ## GDExtension
 

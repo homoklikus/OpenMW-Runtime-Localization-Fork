@@ -21,7 +21,8 @@ func arg(name: String, def := "") -> String:
 	return def
 
 func _ready() -> void:
-	var data := arg("data", ProjectSettings.get_setting("mwgodot/data_root", "user://mwdata"))
+	var data := arg("data", MWLauncher.load_settings().get("data_root",
+		ProjectSettings.get_setting("mwgodot/data_root", "user://mwdata")))
 	var project := arg("project", ProjectSettings.get_setting("mwgodot/project_root", "user://mw_project"))
 	data = ProjectSettings.globalize_path(data)
 	project = ProjectSettings.globalize_path(project)
