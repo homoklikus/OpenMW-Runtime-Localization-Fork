@@ -197,7 +197,7 @@ Gdy pliku brak, używany jest proceduralny pejzaż (`art.banner`).
 Po pierwszej sesji gry zastępuje go zrzut ostatniego widoku. Po pierwszym uruchomieniu gry podgląd pokazuje
 lokalny zrzut ostatniego widoku (`<zapisy profilu>/last_view.png`), który nigdy nie opuszcza komputera.
 
-**Logo Godota.** W stopce panelu bocznego jest oficjalna ikona Godot Engine (CC BY 4.0, Andrea Calabró)
+**Logo Godota.** W stopce panelu bocznego jest ikona Godot Engine (CC BY 4.0, Andrea Calabró), w wersji szarej jak w referencji,
 z wersją silnika; kliknięcie otwiera https://godotengine.org. Uznanie autorstwa: podpowiedź i „O projekcie”.
 
 **Motyw lokalny (opcjonalny).** Własne obrazy można położyć w `~/.config/openmwgodot/theme/`

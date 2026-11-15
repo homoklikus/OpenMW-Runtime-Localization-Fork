@@ -428,11 +428,13 @@ def image_preview(w: int, h: int):
 
 GODOT_URL = "https://godotengine.org"
 GODOT_LOGO_CREDIT = ("Logo Godot Engine © 2017 Andrea Calabró, licencja CC BY 4.0 "
-                     "(https://creativecommons.org/licenses/by/4.0/); Godot Foundation, godotengine.org")
+                     "(https://creativecommons.org/licenses/by/4.0/), zmienione: wersja szara; "
+                     "Godot Foundation, godotengine.org")
 
 
-def godot_logo(size: int):
-    """Oficjalna ikona Godot Engine (resources/godot/icon.svg, CC BY 4.0, Andrea Calabró)."""
+def godot_logo(size: int, mono: bool = True):
+    """Ikona Godot Engine (resources/godot/icon.svg, CC BY 4.0, Andrea Calabró).
+    mono=True: wersja szara jak w grafice referencyjnej (zmiana: tylko kolory, kształt bez zmian)."""
     f = RESOURCES / "godot" / "icon.svg"
     try:
         from PySide6.QtSvg import QSvgRenderer
@@ -447,4 +449,23 @@ def godot_logo(size: int):
     p.setRenderHint(QPainter.Antialiasing)
     r.render(p, QRectF(0, 0, size, size))
     p.end()
+    if mono:
+        pm = _monochrome(pm, QColor("#a39d92"))
     return pm
+
+
+def _monochrome(pm, tint):
+    """Odcienie szarości zabarwione na kolor panelu; przezroczystość zostaje."""
+    from PySide6.QtGui import QImage
+    img = pm.toImage().convertToFormat(QImage.Format_ARGB32)
+    tr, tg, tb = tint.red(), tint.green(), tint.blue()
+    for y in range(img.height()):
+        for x in range(img.width()):
+            c = img.pixelColor(x, y)
+            if c.alpha() == 0:
+                continue
+            lum = (0.299 * c.red() + 0.587 * c.green() + 0.114 * c.blue()) / 255.0
+            k = 0.12 + 0.95 * lum ** 1.2    # niebieskie ciało → szare, białe → jasnoszare, oczy → ciemne
+            c.setRgb(min(255, int(tr * k)), min(255, int(tg * k)), min(255, int(tb * k)), c.alpha())
+            img.setPixelColor(x, y, c)
+    return QPixmap.fromImage(img)
