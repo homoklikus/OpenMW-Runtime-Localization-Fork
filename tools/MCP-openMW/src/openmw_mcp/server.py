@@ -6,6 +6,7 @@ import collections
 import functools
 import json
 import os
+import time
 import traceback
 from pathlib import Path
 from typing import Optional
@@ -851,6 +852,61 @@ def openmw_capture_start(cells: list[str], profile_list: Optional[list[str]] = N
                      stdout=log, stderr=_sp.STDOUT, start_new_session=True)
     return {"run_dir": str(run_dir), "pid": proc.pid, "shots": [s.id for s in shots],
             "profiles": pl, "note": "silniki uruchamiają się kolejno; nie używaj w tym czasie myszy/klawiatury w oknie gry"}
+
+
+@tool
+def openmw_record_compare_start(types: Optional[list[str]] = None, sample: int = 150, gmst_sample: int = 300,
+                                records_dir: Optional[str] = None, profile: str = "official-ref",
+                                timeout: float = 240.0) -> dict:
+    """URUCHAMIA OpenMW w tle (izolowany profil) ze skryptem Lua zrzucającym rekordy i porównuje je pole po polu
+    z danymi OpenMWGodot (world/records/ z konwertera; domyślnie dane profilu openmwgodot). Próbka na typ: wszystkie
+    rekordy nadpisane przez późniejsze wtyczki (do 50) + `sample` losowych; GMST: `gmst_sample` losowych; GLOB:
+    wszystkie. Typy: Weapon, Armor, Clothing, Book, Miscellaneous, Apparatus, Lockpick, Probe, Repair, Light, NPC,
+    Creature, Race, Class, BirthSign, Faction, Skill. Wynik: openmw_record_compare_status(run_dir)."""
+    from . import recordcmp
+    import subprocess as _sp
+    import sys as _sys
+    e = env()
+    if records_dir:
+        rdir = Path(records_dir)
+    else:
+        prof = e.cfg["profiles"].get("openmwgodot", {})
+        data = prof.get("paths", {}).get("data")
+        if not data:
+            return {"error": "podaj records_dir (brak profilu openmwgodot z paths.data)"}
+        rdir = e.p(data) / "world" / "records"
+    if not (rdir / "index.json").is_file():
+        return {"error": f"brak {rdir}/index.json – zaktualizuj konwersję (konwerter 0.2.0+, etap 1)"}
+    kinds = types or list(recordcmp.SPEC)
+    bad = [k for k in kinds if k not in recordcmp.SPEC]
+    if bad:
+        return {"error": f"nieznane typy: {bad}; dostępne: {list(recordcmp.SPEC)}"}
+    ids = recordcmp.sample(rdir, kinds, sample)
+    gm, gv = recordcmp.gmst_globals_sample(rdir, gmst_sample)
+    run_dir = e.p("Raporty/mcp/rekordy") / time.strftime("%Y-%m-%d-%H%M%S")
+    run_dir.mkdir(parents=True, exist_ok=True)
+    plan = recordcmp.prepare(e, profile, run_dir, ids, gm, gv)
+    (run_dir / "params.json").write_text(json.dumps({"plan": str(Path(plan["run_dir"]) / "plan.json"),
+                                                     "records_dir": str(rdir), "gmst": gm, "globals": gv},
+                                                    ensure_ascii=False), encoding="utf-8")
+    proc = _sp.Popen([_sys.executable, "-m", "openmw_mcp.recordcmp", str(run_dir), str(timeout)],
+                     stdout=open(run_dir / "runner.log", "w"), stderr=_sp.STDOUT, start_new_session=True)
+    return {"run_dir": str(run_dir), "pid": proc.pid, "records_dir": str(rdir),
+            "requested": {k: len(v) for k, v in ids.items()}, "gmst": len(gm), "globals": len(gv),
+            "note": "silnik startuje w tle (ok. 30–60 s); nie używaj w tym czasie okna gry"}
+
+
+@tool
+def openmw_record_compare_status(run_dir: str) -> dict:
+    """Postęp i wynik openmw_record_compare_start: liczby rekordów/pól na typ, niezgodne pola (do 60 przykładów),
+    rekordy brakujące po którejś stronie."""
+    p = Path(run_dir)
+    out = {"run_dir": run_dir}
+    for name in ("progress.json", "report.json"):
+        f = p / name
+        if f.is_file():
+            out[name.split(".")[0]] = json.loads(f.read_text(encoding="utf-8"))
+    return out
 
 
 @tool

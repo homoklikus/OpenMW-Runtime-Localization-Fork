@@ -22,6 +22,9 @@
 * Etap 0: `MWActor` – wspólny aktor gracza/NPC/stworzeń (ruch, kapsuła, intencje) z kontrolerami (gracz:
   `mw_player_controller.gd`); szyna zdarzeń (`mw_events.gd`: komórki, aktywacja, zapis/odczyt); akcje wejścia
   (`mw_input.gd`: menu, szybki zapis/odczyt, współrzędne) zamiast klawiszy w kodzie; Esc działa też w pauzie.
+* Etap 1: konwerter eksportuje `world/records/` (NPC_, CREA, RACE, CLAS, FACT, BODY, BSGN, SKIL, broń, zbroje,
+  ubrania, książki, przedmioty, światła, GMST, GLOB) ze scalaniem wg kolejności ładowania; MCP-openMW:
+  `openmw_record_compare_start/status` – porównanie rekordów z silnikiem OpenMW (Lua) pole po polu.
 * Woda: falowanie i wzór we współrzędnych świata – bez szczelin na łączeniach komórek.
 * Gra `mw_flora.gd`: MultiMesh, bez kolizji i cieni, test alfa, normalne w górę; zasięg i gęstość w ustawieniach.
 * Launcher: zakładka Świat (odpowiednik world.cfg forka), opcje roślinności w zakładce Grafika.

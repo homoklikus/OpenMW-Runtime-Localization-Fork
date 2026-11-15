@@ -252,6 +252,19 @@ def prepare(env, profile: str, shots: list[Shot], run_dir: Path, timing: Optiona
         if (user_cfg / name).is_file():
             shutil.copy2(user_cfg / name, cfg / name)
             copied.append(name)
+    cmd, cwd, run_env = engine_command(env, profile, cfg, ud, base, start_cell)
+    plan = {"profile": profile, "target": eff["target"], "cmd": cmd, "cwd": cwd, "env": run_env,
+            "run_dir": str(base), "log": str(cfg / "openmw.log"), "screenshots": str(ud / "screenshots"),
+            "copied_user_files": copied, "shots": [asdict(s) for s in shots]}
+    (base / "plan.json").write_text(json.dumps(plan, ensure_ascii=False, indent=1), encoding="utf-8")
+    return plan
+
+
+def engine_command(env, profile: str, cfg: Path, ud: Path, base: Path, start_cell: str = "Balmora"):
+    """Polecenie uruchomienia silnika profilu z katalogiem konfiguracji `cfg` jako OSTATNIM (log, ustawienia)
+    i własnym user-data. Zwraca (cmd, cwd, env)."""
+    eff = profiles.effective(env, profile)
+    prof = env.cfg["profiles"][profile]
     common = ["--skip-menu", f"--start={start_cell}", "--no-sound", f"--user-data={ud}"]
     run_env = {"SDL_VIDEODRIVER": "x11"}
     if eff["target"] == "official":
@@ -270,11 +283,7 @@ def prepare(env, profile: str, shots: list[Shot], run_dir: Path, timing: Optiona
         dirs = [str(Path(d)) for d in eff["active_config_dirs"]] + [str(cfg)]
         cmd = [str(bin_dir / "openmw"), "--replace=config"] + [f"--config={d}" for d in dirs] + common
         cwd = str(bin_dir)
-    plan = {"profile": profile, "target": eff["target"], "cmd": cmd, "cwd": cwd, "env": run_env,
-            "run_dir": str(base), "log": str(cfg / "openmw.log"), "screenshots": str(ud / "screenshots"),
-            "copied_user_files": copied, "shots": [asdict(s) for s in shots]}
-    (base / "plan.json").write_text(json.dumps(plan, ensure_ascii=False, indent=1), encoding="utf-8")
-    return plan
+    return cmd, cwd, run_env
 
 
 # --- uruchomienie i zrzuty --------------------------------------------------------------------------------
