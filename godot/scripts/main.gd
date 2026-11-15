@@ -156,7 +156,8 @@ func _process(_d: float) -> void:
 				cam = ch
 	if cam:
 		var r := MWTravel.pick(cam)
-		if r:
+		# podpowiedź tylko dla tego, co klawisz E faktycznie obsługuje (na razie: drzwi z celem podróży)
+		if r and not r.has_meta("mw_marker") and not MWTravel.door_destination(r).is_empty():
 			var base := db.get_object(String(r.get_meta("mw_base", "")))
 			hint = "\n[E] %s" % base.get("name", r.get_meta("mw_base", ""))
 	var rname := interior if not interior.is_empty() else String(envr.regions.get(current_region.to_lower(), {}).get("name", current_region))

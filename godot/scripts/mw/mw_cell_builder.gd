@@ -8,7 +8,17 @@ var models: MWModelCache
 var editor_mode := false        # CS 2.0: bez kolizji terenu, modele jako dzieci bez właściciela
 var with_lights := true
 var with_water := true
-var stats := {"cells": 0, "refs": 0, "missing_model": 0, "no_model": 0, "build_ms": 0.0}
+var show_markers := false       # znaczniki edytora widoczne także poza CS 2.0 (diagnostyka)
+var stats := {"cells": 0, "refs": 0, "missing_model": 0, "no_model": 0, "markers": 0, "build_ms": 0.0}
+
+## Obiekty-znaczniki Morrowinda: punkty docelowe zaklęć i skryptów (Interwencja Almsivi/Boska,
+## więzienie, północ mapy) oraz pomocnicze znaczniki drzwi i podróży z Construction Set.
+## Gra ich nie rysuje (tak samo OpenMW) – zostają w danych, bez modelu i kolizji. W CS 2.0 widoczne.
+const HIDDEN_MARKERS := ["templemarker", "divinemarker", "prisonmarker", "northmarker",
+		"doormarker", "travelmarker"]
+
+static func is_hidden_marker(base_id: String) -> bool:
+	return base_id.to_lower() in HIDDEN_MARKERS
 
 func _init(world_db: MWWorldDB, model_cache: MWModelCache) -> void:
 	db = world_db
@@ -59,6 +69,11 @@ func build_ref(r: Dictionary) -> Node3D:
 	if r.has("extra"):
 		n.set_meta("mw_extra", r["extra"])
 	stats.refs += 1
+	if is_hidden_marker(String(r.get("base", ""))):
+		n.set_meta("mw_marker", true)
+		stats.markers += 1
+		if not (editor_mode or show_markers):
+			return n
 	if base.is_empty():
 		n.set_meta("mw_missing_base", true)
 		return n

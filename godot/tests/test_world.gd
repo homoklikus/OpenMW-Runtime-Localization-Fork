@@ -70,6 +70,20 @@ func _phase_build(db: MWWorldDB, models: MWModelCache) -> void:
 	report["builder"] = builder.stats
 	check(builder.stats.refs == 19, "19 referencji zewnętrznych (jest %d)" % builder.stats.refs)
 	check(builder.stats.missing_model == 0, "wszystkie modele wczytane")
+	# znaczniki edytora (TempleMarker itp.): w grze bez modelu i kolizji, w CS 2.0 widoczne
+	var mk := {"sid": "x.esm#99", "base": "TempleMarker", "godot": {"origin": [0, 0, 0], "quat": [0, 0, 0, 1], "scale": 1.0}}
+	var hidden := builder.build_ref(mk)
+	check(hidden.has_meta("mw_marker") and hidden.get_child_count() == 0, "TempleMarker w grze: bez modelu i kolizji")
+	var eb := MWCellBuilder.new(db, models)
+	eb.editor_mode = true
+	var shown := eb.build_ref({"sid": "x.esm#98", "base": "synth_hut", "godot": mk["godot"]})
+	check(shown.get_child_count() > 0 and not shown.has_meta("mw_marker"), "zwykły obiekt nadal z modelem")
+	check(MWCellBuilder.is_hidden_marker("DivineMarker") and not MWCellBuilder.is_hidden_marker("synth_hut"),
+			"lista znaczników: DivineMarker tak, zwykłe obiekty nie")
+	builder.stats.refs -= 1
+	builder.stats.markers -= 1
+	hidden.free()
+	shown.free()
 	# wnętrze osobno
 	var interior := builder.build_cell("int:synthville, test house")
 	check(interior != null and interior.get_node("Refs").get_child_count() == 7, "wnętrze: 7 referencji")
