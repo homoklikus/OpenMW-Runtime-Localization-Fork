@@ -194,11 +194,11 @@ func script_stat(t: Dictionary, fname: String) -> float:
 		var cr: Dictionary = main.builder.actors.record("creature", base)
 		match name:
 			"level": return float(cr.get("level", 1))
-			"health": return float(cr.get("health", 0))
+			"health": return float(main.state.actors.get(String(t.get("sid", "")), {}).get("health", cr.get("health", 0)))
 		return 0.0
 	match name:
 		"level": return float(rec.get("level", 1))
-		"health": return npc_health(rec)        # obrażenia aktorów – etap 7 (bieżące = maksymalne)
+		"health": return float(main.state.actors.get(String(t.get("sid", "")), {}).get("health", npc_health(rec)))
 	return 0.0
 
 ## Zdrowie NPC: z rekordu albo autoobliczone jak OpenMW (npc.cpp autoCalculateAttributes).

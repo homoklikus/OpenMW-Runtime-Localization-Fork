@@ -478,7 +478,16 @@ def _gmst(name, v) -> bytes:
 GMST_TRADE = {"fDispositionMod": 1.0, "fBargainOfferBase": 50.0, "fBargainOfferMulti": -4.0,
               "iBarterSuccessDisposition": 1, "iBarterFailDisposition": -1, "fBarterGoldResetDelay": 24.0,
               "fSpellValueMult": 10.0, "fEffectCostMult": 0.5, "iTrainingMod": 10, "fTravelMult": 4000.0,
-              "fTravelTimeMult": 16000.0, "fMagesGuildTravel": 30}
+              "fTravelTimeMult": 16000.0, "fMagesGuildTravel": 30,
+              # walka
+              "fDamageStrengthBase": 0.5, "fDamageStrengthMult": 0.1, "fCombatArmorMinMult": 0.25,
+              "fUnarmoredBase1": 0.1, "fUnarmoredBase2": 0.065, "iBaseArmorSkill": 30, "fCombatInvisoMult": 0.2,
+              "fMinHandToHandMult": 0.1, "fMaxHandToHandMult": 0.5, "fHandtoHandHealthPer": 0.1,
+              "fCombatDistance": 128.0, "fHandToHandReach": 1.0, "fFatigueAttackBase": 2.0,
+              "fFatigueAttackMult": 0.0, "fWeaponFatigueMult": 0.25, "fWeaponDamageMult": 0.1,
+              "fCombatKODamageMult": 1.5, "fKnockDownMult": 0.5, "iKnockDownOddsMult": 50, "iKnockDownOddsBase": 50,
+              "fProjectileMinSpeed": 400.0, "fProjectileMaxSpeed": 3000.0, "fCombatAngleXY": 60.0,
+              "fCombatAngleZ": 60.0, "fLightMaxMod": 0.6, "fMedMaxMod": 0.9, "iCuirassWeight": 30}
 TRADER_INVENTORY = [(5, "misc_synth_spoon"), (1, "synth_sword"), (50, "gold_001")]
 TRADER_SPELLS = ["synth_bolt", "synth_ability"]
 
@@ -513,7 +522,11 @@ def _stage7_records() -> list:
     refusal = [W.dial("Service Refusal", 0),
                W.info("sr1", "", "", "Nie handluje z takimi jak ty.", actor="synth_trader", disposition=20),
                W.dial("Greeting 5", 2), W.info("gt", "", "", "Czego potrzebujesz?", actor="synth_trader")]
-    return [athletics, merc, fire, bolt, _trader()] + refusal + [_gmst(k, v) for k, v in {**GMST_STAGE7, **GMST_TRADE}.items()]
+    bow = W.record("WEAP", [W.sub("NAME", W.zs("synth_bow")), W.sub("FNAM", W.zs("Luk testowy")),
+                            W.sub("WPDT", struct.pack("<fiHHffH", 5.0, 50, 9, 200, 1.0, 1.0, 10) + bytes([1, 10, 0, 0, 0, 0]) + struct.pack("<i", 0))])
+    arrow = W.record("WEAP", [W.sub("NAME", W.zs("synth_arrow")), W.sub("FNAM", W.zs("Strzala testowa")),
+                              W.sub("WPDT", struct.pack("<fiHHffH", 0.1, 1, 12, 0, 1.0, 1.0, 0) + bytes([2, 6, 0, 0, 0, 0]) + struct.pack("<i", 0))])
+    return [athletics, merc, fire, bolt, bow, arrow, _trader()] + refusal + [_gmst(k, v) for k, v in {**GMST_STAGE7, **GMST_TRADE}.items()]
 
 
 def _stage3_records() -> list:

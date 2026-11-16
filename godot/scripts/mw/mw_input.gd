@@ -11,6 +11,8 @@ const DEFAULTS := {
 	"inventory": KEY_I,
 	"journal": KEY_J,
 	"rest": KEY_T,
+	"ready_weapon": KEY_F,
+	"attack": -MOUSE_BUTTON_LEFT,          # wartość ujemna – przycisk myszy
 }
 
 static func register_defaults() -> void:
@@ -18,6 +20,12 @@ static func register_defaults() -> void:
 		if InputMap.has_action(action):
 			continue
 		InputMap.add_action(action)
-		var ev := InputEventKey.new()
-		ev.physical_keycode = DEFAULTS[action]
-		InputMap.action_add_event(action, ev)
+		var code: int = DEFAULTS[action]
+		if code < 0:
+			var mb := InputEventMouseButton.new()
+			mb.button_index = -code
+			InputMap.action_add_event(action, mb)
+		else:
+			var ev := InputEventKey.new()
+			ev.physical_keycode = code
+			InputMap.action_add_event(action, ev)

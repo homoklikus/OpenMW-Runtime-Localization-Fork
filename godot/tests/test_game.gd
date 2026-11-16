@@ -253,12 +253,12 @@ func _test_save(main) -> void:
 	GS.write_file(dir.path_join("old.mwsave"), raw)
 	w = main.load_game(dir.path_join("old.mwsave"))
 	check(not str(w).contains("BŁĄD") and FileAccess.file_exists(dir.path_join("old.mwsave.v0.bak")),
-			"migracja v0 → v3 z kopią bezpieczeństwa")
+			"migracja v0 → v4 z kopią bezpieczeństwa")
 	var v1 := {"format": "mwgodot-save", "version": 1, "refs": {}, "player": {"interior": ""}}
 	var mig: Dictionary = GS.migrate(v1)
-	check(mig.get("migrated", false) and mig["data"]["version"] == 3 and mig["data"]["inventories"] == {}
+	check(mig.get("migrated", false) and mig["data"]["version"] == 4 and mig["data"]["actors"] == {} and mig["data"]["inventories"] == {}
 			and mig["data"]["dynamic"] == {} and mig["data"]["player"]["level"] == 1 and mig["data"]["dialogue"] == {},
-			"migracja v1 → v3: nowe sekcje puste (także dialogi), poziom 1")
+			"migracja v1 → v4: nowe sekcje puste (dialogi, aktorzy), poziom 1")
 	check(main.load_game(dir.path_join("nie_ma.mwsave"))[0].begins_with("BŁĄD"), "brak pliku: czytelny błąd")
 	# sprzątanie stanu dla dalszych testów
 	main.state.from_dict({})

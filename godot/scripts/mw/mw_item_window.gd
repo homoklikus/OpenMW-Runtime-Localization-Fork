@@ -18,6 +18,7 @@ var title: Label
 var info: Label
 var take_all_btn: Button
 var drop_btn: Button
+var equip_btn: Button
 var _left_ids := []
 var _right_ids := []
 
@@ -48,6 +49,7 @@ func _ready() -> void:
 	box.add_child(buttons)
 	take_all_btn = _button(buttons, "Weź wszystko", _take_all)
 	drop_btn = _button(buttons, "Odłóż na ziemię", func(): _move_from_right(_selected(right)))
+	equip_btn = _button(buttons, "Załóż / zdejmij", func(): toggle_equip(_selected(right)))
 	_button(buttons, "Zamknij (Esc)", close)
 	panel.position = (get_viewport().get_visible_rect().size - panel.custom_minimum_size) / 2.0
 	visible = false
@@ -78,6 +80,7 @@ func open_container(sid: String, rec: Dictionary, name: String) -> void:
 	left.visible = true
 	take_all_btn.visible = true
 	drop_btn.visible = false
+	equip_btn.visible = false
 	_show()
 
 func open_inventory() -> void:
@@ -85,6 +88,7 @@ func open_inventory() -> void:
 	left.visible = false
 	take_all_btn.visible = false
 	drop_btn.visible = true
+	equip_btn.visible = main != null and main.has_method("equip_item")
 	_show()
 
 func _show() -> void:
@@ -113,7 +117,8 @@ func _fill(l: ItemList, items: Array) -> Array:
 	var ids := []
 	for e in interaction.inventory.ordered(items):
 		var name: String = interaction.item_name(e.kind, e.id, e.rec)
-		l.add_item("%s%s" % [name, (" × %d" % e.count) if e.count > 1 else ""])
+		var worn: bool = l == right and main != null and main.has_method("equipped_slot_of") and main.equipped_slot_of(e.id) >= 0
+		l.add_item("%s%s%s" % [name, (" × %d" % e.count) if e.count > 1 else "", "  [założone]" if worn else ""])
 		ids.append(e.id)
 	return ids
 
@@ -157,6 +162,23 @@ func _move_from_right(i: int) -> void:
 	elif main != null and main.has_method("drop_item"):
 		main.drop_item(id, n)
 	_sound(id, false)
+	refresh()
+
+## Załóż albo zdejmij zaznaczony przedmiot gracza (etap 7).
+func toggle_equip(i: int) -> void:
+	if i < 0 or i >= _right_ids.size() or main == null:
+		return
+	var id: String = _right_ids[i]
+	var slot: int = main.equipped_slot_of(id)
+	if slot >= 0:
+		main.unequip_slot(slot)
+	else:
+		var msg: String = main.equip_item(id)
+		if not msg.is_empty():
+			info.text = msg
+			return
+	if main.get("audio") != null:
+		main.audio.play("Item Armor Light Up" if slot < 0 else "Item Armor Light Down")
 	refresh()
 
 func _sound(id: String, up: bool) -> void:

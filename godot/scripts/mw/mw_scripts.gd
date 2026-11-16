@@ -17,7 +17,7 @@ var errors := {}                 # opis → liczba
 var calls := {}                  # nazwa funkcji → liczba wywołań (obsługiwanych)
 var partial := {}                # funkcje zależne od późniejszych etapów – zwracają stan „spoczynku” (0)
 ## Zdarzenia walki/AI (etapy 7–8): bez walki i śmierci ich poprawna wartość to 0.
-const IDLE_ZERO := ["ondeath", "onknockout", "onmurder", "onpchitme", "gettarget", "getattacked", "getweapondrawn",
+const IDLE_ZERO := ["onknockout", "onmurder", "onpchitme", "gettarget", "getattacked", "getweapondrawn",
 	"getspellreadied", "getcommondisease", "getblightdisease", "getpcsleep", "getcurrentaipackage", "getaipackagedone",
 	"getforcesneak", "getforcerun", "getpcjumping", "getpcsneaking", "getpcinjail", "getpctraveling", "iswerewolf",
 	"getwerewolfkills", "getpccrimelevel", "getdetected", "getlineofsight", "getlos"]
@@ -25,6 +25,7 @@ var delta := 0.0
 var button_pressed := -1
 var cell_changed := false
 var activated := {}              # sid → true (aktywowany w tej klatce; OnActivate)
+var died := {}                   # sid → true (zginął od ostatniej klatki; OnDeath – etap 7)
 var _refindex = null
 var frame := 0
 
@@ -136,6 +137,7 @@ func tick(dt: float, local_refs: Array) -> void:
 		c.node = n
 		run(c)
 	activated.clear()
+	died.clear()
 	cell_changed = false
 
 ## Skrypt wyniku odpowiedzi (BNAM): w kontekście rozmówcy – jego zmienne lokalne (DialogueManager::executeScript).
@@ -501,6 +503,11 @@ func _call(ref, fname: String, args: Array, c: Ctx):
 			return null
 		"onactivate":
 			return 1.0 if activated.has(c.sid) and ref == null else 0.0
+		"ondeath":
+			var td := _target(ref, c)
+			return 1.0 if not td.is_empty() and died.has(String(td.sid)) else 0.0
+		"getdeadcount":
+			return float(int(_dlg()._ds().deaths.get(_str(args, 0).to_lower(), 0)))
 		"activate":
 			var t4 := _target(ref, c)
 			if t4.get("node") != null:

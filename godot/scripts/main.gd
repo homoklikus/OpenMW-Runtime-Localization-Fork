@@ -32,6 +32,8 @@ const RestWindowScript := preload("res://scripts/mw/mw_rest_window.gd")
 const MagicScript := preload("res://scripts/mw/mw_magic.gd")
 const TradeScript := preload("res://scripts/mw/mw_trade.gd")
 const TradeWindowScript := preload("res://scripts/mw/mw_trade_window.gd")
+const CombatScript := preload("res://scripts/mw/mw_combat.gd")
+const EQ := preload("res://scripts/mw/mw_equipment.gd")
 var events = Events.new()           # szyna zdarzeń (etap 0)
 var interaction = null                # MWInteraction (etap 3)
 var item_window = null                # okno pojemnika / ekwipunku
@@ -48,6 +50,7 @@ var rest_window = null                # etap 7: odpoczynek i awans
 var magic = null                      # etap 7: wzory magii (koszty, efekty)
 var trade = null                      # etap 7: handel i usługi
 var trade_window = null
+var combat = null                     # etap 7: walka
 var state = GameStateScript.new()   # różnice stanu gry względem danych bazowych (zapis gry)
 var pause_menu: Control
 var loc  # Loc
@@ -121,6 +124,7 @@ func _ready() -> void:
 	add_child(dialogue_window)
 	magic = MagicScript.new(builder.actors)
 	trade = TradeScript.new(self)
+	combat = CombatScript.new(self)
 	trade_window = TradeWindowScript.new()
 	trade_window.main = self
 	trade_window.trade = trade
@@ -221,7 +225,7 @@ func _on_player_landed(height: float) -> void:
 			audio.play("Health Damage")
 		if float(st.health) <= 0.0:
 			st["health"] = 0.0
-			_toast("Upadek: −%d zdrowia. Zdrowie spadło do zera (śmierć – etap 7)." % roundi(lost))
+			_player_died()
 		else:
 			_toast("Upadek: −%d zdrowia" % roundi(lost))
 
@@ -232,6 +236,7 @@ var _weight_cache := -1.0
 func _on_inventory_changed(sid: String) -> void:
 	if sid == "player":
 		_weight_cache = -1.0
+		_check_equipment()
 var _run_secs := 0.0
 var _swim_secs := 0.0
 
@@ -303,6 +308,329 @@ func _update_player_rpg(dt: float) -> void:
 				skill_used(character.SK_ATHLETICS, "athletics_run")
 				_run_secs -= 1.0
 	character.restore_fatigue(st, dt)
+
+# --- etap 7c: ekwipunek gracza i walka --------------------------------------------------------------------
+
+var weapon_drawn := false
+var _attack_hold := -1.0          # czas przytrzymania ataku (−1 – brak ataku)
+var projectiles: Array = []       # [{"node", "vel", "att", "launcher", "ammo", "strength", "life"}]
+const ATTACK_WINDUP_SECONDS := 0.6  # pełny zamach (OpenMW: klucze „min/max attack” animacji × szybkość broni)
+
+func player_ready_to_block() -> bool:
+	return weapon_drawn and _attack_hold < 0.0
+
+func _equipment() -> Dictionary:
+	var st := player_stats()
+	if not st.get("equipment") is Dictionary:
+		st["equipment"] = {}
+	return st.equipment
+
+## Miejsca dla przedmiotu (InventoryStore: broń w prawej ręce, amunicja, zbroja wg typu, tarcza i światło w lewej,
+## ubrania wg typu, pierścienie – lewy, potem prawy).
+func item_slots(id: String) -> Array:
+	var it: Dictionary = interaction.inventory.item(id)
+	if it.is_empty():
+		return []
+	match String(it.kind):
+		"weapon":
+			var t := int(it.rec.get("weapon_type", 0))
+			return [EQ.SLOT_AMMUNITION] if t in [12, 13] else [EQ.SLOT_CARRIED_RIGHT]
+		"armor":
+			var at := int(it.rec.get("armor_type", -1))
+			return [EQ.ARMOR_SLOTS[at]] if EQ.ARMOR_SLOTS.has(at) else []
+		"clothing":
+			return EQ.CLOTHING_SLOTS.get(int(it.rec.get("clothing_type", -1)), [])
+		"light":
+			return [EQ.SLOT_CARRIED_LEFT] if bool(it.rec.get("carry", false)) else []
+	return []
+
+func equipped_slot_of(id: String) -> int:
+	var eq := _equipment()
+	for s in eq:
+		if String(eq[s].id) == id.to_lower():
+			return int(s)
+	return -1
+
+## Załóż przedmiot gracza. Broń dwuręczna zdejmuje tarczę i odwrotnie. → komunikat ("" = gotowe)
+func equip_item(id: String) -> String:
+	var k := id.to_lower()
+	if interaction.inventory.count_of("player", {}, k) <= 0:
+		return "Nie masz tego przedmiotu."
+	var slots := item_slots(k)
+	if slots.is_empty():
+		return "Tego przedmiotu nie można założyć."
+	var eq := _equipment()
+	var slot: int = slots[0]
+	if slots.size() > 1 and eq.has(str(slots[0])) and not eq.has(str(slots[1])):
+		slot = slots[1]
+	var it: Dictionary = interaction.inventory.item(k)
+	if slot == EQ.SLOT_CARRIED_RIGHT and int(it.rec.get("weapon_type", 0)) in EQ.WEAPON_TWO_HANDED:
+		eq.erase(str(EQ.SLOT_CARRIED_LEFT))
+	if slot == EQ.SLOT_CARRIED_LEFT and eq.has(str(EQ.SLOT_CARRIED_RIGHT)):
+		var w: Dictionary = interaction.inventory.item(String(eq[str(EQ.SLOT_CARRIED_RIGHT)].id))
+		if not w.is_empty() and int(w.rec.get("weapon_type", 0)) in EQ.WEAPON_TWO_HANDED:
+			eq.erase(str(EQ.SLOT_CARRIED_RIGHT))
+	var prev := equipped_slot_of(k)
+	if prev >= 0 and interaction.inventory.count_of("player", {}, k) <= 1:
+		eq.erase(str(prev))
+	eq[str(slot)] = {"id": k, "health": -1.0}
+	_weight_cache = -1.0
+	return ""
+
+func unequip_slot(slot: int) -> void:
+	_equipment().erase(str(slot))
+
+## Zdejmuje założone rzeczy, których gracz już nie ma (sprzedane, odłożone).
+func _check_equipment() -> void:
+	var eq := _equipment()
+	for s in eq.keys():
+		if interaction.inventory.count_of("player", {}, String(eq[s].id)) <= 0:
+			eq.erase(s)
+
+## Cel ataku wręcz (getHitContact): najbliższy żywy aktor w zasięgu, przed graczem (kąty fCombatAngleXY/Z),
+## w linii wzroku.
+func melee_target(reach_units: float) -> Dictionary:
+	var cam := player.get_node_or_null("Camera3D") as Camera3D
+	if cam == null:
+		return {}
+	var upm := MWCoords.UNITS_PER_METER
+	var pmw := MWCoords.godot_to_mw(player.global_position)
+	var fwd := -cam.global_transform.basis.z
+	var dir_xy := Vector2(fwd.x, -fwd.z).normalized()           # MW: x, y (y = −z Godota)
+	var vert := fwd.y
+	var axy := float(combat._gmst("fCombatAngleXY", 60.0)) / 90.0
+	var az := float(combat._gmst("fCombatAngleZ", 60.0)) / 90.0
+	var eye := pmw + Vector3(0, 0, 128.0 * 0.85)
+	var best := {}
+	var best_d := INF
+	for key in loaded:
+		var refs: Node = loaded[key].get_node_or_null("Refs")
+		if refs == null:
+			continue
+		for n in refs.get_children():
+			if not n.has_meta("mw_actor") or n.get_meta("mw_disabled", false):
+				continue
+			var f: Dictionary = combat.fighter_of(n)
+			if f.is_empty() or combat.is_dead(f):
+				continue
+			var tmw := MWCoords.godot_to_mw((n as Node3D).global_position)
+			var he := _half_extents(n)
+			var dist := tmw.distance_to(pmw) - 29.0 - he.y
+			if dist >= best_d or absf(pmw.z - tmw.z) >= reach_units or dist >= reach_units:
+				continue
+			var to := Vector2(tmw.x - pmw.x, tmw.y - pmw.y).normalized()
+			if to.dot(dir_xy) <= 0.0 or absf(to.x * dir_xy.y - to.y * dir_xy.x) > axy:
+				continue
+			var feet := (tmw - eye).normalized()
+			var head := (tmw + Vector3(0, 0, he.z * 2.0) - eye).normalized()
+			if vert - head.z > az or vert - feet.z < -az:
+				continue
+			if not _line_of_sight(cam.global_position, (n as Node3D).global_position + Vector3(0, he.z / upm, 0), n):
+				continue
+			best_d = dist
+			best = f
+	return best
+
+## Połowa wymiarów aktora w jednostkach MW (OpenMW: kształt kolizji; tu: NPC – stałe, stworzenie – z modelu).
+func _half_extents(n: Node) -> Vector3:
+	if String(n.get_meta("mw_actor", "")) == "npc":
+		return Vector3(29.0, 29.0, 64.0)
+	var aabb := AABB()
+	var first := true
+	for m in n.find_children("*", "MeshInstance3D", true, false):
+		var b: AABB = (m as MeshInstance3D).global_transform * (m as MeshInstance3D).get_aabb()
+		aabb = b if first else aabb.merge(b)
+		first = false
+	if first:
+		return Vector3(32.0, 32.0, 48.0)
+	var s := aabb.size * MWCoords.UNITS_PER_METER * 0.5
+	return Vector3(s.x, s.z, s.y)
+
+func _line_of_sight(from: Vector3, to: Vector3, target: Node) -> bool:
+	var q := PhysicsRayQueryParameters3D.create(from, to)
+	q.exclude = [player.get_rid()]
+	var hit := player.get_world_3d().direct_space_state.intersect_ray(q)
+	if hit.is_empty():
+		return true
+	var r := MWTravel.ref_of(hit.collider)
+	return r == target or (r != null and r.has_meta("mw_actor"))
+
+func _attack_strength() -> float:
+	return clampf(_attack_hold / ATTACK_WINDUP_SECONDS, 0.0, 1.0)
+
+## Atak gracza po puszczeniu przycisku: broń biała/wręcz albo strzał (łuk, kusza, broń rzucana).
+func player_attack(roll := -1) -> Dictionary:
+	var strength := _attack_strength()
+	_attack_hold = -1.0
+	var att: Dictionary = combat.player_fighter()
+	var w: Dictionary = combat.weapon(att)
+	var wt := int(w.rec.get("weapon_type", -1)) if not w.is_empty() else -1
+	if wt in [9, 10, 11]:
+		return _shoot(att, w, wt, strength)
+	var mv: Vector2 = player.move_input
+	var at := 0
+	if absf(mv.y) > absf(mv.x) + 0.2:
+		at = 2
+	elif absf(mv.x) > absf(mv.y) + 0.2:
+		at = 1
+	var target := melee_target(combat.reach(att, w))
+	if audio != null:
+		audio.play("Weapon Swish")
+	var r: Dictionary = combat.melee(att, target, at, strength, roll)
+	r["target"] = target.get("sid", "")
+	return r
+
+## Strzał: łuk/kusza zużywa amunicję z miejsca amunicji, broń rzucana – siebie; pocisk leci prosto z grawitacją
+## 0,1 × (ProjectileManager), prędkość fProjectileMin…MaxSpeed (rzucana: fThrownWeaponMin…MaxSpeed) × siła.
+func _shoot(att: Dictionary, w: Dictionary, wt: int, strength: float) -> Dictionary:
+	var ammo := w
+	if wt != 11:
+		var a: Dictionary = combat.equipment(att).get(EQ.SLOT_AMMUNITION, {})
+		if a.is_empty() or int(a.rec.get("weapon_type", -1)) != (12 if wt == 9 else 13):
+			_toast(dialogue.gmst_text("sNotifyMessage60", "Brak amunicji."))
+			return {"success": false, "no_ammo": true}
+		ammo = a
+	interaction.inventory.remove("player", {}, String(ammo.id), 1)
+	set_fatigue_after_attack(att, w, strength)
+	var mn := float(combat._gmst("fThrownWeaponMinSpeed" if wt == 11 else "fProjectileMinSpeed", 400.0))
+	var mx := float(combat._gmst("fThrownWeaponMaxSpeed" if wt == 11 else "fProjectileMaxSpeed", 3000.0))
+	var speed := (mn + (mx - mn) * strength) / MWCoords.UNITS_PER_METER
+	var cam := player.get_node("Camera3D") as Camera3D
+	var nd := Node3D.new()
+	nd.name = "Projectile"
+	add_child(nd)
+	nd.global_position = cam.global_position - cam.global_transform.basis.z * 0.5
+	projectiles.append({"node": nd, "vel": -cam.global_transform.basis.z * speed, "att": att, "launcher": w if wt != 11 else {},
+		"ammo": ammo, "strength": strength, "life": 10.0})
+	return {"success": true, "shot": true}
+
+func set_fatigue_after_attack(att: Dictionary, w: Dictionary, strength: float) -> void:
+	combat.set_fatigue(att, combat.fatigue(att) - combat.attack_fatigue(att, w, strength))
+
+func _update_combat(dt: float) -> void:
+	if _attack_hold >= 0.0:
+		_attack_hold += dt
+	if projectiles.is_empty():
+		return
+	var g := 9.8 * 64.0 * 0.1 / MWCoords.UNITS_PER_METER
+	for p in projectiles.duplicate():
+		var nd: Node3D = p.node
+		var from := nd.global_position
+		p.vel.y -= g * dt
+		var to: Vector3 = from + p.vel * dt
+		p.life -= dt
+		var hit_actor := _projectile_actor(from, to)
+		var q := PhysicsRayQueryParameters3D.create(from, to)
+		q.exclude = [player.get_rid()]
+		var wall := player.get_world_3d().direct_space_state.intersect_ray(q)
+		if not hit_actor.is_empty():
+			combat.projectile_hit(p.att, hit_actor, p.launcher, p.ammo, float(p.strength))
+			_end_projectile(p)
+		elif not wall.is_empty() or p.life <= 0.0:
+			_end_projectile(p)
+		else:
+			nd.global_position = to
+
+## Aktor na odcinku lotu pocisku (odległość od osi aktora < połowa szerokości, na wysokości aktora).
+func _projectile_actor(a: Vector3, b: Vector3) -> Dictionary:
+	for key in loaded:
+		var refs: Node = loaded[key].get_node_or_null("Refs")
+		if refs == null:
+			continue
+		for n in refs.get_children():
+			if not n.has_meta("mw_actor") or n.get_meta("mw_disabled", false):
+				continue
+			var he := _half_extents(n) / MWCoords.UNITS_PER_METER
+			var c := (n as Node3D).global_position + Vector3(0, he.z, 0)
+			var p := Geometry3D.get_closest_point_to_segment(c, a, b)
+			if Vector2(p.x - c.x, p.z - c.z).length() <= he.x and absf(p.y - c.y) <= he.z:
+				var f: Dictionary = combat.fighter_of(n)
+				if not f.is_empty() and not combat.is_dead(f):
+					return f
+	return {}
+
+func _end_projectile(p: Dictionary) -> void:
+	projectiles.erase(p)
+	if is_instance_valid(p.node):
+		p.node.queue_free()
+
+## Aktor zaatakowany przez gracza (stan; reakcje – AI walki, przestępstwa, strażnicy – etap 8).
+func on_actor_attacked(_f: Dictionary) -> void:
+	pass
+
+## Śmierć: aktor – stan, licznik zabitych (Dead w dialogach, GetDeadCount), OnDeath, ciało do przeszukania;
+## gracz – koniec gry (wczytanie zapisu).
+func on_actor_died(f: Dictionary, _att: Dictionary) -> void:
+	if f.kind == "player":
+		_player_died()
+		return
+	var a: Dictionary = combat._actor_state(f)
+	a["dead"] = true
+	a["health"] = 0.0
+	var ds: Dictionary = dialogue._ds()
+	ds.deaths[f.base] = int(ds.deaths.get(f.base, 0)) + 1
+	if scripts != null:
+		scripts.died[f.sid] = true
+	if f.node != null and is_instance_valid(f.node):
+		apply_dead_pose(f.node)
+
+## Ciało: leży (obrót o 90°), bez kolizji kapsuły (animacja śmierci – etap 10).
+func apply_dead_pose(n: Node) -> void:
+	if n.get_meta("mw_dead", false):
+		return
+	n.set_meta("mw_dead", true)
+	var cap := n.get_node_or_null("Capsule") as CollisionShape3D
+	if cap != null:
+		cap.disabled = true
+	var t := (n as Node3D).transform
+	t.basis = t.basis * Basis(Vector3.RIGHT, -PI / 2.0)
+	(n as Node3D).transform = t.translated_local(Vector3(0, 0.3, 0))
+
+func _apply_dead_poses() -> void:
+	if not state.get("actors") is Dictionary:
+		return
+	for key in loaded:
+		var refs: Node = loaded[key].get_node_or_null("Refs")
+		if refs == null:
+			continue
+		for n in refs.get_children():
+			if bool(state.actors.get(String(n.get_meta("mw_sid", "")), {}).get("dead", false)):
+				apply_dead_pose(n)
+
+var death_screen: CanvasLayer = null
+
+func _player_died() -> void:
+	player_stats()["health"] = 0.0
+	if death_screen != null and is_instance_valid(death_screen):
+		return
+	death_screen = CanvasLayer.new()
+	death_screen.layer = 40
+	death_screen.process_mode = Node.PROCESS_MODE_ALWAYS
+	var panel := PanelContainer.new()
+	var box := VBoxContainer.new()
+	panel.add_child(box)
+	var l := Label.new()
+	l.text = "Nie żyjesz."
+	box.add_child(l)
+	if FileAccess.file_exists(quicksave_path()):
+		var b := Button.new()
+		b.text = "Wczytaj szybki zapis"
+		b.pressed.connect(func():
+			death_screen.queue_free()
+			death_screen = null
+			get_tree().paused = false
+			load_game(quicksave_path()))
+		box.add_child(b)
+	var q := Button.new()
+	q.text = "Zakończ grę"
+	q.pressed.connect(func(): get_tree().quit(0))
+	box.add_child(q)
+	death_screen.add_child(panel)
+	add_child(death_screen)
+	panel.position = (get_viewport().get_visible_rect().size - panel.get_combined_minimum_size()) / 2.0
+	get_tree().paused = true
+	if DisplayServer.get_name() != "headless":
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 static func _load_settings(path: String) -> Dictionary:
 	if path.is_empty() or not FileAccess.file_exists(path):
@@ -509,6 +837,7 @@ func _process(_d: float) -> void:
 	_update_water_level()
 	if not get_tree().paused:
 		_update_player_rpg(_d)
+		_update_combat(_d)
 	if scripts != null and player != null and not get_tree().paused and arg("scripts", "1") != "0":
 		scripts.tick(_d, script_host.scripted_refs())
 	_capture_tick()
@@ -613,6 +942,19 @@ func _unhandled_input(e: InputEvent) -> void:
 		DisplayServer.clipboard_set(line)
 		print("MWGODOT_POS ", line)
 		_toast("Skopiowano do schowka: " + line)
+	if e.is_action_pressed("ready_weapon") and player:
+		weapon_drawn = not weapon_drawn
+		_toast("Broń dobyta" if weapon_drawn else "Broń schowana", 1.0)
+		get_viewport().set_input_as_handled()
+		return
+	if e.is_action_pressed("attack") and player and weapon_drawn and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		_attack_hold = 0.0
+		get_viewport().set_input_as_handled()
+		return
+	if e.is_action_released("attack") and _attack_hold >= 0.0:
+		player_attack()
+		get_viewport().set_input_as_handled()
+		return
 	if e.is_action_pressed("rest") and player and rest_window != null and not rest_window.visible:
 		rest_window.open()
 		get_viewport().set_input_as_handled()
@@ -637,6 +979,10 @@ func activate(r: Node, force_default := false) -> bool:
 		scripts.activated[String(r.get_meta("mw_sid", ""))] = true
 		return true
 	if dialogue != null and dialogue.is_actor_node(r):
+		if combat != null and combat.is_dead(combat.fighter_of(r)):
+			var f: Dictionary = combat.fighter_of(r)           # martwy aktor – przeszukanie (jak pojemnik)
+			item_window.open_container(f.sid, f.rec, dialogue.actor_name(dialogue.make_actor(r)))
+			return true
 		open_dialogue(r)                  # ActionTalk (NPC, stworzenia); bez powitania okno się nie otwiera
 		return true
 	var at: Vector3 = (r as Node3D).global_position
@@ -730,6 +1076,7 @@ func _load(key: String) -> void:
 		add_child(n)
 		loaded[key] = n
 		events.cell_loaded.emit(key)
+		_apply_dead_poses()
 
 ## Poziom wody dla gracza (pływanie): komórka zewnętrzna albo wnętrze z wodą (water_height_m z konwertera).
 func _update_water_level() -> void:
@@ -901,6 +1248,7 @@ func _on_ref_changed(sid: String) -> void:
 						refs_node.add_child(nn)
 						refs_node.move_child(nn, n.get_index())
 						n.free()
+						_apply_dead_poses()
 						return
 
 ## Raport skryptów (nieobsługiwane i częściowe funkcje, błędy) – w katalogu zapisów, dla MCP i diagnostyki.
