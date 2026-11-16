@@ -2,6 +2,8 @@
 local core = require('openmw.core')
 local self = require('openmw.self')
 local I = require('openmw.interfaces')
+local okAnim, anim = pcall(require, 'openmw.animation')
+local IDLES = { 'idle2', 'idle3', 'idle4', 'idle5', 'idle6', 'idle7', 'idle8', 'idle9' }
 
 local function pkg()
     local ok, p = pcall(function() return I.AI.getActivePackage() end)
@@ -11,6 +13,12 @@ local function pkg()
     pcall(function() t.isRepeat = p.isRepeat end)
     pcall(function() if p.target then t.target = p.target.recordId end end)
     pcall(function() if p.destPosition then t.dest = { p.destPosition.x, p.destPosition.y, p.destPosition.z } end end)
+    if okAnim then                         -- bezczynność wędrówki: która animacja idleN gra (AiWander::playIdle)
+        for _, g in ipairs(IDLES) do
+            local ok, playing = pcall(anim.isPlaying, self, g)
+            if ok and playing then t.idle = g end
+        end
+    end
     return t
 end
 

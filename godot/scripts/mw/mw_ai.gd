@@ -39,6 +39,8 @@ func _gmst(id: String, def) -> Variant:
 
 # --- siatki ścieżek ----------------------------------------------------------------------------------------
 
+var _doors := {}          # klucz komórki → [[sid, pozycja MW, obrót z]] drzwi (proximityToDoor)
+
 func cell_key_at(mw: Vector3) -> String:
 	if not main.interior.is_empty():
 		return "int:" + main.interior.to_lower()
@@ -373,7 +375,8 @@ func _wander(n: CharacterBody3D, r: Dictionary, st: Dictionary, p: Dictionary, d
 			r.check_idle = float(r.check_idle) + dt
 			if float(r.check_idle) >= IDLE_CHECK and dist > 0.0:
 				r.check_idle = 0.0
-				if not _near_allowed(n, r, float(_gmst("iMaxActivateDist", 192)) * 1.6):
+				var near := float(_gmst("iMaxActivateDist", 192)) * 1.6
+				if _near_door(n, near) or not _near_allowed(n, r, near):
 					r.wstate = "move"
 					return false
 			if float(r.idle_t) <= 0.0:
@@ -446,15 +449,39 @@ func _allowed_positions(n: Node, start: Vector3, dist: float) -> Array:
 		out.remove_at(bi)
 	return out
 
+## isNearAllowedPosition: tylko punkty dozwolone – bieżący cel jest z nich usunięty (setPathToAnAllowedPosition),
+## więc po dojściu do punktu bez innego w pobliżu NPC po chwili bezczynności rusza dalej.
 func _near_allowed(n: Node, r: Dictionary, d: float) -> bool:
 	var here := mw_pos(n)
-	var lst: Array = (r.allowed as Array).duplicate()
-	if r.has("current"):
-		lst.append(r.current)
-	for v in lst:
+	for v in (r.allowed as Array):
 		if (v as Vector3).distance_to(here) < d:
 			return true
-	return lst.is_empty()
+	return false
+
+## proximityToDoor (obstacle.cpp): zamknięte drzwi komórki aktora w odległości d (w poziomie) i w stożku ±60°
+## przed nim – bezczynny NPC odchodzi spod drzwi.
+func _near_door(n: Node3D, d: float) -> bool:
+	var key := cell_key_at(mw_pos(n))
+	if not _doors.has(key):
+		var lst := []
+		for r in main.db.get_cell(key).get("refs", []):
+			if String(main.db.get_object(String(r.get("base", ""))).get("type", "")) == "DOOR":
+				var mw: Dictionary = r.get("mw", {})
+				lst.append([String(r.get("sid", "")), _vec(mw.get("pos")), float((mw.get("rot", [0, 0, 0]) as Array)[2])])
+		_doors[key] = lst
+	var here := mw_pos(n)
+	var fwd := Vector2(-sin(n.rotation.y), cos(n.rotation.y))
+	for e in _doors[key]:
+		if main.state != null and not main.state.is_enabled(String(e[0])):
+			continue
+		var to := Vector2(e[1].x - here.x, e[1].y - here.y)
+		if to.length() > d or to.length() < 0.001:
+			continue
+		if main.interaction != null and main.interaction.has_method("door_is_open") and main.interaction.door_is_open(String(e[0])):
+			continue
+		if absf(fwd.angle_to(to.normalized())) <= PI / 3.0:
+			return true
+	return false
 
 func _random_point_around(c: Vector3, d: float) -> Vector3:
 	var a := rng.randf() * TAU

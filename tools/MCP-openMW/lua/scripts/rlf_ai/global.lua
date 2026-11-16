@@ -93,14 +93,16 @@ end
 
 local function finish_actors()
     for id, e in pairs(actors) do
-        local ptypes = {}
+        local ptypes, idles = {}, {}
         local first = nil
         for i, tg in ipairs(e.tags) do
             local p = (pkgs[tg] or {})[id]
             ptypes[i] = p and p.type or 'unknown'
+            idles[i] = p and p.idle or ''
             if first == nil and p then first = p end
         end
-        out('actor', id, { recordId = e.recordId, start = e.start, samples = e.samples, packages = ptypes, package = first })
+        out('actor', id, { recordId = e.recordId, start = e.start, samples = e.samples, packages = ptypes, idles = idles,
+            package = first })
     end
 end
 

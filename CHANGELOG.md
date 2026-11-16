@@ -34,6 +34,9 @@
   pułapki rzucają czar; pozycje i stan AI NPC w zapisie. Koniec „dryfu” NPC (kolizje modeli). Stworzenia
   z punktów pojawiania się (LEVC) – eksport świata v9. MCP-openMW 0.11.0: porównanie zachowań AI z OpenMW
   (Seyda Neen: 14/14 pakietów AI, 12/12 promieni wędrówki, ta sama reakcja straży na napaść).
+  Regresja przed publikacją (porównanie wszystkich etapów 2–8 z OpenMW): NPC i stworzenia pływają (poziom
+  wody komórki), bezczynny NPC rusza dalej, gdy nie stoi przy innym punkcie wędrówki lub stoi przed drzwiami
+  (isNearAllowedPosition bez bieżącego celu, proximityToDoor); ujęcia porównawcze z zamrożonymi aktorami.
 * Etap 7: walka, magia i mechanika RPG – rozwój umiejętności i awans (T – odpoczynek, okno awansu), ruch wg
   statystyk, handel z targowaniem, zakup zaklęć, trening, podróże, walka wręcz i dystansowa (F – broń), pancerz,
   śmierć i przeszukiwanie ciał, zaklęcia i moce (R – przygotuj, M – okno magii), działające efekty, pociski czarów,
