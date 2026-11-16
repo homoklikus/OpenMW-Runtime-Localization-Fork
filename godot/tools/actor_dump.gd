@@ -68,4 +68,33 @@ func _ready() -> void:
 	report["stats"] = av.stats
 	print("MWGODOT_ACTOR ", JSON.stringify(report))
 	raw.free()
+	var shot := arg("screenshot")
+	if shot.is_empty():
+		get_tree().quit()
+		return
+	# zrzut: NPC przodem do kamery; --anim=0 – poza spoczynkowa (bez animacji)
+	var ap := model.get_node("MWAnimations") as AnimationPlayer
+	if arg("anim", "1") == "0":
+		ap.stop()
+		sk.reset_bone_poses()
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.position = Vector3(0, 1.0, 3.0)
+	cam.look_at(Vector3(0, 0.95, 0))
+	cam.fov = 50
+	var sun := DirectionalLight3D.new()
+	add_child(sun)
+	sun.rotation_degrees = Vector3(-40, 30, 0)
+	var env := WorldEnvironment.new()
+	env.environment = Environment.new()
+	env.environment.background_mode = Environment.BG_COLOR
+	env.environment.background_color = Color(0.35, 0.4, 0.45)
+	env.environment.ambient_light_color = Color(0.6, 0.6, 0.6)
+	env.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	add_child(env)
+	for i in 30:
+		await get_tree().process_frame
+	var img := get_viewport().get_texture().get_image()
+	img.save_png(shot)
+	print("MWGODOT_SHOT ", shot)
 	get_tree().quit()
