@@ -25,6 +25,10 @@
 * Etap 1: konwerter eksportuje `world/records/` (NPC_, CREA, RACE, CLAS, FACT, BODY, BSGN, SKIL, broń, zbroje,
   ubrania, książki, przedmioty, światła, GMST, GLOB) ze scalaniem wg kolejności ładowania; MCP-openMW:
   `openmw_record_compare_start/status` – porównanie rekordów z silnikiem OpenMW (Lua) pole po polu.
+* Etap 10 (w toku) – woda jak OpenMW: woda „shader” (port water.frag – fale z 6 warstw mapy normalnych, Fresnel,
+  załamanie z barwą głębi, rozpraszanie i odblask słońca, chwiejne brzegi, mocniejsze fale w deszczu; odbija niebo)
+  albo prosta woda z animowanych tekstur gry (ustawienie „Woda z falami”); pod wodą mgła i kolor jak w OpenMW
+  (Water_Underwater*). Cienie słońca: kaskady, zasięg i rozdzielczość wg jakości.
 * Etap 10 (w toku) – pogoda i niebo jak OpenMW (WeatherManager): kolory nieba, mgły, otoczenia i słońca wg pory
   dnia (wartości Morrowind.ini z instalacji gracza, brakujące – domyślne OpenMW), płynne przejścia między
   pogodami z kolejką, zmiana pogody regionu co 20 h gry, mgła liniowa (początek = odległość × (1 − głębokość)),

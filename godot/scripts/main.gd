@@ -204,6 +204,7 @@ func _ready() -> void:
 			printerr("MWGODOT_ERROR brak danych świata: ", data)
 			get_tree().quit(2)  # launcher pokaże błąd z kodem wyjścia
 		return
+	MWEnvironment.water_mode = "shader" if bool(settings.get("water_shader", true)) else "simple"
 	envr = MWEnvironment.new()
 	envr.name = "Environment"
 	envr.data_root = data
@@ -1141,9 +1142,7 @@ func apply_live_settings() -> void:
 				envr.fog_distance = cam.far
 	Engine.max_fps = int(settings.get("max_fps", 0))
 	if envr != null:
-		var sh := String(settings.get("shadows", "medium"))
-		envr.sun.shadow_enabled = sh != "off"
-		RenderingServer.directional_shadow_atlas_set_size({"low": 1024, "medium": 2048, "high": 4096}.get(sh, 2048), true)
+		envr.configure_shadows(String(settings.get("shadows", "medium")))
 		envr.env.fog_enabled = bool(settings.get("fog", true))
 	if DisplayServer.get_name() != "headless":
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if settings.get("vsync", true) else DisplayServer.VSYNC_DISABLED)
@@ -1171,9 +1170,8 @@ func _apply_settings() -> void:
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if settings.get("vsync", true) else DisplayServer.VSYNC_DISABLED)
 	Engine.max_fps = int(settings.get("max_fps", 0))
 	get_viewport().scaling_3d_scale = float(settings.get("scale_3d", 1.0))
-	var sh := String(settings.get("shadows", "medium"))
-	envr.sun.shadow_enabled = sh != "off"
-	RenderingServer.directional_shadow_atlas_set_size({"low": 1024, "medium": 2048, "high": 4096}.get(sh, 2048), true)
+	envr.configure_shadows(String(settings.get("shadows", "medium")))
+	envr.set_water_mode("shader" if bool(settings.get("water_shader", true)) else "simple")
 	envr.env.fog_enabled = bool(settings.get("fog", true))
 	var cam := player.get_node_or_null("Camera3D") as Camera3D
 	if cam:
@@ -1819,6 +1817,8 @@ func _update_sound_world(delta: float) -> void:
 	var cam := player.get_node_or_null("Camera3D") as Node3D
 	var head_y: float = cam.global_position.y if cam != null else player.global_position.y + 1.6
 	audio.ambient_tick(envr.weather if envr != null else "", exterior, head_y < float(player.water_level))
+	if envr != null:
+		envr.set_underwater(head_y < float(player.water_level))
 
 func _player_step_sound(left: bool) -> String:
 	if anim_sounds == null:

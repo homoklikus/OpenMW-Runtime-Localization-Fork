@@ -182,6 +182,24 @@ func sun_direction_mw(hour: float) -> Vector3:
 		orbit = 2.0 * (h - ns) / (24.0 - (ns - t.sunrise)) - 1.0
 	return Vector3(400.0 * orbit, -75.0, 100.0).normalized()
 
+## Gęstość mgły pod wodą (Water_Underwater*Fog, przejścia jak mgła) – FogManager: początek = d × (1 − f).
+func underwater_fog(hour: float) -> float:
+	return tod([num("Water_UnderwaterSunriseFog", 3.0), num("Water_UnderwaterDayFog", 2.5),
+		num("Water_UnderwaterSunsetFog", 3.0), num("Water_UnderwaterNightFog", 4.0)], hour, "Fog")
+
+## Widoczność słońca dla odblasków (setSunColour: Glare_View × glareFade – szczyt w połowie dnia, 0 nocą).
+func sun_visibility(glare: float, hour: float) -> float:
+	var t := times()
+	var peak: float = t.sunrise + (t.night_start - t.sunrise) / 2.0
+	var f := 1.0
+	if hour < t.sunrise or hour > t.night_start:
+		f = 0.0
+	elif hour < peak:
+		f = 1.0 - (peak - hour) / (peak - t.sunrise)
+	else:
+		f = 1.0 - (hour - peak) / (t.night_start - peak)
+	return glare * f
+
 func is_night(hour: float) -> bool:
 	var t := times()
 	return hour >= t.night_start or hour <= t.sunrise

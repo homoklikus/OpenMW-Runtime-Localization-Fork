@@ -51,7 +51,7 @@ func _run() -> void:
 	var size: float = (waters[0].mesh as PlaneMesh).size.x
 	check(absf((xs[2] - xs[0]) - size) < 0.01, "woda: sąsiednie komórki stykają się bez przerwy (%s, %.3f)" % [xs, size])
 	var code: String = (waters[0].mesh.material as ShaderMaterial).shader.code
-	check(code.contains("MODEL_MATRIX") and code.contains("world_xz"), "woda: falowanie we współrzędnych świata")
+	check(code.contains("MODEL_MATRIX") and code.contains("wpos"), "woda: fale we współrzędnych świata")
 	# pora dnia
 	var env: MWEnvironment = main.envr
 	env.time_running = false

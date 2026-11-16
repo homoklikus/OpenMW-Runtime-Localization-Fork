@@ -105,6 +105,28 @@ func _ready() -> void:
 	wm.load(data_root)
 	apply()
 
+## Cienie słońca: kaskady PSSM (4 przy średniej i wysokiej), zasięg i rozdzielczość wg jakości, łagodne
+## przejścia między kaskadami; we wnętrzach słońca brak (światła komórek bez cieni, jak domyślnie w OpenMW).
+const SHADOW_PRESETS := {"low": [1024, 60.0, 2], "medium": [2048, 120.0, 4], "high": [4096, 220.0, 4]}
+var shadow_quality := "medium"
+
+func configure_shadows(q: String) -> void:
+	shadow_quality = q
+	if sun == null:
+		return
+	sun.shadow_enabled = q != "off" and SHADOW_PRESETS.has(q)
+	if not sun.shadow_enabled:
+		return
+	var p: Array = SHADOW_PRESETS[q]
+	RenderingServer.directional_shadow_atlas_set_size(int(p[0]), true)
+	sun.directional_shadow_max_distance = minf(float(p[1]), maxf(fog_distance, 30.0))
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS if int(p[2]) == 4 else DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	sun.directional_shadow_blend_splits = q == "high"
+	sun.directional_shadow_fade_start = 0.85
+	sun.shadow_bias = 0.04
+	sun.shadow_normal_bias = 1.2
+	sun.shadow_blur = 1.0
+
 ## Ponowne wczytanie wartości pogody (po ustawieniu data_root).
 func load_weather(root: String) -> void:
 	data_root = root
@@ -113,6 +135,8 @@ func load_weather(root: String) -> void:
 	apply()
 
 func _process(delta: float) -> void:
+	if interior:
+		_update_water({}, Vector3.UP)
 	if not interior:
 		wm.update_transition(delta)
 		_cloud_offset += Vector2(1.0, 0.35) * float(wm.result.get("cloud_speed", 1.0)) * delta * 0.004
@@ -139,7 +163,7 @@ static func sun_elevation_deg(hour: float) -> float:
 func _tex(file: String) -> Texture2D:
 	if file.is_empty():
 		return null
-	var rel := "textures/" + file.get_file().get_basename().to_lower() + ".png"
+	var rel := "textures/" + file.replace("\\", "/").get_basename().to_lower() + ".png"
 	if _tex_cache.has(rel):
 		return _tex_cache[rel]
 	var t: Texture2D = null
@@ -201,6 +225,37 @@ func apply() -> void:
 		disc.a = 0.0                     # sunDisable w nocy
 	sky_mat.set_shader_parameter("sun_disc", disc)
 	sky_mat.set_shader_parameter("night_fade", float(r.night_fade))
+	_update_water(r, to_sun)
+	_apply_underwater()
+
+var underwater := false
+
+## Kamera pod wodą: mgła jak FogManager – kolor Water_UnderwaterColor × waga + mgła × (1 − waga), koniec =
+## min(odległość widzenia, 7168 j.), początek = koniec × (1 − gęstość) (Water_Underwater*Fog wg pory dnia albo
+## Water_UnderwaterIndoorFog we wnętrzach; gęstość > 1 daje mgłę już przy kamerze).
+func set_underwater(on: bool) -> void:
+	if on == underwater:
+		return
+	underwater = on
+	if interior:
+		set_interior(_interior_cell)
+	else:
+		apply()
+
+func _apply_underwater() -> void:
+	if not underwater:
+		return
+	var w := wm.num("Water_UnderwaterColorWeight", 0.85)
+	var uc := wm.colour("Water_UnderwaterColor")
+	var fc := env.fog_light_color
+	env.fog_light_color = Color(uc.r * w + fc.r * (1.0 - w), uc.g * w + fc.g * (1.0 - w), uc.b * w + fc.b * (1.0 - w))
+	var f := wm.num("Water_UnderwaterIndoorFog", 3.0) if interior else wm.underwater_fog(game_hour)
+	var d := minf(fog_distance, 7168.0 / MWCoords.UNITS_PER_METER)
+	env.fog_depth_begin = d * (1.0 - f)
+	env.fog_depth_end = d
+	env.fog_density = 1.0
+	if interior:
+		env.background_color = env.fog_light_color
 
 func set_region(region_id: String) -> void:
 	if region_id.to_lower() == region.to_lower():
@@ -258,49 +313,272 @@ func set_interior(cell: Dictionary) -> void:
 			env.fog_depth_end = fog_distance
 		env.fog_density = 1.0
 		sun.visible = false
+		_update_water({}, Vector3.UP)
+		_apply_underwater()
 	else:
 		env.background_mode = Environment.BG_SKY
 		env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 		apply()
 
 # --- woda -----------------------------------------------------------------------------------------
-## Woda: falowanie i wzór liczone ze współrzędnych ŚWIATA – sąsiednie komórki mają na wspólnej krawędzi identyczne
-## wychylenie i kolor (wcześniej współrzędne lokalne płaszczyzny dawały szczeliny i szwy na łączeniach komórek).
+## Woda jak OpenMW (apps/openmw/mwrender/water.cpp):
+## * „shader” – port files/shaders/compatibility/water.frag: 6 warstw mapy normalnych (water_nm z OpenMW) przesuwanych
+##   wiatrem, Fresnel, załamanie (tekstura ekranu) z barwą głębi (VISIBILITY 2500 j.), rozpraszanie światła słońca,
+##   odblask słońca (kolor słońca × Glare_View), „chwiejne brzegi”; deszcz wzmacnia fale. Odbicie: samo niebo
+##   (jak „reflection detail = 0” w OpenMW – bez drugiej kamery).
+## * „simple” – domyślna woda OpenMW: animowane tekstury textures/water/water00–31 (Water_SurfaceFPS), jedno
+##   powtórzenie na 8192 × 150 / 900 j., przezroczystość Water_World_Alpha, oświetlenie słońcem i otoczeniem.
+## Współrzędne liczone w układzie świata – sąsiednie komórki łączą się bez szwów.
 const WATER_SHADER := "shader_type spatial;
-render_mode cull_disabled, specular_schlick_ggx;
-uniform vec4 deep : source_color = vec4(0.05, 0.18, 0.25, 0.75);
-uniform vec4 shallow : source_color = vec4(0.15, 0.35, 0.4, 0.6);
-varying vec2 world_xz;
+render_mode unshaded, cull_disabled, blend_mix, depth_draw_never;
+uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap;
+uniform sampler2D depth_tex : hint_depth_texture, filter_nearest;
+uniform sampler2D normal_map : repeat_enable, filter_linear_mipmap;
+uniform float upm = 70.0;
+uniform vec3 sun_dir = vec3(0.0, 0.0, 1.0);
+uniform vec4 sun_spec = vec4(1.0);
+uniform vec3 ambient = vec3(0.5);
+uniform vec3 sky_color = vec3(0.37, 0.53, 0.8);
+uniform vec3 fog_color = vec3(0.8, 0.88, 1.0);
+uniform float rain = 0.0;
+varying vec3 wpos;
+const float VISIBILITY = 2500.0;
+const float VISIBILITY_DEPTH = VISIBILITY * 1.5;
+const float DEPTH_FADE = 0.15;
+const vec2 BIG_WAVES = vec2(0.1, 0.1);
+const vec2 MID_WAVES = vec2(0.1, 0.1);
+const vec2 MID_WAVES_RAIN = vec2(0.2, 0.2);
+const vec2 SMALL_WAVES = vec2(0.1, 0.1);
+const vec2 SMALL_WAVES_RAIN = vec2(0.3, 0.3);
+const float WAVE_CHOPPYNESS = 0.05;
+const float WAVE_SCALE = 75.0;
+const float BUMP = 0.5;
+const float BUMP_RAIN = 2.5;
+const float REFL_BUMP = 0.10;
+const float SCATTER_AMOUNT = 0.3;
+const vec3 SCATTER_COLOUR = vec3(0.0, 1.0, 0.95);
+const vec3 SUN_EXT = vec3(0.45, 0.55, 0.68);
+const float SUN_SPEC_FADING_THRESHOLD = 0.15;
+const float SPEC_HARDNESS = 256.0;
+const float SPEC_BUMPINESS = 5.0;
+const float SPEC_BRIGHTNESS = 1.5;
+const float BUMP_SUPPRESS_DEPTH = 300.0;
+const float REFR_FOG_DISTORT_DISTANCE = 3000.0;
+const vec2 WIND_DIR = vec2(0.5, -0.8);
+const float WIND_SPEED = 0.2;
+const vec3 WATER_COLOR = vec3(0.090195, 0.115685, 0.12745);
+const float WOBBLY_SHORE_FADE_DISTANCE = 6200.0;
+vec2 normal_coords(vec2 uv, float scale, float speed, float time, float t1, float t2, vec3 prev) {
+	return uv * (WAVE_SCALE * scale) + WIND_DIR * time * (WIND_SPEED * speed) - (prev.xy / prev.zz) * WAVE_CHOPPYNESS + vec2(time * t1, time * t2);
+}
+vec3 nm(vec2 c) { return 2.0 * texture(normal_map, c).rgb - 1.0; }
+float fresnel_dielectric(vec3 incoming, vec3 normal, float eta) {
+	float c = abs(dot(incoming, normal));
+	float g = eta * eta - 1.0 + c * c;
+	if (g > 0.0) {
+		g = sqrt(g);
+		float A = (g - c) / (g + c);
+		float B = (c * (g + c) - 1.0) / (c * (g - c) + 1.0);
+		return 0.5 * A * A * (1.0 + B * B);
+	}
+	return 1.0;
+}
+vec3 to_srgb(vec3 c) { return mix(c * 12.92, 1.055 * pow(max(c, vec3(0.0)), vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), c)); }
+vec3 to_linear(vec3 c) { return mix(c / 12.92, pow((max(c, vec3(0.0)) + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c)); }
+vec3 mw(vec3 g) { return vec3(g.x, -g.z, g.y); }
+float lin_depth(vec2 uv, mat4 inv_proj) {
+	float d = texture(depth_tex, uv).r;
+#if CURRENT_RENDERER == RENDERER_COMPATIBILITY
+	vec3 ndc = vec3(uv, d) * 2.0 - 1.0;
+#else
+	vec3 ndc = vec3(uv * 2.0 - 1.0, d);
+#endif
+	vec4 v = inv_proj * vec4(ndc, 1.0);
+	return -v.z / v.w * upm;
+}
 void vertex() {
-	vec3 wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	world_xz = wp.xz;
-	VERTEX.y += sin(TIME * 0.8 + wp.x * 0.15) * 0.03 + cos(TIME * 0.6 + wp.z * 0.12) * 0.03;
+	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
 void fragment() {
-	float w = 0.5 + 0.5 * sin(TIME * 0.7 + world_xz.x * 0.34) * cos(TIME * 0.5 + world_xz.y * 0.316);
-	ALBEDO = mix(deep.rgb, shallow.rgb, w * 0.4);
-	ALPHA = deep.a;
-	ROUGHNESS = 0.08;
-	METALLIC = 0.0;
-	SPECULAR = 0.6;
+	vec3 p = mw(wpos) * upm;
+	vec3 cam = mw(CAMERA_POSITION_WORLD) * upm;
+	float water_z = MODEL_MATRIX[3].y * upm;
+	bool above = cam.z > water_z;
+	vec2 wuv = p.xy / (8192.0 * 5.0) * 3.0;
+	float t = TIME;
+	vec3 n0 = nm(normal_coords(wuv, 0.05, 0.04, t, -0.015, -0.005, vec3(0.0)));
+	vec3 n1 = nm(normal_coords(wuv, 0.1, 0.08, t, 0.02, 0.015, n0));
+	vec3 n2 = nm(normal_coords(wuv, 0.25, 0.07, t, -0.04, -0.03, n1));
+	vec3 n3 = nm(normal_coords(wuv, 0.5, 0.09, t, 0.03, 0.04, n2));
+	vec3 n4 = nm(normal_coords(wuv, 1.0, 0.4, t, -0.02, 0.1, n3));
+	vec3 n5 = nm(normal_coords(wuv, 2.0, 0.7, t, 0.1, -0.06, n4));
+	vec2 mid_w = mix(MID_WAVES, MID_WAVES_RAIN, rain);
+	vec2 small_w = mix(SMALL_WAVES, SMALL_WAVES_RAIN, rain);
+	float bump = mix(BUMP, BUMP_RAIN, rain);
+	vec3 n = n0 * BIG_WAVES.x + n1 * BIG_WAVES.y + n2 * mid_w.x + n3 * mid_w.y + n4 * small_w.x + n5 * small_w.y;
+	n = normalize(vec3(-n.x * bump, -n.y * bump, n.z));
+	vec3 sun_w = normalize(mw(sun_dir));
+	vec3 view_dir = normalize(p - cam);
+	float sun_fade = length(ambient);
+	float ior = above ? 1.333 : (1.0 / 1.333);
+	float fresnel = clamp(fresnel_dielectric(view_dir, n, ior), 0.0, 1.0);
+	vec2 off = n.xy * REFL_BUMP;
+	float surf = -VERTEX.z * upm;
+	float real_depth = lin_depth(SCREEN_UV, INV_PROJECTION_MATRIX) - surf;
+	float ddist = max(lin_depth(SCREEN_UV - off, INV_PROJECTION_MATRIX) - surf, 0.0);
+	off *= clamp(real_depth / BUMP_SUPPRESS_DEPTH, 0.0, 1.0);
+	// odbicie: niebo w kierunku odbitym (mgła przy horyzoncie → kolor nieba)
+	vec3 rdir = reflect(view_dir, n);
+	vec3 reflection = mix(fog_color, sky_color, smoothstep(-0.02, 0.35, abs(rdir.z)));
+	vec3 water_color = WATER_COLOR * sun_fade;
+	vec4 ss = sun_spec;
+	ss.a = min(1.0, ss.a / SUN_SPEC_FADING_THRESHOLD);
+	vec3 spec_n = normalize(vec3(n.x * SPEC_BUMPINESS, n.y * SPEC_BUMPINESS, n.z));
+	float phong = max(dot(reflect(view_dir, spec_n), sun_w), 0.0);
+	float specular = clamp(pow(atan(phong * 1.55), SPEC_HARDNESS) * SPEC_BRIGHTNESS, 0.0, 1.0) * ss.a;
+	if (above && real_depth <= VISIBILITY_DEPTH && ddist > VISIBILITY_DEPTH)
+		off = vec2(0.0);
+	ddist = max(lin_depth(SCREEN_UV - off, INV_PROJECTION_MATRIX) - surf, 0.0);
+	ddist = mix(ddist, real_depth, min(surf / REFR_FOG_DISTORT_DISTANCE, 1.0));
+	vec3 raw_refr = to_srgb(textureLod(screen_tex, SCREEN_UV - off, 0.0).rgb);
+	vec3 refraction = raw_refr;
+	if (!above) {
+		refraction = clamp(refraction * 1.5, 0.0, 1.0);
+	} else {
+		float dc = sqrt(1.0 + 4.0 * DEPTH_FADE * DEPTH_FADE);
+		float factor = DEPTH_FADE * DEPTH_FADE / (-0.5 * dc + 0.5 - ddist / VISIBILITY) + 0.5 * dc + 0.5;
+		refraction = mix(refraction, water_color, clamp(factor, 0.0, 1.0));
+	}
+	vec3 sn = n0 * BIG_WAVES.x * 0.5 + n1 * BIG_WAVES.y * 0.5 + n2 * mid_w.x * 0.2 + n3 * mid_w.y * 0.2 + n4 * small_w.x * 0.1 + n5 * small_w.y * 0.1;
+	sn = normalize(vec3(-sn.xy * bump, sn.z));
+	float sun_h = sun_w.z;
+	vec3 scol = mix(SCATTER_COLOUR * vec3(1.0, 0.4, 0.0), SCATTER_COLOUR, max(1.0 - exp(-sun_h * SUN_EXT), 0.0));
+	float sl = max(dot(sun_w, sn) * 0.7 + 0.3, 0.0);
+	float sra = max(dot(reflect(sun_w, sn), view_dir) * 2.0 - 1.2, 0.0);
+	refraction = mix(refraction, scol, sl * sra * SCATTER_AMOUNT * sun_fade * ss.a * max(1.0 - exp(-sun_h), 0.0));
+	vec3 col = mix(refraction, reflection, fresnel) + specular * ss.rgb;
+	// chwiejne brzegi: na płyciźnie przejście w czyste załamanie
+	vec3 sr = texture(normal_map, normal_coords(wuv, 2.0, 2.7, -t, 0.05, 0.1, n3)).rgb - 0.5 + texture(normal_map, normal_coords(wuv, 2.0, 2.7, t, 0.04, -0.13, n4)).rgb - 0.5;
+	float vf = mix(abs(view_dir.z), 1.0, 0.2);
+	float shore = real_depth * vf - (n2.r + mix(0.0, sr.r, rain) + 0.15) * 8.0;
+	shore *= min(1.0, 1000.0 / max(surf, 1.0)) * vf;
+	shore = clamp(mix(shore, 1.0, clamp(surf / WOBBLY_SHORE_FADE_DISTANCE, 0.0, 1.0)), 0.0, 1.0);
+	col = mix(raw_refr, col, shore);
+	ALBEDO = to_linear(clamp(col, 0.0, 1.0));
+	ALPHA = 1.0;
 }"
-static var _water_mat: ShaderMaterial
 
-static func water_plane(size_m: float, height_m: float) -> MeshInstance3D:
+const SIMPLE_WATER_SHADER := "shader_type spatial;
+render_mode cull_disabled, blend_mix, depth_draw_never, diffuse_lambert, specular_disabled;
+uniform sampler2D frame_tex : source_color, repeat_enable, filter_linear_mipmap;
+uniform float has_tex = 0.0;
+uniform float alpha = 0.75;
+uniform float upm = 70.0;
+varying vec2 uvw;
+void vertex() {
+	vec3 wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	uvw = vec2(wp.x, -wp.z) * upm / (8192.0 * 150.0 / 900.0);
+}
+void fragment() {
+	vec4 c = has_tex > 0.5 ? texture(frame_tex, uvw) : vec4(0.12, 0.25, 0.3, 1.0);
+	ALBEDO = c.rgb;
+	ALPHA = c.a * alpha;
+	ROUGHNESS = 1.0;
+}"
+
+static var water_mode := "shader"      # „shader” albo „simple” (ustawienie gry „water”)
+static var water_root := ""            # katalog danych (tekstury wody)
+static var _water_mat: ShaderMaterial
+static var _simple_mat: ShaderMaterial
+static var _simple_frames: Array = []
+static var _simple_fps := 12.0
+static var _nm_tex: Texture2D
+
+static func _water_material() -> ShaderMaterial:
+	if water_mode == "simple":
+		if _simple_mat == null:
+			var sh := Shader.new()
+			sh.code = SIMPLE_WATER_SHADER
+			_simple_mat = ShaderMaterial.new()
+			_simple_mat.shader = sh
+			_simple_mat.render_priority = -1
+			_simple_mat.set_shader_parameter("upm", MWCoords.UNITS_PER_METER)
+		return _simple_mat
 	if _water_mat == null:
 		var sh := Shader.new()
 		sh.code = WATER_SHADER
 		_water_mat = ShaderMaterial.new()
 		_water_mat.shader = sh
+		_water_mat.render_priority = -1
+		_water_mat.set_shader_parameter("upm", MWCoords.UNITS_PER_METER)
+		if _nm_tex == null:
+			var img := Image.load_from_file("res://data/water_nm.png")
+			if img != null and not img.is_empty():
+				img.generate_mipmaps()
+				_nm_tex = ImageTexture.create_from_image(img)
+		_water_mat.set_shader_parameter("normal_map", _nm_tex)
+	return _water_mat
+
+## Klatki prostej wody: textures/water/<Water_SurfaceTexture>NN (Water_SurfaceFrameCount, FPS z fallbacków).
+func _load_simple_frames() -> void:
+	_simple_frames.clear()
+	var name := wm.text("Water_SurfaceTexture")
+	if name.is_empty():
+		name = "water"
+	var count := clampi(int(wm.num("Water_SurfaceFrameCount", 32.0)), 0, 320)
+	_simple_fps = maxf(wm.num("Water_SurfaceFPS", 12.0), 0.1)
+	for i in count:
+		var t := _tex("water/%s%02d.dds" % [name, i])
+		if t == null:
+			break
+		_simple_frames.append(t)
+
+static func water_plane(size_m: float, height_m: float) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	mi.name = "Water"
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(size_m, size_m)
-	pm.subdivide_width = 16
-	pm.subdivide_depth = 16
-	pm.material = _water_mat
+	pm.material = _water_material()
 	mi.mesh = pm
 	mi.position.y = height_m
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.set_meta("mw_water", true)
 	return mi
+
+## Zmiana rodzaju wody w trakcie gry (ustawienia): podmiana materiału istniejących płaszczyzn.
+func set_water_mode(mode: String) -> void:
+	mode = "simple" if mode == "simple" else "shader"
+	if mode == water_mode:
+		return
+	water_mode = mode
+	var mat := _water_material()
+	for n in get_tree().root.find_children("Water", "MeshInstance3D", true, false):
+		if n.has_meta("mw_water") and (n as MeshInstance3D).mesh is PlaneMesh:
+			((n as MeshInstance3D).mesh as PlaneMesh).material = mat
+	apply()
+
+func _update_water(r: Dictionary, to_sun: Vector3) -> void:
+	var m := _water_material()
+	if water_mode == "simple":
+		if _simple_frames.is_empty() and not data_root.is_empty():
+			_load_simple_frames()
+		if not _simple_frames.is_empty():
+			var f := int(Time.get_ticks_msec() / 1000.0 * _simple_fps) % _simple_frames.size()
+			m.set_shader_parameter("frame_tex", _simple_frames[f])
+		m.set_shader_parameter("has_tex", 1.0 if not _simple_frames.is_empty() else 0.0)
+		m.set_shader_parameter("alpha", wm.num("Water_World_Alpha", 0.75))
+		return
+	var sun_col: Color = r.get("sun", Color.WHITE)
+	var vis := 0.0 if interior else wm.sun_visibility(float(r.get("glare", 0.0)), game_hour)
+	m.set_shader_parameter("sun_dir", to_sun)
+	m.set_shader_parameter("sun_spec", Vector4(sun_col.r, sun_col.g, sun_col.b, vis))
+	var amb: Color = env.ambient_light_color
+	m.set_shader_parameter("ambient", Vector3(amb.r, amb.g, amb.b))
+	var sky: Color = r.get("sky", Color(0.37, 0.53, 0.8))
+	var fog: Color = r.get("fog", env.fog_light_color)
+	if interior:
+		sky = env.background_color
+		fog = env.background_color
+	m.set_shader_parameter("sky_color", Vector3(sky.r, sky.g, sky.b))
+	m.set_shader_parameter("fog_color", Vector3(fog.r, fog.g, fog.b))
+	m.set_shader_parameter("rain", 1.0 if weather in ["rain", "thunder"] and not interior else 0.0)

@@ -102,6 +102,36 @@ func _run() -> void:
 	env.weather = "rain"
 	env.apply()
 	check(env.wm.in_transition() and W.NAMES[env.wm.next_w] == "rain", "ChangeWeather → przejście")
+	# woda i pod wodą
+	var wn = MWEnvironment.water_plane(10.0, 0.0)
+	main.add_child(wn)
+	var wmat: ShaderMaterial = (wn.mesh as PlaneMesh).material
+	check(MWEnvironment.water_mode == "shader" and wmat.shader.code.contains("fresnel_dielectric") and wmat.get_shader_parameter("normal_map") != null, "woda OpenMW (shader, mapa normalnych)")
+	env.apply()
+	var sv: Vector4 = wmat.get_shader_parameter("sun_spec")
+	check(sv.w > 0.0 and sv.w <= 1.0, "odblask słońca wg Glare_View (%.2f)" % sv.w)
+	env.set_water_mode("simple")
+	var smat: ShaderMaterial = (wn.mesh as PlaneMesh).material
+	check(smat != wmat and smat.shader.code.contains("8192.0 * 150.0 / 900.0") and is_equal_approx(float(smat.get_shader_parameter("alpha")), 0.75), "prosta woda OpenMW (Water_World_Alpha 0,75)")
+	env.set_water_mode("shader")
+	check((wn.mesh as PlaneMesh).material == wmat, "powrót do wody shader")
+	env.forced_weather = "clear"
+	env.pick_weather()
+	var land_end: float = env.env.fog_depth_end
+	env.set_underwater(true)
+	var dmax: float = minf(fd, 7168.0 / MWCoords.UNITS_PER_METER)
+	check(absf(env.env.fog_depth_end - dmax) < 0.01 and env.env.fog_depth_begin < 0.0, "pod wodą: mgła do 7168 j., gęsta przy kamerze (%.1f–%.1f)" % [env.env.fog_depth_begin, env.env.fog_depth_end])
+	var uc := w.colour("Water_UnderwaterColor")
+	check(env.env.fog_light_color.b < 0.5 and absf(env.env.fog_light_color.g - (uc.g * 0.85 + w.calc(0, 12.0).fog.g * 0.15)) < 0.02, "pod wodą: kolor Water_UnderwaterColor × 0,85")
+	env.set_underwater(false)
+	check(absf(env.env.fog_depth_end - land_end) < 0.01, "nad wodą: mgła lądowa")
+	check(is_equal_approx(w.underwater_fog(12.0), 2.5) and is_equal_approx(w.underwater_fog(23.5), 4.0), "gęstość mgły pod wodą wg pory dnia")
+	check(w.sun_visibility(1.0, 13.0) > 0.99 and w.sun_visibility(1.0, 22.0) == 0.0, "widoczność słońca: szczyt o 13:00, 0 nocą")
+	env.configure_shadows("high")
+	check(env.sun.shadow_enabled and env.sun.directional_shadow_mode == DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS and env.sun.directional_shadow_blend_splits, "cienie wysokie: 4 kaskady")
+	env.configure_shadows("off")
+	check(not env.sun.shadow_enabled, "cienie wyłączone")
+	env.configure_shadows("medium")
 	# wnętrze
 	env.set_interior({"interior": true, "ambient": {"ambient_rgb": [40, 50, 60], "fog_rgb": [10, 20, 30], "fog_density": 0.75}})
 	check(env.interior and not env.sun.visible and env.env.background_mode == Environment.BG_COLOR, "wnętrze bez nieba")

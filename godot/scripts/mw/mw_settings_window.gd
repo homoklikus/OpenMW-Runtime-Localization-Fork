@@ -22,6 +22,7 @@ const OPTIONS := [
 	["graphics", "Grafika"],
 	["view_distance", "Odległość widzenia [m]", "int", 200, 6000, 100, 1500],
 	["shadows", "Jakość cieni", "choice", ["off", "low", "medium", "high"], 0, 0, "medium"],
+	["water_shader", "Woda z falami (shader)", "bool", 0, 0, 0, true],
 	["fog", "Mgła i pogoda", "bool", 0, 0, 0, true],
 	["vsync", "Synchronizacja pionowa", "bool", 0, 0, 0, true],
 	["max_fps", "Limit FPS (0 = brak)", "int", 0, 360, 10, 0],

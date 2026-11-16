@@ -40,6 +40,8 @@ GAME_SCHEMA: list[Opt] = [
     Opt("load_radius", "graphics", "int", 1, "Komórki wokół gracza", "Cells around player", lo=1, hi=3),
     Opt("view_distance", "graphics", "int", 1500, "Odległość widzenia [m]", "View distance [m]", lo=200, hi=6000),
     Opt("water", "graphics", "bool", True, "Woda", "Water"),
+    Opt("water_shader", "graphics", "bool", True, "Woda z falami i załamaniem (shader OpenMW)",
+        "Shader water (OpenMW waves, refraction)"),
     Opt("fog", "graphics", "bool", True, "Mgła i pogoda (postprocessing)", "Fog and weather"),
     # roślinność wyliczona przez konwerter (Ustawienia → Świat): rysowanie w grze
     Opt("grass", "graphics", "bool", True, "Roślinność (trawa)", "Groundcover (grass)"),

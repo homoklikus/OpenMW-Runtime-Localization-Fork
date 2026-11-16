@@ -104,3 +104,5 @@ Przeniesiony kod OpenMW (od sesji 4): *na razie brak* — każdy przeniesiony fr
   `files/openmw.cfg` OpenMW (liczby, kolory i nazwy tekstur, bez tekstów gry); GPL-3.0 jak OpenMW i ten projekt.
   Używane tylko, gdy w Morrowind.ini / openmw.cfg gracza brakuje klucza. Tekstur nieba nie dołączamy – konwerter
   bierze je z instalacji gracza (`textures/tx_sky_*`, `tx_sun_*`).
+* `godot/data/water_nm.png` – mapa normalnych wody z OpenMW (`files/data/textures/omw/water_nm.png`), bez zmian;
+  GPL-3.0. Shader wody (`mw_environment.gd`) to port `files/shaders/compatibility/water.frag` z OpenMW (GPL-3.0).
