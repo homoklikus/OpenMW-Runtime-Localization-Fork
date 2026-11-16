@@ -31,7 +31,9 @@
   animacje chodu i biegu, wykrywanie gracza (skradanie – Ctrl, niewidzialność, kameleon), AI walki (broń, czary,
   łuki, ucieczka), przestępstwa (kradzież, wtargnięcie, napaść, morderstwo), świadkowie wg Alarm, pościg i rozmowa
   strażnika, grzywna i konfiskata, więzienie (znaczniki z `world/markers.json`), wytrychy i sondy (Security),
-  pułapki rzucają czar; pozycje i stan AI NPC w zapisie. Koniec „dryfu” NPC (kolizje modeli).
+  pułapki rzucają czar; pozycje i stan AI NPC w zapisie. Koniec „dryfu” NPC (kolizje modeli). Stworzenia
+  z punktów pojawiania się (LEVC) – eksport świata v9. MCP-openMW 0.11.0: porównanie zachowań AI z OpenMW
+  (Seyda Neen: 14/14 pakietów AI, 12/12 promieni wędrówki, ta sama reakcja straży na napaść).
 * Etap 7: walka, magia i mechanika RPG – rozwój umiejętności i awans (T – odpoczynek, okno awansu), ruch wg
   statystyk, handel z targowaniem, zakup zaklęć, trening, podróże, walka wręcz i dystansowa (F – broń), pancerz,
   śmierć i przeszukiwanie ciał, zaklęcia i moce (R – przygotuj, M – okno magii), działające efekty, pociski czarów,
