@@ -35,6 +35,16 @@ class LauncherCore:
         if self.profiles.get(self.config["active_profile"]) is None:
             self.config["active_profile"] = self.profiles.list()[0].id
             self.config.save()
+        self.sync_ingame_settings()
+
+    def sync_ingame_settings(self) -> bool:
+        """Ustawienia zmienione w grze (Esc → Ustawienia) → profil (launch.merge_ingame)."""
+        p = self.profile
+        merged, changed = launch.merge_ingame(self.paths.profile_data(p.id), p.settings)
+        if changed:
+            p.settings = merged
+            self.profiles.save(p)
+        return changed
 
     # --- instalacja ----------------------------------------------------------------------------
     def install_report(self, refresh: bool = False) -> install.InstallReport | None:
@@ -198,6 +208,7 @@ class LauncherCore:
 
     def runtime_args(self, extra_user: list[str] | None = None) -> list[str]:
         plan = self.plan()
+        self.sync_ingame_settings()
         p = self.profile
         pdata = self.paths.profile_data(p.id)
         settings = launch.write_runtime_settings(pdata / "runtime_settings.json", p.settings, p.id,

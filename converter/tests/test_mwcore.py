@@ -372,3 +372,21 @@ def test_resolution_any_screen_size():
     ch = S.resolution_choices([(3440, 1440), (2752, 1152)], "1366x768")
     assert {"3440x1440", "2752x1152", "1366x768", "1920x1080"} <= set(ch)
     assert ch == sorted(ch, key=lambda r: tuple(map(int, r.split("x"))))
+
+
+def test_merge_ingame_settings(tmp_path):
+    """Etap 10: zmiany z ustawień w grze trafiają do profilu, a plik jest opróżniany (bez usuwania)."""
+    from mwcore import launch
+    from mwcore.jsonio import read_json, write_json
+    from mwcore.settings import validate_game
+    base = validate_game({"music_volume": 0.5, "fov": 60})
+    merged, changed = launch.merge_ingame(tmp_path, base)
+    assert not changed and merged == base
+    write_json(tmp_path / launch.INGAME_FILE, {"values": {"music_volume": 0.2, "fov": 300, "nieznane": 1}})
+    merged, changed = launch.merge_ingame(tmp_path, base)
+    assert changed and merged["music_volume"] == 0.2
+    assert merged["fov"] == 110 or merged["fov"] == 60, "wartość spoza zakresu przycięta albo odrzucona"
+    assert "nieznane" not in merged
+    assert (tmp_path / launch.INGAME_FILE).exists() and read_json(tmp_path / launch.INGAME_FILE)["values"] == {}
+    merged2, changed2 = launch.merge_ingame(tmp_path, merged)
+    assert not changed2

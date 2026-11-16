@@ -87,6 +87,7 @@ func _ready() -> void:
 	if not base.is_empty():
 		MWModelCache.base_roots = PackedStringArray([ProjectSettings.globalize_path(base)])
 	settings = _load_settings(arg("settings"))
+	settings.merge(_load_ingame_settings(), true)      # etap 10: zmiany z „Ustawienia” w grze (nowsze)
 	launched_by_launcher = not arg("profile").is_empty()
 	var project := arg("project", ProjectSettings.get_setting("mwgodot/project_root", "user://mw_project"))
 	data = ProjectSettings.globalize_path(data)
@@ -301,9 +302,23 @@ func _rebuild_player_visual() -> void:
 
 ## Napis kwestii (Say) – bez okna, nie wstrzymuje gry.
 var _subtitle: Label = null
+## Warstwa komunikatów i napisów nad oknami (książki, dialog, mapa) – jak okna komunikatów OpenMW zawsze na wierzchu.
+var _overlay: CanvasLayer = null
+
+func overlay() -> CanvasLayer:
+	if _overlay == null:
+		_overlay = CanvasLayer.new()
+		_overlay.name = "Overlay"
+		_overlay.layer = 30
+		_overlay.process_mode = Node.PROCESS_MODE_ALWAYS
+		add_child(_overlay)
+	return _overlay
+
 func subtitle(text: String, seconds: float) -> void:
 	print("MWGODOT_SAY ", text.length())
-	if _subtitle == null and hud != null:
+	if not bool(settings.get("subtitles", true)):
+		return
+	if _subtitle == null:
 		_subtitle = Label.new()
 		_subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -313,11 +328,12 @@ func subtitle(text: String, seconds: float) -> void:
 		_subtitle.anchor_bottom = 0.9
 		_subtitle.add_theme_color_override("font_outline_color", Color.BLACK)
 		_subtitle.add_theme_constant_override("outline_size", 6)
-		hud.get_parent().add_child(_subtitle)
+		_subtitle.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		overlay().add_child(_subtitle)
 	if _subtitle != null:
 		_subtitle.text = text
 		_subtitle.visible = true
-		var t := get_tree().create_timer(seconds, false)
+		var t := get_tree().create_timer(seconds, true)    # głos gra także przy otwartym oknie (pauza)
 		t.timeout.connect(func(): if _subtitle != null and _subtitle.text == text: _subtitle.visible = false)
 
 # --- postać gracza (etap 4) ---------------------------------------------------------------------------------
@@ -1067,7 +1083,64 @@ static func _load_settings(path: String) -> Dictionary:
 	return d if d is Dictionary else {}
 
 ## Ustawienia z launchera (plik --settings): tylko opcje obsługiwane przez Runtime.
+## Etap 10: ustawienia zmienione w grze – plik obok ustawień z launchera (albo w katalogu zapisów).
+func ingame_settings_path() -> String:
+	var sp := arg("settings")
+	return (sp.get_base_dir() if not sp.is_empty() else saves_dir()).path_join("ingame_settings.json")
+
+func _load_ingame_settings() -> Dictionary:
+	var p := ingame_settings_path()
+	if not FileAccess.file_exists(p):
+		return {}
+	var d = JSON.parse_string(FileAccess.get_file_as_string(p))
+	return (d.get("values", {}) as Dictionary) if d is Dictionary and d.get("values") is Dictionary else {}
+
+## Zapis atomowy (plik tymczasowy + zamiana): dotychczasowe zmiany z gry + nowe.
+func save_ingame_settings(changes: Dictionary) -> bool:
+	var vals := _load_ingame_settings()
+	vals.merge(changes, true)
+	var p := ingame_settings_path()
+	DirAccess.make_dir_recursive_absolute(p.get_base_dir())
+	var tmp := p + ".tmp"
+	var f := FileAccess.open(tmp, FileAccess.WRITE)
+	if f == null:
+		return false
+	f.store_string(JSON.stringify({"format": "mwgodot-ingame-settings", "version": 1, "values": vals}, " "))
+	f.close()
+	return DirAccess.rename_absolute(tmp, p) == OK
+
+## Opcje zmieniane w trakcie gry: dźwięk, napisy, mysz, pole widzenia, odległość widzenia, cienie, mgła,
+## V-Sync, limit FPS (bez przebudowy świata).
+func apply_live_settings() -> void:
+	if audio != null:
+		audio.voice_volume = float(settings.get("voice_volume", 0.8))
+		audio.sfx_volume = float(settings.get("sfx_volume", 1.0))
+		audio.footsteps_volume = float(settings.get("footsteps_volume", 0.2))
+	if music != null:
+		music.volume = float(settings.get("music_volume", 0.5))
+		if music.is_playing() and music._fade <= 0.0:
+			music._player.volume_db = linear_to_db(maxf(music.volume, 0.0001))
+	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(float(settings.get("master_volume", 1.0)), 0.0001)))
+	if _subtitle != null and not bool(settings.get("subtitles", true)):
+		_subtitle.visible = false
+	if player != null:
+		player.mouse_sens = float(settings.get("mouse_sensitivity", 0.0025))
+		player.invert_y = bool(settings.get("invert_y", false))
+		var cam := player.get_node_or_null("Camera3D") as Camera3D
+		if cam != null and arg("fov").is_empty():
+			cam.fov = float(settings.get("fov", 60))
+			cam.far = float(settings.get("view_distance", 1500))
+	Engine.max_fps = int(settings.get("max_fps", 0))
+	if envr != null:
+		var sh := String(settings.get("shadows", "medium"))
+		envr.sun.shadow_enabled = sh != "off"
+		RenderingServer.directional_shadow_atlas_set_size({"low": 1024, "medium": 2048, "high": 4096}.get(sh, 2048), true)
+		envr.env.fog_enabled = bool(settings.get("fog", true))
+	if DisplayServer.get_name() != "headless":
+		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if settings.get("vsync", true) else DisplayServer.VSYNC_DISABLED)
+
 func _apply_settings() -> void:
+	apply_live_settings()
 	if settings.is_empty():
 		return
 	var mode := String(settings.get("window_mode", "windowed"))
@@ -1780,10 +1853,11 @@ func _toast(text: String, seconds := 3.0) -> void:
 	var l := Label.new()
 	l.text = text
 	l.position = Vector2(12, 90)
-	var cl := CanvasLayer.new()
-	cl.add_child(l)
-	add_child(cl)
-	get_tree().create_timer(seconds).timeout.connect(cl.queue_free)
+	l.add_theme_color_override("font_outline_color", Color.BLACK)
+	l.add_theme_constant_override("outline_size", 4)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay().add_child(l)
+	get_tree().create_timer(seconds).timeout.connect(l.queue_free)
 
 func _add_message(text: String) -> void:
 	var l := Label.new()
@@ -2006,6 +2080,16 @@ func _on_dynamic_changed(sid: String) -> void:
 					refs_node.add_child(nn)
 
 ## Menu pauzy (Esc): wróć, szybki zapis/odczyt, wyjście. Szkielet UI etapu 0.
+var settings_window = null
+
+func open_settings() -> void:
+	if settings_window == null:
+		settings_window = preload("res://scripts/mw/mw_settings_window.gd").new()
+		settings_window.name = "SettingsWindow"
+		settings_window.main = self
+		add_child(settings_window)
+	settings_window.open()
+
 func toggle_pause_menu() -> void:
 	if pause_menu == null:
 		pause_menu = _build_pause_menu()
@@ -2031,6 +2115,7 @@ func _build_pause_menu() -> Control:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title)
 	for item in [["Wróć do gry", func(): toggle_pause_menu()],
+			["Ustawienia", func(): open_settings()],
 			["Szybki zapis (F5)", func(): _toast("Zapisano grę" if save_game(quicksave_path()).is_empty() else "Błąd zapisu")],
 			["Szybki odczyt (F9)", func():
 				var w = load_game(quicksave_path())

@@ -25,6 +25,11 @@
 * Etap 1: konwerter eksportuje `world/records/` (NPC_, CREA, RACE, CLAS, FACT, BODY, BSGN, SKIL, broń, zbroje,
   ubrania, książki, przedmioty, światła, GMST, GLOB) ze scalaniem wg kolejności ładowania; MCP-openMW:
   `openmw_record_compare_start/status` – porównanie rekordów z silnikiem OpenMW (Lua) pole po polu.
+* Etap 10 (w toku) – ustawienia w grze (Esc → Ustawienia): głośności (ogólna, muzyka, głosy, efekty, kroki),
+  napisy, czułość myszy, odwrócenie osi, pole widzenia (domyślnie 60° jak OpenMW), odległość widzenia, cienie,
+  mgła, V-Sync, limit FPS – działają od razu, „Zapisz”/„Anuluj”; zapis do ingame_settings.json, launcher scala
+  go z profilem (te same opcje w zakładce „Dźwięk” i „Sterowanie” launchera). Komunikaty i napisy kwestii na
+  warstwie nad oknami – wcześniej napis kwestii chował się pod oknem zwoju/książki.
 * Etap 10 (w toku) – klasa postaci jak w OpenMW: „Pytania…” – 10 pytań z Morrowind.ini/openmw.cfg (albo
   tłumaczeń lokalizacji RLF), odpowiedzi w losowej kolejności, głos lektora, wynik według tabeli OpenMW i okno
   z opisem klasy (Wróć/OK); „Własna…” – nazwa, opis, specjalizacja, 2 ulubione atrybuty, 5 głównych

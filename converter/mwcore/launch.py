@@ -93,6 +93,23 @@ def import_project(godot: str, project: Path, timeout: float = 300.0) -> tuple[b
     return r.returncode == 0, (r.stdout + r.stderr)[-2000:]
 
 
+INGAME_FILE = "ingame_settings.json"
+
+
+def merge_ingame(pdata: Path, settings: dict) -> tuple[dict, bool]:
+    """Ustawienia zmienione w grze (Esc → Ustawienia; plik <dane profilu>/ingame_settings.json) → ustawienia
+    profilu. Zwraca (scalone, czy coś zmieniono). Po scaleniu plik jest zastępowany pustym (zapis atomowy, bez
+    usuwania), żeby późniejsza zmiana w launcherze nie była nadpisywana starą wartością z gry."""
+    f = Path(pdata) / INGAME_FILE
+    d = read_json(f)
+    vals = d.get("values") if isinstance(d, dict) else None
+    if not isinstance(vals, dict) or not vals:
+        return settings, False
+    merged = validate_game({**settings, **vals})
+    write_json(f, {"format": "mwgodot-ingame-settings", "version": 1, "values": {}})
+    return merged, merged != validate_game(settings)
+
+
 def write_runtime_settings(path: Path, settings: dict, profile_id: str, language: str) -> Path:
     write_json(path, {"format": "mwgodot-runtime-settings", "version": 1, "profile": profile_id,
                       "language": language, **validate_game(settings)})

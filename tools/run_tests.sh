@@ -148,6 +148,7 @@ run_gd test_sound_world.gd --data="$WORK/actors_out" --project="$WORK/project_so
 run_gd test_books.gd --data="$WORK/actors_out" --project="$WORK/project_books" --pos=2300,2400,900 --scripts=0
 run_gd test_map.gd --data="$WORK/actors_out" --project="$WORK/project_map" --pos=2300,2400,900 --scripts=0
 run_gd test_chargen_class.gd --data="$WORK/actors_out" --project="$WORK/project_chargen_class" --pos=2300,2400,900 --scripts=0
+run_gd test_settings.gd --data="$WORK/actors_out" --project="$WORK/project_settings" --settings="$WORK/settings_cfg/runtime_settings.json" --pos=2300,2400,900 --scripts=0
 
 if ls "$ROOT/godot/bin/"libmw_native* >/dev/null 2>&1; then
   run_gd test_gdextension.gd

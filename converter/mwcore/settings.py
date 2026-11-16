@@ -1,7 +1,8 @@
 """Ustawienia: konfiguracja launchera (globalna) i ustawienia gry (per profil) ze schematem.
 
 W schemacie są wyłącznie opcje, które Runtime faktycznie obsługuje (scripts/main.gd → _apply_settings).
-Dźwięk: Runtime nie ma jeszcze dźwięku – sekcja jest pusta i GUI to komunikuje.
+Część opcji (dźwięk, napisy, mysz, pole widzenia, grafika) można też zmienić w grze (Esc → Ustawienia) – gra zapisuje
+je do ingame_settings.json, a launcher scala je z profilem przy następnym uruchomieniu (launch.merge_ingame).
 """
 
 from __future__ import annotations
@@ -45,6 +46,14 @@ GAME_SCHEMA: list[Opt] = [
     Opt("grass_distance", "graphics", "int", 90, "Zasięg roślinności [m]", "Groundcover distance [m]", lo=20, hi=400),
     Opt("grass_density", "graphics", "float", 1.0, "Gęstość roślinności w grze", "Groundcover density in game",
         lo=0.1, hi=1.0),
+    # dźwięk (etap 10) – domyślne jak OpenMW [Sound]
+    Opt("master_volume", "audio", "float", 1.0, "Głośność ogólna", "Master volume", lo=0.0, hi=1.0),
+    Opt("music_volume", "audio", "float", 0.5, "Muzyka", "Music volume", lo=0.0, hi=1.0),
+    Opt("voice_volume", "audio", "float", 0.8, "Głosy", "Voice volume", lo=0.0, hi=1.0),
+    Opt("sfx_volume", "audio", "float", 1.0, "Efekty", "Effects volume", lo=0.0, hi=1.0),
+    Opt("footsteps_volume", "audio", "float", 0.2, "Kroki", "Footsteps volume", lo=0.0, hi=1.0),
+    Opt("subtitles", "audio", "bool", True, "Napisy kwestii", "Subtitles"),
+    Opt("fov", "controls", "int", 60, "Pole widzenia (pionowe) [°]", "Field of view (vertical) [°]", lo=40, hi=110),
     Opt("mouse_sensitivity", "controls", "float", 0.0025, "Czułość myszy", "Mouse sensitivity", lo=0.0005, hi=0.01),
     Opt("invert_y", "controls", "bool", False, "Odwróć oś Y", "Invert Y axis"),
     # lokalizacja runtime (fork OpenMW RLF): „auto” = język launchera, „original” = bez tłumaczenia,
