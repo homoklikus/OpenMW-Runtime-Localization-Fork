@@ -25,6 +25,9 @@ const CharacterScript := preload("res://scripts/mw/mw_character.gd")
 const ChargenScript := preload("res://scripts/mw/mw_chargen_window.gd")
 const ScriptsVM := preload("res://scripts/mw/mw_scripts.gd")
 const ScriptHost := preload("res://scripts/mw/mw_script_host.gd")
+const DialogueScript := preload("res://scripts/mw/mw_dialogue.gd")
+const DialogueWindowScript := preload("res://scripts/mw/mw_dialogue_window.gd")
+const JournalWindowScript := preload("res://scripts/mw/mw_journal_window.gd")
 var events = Events.new()           # szyna zdarzeń (etap 0)
 var interaction = null                # MWInteraction (etap 3)
 var item_window = null                # okno pojemnika / ekwipunku
@@ -34,6 +37,9 @@ var chargen = null                    # kreator postaci
 var scripts = null                    # MWScripts (etap 5)
 var script_host = null
 var msgbox = null                     # okno MessageBox z przyciskami
+var dialogue = null                   # MWDialogue (etap 6)
+var dialogue_window = null
+var journal_window = null
 var state = GameStateScript.new()   # różnice stanu gry względem danych bazowych (zapis gry)
 var pause_menu: Control
 var loc  # Loc
@@ -99,6 +105,15 @@ func _ready() -> void:
 	chargen.created.connect(_on_character_created)
 	script_host = ScriptHost.new(self)
 	scripts = ScriptsVM.new(builder.actors, state, script_host, db)
+	dialogue = DialogueScript.new(builder.actors, state, self)
+	dialogue_window = DialogueWindowScript.new()
+	dialogue_window.dialogue = dialogue
+	dialogue_window.main = self
+	add_child(dialogue_window)
+	journal_window = JournalWindowScript.new()
+	journal_window.dialogue = dialogue
+	journal_window.main = self
+	add_child(journal_window)
 	audio = preload("res://scripts/mw/mw_audio.gd").new()
 	audio.name = "Audio"
 	audio.setup(data, builder.actors)
@@ -420,6 +435,8 @@ func _process(_d: float) -> void:
 		var r := MWTravel.pick(cam)
 		# podpowiedź tylko dla tego, co klawisz E faktycznie obsługuje (drzwi, przedmioty, pojemniki)
 		var h: String = interaction.hint(r) if r and interaction != null else ""
+		if h.is_empty() and r and dialogue != null and dialogue.is_actor_node(r) and dialogue.available():
+			h = "Rozmawiaj: " + dialogue.actor_name(dialogue.make_actor(r))
 		if not h.is_empty():
 			hint = "\n[lb]E] %s" % Loc.escape_bbcode(h)
 	var stats_line := ""
@@ -510,6 +527,9 @@ func activate(r: Node, force_default := false) -> bool:
 	if not force_default and scripts != null and not scr.is_empty() and scripts.uses(scr, "onactivate"):
 		scripts.activated[String(r.get_meta("mw_sid", ""))] = true
 		return true
+	if dialogue != null and dialogue.is_actor_node(r):
+		open_dialogue(r)                  # ActionTalk (NPC, stworzenia); bez powitania okno się nie otwiera
+		return true
 	var at: Vector3 = (r as Node3D).global_position
 	var res: Dictionary = interaction.activate(r)
 	if not String(res.get("message", "")).is_empty():
@@ -527,6 +547,16 @@ func activate(r: Node, force_default := false) -> bool:
 		_:
 			return false
 	return true
+
+## Rozmowa (etap 6): okno dialogu, jeśli rozmówca ma powitanie.
+func open_dialogue(node: Node) -> bool:
+	if dialogue_window == null or dialogue_window.visible or not dialogue.available():
+		return false
+	return dialogue_window.open(node)
+
+func on_dialogue_closed() -> void:
+	if script_host != null:
+		script_host.dirty = true
 
 ## Odłożenie przedmiotu z ekwipunku przed graczem (na ziemi pod punktem 0,8 m przed nim).
 func drop_item(id: String, count: int) -> String:

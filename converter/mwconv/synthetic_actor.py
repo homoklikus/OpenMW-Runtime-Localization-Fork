@@ -239,10 +239,15 @@ def _body(bid, part, model, female) -> bytes:
                              W.sub("BYDT", bytes([part, 0, 1 if female else 0, 0]))])
 
 
-def _npc(nid, female, inventory=()) -> bytes:
-    npdt = struct.pack("<h", 3) + bytes([50, 0, 0]) + b"\0\0\0" + struct.pack("<i", 10)
+def _npc(nid, female, inventory=(), faction="", rank=0, script="") -> bytes:
+    npdt = struct.pack("<h", 3) + bytes([50, 0, rank]) + b"\0\0\0" + struct.pack("<i", 10)
     subs = [W.sub("NAME", W.zs(nid)), W.sub("FNAM", W.zs("Syntetyczna" if female else "Syntetyczny")),
-            W.sub("RNAM", W.zs(RACE)), W.sub("CNAM", W.zs("Commoner")),
+            W.sub("RNAM", W.zs(RACE)), W.sub("CNAM", W.zs("Commoner"))]
+    if faction:
+        subs.append(W.sub("ANAM", W.zs(faction)))
+    if script:
+        subs.append(W.sub("SCRI", W.zs(script)))
+    subs += [
             W.sub("BNAM", W.zs("b_n_synth_m_head_01")), W.sub("KNAM", W.zs("b_n_synth_m_hair_01")),
             W.sub("NPDT", npdt), W.sub("FLAG", struct.pack("<i", (0x01 if female else 0) | 0x08 | 0x10))]
     for it in inventory:
@@ -385,6 +390,72 @@ def _stage5_records() -> list:
     return recs
 
 
+DIALOGUE_TEXT = {
+    "greet_first": "Witaj, %PCName. Pytaj o Synth Lore, jesli chcesz.",
+    "greet_again": "Znowu ty, %PCName? Jestem %Name.",
+    "guard_greet": "Strazniku %Rank z %Faction, czego chcesz?",
+    "lore_done": "Juz wszystko wiesz.",
+    "lore_ask": "Czy pomozesz mi z dzwignia?",
+    "lore_yes": "Dziekuje. Opowiem ci o @Synth Secret#.",
+    "lore_no": "Szkoda.",
+    "secret": "To tajemnica gildii Synth Guild.",
+    "secret_wait": "Najpierw mi pomoz.",
+    "guild_member": "Witaj w gildii, %PCRank.",
+    "guild_join": "Przyjmuje cie do gildii.",
+    "picky": "Odpowiem tylko przyjaciolom.",
+    "refusal": "Nie mam ochoty z toba rozmawiac.",
+    "admire_ok": "Milo to slyszec.",
+    "admire_fail": "Nie przekonales mnie.",
+    "q_name": "Zadanie testowe",
+    "q10": "Zaczalem zadanie testowe w %Cell.",
+    "q20": "Przestawilem dzwignie.",
+    "q30": "%Name poprosil o pomoc. Zadanie zakonczone.",
+}
+
+
+def _stage6_records() -> list:
+    """Dialogi (etap 6): powitania, tematy z pytaniami, odmowa wg postawy, perswazja, zadanie i frakcja."""
+    T = DIALOGUE_TEXT
+    fadt = struct.pack("<2i", 6, 7) + b"".join(struct.pack("<5i", 30, 30, 10 * i, 5 * i, 10 * i) for i in range(10)) \
+        + struct.pack("<7i", 25, 24, -1, -1, -1, -1, -1) + struct.pack("<i", 0)
+    fact = W.record("FACT", [W.sub("NAME", W.zs("Synth Guild")), W.sub("FNAM", W.zs("Gildia Testowa"))]
+                    + [W.sub("RNAM", W.zs(r).ljust(32, b"\0")) for r in ("Nowicjusz", "Czeladnik", "Mistrz")]
+                    + [W.sub("FADT", fadt)])
+    v = "synth_villager"
+    return [
+        fact,
+        _script_rec("synth_talker", "Begin synth_talker\nshort helped\nEnd"),
+        W.dial("Greeting 5", 2),
+        W.info("g1", "", "g2", T["greet_first"], actor=v, conditions=[("01630", 0)]),          # TalkedToPc == 0
+        W.info("g2", "g1", "g3", T["greet_again"], actor=v),
+        W.info("g3", "g2", "", T["guard_greet"], faction="Synth Guild"),
+        W.dial("Synth Lore", 0),
+        W.info("l1", "", "l2", T["lore_done"], actor=v, conditions=[("04JX3synth_q", 30)]),   # zadanie >= 30
+        W.info("l2", "l1", "l3", T["lore_yes"], actor=v, conditions=[("01500", 1)],          # Choice == 1
+               result='Journal synth_q 30\nset helped to 1\nModDisposition 10'),
+        W.info("l3", "l2", "l4", T["lore_no"], actor=v, conditions=[("01500", 2)],
+               result="ModDisposition -10\nGoodbye"),
+        W.info("l4", "l3", "", T["lore_ask"], actor=v, result='Choice "Tak" 1 "Nie" 2'),
+        W.dial("Synth Secret", 0),
+        W.info("s0", "", "s1", T["secret"], actor=v, conditions=[("03sX0helped", 1)]),      # zmienna lokalna == 1
+        W.info("s1", "s0", "", T["secret_wait"], actor=v),
+        W.dial("Synth Guild", 0),
+        W.info("f1", "", "f2", T["guild_member"], pcfaction="Synth Guild"),
+        W.info("f2", "f1", "", T["guild_join"], faction="Synth Guild", result='PCJoinFaction "Synth Guild"'),
+        W.dial("Picky", 0),
+        W.info("p1", "", "", T["picky"], actor=v, disposition=90),
+        W.dial("Info Refusal", 0),
+        W.info("r1", "", "", T["refusal"]),
+        W.dial("Admire Success", 3), W.info("a1", "", "", T["admire_ok"]),
+        W.dial("Admire Fail", 3), W.info("a2", "", "", T["admire_fail"]),
+        W.dial("synth_q", 4),
+        W.info("q0", "", "q10", T["q_name"], quest="name"),
+        W.info("q10", "q0", "q20", T["q10"], disposition=10),
+        W.info("q20", "q10", "q30", T["q20"], disposition=20),
+        W.info("q30", "q20", "", T["q30"], disposition=30, quest="finished"),
+    ]
+
+
 def _stage3_records() -> list:
     torch = W.record("LIGH", [W.sub("NAME", W.zs("synth_torch")), W.sub("MODL", W.zs("l\\l_synth_torch.nif")),
                               W.sub("FNAM", W.zs("Pochodnia")),
@@ -438,8 +509,9 @@ def write_actors(data_dir: Path) -> dict:
     recs += [_item_body(k, *v) for k, v in ITEM_BODYPARTS.items()]
     recs += [_armor(k, *v) for k, v in ARMORS.items()] + [_clothing(k, *v) for k, v in CLOTHES.items()] + [_weapon()]
     recs += _stage3_records() + _stage4_records() + _stage5_records()
-    recs += [_npc("synth_villager", False), _npc("synth_villager_f", True), _creature(),
-             _npc("synth_guard", False, GUARD_INVENTORY)]
+    recs += [_npc("synth_villager", False, script="synth_talker"), _npc("synth_villager_f", True), _creature(),
+             _npc("synth_guard", False, GUARD_INVENTORY, faction="Synth Guild", rank=1)]
+    recs += _stage6_records()
     refs = []
     for rn, (base, x, y, rz) in ACTOR_REFS.items():
         refs.append(W.ref_subs(rn, base, (x, y, height_at(x, y)), (0, 0, math.radians(rz))))

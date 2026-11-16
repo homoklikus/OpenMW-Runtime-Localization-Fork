@@ -51,3 +51,9 @@ def test_tokens():
     t = [x.text for x in tokenize('player->AddItem "Gold_001" -5 ; x')]
     assert t[:3] == ["player", "->", "AddItem"]
     assert [x.kind for x in tokenize("a-> b")] == ["id", "arrow", "id"]
+
+
+def test_colon_is_whitespace():
+    r = compile_script('Choice: "Sell the item." 1 "Keep the item." 2', "d")
+    assert r["errors"] == [] and r["body"] == [["call", None, "choice", [["str", "Sell the item."], ["num", 1.0],
+                                                                       ["str", "Keep the item."], ["num", 2.0]]]]

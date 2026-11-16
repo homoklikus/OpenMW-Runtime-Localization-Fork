@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 # zmiana wyniku kompilacji → ponowny eksport świata (klucz eksportu w pipeline.py)
-COMPILER_VERSION = 2
+COMPILER_VERSION = 3
 
 _ATTRS = ["strength", "intelligence", "willpower", "agility", "speed", "endurance", "personality", "luck"]
 _SKILLS = ["block", "armorer", "mediumarmor", "heavyarmor", "bluntweapon", "longblade", "axe", "spear", "athletics",
@@ -93,6 +93,8 @@ def tokenize(line: str) -> list[Tok]:
         if k is None:
             continue
         t = m.group(k)
+        if k == "other" and t == ":":
+            continue                       # „:” jak biały znak (OpenMW Scanner: „treat : as a whitespace”)
         if k == "op" and t in "[]":
             t = "(" if t == "[" else ")"     # nawiasy kwadratowe jak okrągłe (spotykane w skryptach)
         if k == "dot":

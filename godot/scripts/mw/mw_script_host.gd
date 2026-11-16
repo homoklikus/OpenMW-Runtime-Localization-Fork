@@ -44,7 +44,7 @@ func find_ref_by_base(id: String) -> Node:
 	return n if n != null and is_instance_valid(n) else null
 
 func menu_mode() -> bool:
-	for w in [main.item_window, main.chargen, main.pause_menu, main.msgbox]:
+	for w in [main.item_window, main.chargen, main.pause_menu, main.msgbox, main.dialogue_window, main.journal_window]:
 		if w != null and is_instance_valid(w) and w.visible:
 			return true
 	return false
@@ -201,13 +201,31 @@ func script_stat(t: Dictionary, fname: String) -> float:
 		"health": return npc_health(rec)        # obrażenia aktorów – etap 7 (bieżące = maksymalne)
 	return 0.0
 
-## Zdrowie NPC: z rekordu albo autoobliczone jak OpenMW (npc.cpp autoCalculateAttributes): atrybuty rasy + 10
-## ulubionym klasy + (poziom − 1) × suma mnożników umiejętności atrybutu (główne 1, drugorzędne 0,5, pozostałe 0,2);
-## zdrowie = ⌊(siła + wytrzymałość) / 2⌋ + mnożnik × (poziom − 1), mnożnik 3 (+2 walka, +1 skradanie, +1 gdy
-## wytrzymałość jest ulubionym atrybutem).
+## Zdrowie NPC: z rekordu albo autoobliczone jak OpenMW (npc.cpp autoCalculateAttributes).
 func npc_health(rec: Dictionary) -> float:
 	if not bool(rec.get("autocalc", false)) and rec.has("health"):
 		return float(rec["health"])
+	return float(npc_autocalc(rec).health)
+
+## Zaokrąglenie jak round_ieee_754 w OpenMW (npc.cpp): połówki do parzystej.
+static func round_even(f: float) -> float:
+	var i := floorf(f)
+	var r := f - i
+	if r < 0.5:
+		return i
+	if r > 0.5:
+		return i + 1.0
+	return i if fmod(i, 2.0) == 0.0 else i + 1.0
+
+## Atrybuty, umiejętności i zdrowie NPC (rekord z NPDT 52 B – wartości z rekordu; autoobliczanie jak OpenMW:
+## autoCalculateAttributes – rasa + 10 ulubionym klasy + (poziom − 1) × suma mnożników umiejętności atrybutu
+## (główne 1, drugorzędne 0,5, pozostałe 0,2); autoCalculateSkills – 5 + premia rasy + 5 specjalizacji
+## (+10 drugorzędne, +25 główne) + (poziom − 1) × (1 główne/drugorzędne, 0,1 pozostałe; +0,5 specjalizacji);
+## zdrowie = ⌊(siła + wytrzymałość) / 2⌋ + mnożnik × (poziom − 1), mnożnik 3 (+2 walka, +1 skradanie,
+## +1 gdy wytrzymałość jest ulubionym atrybutem).
+func npc_autocalc(rec: Dictionary) -> Dictionary:
+	if not bool(rec.get("autocalc", false)) and rec.has("attributes"):
+		return {"attributes": rec.attributes, "skills": rec.get("skills", []), "health": float(rec.get("health", 0))}
 	var av = main.builder.actors
 	var race: Dictionary = av.record("race", String(rec.get("race", "")))
 	var cls: Dictionary = av.record("class", String(rec.get("class", "")))
@@ -217,28 +235,48 @@ func npc_health(rec: Dictionary) -> float:
 	var attrs := []
 	for i in 8:
 		attrs.append(float(ra[i]) if i < ra.size() else 0.0)
-	var fav: Array = cls.get("attributes", [])
+	var fav: Array = cls.get("attributes", []).map(func(x): return int(x))
 	for a in fav:
-		if int(a) >= 0 and int(a) < 8:
-			attrs[int(a)] += 10.0
-	var major: Array = cls.get("major_skills", [])
-	var minor: Array = cls.get("minor_skills", [])
+		if a >= 0 and a < 8:
+			attrs[a] += 10.0
+	var major: Array = cls.get("major_skills", []).map(func(x): return int(x))
+	var minor: Array = cls.get("minor_skills", []).map(func(x): return int(x))
 	var names: Array = av.records_index().get("skills", [])
-	for ai in [0, 5]:                                      # siła, wytrzymałość
+	var spec := int(cls.get("specialization", -1))
+	for ai in 8:
 		var mod := 0.0
 		for si in names.size():
 			var sk: Dictionary = av.record("skill", String(names[si]))
 			if int(sk.get("attribute", -1)) != ai:
 				continue
-			mod += 1.0 if (si in major or float(si) in major) else (0.5 if (si in minor or float(si) in minor) else 0.2)
-		attrs[ai] = minf(floorf(attrs[ai] + (level - 1) * mod + 0.5), 100.0)
+			mod += 1.0 if si in major else (0.5 if si in minor else 0.2)
+		attrs[ai] = minf(round_even(attrs[ai] + (level - 1) * mod), 100.0)
+	var skills := []
+	for si in names.size():
+		var base := 0.0
+		if si in minor:
+			base += 10.0
+		if si in major:
+			base += 25.0
+		var bonus := 0
+		for b in race.get("skill_bonuses", []):
+			if int(b.get("skill", -1)) == si:
+				bonus = int(b.get("bonus", 0))
+		var sk2: Dictionary = av.record("skill", String(names[si]))
+		var mm := 1.0 if (si in major or si in minor) else 0.1
+		var sm := 0.0
+		var sb := 0
+		if int(sk2.get("specialization", -2)) == spec:
+			sm = 0.5
+			sb = 5
+		skills.append(minf(round_even(base + 5 + bonus + sb + (level - 1) * (mm + sm)), 100.0))
 	var mult := 3
-	match int(cls.get("specialization", -1)):
+	match spec:
 		0: mult += 2
 		2: mult += 1
-	if 5 in fav or 5.0 in fav:
+	if 5 in fav:
 		mult += 1
-	return floorf(0.5 * (attrs[0] + attrs[5])) + mult * (level - 1)
+	return {"attributes": attrs, "skills": skills, "health": floorf(0.5 * (attrs[0] + attrs[5])) + mult * (level - 1)}
 
 # --- umieszczanie obiektów -------------------------------------------------------------------------------
 

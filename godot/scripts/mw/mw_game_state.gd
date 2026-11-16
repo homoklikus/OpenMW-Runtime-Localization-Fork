@@ -16,15 +16,17 @@ extends RefCounted
 ##   seed     (v2) ziarno losowania list poziomowanych tej rozgrywki
 ##   scripts  (v2, etap 5) skrypty globalne działające, zmienne lokalne skryptów i obiektów
 ##   journal  (v2, etap 5) indeksy zadań (GetJournalIndex/Journal)
+##   dialogue (v3, etap 6) znane tematy, wpisy dziennika z datą, zakończone zadania, dziennik tematów, postawa
+##            i ustawienia AI NPC zmienione w grze, zmienione reakcje frakcji, liczniki zabitych (mw_dialogue.gd)
 ##   extra    sekcje zapisu, których ta wersja nie zna – zachowywane przy ponownym zapisie
 ## Zapis nie zależy od scen ani węzłów Godota. Wpisy dla wtyczek, których brakuje, NIE są usuwane.
 
 signal ref_changed(sid: String)
 
 const FORMAT := "mwgodot-save"
-const VERSION := 2
+const VERSION := 3
 const KNOWN := ["format", "version", "header", "refs", "globals", "time", "player", "dyn_next", "inventories",
-	"dynamic", "seed", "scripts", "journal"]
+	"dynamic", "seed", "scripts", "journal", "dialogue"]
 
 var refs := {}
 var globals := {}
@@ -36,6 +38,7 @@ var dynamic := {}
 var seed := 0
 var scripts := {}                 # etap 5: {"running": [id skryptów globalnych], "locals": {sid|"global:id": {zmienna: wartość}}, "started"}
 var journal := {}                 # etap 5/6: id zadania → indeks
+var dialogue := {}                # etap 6: stan rozmów i dziennika (mw_dialogue.gd)
 var extra := {}
 
 signal inventory_changed(sid: String)
@@ -170,7 +173,7 @@ func to_dict(header: Dictionary) -> Dictionary:
 	var d := extra.duplicate(true)
 	d.merge({"format": FORMAT, "version": VERSION, "header": header, "refs": refs, "globals": globals,
 			"time": time, "player": player, "dyn_next": dyn_next, "inventories": inventories, "dynamic": dynamic,
-			"seed": seed, "scripts": scripts, "journal": journal}, true)
+			"seed": seed, "scripts": scripts, "journal": journal, "dialogue": dialogue}, true)
 	return d
 
 ## Wczytuje słownik zapisu (po migracji). Zwraca listę ostrzeżeń (pusta = zgodny).
@@ -190,6 +193,7 @@ func from_dict(d: Dictionary) -> Array:
 	journal = {}
 	for q in (d.get("journal", {}) as Dictionary):
 		journal[q] = int(d["journal"][q])
+	dialogue = (d.get("dialogue", {}) as Dictionary).duplicate(true)
 	extra = {}
 	for k in d:
 		if not k in KNOWN:
@@ -209,7 +213,10 @@ static func migrate(d: Dictionary) -> Dictionary:
 	if v <= 1:
 		d = _v1_to_v2(d)
 		v = 2
-	# (kolejne kroki: if v == 2: d = _v2_to_v3(d); v = 3 …)
+	if v == 2:
+		d["dialogue"] = d.get("dialogue", {})      # v2 → v3: rozmowy i dziennik (etap 6) – pusty stan
+		v = 3
+	# (kolejne kroki: if v == 3: d = _v3_to_v4(d); v = 4 …)
 	d["version"] = VERSION
 	return {"data": d, "migrated": v0 != VERSION}
 

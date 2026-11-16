@@ -138,6 +138,16 @@ func tick(dt: float, local_refs: Array) -> void:
 	activated.clear()
 	cell_changed = false
 
+## Skrypt wyniku odpowiedzi (BNAM): w kontekście rozmówcy – jego zmienne lokalne (DialogueManager::executeScript).
+func run_dialogue(body: Array, who: Dictionary) -> void:
+	var c := Ctx.new()
+	c.sid = String(who.get("sid", ""))
+	c.base = String(who.get("base", ""))
+	c.scr = String(who.get("script", ""))
+	c.key = c.sid
+	c.node = who.get("node")
+	_exec(body, c)
+
 func run(c: Ctx) -> void:
 	var sc := script_rec(c.scr)
 	if sc.is_empty():
@@ -358,12 +368,121 @@ func _call(ref, fname: String, args: Array, c: Ctx):
 		"scriptrunning": return 1.0 if running(_str(args, 0)) else 0.0
 		"messagebox":
 			var parts := _format(args, c)
-			game.script_message_box(parts[0], parts[1])
+			var dl = game.main.dialogue
+			if parts[1].is_empty() and dl != null and not dl.actor.is_empty():
+				dl.message(dl.fix_defines(parts[0], dl.actor, false))      # w rozmowie – do historii okna
+			else:
+				game.script_message_box(parts[0], parts[1])
 			return null
-		# --- dziennik (teksty – etap 6)
+		# --- dziennik i rozmowy (etap 6)
 		"getjournalindex": return float(int(state.journal.get(_str(args, 0).to_lower(), 0)))
-		"journal", "setjournalindex":
-			state.journal[_str(args, 0).to_lower()] = int(_num(args, 1, c))     # Journal::addEntry ustawia indeks
+		"journal":
+			_dlg().add_entry(_str(args, 0), int(_num(args, 1, c)), _who(ref, c))
+			return null
+		"setjournalindex":
+			_dlg().set_journal_index(_str(args, 0), int(_num(args, 1, c)))
+			return null
+		"addtopic":
+			if not _dlg().add_topic(_str(args, 0)):
+				_err("AddTopic: brak tematu %s" % _str(args, 0))
+			return null
+		"choice":
+			var i := 0
+			while i < args.size():
+				var q := _str(args, i)
+				var n := int(_num(args, i + 1, c, 1)) if i + 1 < args.size() else 1
+				_dlg().add_choice(q, n)
+				i += 2
+			return null
+		"goodbye": _dlg().goodbye(); return null
+		"forcegreeting":
+			var tf := _target(ref, c)
+			if tf.get("node") != null and state.is_enabled(String(tf.sid)):
+				game.main.open_dialogue(tf.node)
+			return null
+		"clearinfoactor": _dlg().clear_info_actor(_who(ref, c)); return null
+		"moddisposition", "setdisposition":
+			var wd := _who(ref, c)
+			if not wd.is_empty() and wd.npc:
+				var v := int(_num(args, 0, c))
+				_dlg().set_base_disposition(wd, (_dlg().base_disposition(wd) + v) if fname == "moddisposition" else v)
+			return null
+		"getdisposition":
+			var wg := _who(ref, c)
+			return float(_dlg().derived_disposition(wg)) if not wg.is_empty() and wg.npc else 0.0
+		"modreputation", "setreputation", "getreputation":
+			var wr := _who(ref, c)
+			if String(_target(ref, c).get("sid", "")) == "player" or (wr.is_empty() and c.sid.is_empty()):
+				var pst: Dictionary = game.main.player_stats()
+				if fname == "getreputation":
+					return float(pst.get("reputation", 0))
+				pst["reputation"] = (int(pst.get("reputation", 0)) if fname == "modreputation" else 0) + int(_num(args, 0, c))
+				return null
+			if wr.is_empty():
+				return 0.0
+			if fname == "getreputation":
+				return float(_dlg().reputation_of(wr))
+			_dlg()._npc_state(wr)["reputation"] = (_dlg().reputation_of(wr) if fname == "modreputation" else 0) + int(_num(args, 0, c))
+			return null
+		"samefaction":
+			var ws := _who(ref, c)
+			return 1.0 if not ws.is_empty() and _dlg().in_faction(_dlg().faction_of(ws)) else 0.0
+		"getfactionreaction":
+			return float(_dlg().faction_reaction(_str(args, 0), _str(args, 1)))
+		"modfactionreaction", "setfactionreaction":
+			var f1 := _str(args, 0).to_lower()
+			var f2 := _str(args, 1).to_lower()
+			var val := int(_num(args, 2, c))
+			if fname == "modfactionreaction":
+				val += _dlg().faction_reaction(f1, f2)
+			var rx: Dictionary = _dlg()._ds().reactions
+			if not rx.has(f1):
+				rx[f1] = {}
+			rx[f1][f2] = val
+			return null
+		"pcjoinfaction", "pcraiserank", "pclowerrank", "pcexpell", "pcclearexpelled", "pcexpelled", "getpcrank", \
+				"modpcfacrep", "getpcfacrep", "setpcfacrep":
+			return _faction_call(fname, ref, args, c)
+		"getfight", "gethello", "getflee", "getalarm":
+			var wa := _who(ref, c)
+			return float(_dlg().ai_setting(wa, fname.substr(3))) if not wa.is_empty() else 0.0
+		"setfight", "sethello", "setflee", "setalarm", "modfight", "modhello", "modflee", "modalarm":
+			var wm := _who(ref, c)
+			if not wm.is_empty():
+				var key := fname.substr(3)
+				var nv := int(_num(args, 0, c))
+				if fname.begins_with("mod"):
+					nv += _dlg().ai_setting(wm, key)
+				_dlg().set_ai_setting(wm, key, nv)
+			return null
+		"setpccrimelevel", "modpccrimelevel":
+			var pc: Dictionary = game.main.player_stats()
+			pc["bounty"] = maxi(0, (int(pc.get("bounty", 0)) if fname.begins_with("mod") else 0) + int(_num(args, 0, c)))
+			return null
+		"getpccrimelevel":
+			return float(game.main.player_stats().get("bounty", 0))
+		"addspell", "removespell":
+			var tsp := _target(ref, c)
+			if String(tsp.get("sid", "")) == "player":
+				var sp: Array = game.main.player_stats().get("spells", [])
+				var spid := _str(args, 0).to_lower()
+				if fname == "addspell" and not spid in sp and not records.record("spell", spid).is_empty():
+					sp.append(spid)
+				elif fname == "removespell":
+					sp.erase(spid)
+				game.main.player_stats()["spells"] = sp
+			else:
+				partial[fname + " (NPC – etap 7)"] = int(partial.get(fname + " (NPC – etap 7)", 0)) + 1
+			return null
+		"showmap", "filljournal":
+			if fname == "filljournal":
+				_unsupported(fname)
+				return null
+			var mk: Dictionary = _dlg()._ds()
+			if not mk.get("map_markers") is Array:
+				mk["map_markers"] = []
+			if not _str(args, 0) in mk["map_markers"]:
+				mk["map_markers"].append(_str(args, 0))      # mapa świata – etap 10 (znaczniki zapamiętane)
 			return null
 		# --- obiekty: włączenie, aktywacja, usuwanie
 		"getdisabled":
@@ -441,7 +560,11 @@ func _call(ref, fname: String, args: Array, c: Ctx):
 			var snd := _str(args, 0)
 			var t10 := _target(ref, c)
 			if fname == "say":
-				_unsupported("say (głosy – etap 6)")
+				# głosy (pliki Sound/Vo) – etap 10; napisy (drugi argument) jak w OpenMW przy włączonych napisach
+				partial["say (głosy – etap 10)"] = int(partial.get("say (głosy – etap 10)", 0)) + 1
+				var sub := _str(args, 1)
+				if not sub.is_empty():
+					game.script_message_box(sub, [])
 				return null
 			game.script_sound(snd, t10 if fname.contains("3d") else {})
 			return null
@@ -468,6 +591,77 @@ func _call(ref, fname: String, args: Array, c: Ctx):
 	if fname.begins_with("get") and fname.substr(3) in game.character_stat_names():
 		return game.script_stat(_target(ref, c), fname)
 	_unsupported(fname)
+	return null
+
+func _dlg():
+	return game.main.dialogue
+
+## Aktor wywołania (jawne odniesienie albo obiekt skryptu) jako kontekst rozmowy; pusty dla gracza/braku.
+func _who(ref, c: Ctx) -> Dictionary:
+	var d = _dlg()
+	if ref == null and not d.actor.is_empty() and c.sid == String(d.actor.sid):
+		return d.actor
+	var t := _target(ref, c)
+	if t.is_empty() or String(t.sid) == "player":
+		return {}
+	if t.get("node") != null and d.is_actor_node(t.node):
+		return d.make_actor(t.node)
+	var base := String(t.get("base", "")).to_lower()
+	var rec: Dictionary = records.record("npc", base)
+	var npc := not rec.is_empty()
+	if not npc:
+		rec = records.record("creature", base)
+	if rec.is_empty():
+		return {}
+	return {"sid": String(t.sid), "base": base, "node": null, "npc": npc, "rec": rec,
+		"script": String(rec.get("script", "")).to_lower()}
+
+## Frakcje gracza (statsextensions.cpp): bez argumentu frakcji – frakcja rozmówcy/obiektu skryptu.
+## ModPCFacRep/SetPCFacRep: najpierw wartość, potem opcjonalnie frakcja; reputacja we frakcji niezależna od członkostwa.
+func _faction_call(fname: String, ref, args: Array, c: Ctx):
+	var d = _dlg()
+	var rep_fn := fname in ["modpcfacrep", "setpcfacrep"]
+	var fi := 1 if rep_fn else 0
+	var fid := _str(args, fi).to_lower() if args.size() > fi else ""
+	if fid.is_empty():
+		var w := _who(ref, c)
+		fid = d.faction_of(w) if not w.is_empty() else ""
+	var get := fname in ["pcexpelled", "getpcrank", "getpcfacrep"]
+	if fid.is_empty() or records.record("faction", fid).is_empty():
+		if fname == "getpcrank":
+			return -1.0
+		if not get:
+			_err("%s: brak frakcji %s" % [fname, fid])
+		return 0.0 if get else null
+	var pf: Dictionary = d.player_factions()
+	var e: Dictionary = pf.get(fid, {})
+	match fname:
+		"pcjoinfaction":
+			if e.is_empty():
+				pf[fid] = {"rank": 0, "expelled": false}
+		"pcraiserank":
+			if e.is_empty():
+				pf[fid] = {"rank": 0, "expelled": false}
+			else:
+				e["rank"] = mini(int(e.get("rank", 0)) + 1, 9)
+		"pclowerrank":
+			if not e.is_empty():
+				e["rank"] = maxi(int(e.get("rank", 0)) - 1, 0)
+		"pcexpell":
+			if not e.is_empty():
+				e["expelled"] = true
+		"pcclearexpelled":
+			if not e.is_empty():
+				e["expelled"] = false
+		"pcexpelled":
+			return 1.0 if bool(e.get("expelled", false)) else 0.0
+		"getpcrank":
+			return float(int(e.get("rank", -1))) if not e.is_empty() else -1.0
+		"getpcfacrep":
+			return float(d.faction_reputation(fid))
+		"modpcfacrep", "setpcfacrep":
+			var v := int(_num(args, 0, c))
+			d.set_faction_reputation(fid, (d.faction_reputation(fid) if fname == "modpcfacrep" else 0) + v)
 	return null
 
 func _inv_record(t: Dictionary) -> Dictionary:
