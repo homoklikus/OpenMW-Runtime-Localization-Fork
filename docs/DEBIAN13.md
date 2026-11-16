@@ -112,7 +112,7 @@ python3 -m mwconv convert --data "/ścieżka/Data Files" \
 ## 4. Gra i Construction Set 2.0
 
 ```bash
-# gra bez launchera (strumieniowanie komórek; WASD, mysz, spacja, Shift, F = latanie, E = drzwi/aktywacja)
+# gra bez launchera (strumieniowanie komórek; WASD, mysz, spacja, Shift, F = dobycie broni, R = magia, M = okno magii, F6 = latanie (test), E = drzwi/aktywacja)
 godot --path mwgodot/godot -- --data=$HOME/.local/share/mwgodot/mwdata
 # z nakładką modów i ustawieniami (tak uruchamia launcher):
 #   -- --data=<profil>/out --base=<converted>/base --settings=<profil>/runtime_settings.json --profile=<id>

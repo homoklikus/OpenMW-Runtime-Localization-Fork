@@ -26,11 +26,15 @@ func _init(records_source, game_state) -> void:
 	state = game_state
 
 ## {"kind": plik rekordu, "rec": rekord} albo {} – przedmiot, który może leżeć w inwentarzu.
+## Kamień dusz z duszą: „id@stworzenie” (OpenMW: dusza w CellRef; tu – w id, osobny stos jak w OpenMW).
 func item(id: String) -> Dictionary:
 	var k := id.to_lower()
+	var base := k.get_slice("@", 0)
 	for f in ITEM_FILES:
-		var r: Dictionary = records.record(f, k)
+		var r: Dictionary = records.record(f, base)
 		if not r.is_empty():
+			if base != k:
+				return {"kind": f, "id": k, "rec": r, "soul": k.get_slice("@", 1)}
 			return {"kind": f, "id": k, "rec": r}
 	return {}
 

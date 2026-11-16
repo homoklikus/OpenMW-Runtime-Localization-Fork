@@ -49,7 +49,7 @@ func _ready() -> void:
 	box.add_child(buttons)
 	take_all_btn = _button(buttons, "Weź wszystko", _take_all)
 	drop_btn = _button(buttons, "Odłóż na ziemię", func(): _move_from_right(_selected(right)))
-	equip_btn = _button(buttons, "Załóż / zdejmij", func(): toggle_equip(_selected(right)))
+	equip_btn = _button(buttons, "Użyj / załóż", func(): use_item(_selected(right)))
 	_button(buttons, "Zamknij (Esc)", close)
 	panel.position = (get_viewport().get_visible_rect().size - panel.custom_minimum_size) / 2.0
 	visible = false
@@ -162,6 +162,46 @@ func _move_from_right(i: int) -> void:
 	elif main != null and main.has_method("drop_item"):
 		main.drop_item(id, n)
 	_sound(id, false)
+	refresh()
+
+## Użycie przedmiotu (InventoryWindow::useItem, etap 7d): mikstura – wypicie, składnik – zjedzenie, aparat –
+## alchemia, kamień dusz z duszą – zaklinanie, zwój – wybór jako magia; inne – załóż/zdejmij.
+func use_item(i: int) -> void:
+	if i < 0 or i >= _right_ids.size() or main == null or mode != "inventory" or main.get("magic") == null:
+		toggle_equip(i)
+		return
+	var id: String = _right_ids[i]
+	var it: Dictionary = interaction.inventory.item(id)
+	var me: Dictionary = main.combat.player_fighter()
+	match String(it.get("kind", "")):
+		"potion":
+			main.magic.drink(me, id)
+			info.text = "Wypito: " + interaction.item_name("potion", id, it.rec)
+		"ingredient":
+			var r: Dictionary = main.magic.eat(me, id)
+			info.text = String(r.get("message", "")) if not String(r.get("message", "")).is_empty() else "Zjedzono: " + interaction.item_name("ingredient", id, it.rec)
+		"apparatus":
+			close()
+			main.magic_window.open_alchemy()
+			return
+		"misc":
+			if main.magic.is_soul_gem(id) and main.magic.gem_charge(id) > 0:
+				close()
+				main.magic_window.open_enchant({}, id)
+				return
+			toggle_equip(i)
+			return
+		"book":
+			var en: Dictionary = main.magic.item_enchantment(it)
+			if not en.is_empty() and int(en.get("type", -1)) == main.magic.ENCH_CAST_ONCE:
+				main.select_magic("item", id)
+				info.text = "Wybrano zwój: %s (R – przygotuj magię)" % interaction.item_name("book", id, it.rec)
+			else:
+				toggle_equip(i)
+				return
+		_:
+			toggle_equip(i)
+			return
 	refresh()
 
 ## Załóż albo zdejmij zaznaczony przedmiot gracza (etap 7).

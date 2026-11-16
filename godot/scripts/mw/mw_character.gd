@@ -34,6 +34,10 @@ const FX_JUMP := 9
 const CONSTANT_TYPES := [1, 2, 3, 4]
 
 var records          # obiekt z record(file, id) i records_index()
+var magic = null     # MWMagic (etap 7d): efekty przedmiotów i działających czarów, ubytki atrybutów/umiejętności
+# efekty z argumentem: atrybut (osłabienie, uszkodzenie, przywrócenie, wzmocnienie, pochłonięcie) i umiejętność
+const ARG_ATTRIBUTE_EFFECTS := [17, 22, 74, 79, 85]
+const ARG_SKILL_EFFECTS := [21, 26, 78, 83, 89]
 
 func _init(records_source) -> void:
 	records = records_source
@@ -135,7 +139,9 @@ func build(choice: Dictionary) -> Dictionary:
 	st["fatigue"] = d.fatigue.modified
 	return st
 
-## Suma wielkości stałych efektów danego rodzaju (klucz: efekt, a dla atrybutów/umiejętności – indeks).
+## Suma wielkości efektów danego rodzaju (klucz: efekt; dla efektów na atrybut/umiejętność także „efekt:indeks”):
+## zdolności i inne czary stałe z listy postaci, a z modułem magii (etap 7) – stałe zaklęcia założonych przedmiotów
+## i działające czary (MagicEffects w OpenMW).
 func constant_effects(st: Dictionary) -> Dictionary:
 	var fx := {}
 	for sid in st.get("spells", []):
@@ -143,14 +149,23 @@ func constant_effects(st: Dictionary) -> Dictionary:
 		if sp.is_empty() or not int(sp.get("spell_type", 0)) in CONSTANT_TYPES:
 			continue
 		for e in sp.get("effects", []):
-			var id := int(e.get("effect", -1))
-			var key := str(id)
-			if id == FX_FORTIFY_ATTRIBUTE:
-				key = "%d:%d" % [id, int(e.get("attribute", -1))]
-			elif id == FX_FORTIFY_SKILL:
-				key = "%d:%d" % [id, int(e.get("skill", -1))]
-			fx[key] = float(fx.get(key, 0.0)) + float(e.get("min", 0))
+			add_effect(fx, e, float(e.get("min", 0)))
+	if magic != null:
+		magic.add_extra_effects(st, fx)
 	return fx
+
+## Dopisuje wielkość efektu do mapy efektów (klucz efektu i „efekt:atrybut/umiejętność”).
+static func add_effect(fx: Dictionary, e: Dictionary, m: float) -> void:
+	var id := int(e.get("effect", -1))
+	fx[str(id)] = float(fx.get(str(id), 0.0)) + m
+	var arg := -1
+	if id in ARG_ATTRIBUTE_EFFECTS:
+		arg = int(e.get("attribute", -1))
+	elif id in ARG_SKILL_EFFECTS:
+		arg = int(e.get("skill", -1))
+	if arg >= 0:
+		var k := "%d:%d" % [id, arg]
+		fx[k] = float(fx.get(k, 0.0)) + m
 
 ## Wartości zmodyfikowane i pochodne: atrybuty i umiejętności ze wzmocnieniami, zdrowie (z bazowych siły
 ## i wytrzymałości), magia (inteligencja × (fPCbaseMagickaMult + 0,1 × wzmocnienie maks. magii)), kondycja
@@ -161,10 +176,15 @@ func derived(st: Dictionary) -> Dictionary:
 	var s: Array = st.get("skills", [])
 	var am := []
 	var sm := []
+	var dmg: Dictionary = st.get("magic_damage", {})       # ubytki (Damage/Drain – AttributeValue::damage)
+	var da: Array = dmg.get("attributes", [])
+	var ds: Array = dmg.get("skills", [])
 	for i in 8:
-		am.append(maxf(0.0, float(a[i]) + float(fx.get("%d:%d" % [FX_FORTIFY_ATTRIBUTE, i], 0.0))))
+		am.append(maxf(0.0, float(a[i]) + float(fx.get("%d:%d" % [FX_FORTIFY_ATTRIBUTE, i], 0.0))
+			- (float(da[i]) if i < da.size() else 0.0)))
 	for i in 27:
-		sm.append(maxf(0.0, float(s[i]) + float(fx.get("%d:%d" % [FX_FORTIFY_SKILL, i], 0.0))))
+		sm.append(maxf(0.0, float(s[i]) + float(fx.get("%d:%d" % [FX_FORTIFY_SKILL, i], 0.0))
+			- (float(ds[i]) if i < ds.size() else 0.0)))
 	# zdrowie bazowe: przy tworzeniu ⌊(siła + wytrzymałość)/2⌋ (updateHealth), potem rośnie przy awansie
 	var hb := float(st["health_base"]) if st.has("health_base") else floorf(0.5 * (float(a[ATTR_STRENGTH]) + float(a[ATTR_ENDURANCE])))
 	var factor := _gmst("fpcbasemagickamult", 1.0) + float(fx.get(str(FX_FORTIFY_MAX_MAGICKA), 0.0)) * 0.1

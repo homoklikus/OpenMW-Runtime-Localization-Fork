@@ -147,6 +147,8 @@ func rest(n: int) -> void:
 	for i in maxi(1, n):
 		character.rest_hour(st, sleeping, character.normalized_encumbrance(st, w))
 		main.envr.advance(1.0)
+		if main.has_method("pass_magic_time"):
+			main.pass_magic_time(3600.0)          # czary wygasają, przedmioty się ładują (Actors::rest)
 	visible = false
 	if sleeping and character.can_level_up(st):
 		open_levelup()

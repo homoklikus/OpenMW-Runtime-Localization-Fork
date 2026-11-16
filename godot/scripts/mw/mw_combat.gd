@@ -86,7 +86,8 @@ func _npc_stats(f: Dictionary) -> Dictionary:
 func attributes(f: Dictionary) -> Array:
 	if f.kind == "player":
 		return main.character.derived(main.player_stats()).attributes
-	return _npc_stats(f).get("attributes", [])
+	var at: Array = _npc_stats(f).get("attributes", [])
+	return main.magic.npc_modified(f, at, "attributes") if main.magic != null and main.magic.main != null else at
 
 ## Umiejętność: gracz – zmodyfikowana; NPC – autoobliczona/z rekordu; stworzenie – walka/magia/skradanie wg
 ## specjalizacji umiejętności (combat.common getSkill).
@@ -101,6 +102,8 @@ func skill(f: Dictionary, i: int) -> float:
 			2: return float(f.rec.get("stealth", 0))
 		return float(f.rec.get("combat", 0))
 	var s: Array = _npc_stats(f).get("skills", [])
+	if main.magic != null and main.magic.main != null:
+		s = main.magic.npc_modified(f, s, "skills")
 	return float(s[i]) if i < s.size() else 0.0
 
 func max_health(f: Dictionary) -> float:
@@ -125,11 +128,13 @@ func health(f: Dictionary) -> float:
 		return float(main.player_stats().get("health", 0.0))
 	return float(_actor_state(f).get("health", max_health(f)))
 
+## Wartość ponad maksimum (wzmocnienie zdrowia z czaru) nie jest obcinana przy obrażeniach.
 func set_health(f: Dictionary, v: float) -> void:
+	var cap := maxf(max_health(f), health(f))
 	if f.kind == "player":
-		main.player_stats()["health"] = minf(v, max_health(f))
+		main.player_stats()["health"] = minf(v, cap)
 	else:
-		_actor_state(f)["health"] = minf(v, max_health(f))
+		_actor_state(f)["health"] = minf(v, cap)
 
 func fatigue(f: Dictionary) -> float:
 	if f.kind == "player":
@@ -154,9 +159,11 @@ func fatigue_term(f: Dictionary) -> float:
 	return float(_gmst("fFatigueBase", 1.25)) - float(_gmst("fFatigueMult", 0.5)) * (1.0 - norm)
 
 func magic_effect(f: Dictionary, fx: int) -> float:
+	if main.magic != null and main.magic.main != null:
+		return float(main.magic.magnitude_of(f, fx))
 	if f.kind == "player":
 		return float(main.character.constant_effects(main.player_stats()).get(str(fx), 0.0))
-	return 0.0                                          # efekty aktywne NPC – etap 7d (czary)
+	return 0.0
 
 # --- ekwipunek ------------------------------------------------------------------------------------------
 
@@ -393,6 +400,8 @@ func melee(att: Dictionary, vic: Dictionary, attack_type: int, strength: float, 
 	if blocked:
 		damage = 0.0
 	var res := on_hit(vic, att, {"health": damage} if health_dmg else {"fatigue": damage}, true)
+	if not blocked and not w.is_empty() and main.magic != null and main.magic.main != null and not is_dead(vic):
+		res["enchanted"] = main.magic.on_strike(att, vic, w)     # applyOnStrikeEnchantment
 	res["chance"] = chance
 	res["blocked"] = blocked
 	return res
@@ -524,5 +533,7 @@ func projectile_hit(att: Dictionary, vic: Dictionary, launcher: Dictionary, ammo
 	if att.kind == "player":
 		main.skill_used(skid, "weapon_hit")
 	var res := on_hit(vic, att, {"health": dmg}, true)
+	if main.magic != null and main.magic.main != null and not is_dead(vic):
+		res["enchanted"] = main.magic.on_strike(att, vic, ammo, true)
 	res["chance"] = chance
 	return res

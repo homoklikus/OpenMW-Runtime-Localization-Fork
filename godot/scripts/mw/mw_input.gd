@@ -13,6 +13,8 @@ const DEFAULTS := {
 	"rest": KEY_T,
 	"ready_weapon": KEY_F,
 	"attack": -MOUSE_BUTTON_LEFT,          # wartość ujemna – przycisk myszy
+	"ready_magic": KEY_R,                  # OpenMW: „Przygotuj magię”
+	"magic_menu": KEY_M,                   # okno magii (w OpenMW część trybu ekwipunku)
 }
 
 static func register_defaults() -> void:

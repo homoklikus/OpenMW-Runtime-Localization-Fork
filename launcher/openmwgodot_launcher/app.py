@@ -542,7 +542,7 @@ class HelpPage(QWidget):
             "publikować.<br><br><b>2. Mody</b> – instaluj archiwa ZIP/7z; każdy mod to osobna warstwa, mod niżej na liście "
             "wygrywa konflikty, „Zastosuj” przebudowuje tylko zmienione zasoby.<br><br><b>3. Profile</b> – różne zestawy "
             "modów i ustawień; przekonwertowana gra jest wspólna.<br><br><b>4. Graj</b> – gra startuje w osobnym procesie "
-            "Godota. Sterowanie: WASD, mysz, Spacja – skok, Shift – bieg, E – drzwi, F – latanie.<br><br>"
+            "Godota. Sterowanie: WASD, mysz, Spacja – skok, Shift – bieg, E – drzwi, F – broń, R – magia, M – okno magii, F6 – latanie (test).<br><br>"
             "<b>Construction Set</b> – edytor świata w Godocie; zmiany zapisuje jako warstwę projektu, bez nadpisywania "
             "ESM/ESP.<br><br>Dokumentacja: <i>docs/LAUNCHER.md</i> i <i>docs/DEBIAN13.md</i> w katalogu projektu.")
         txt.setWordWrap(True)

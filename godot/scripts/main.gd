@@ -51,6 +51,8 @@ var magic = null                      # etap 7: wzory magii (koszty, efekty)
 var trade = null                      # etap 7: handel i usługi
 var trade_window = null
 var combat = null                     # etap 7: walka
+var magic_window = null               # etap 7d: magia, alchemia, zaklinanie
+var magic_ready := false              # przygotowana magia (klawisz R) – lewy przycisk rzuca
 var state = GameStateScript.new()   # różnice stanu gry względem danych bazowych (zapis gry)
 var pause_menu: Control
 var loc  # Loc
@@ -122,7 +124,10 @@ func _ready() -> void:
 	dialogue_window.dialogue = dialogue
 	dialogue_window.main = self
 	add_child(dialogue_window)
-	magic = MagicScript.new(builder.actors)
+	magic = MagicScript.new(builder.actors, self)
+	character.magic = magic
+	builder.actors.dynamic = state.created
+	db.created = state.created
 	trade = TradeScript.new(self)
 	combat = CombatScript.new(self)
 	trade_window = TradeWindowScript.new()
@@ -133,6 +138,10 @@ func _ready() -> void:
 	rest_window.main = self
 	rest_window.character = character
 	add_child(rest_window)
+	magic_window = preload("res://scripts/mw/mw_magic_window.gd").new()
+	magic_window.main = self
+	magic_window.magic = magic
+	add_child(magic_window)
 	journal_window = JournalWindowScript.new()
 	journal_window.dialogue = dialogue
 	journal_window.main = self
@@ -245,7 +254,12 @@ func player_weight() -> float:
 	if _weight_cache < 0.0 and interaction != null:
 		var inv = interaction.inventory
 		_weight_cache = float(inv.total_weight(inv.contents("player", {})))
-	return maxf(_weight_cache, 0.0)
+	var w := maxf(_weight_cache, 0.0)
+	var st := player_stats()
+	if magic != null and not st.is_empty() and (st.has("active_spells") or st.has("equipment")):
+		var fx: Dictionary = character.constant_effects(st)      # getEncumbrance: + Ciężar − Lekkość
+		w = maxf(0.0, w + float(fx.get("7", 0.0)) - float(fx.get("8", 0.0)))
+	return w
 
 ## Użycie umiejętności gracza (skillUsageSucceeded): komunikaty o wzroście i gotowości do awansu.
 func skill_used(skill: int, use: String, scale := 1.0) -> void:
@@ -291,6 +305,11 @@ func _update_player_rpg(dt: float) -> void:
 	player.swim_speed = float(mv.swim) / upm
 	player.jump_velocity = float(mv.jump) / upm
 	player.air_factor = float(mv.air_factor)
+	if magic != null and magic.magnitude_of(combat.player_fighter(), magic.FX_PARALYZE) > 0.0:
+		player.walk_speed = 0.0                    # paraliż: bez ruchu i skoku (animacja – etap 10)
+		player.run_speed = 0.0
+		player.swim_speed = 0.0
+		player.jump_velocity = 0.0
 	var moving: bool = player.move_input.length() > 0.01
 	if moving:
 		var fat := float(st.get("fatigue", 0.0))
@@ -516,13 +535,21 @@ func _update_combat(dt: float) -> void:
 	for p in projectiles.duplicate():
 		var nd: Node3D = p.node
 		var from := nd.global_position
-		p.vel.y -= g * dt
+		if not p.has("bolt"):
+			p.vel.y -= g * dt
 		var to: Vector3 = from + p.vel * dt
 		p.life -= dt
 		var hit_actor := _projectile_actor(from, to)
 		var q := PhysicsRayQueryParameters3D.create(from, to)
 		q.exclude = [player.get_rid()]
 		var wall := player.get_world_3d().direct_space_state.intersect_ray(q)
+		if p.has("bolt"):
+			if not hit_actor.is_empty() or not wall.is_empty() or p.life <= 0.0:
+				explode_bolt(p, wall.get("position", to) if hit_actor.is_empty() else to, hit_actor)
+				_end_projectile(p)
+			else:
+				nd.global_position = to
+			continue
 		if not hit_actor.is_empty():
 			combat.projectile_hit(p.att, hit_actor, p.launcher, p.ammo, float(p.strength))
 			_end_projectile(p)
@@ -564,6 +591,8 @@ func on_actor_died(f: Dictionary, _att: Dictionary) -> void:
 	if f.kind == "player":
 		_player_died()
 		return
+	if magic != null:
+		magic.soul_trap(f)                 # Pułapka dusz: dusza stworzenia do kamienia gracza
 	var a: Dictionary = combat._actor_state(f)
 	a["dead"] = true
 	a["health"] = 0.0
@@ -596,6 +625,199 @@ func _apply_dead_poses() -> void:
 		for n in refs.get_children():
 			if bool(state.actors.get(String(n.get_meta("mw_sid", "")), {}).get("dead", false)):
 				apply_dead_pose(n)
+
+# --- etap 7d: magia gracza -------------------------------------------------------------------------------
+
+var _recharge_acc := 0.0
+
+## Co klatkę: działające czary gracza i aktorów we wczytanych komórkach (śmierć od czarów), ładowanie przedmiotów.
+func _update_magic(dt: float) -> void:
+	if magic == null or combat == null or player_stats().is_empty():
+		return
+	magic.tick(combat.player_fighter(), dt)
+	for key in loaded:
+		var refs: Node = loaded[key].get_node_or_null("Refs")
+		if refs == null:
+			continue
+		for n in refs.get_children():
+			if not n.has_meta("mw_actor"):
+				continue
+			var a = state.actors.get(String(n.get_meta("mw_sid", "")))
+			if a is Dictionary and not (a.get("active_spells", []) as Array).is_empty():
+				magic.tick(combat.fighter_of(n), dt)
+	_recharge_acc += dt
+	if _recharge_acc >= 1.0:
+		magic.recharge(player_stats(), _recharge_acc)
+		_recharge_acc = 0.0
+
+## Upływ czasu (odpoczynek, podróż): czary i ładowanie przedmiotów gracza (Actors::rest, rechargeItems).
+func pass_magic_time(seconds: float) -> void:
+	if magic == null or player_stats().is_empty():
+		return
+	var steps := maxi(1, int(ceilf(seconds / 60.0)))
+	for i in steps:
+		magic.tick(combat.player_fighter(), seconds / steps)
+	magic.recharge(player_stats(), seconds)
+
+func fighter_by_sid(sid: String) -> Dictionary:
+	if sid == "player":
+		return combat.player_fighter()
+	for key in loaded:
+		var refs: Node = loaded[key].get_node_or_null("Refs")
+		if refs == null:
+			continue
+		for n in refs.get_children():
+			if String(n.get_meta("mw_sid", "")) == sid:
+				return combat.fighter_of(n)
+	return {}
+
+## Przywołanie (Recall): miejsce Znaku (Mark) – wnętrze albo świat zewnętrzny.
+func recall_to_mark() -> void:
+	var m: Dictionary = state.player.get("mark", {})
+	var p: PackedStringArray = String(m.get("pos", "")).split(",")
+	if p.size() != 3:
+		return
+	var pos := Vector3(float(p[0]), float(p[1]), float(p[2]))
+	travel_to_cell(String(m.get("interior", "")), pos, rad_to_deg(-player.rotation.y))
+
+## Wybrana magia: {"kind": "spell"|"item", "id"}.
+func selected_magic() -> Dictionary:
+	var sel = player_stats().get("selected_magic", {})
+	return sel if sel is Dictionary else {}
+
+func select_magic(kind: String, id: String) -> void:
+	player_stats()["selected_magic"] = {"kind": kind, "id": id.to_lower()}
+
+func selected_magic_name() -> String:
+	var sel := selected_magic()
+	if sel.is_empty():
+		return ""
+	if sel.kind == "spell":
+		var sp: Dictionary = builder.actors.record("spell", String(sel.id))
+		return String(sp.get("name", sel.id))
+	var it: Dictionary = interaction.inventory.item(String(sel.id))
+	return interaction.item_name(String(it.get("kind", "")), String(sel.id), it.get("rec", {})) if not it.is_empty() else ""
+
+## Rzucenie wybranej magii (lewy przycisk przy gotowej magii): zaklęcie/moc albo przedmiot; dotyk – aktor
+## w zasięgu fCombatDistance (getHitContact) albo obiekt (Otwarcie/Zamknięcie); cel – pocisk czaru.
+func player_cast(roll := -1) -> Dictionary:
+	var sel := selected_magic()
+	if sel.is_empty():
+		_toast(dialogue.gmst_text("sNoSpellSelected", "Nie wybrano zaklęcia.") if dialogue != null else "Nie wybrano zaklęcia.", 2.0)
+		return {"success": false}
+	var me: Dictionary = combat.player_fighter()
+	var touch := melee_target(float(combat._gmst("fCombatDistance", 128.0)))
+	var r: Dictionary
+	if sel.kind == "spell":
+		if not String(sel.id) in (player_stats().get("spells", []) as Array):
+			return {"success": false}
+		r = magic.cast_spell(me, String(sel.id), touch, roll)
+	else:
+		if interaction.inventory.count_of("player", {}, String(sel.id)) <= 0:
+			player_stats().erase("selected_magic")
+			return {"success": false}
+		r = magic.use_item(me, String(sel.id), touch)
+	if not String(r.get("message", "")).is_empty():
+		_toast(String(r.message), 2.0)
+	if not bool(r.get("success", false)):
+		return r
+	if audio != null:
+		audio.play("%s cast" % _school_name(int(r.get("school", 11))))
+	if touch.is_empty():
+		_touch_object(r)
+	if not (r.get("bolt", []) as Array).is_empty():
+		launch_bolt(me, r.bolt, r.source, r.get("spell", {}))
+	return r
+
+static func _school_name(skill: int) -> String:
+	return {11: "alteration", 13: "conjuration", 10: "destruction", 12: "illusion", 14: "mysticism", 15: "restoration"}.get(skill, "alteration")
+
+## Dotyk obiektu (World::castSpell – promień do odległości aktywacji): Otwarcie/Zamknięcie zamków.
+func _touch_object(r: Dictionary) -> void:
+	var src: Dictionary = r.get("spell", {})
+	var list: Array = src.get("effects", []) if not src.is_empty() else []
+	if src.is_empty():
+		var it: Dictionary = interaction.inventory.item(String(r.get("source", {}).get("id", "")))
+		list = magic.item_enchantment(it).get("effects", []) if not it.is_empty() else []
+	var cam := player.get_node_or_null("Camera3D") as Camera3D
+	if cam == null:
+		return
+	var node := MWTravel.pick(cam)
+	if node == null or node.has_meta("mw_actor"):
+		return
+	for e in magic.by_range(list, magic.RT_TOUCH):
+		_lock_effect(node, e)
+
+func _lock_effect(node: Node, e: Dictionary) -> void:
+	var id := int(e.get("effect", -1))
+	if id != magic.FX_OPEN and id != magic.FX_LOCK:
+		return
+	var sid: String = interaction.sid_of(node)
+	var lvl: int = interaction.lock_level(node)
+	var mag := int(magic._roll_magnitude({"min": float(e.get("min", 0)), "max": float(e.get("max", 0))}))
+	if id == magic.FX_OPEN:
+		if lvl > 0 and lvl <= mag:
+			state.set_lock(sid, 0)
+			_toast(dialogue.gmst_text("sMagicOpenSuccess", "Zamek otwarty."), 2.0)
+			if audio != null:
+				audio.play("Open Lock")
+		elif lvl > 0 and audio != null:
+			audio.play("Open Lock Fail")
+	elif lvl < mag and String(interaction.kind_of(node)) in ["door", "container"]:
+		state.set_lock(sid, mag)
+		_toast(dialogue.gmst_text("sMagicLockSuccess", "Zamek zamknięty."), 2.0)
+
+## Pocisk czaru (ProjectileManager::launchMagicBolt): prędkość fTargetSpellMaxSpeed × szybkość efektu, bez grawitacji.
+func launch_bolt(caster: Dictionary, list: Array, source: Dictionary, spell := {}) -> void:
+	var cam := player.get_node("Camera3D") as Camera3D
+	var mg: Dictionary = magic.effect(int((list[0] as Dictionary).get("effect", -1)))
+	var speed := float(combat._gmst("fTargetSpellMaxSpeed", 1000.0)) * float(mg.get("speed", 1.0)) / MWCoords.UNITS_PER_METER
+	var nd := MeshInstance3D.new()
+	nd.name = "MagicBolt"
+	var sm := SphereMesh.new()
+	sm.radius = 0.12
+	sm.height = 0.24
+	nd.mesh = sm
+	var mat := StandardMaterial3D.new()
+	var col: Array = mg.get("color", [255, 128, 64])
+	mat.albedo_color = Color8(int(col[0]), int(col[1]), int(col[2]))
+	mat.emission_enabled = true
+	mat.emission = mat.albedo_color
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	nd.material_override = mat
+	add_child(nd)
+	nd.global_position = cam.global_position - cam.global_transform.basis.z * 0.6
+	projectiles.append({"node": nd, "vel": -cam.global_transform.basis.z * speed, "att": caster, "bolt": list,
+		"source": source, "spell": spell, "life": 10.0})
+
+## Wybuch czaru (explodeSpell): efekty z obszarem na aktorów w promieniu obszar × 22 jednostki (stopy).
+func explode_bolt(p: Dictionary, at: Vector3, hit: Dictionary) -> void:
+	var direct := []
+	for e in p.bolt:
+		if int(e.get("area", 0)) <= 0:
+			direct.append(e)
+	if not hit.is_empty() and not direct.is_empty():
+		magic.bolt_hit(p.att, hit, p.source, direct, p.spell)
+	for e in p.bolt:
+		var area := int(e.get("area", 0))
+		if area <= 0:
+			continue
+		var radius := area * 22.0 / MWCoords.UNITS_PER_METER
+		var targets := []
+		if player.global_position.distance_to(at) <= radius:
+			targets.append(combat.player_fighter())
+		for key in loaded:
+			var refs: Node = loaded[key].get_node_or_null("Refs")
+			if refs == null:
+				continue
+			for n in refs.get_children():
+				if n.has_meta("mw_actor") and not n.get_meta("mw_disabled", false) and (n as Node3D).global_position.distance_to(at) <= radius:
+					targets.append(combat.fighter_of(n))
+		for t in targets:
+			if not t.is_empty():
+				magic.bolt_hit(p.att, t, p.source, [e], p.spell)
+	if audio != null:
+		audio.play("%s hit" % _school_name(int(magic.school_skill(int((p.bolt[0] as Dictionary).get("effect", -1))))))
 
 var death_screen: CanvasLayer = null
 
@@ -838,6 +1060,7 @@ func _process(_d: float) -> void:
 	if not get_tree().paused:
 		_update_player_rpg(_d)
 		_update_combat(_d)
+		_update_magic(_d)
 	if scripts != null and player != null and not get_tree().paused and arg("scripts", "1") != "0":
 		scripts.tick(_d, script_host.scripted_refs())
 	_capture_tick()
@@ -880,6 +1103,11 @@ func _process(_d: float) -> void:
 		stats_line = "\n%s  |  zdrowie %d/%d  |  magia %d/%d  |  kondycja %d/%d" % [Loc.escape_bbcode(String(pst.get("name", ""))),
 				roundi(float(pst.get("health", 0))), roundi(dd.health.modified), roundi(float(pst.get("magicka", 0))),
 				roundi(dd.magicka.modified), roundi(float(pst.get("fatigue", 0))), roundi(dd.fatigue.modified)]
+		var sm := selected_magic_name()
+		if not sm.is_empty():
+			stats_line += "  |  %s: %s" % ["magia gotowa" if magic_ready else "[lb]R] magia", Loc.escape_bbcode(sm)]
+		elif weapon_drawn:
+			stats_line += "  |  broń dobyta"
 	var rname := display_location()
 	hud.text = "%s  |  dzień %d, %02d:%02d  |  %s%s%s" % [rname, envr.day + 1, int(envr.game_hour), int(fmod(envr.game_hour, 1.0) * 60), envr.weather, coords_text() + stats_line, hint]
 
@@ -944,7 +1172,24 @@ func _unhandled_input(e: InputEvent) -> void:
 		_toast("Skopiowano do schowka: " + line)
 	if e.is_action_pressed("ready_weapon") and player:
 		weapon_drawn = not weapon_drawn
+		if weapon_drawn:
+			magic_ready = false
 		_toast("Broń dobyta" if weapon_drawn else "Broń schowana", 1.0)
+		get_viewport().set_input_as_handled()
+		return
+	if e.is_action_pressed("ready_magic") and player:
+		magic_ready = not magic_ready
+		if magic_ready:
+			weapon_drawn = false
+		_toast(("Magia gotowa: " + selected_magic_name()) if magic_ready else "Magia schowana", 1.5)
+		get_viewport().set_input_as_handled()
+		return
+	if e.is_action_pressed("magic_menu") and player and magic_window != null and not magic_window.visible:
+		magic_window.open_spells()
+		get_viewport().set_input_as_handled()
+		return
+	if e.is_action_pressed("attack") and player and magic_ready and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		player_cast()
 		get_viewport().set_input_as_handled()
 		return
 	if e.is_action_pressed("attack") and player and weapon_drawn and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -1201,6 +1446,8 @@ func load_game(path: String) -> Array:
 	return warnings
 
 func _apply_state() -> void:
+	builder.actors.dynamic = state.created         # rekordy utworzone w grze (etap 7d) – nowy słownik po wczytaniu
+	db.created = state.created
 	if character != null and (state.player.get("character", {}) as Dictionary).is_empty():
 		state.player["character"] = character.build(default_choice())     # zapis sprzed etapu 4
 	envr.day = int(state.time.get("day", 0))

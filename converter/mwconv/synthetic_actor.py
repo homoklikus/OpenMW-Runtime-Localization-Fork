@@ -529,6 +529,74 @@ def _stage7_records() -> list:
     return [athletics, merc, fire, bolt, bow, arrow, _trader()] + refusal + [_gmst(k, v) for k, v in {**GMST_STAGE7, **GMST_TRADE}.items()]
 
 
+GMST_MAGIC = {"fPotionStrengthMult": 0.5, "fPotionT1MagMult": 1.5, "fPotionT1DurMult": 0.5, "iAlchemyMod": 2,
+              "fEnchantmentMult": 0.1, "fEnchantmentChanceMult": 3.0, "fEnchantmentConstantChanceMult": 0.5,
+              "fEnchantmentConstantDurationMult": 100.0, "fEnchantmentValueMult": 10.0, "iMagicItemChargeOnce": 1,
+              "iMagicItemChargeStrike": 10, "iMagicItemChargeUse": 5, "iMagicItemChargeConst": 10,
+              "fMagicItemRechargePerSecond": 0.05, "fSoulGemMult": 3.0, "iSoulAmountForConstantEffect": 400,
+              "fNPCbaseMagickaMult": 2.0, "fTargetSpellMaxSpeed": 1000.0}
+
+
+def _mgef(idx, school, cost, flags=0x600) -> bytes:
+    """MGEF: szkoła, koszt bazowy, flagi z pliku (tylko modyfikowalne: 0x200 tworzenie czarów, 0x400 zaklinanie)."""
+    return W.record("MGEF", [W.sub("INDX", struct.pack("<i", idx)),
+                             W.sub("MEDT", struct.pack("<ifiiiifff", school, cost, flags, 200, 120, 60, 1.0, 1.0, 1.0))])
+
+
+def _enam(eff, rng, mn, mx, dur, skill=-1, attr=-1, area=0) -> bytes:
+    return W.sub("ENAM", struct.pack("<hbbiiiii", eff, skill, attr, rng, area, dur, mn, mx))
+
+
+def _stage7d_records() -> list:
+    """Magia: efekty (MGEF), zaklęcia gracza, mikstura, składniki, aparaty, zaklęcia przedmiotów, kamień dusz."""
+    recs = [_mgef(23, 2, 4.0), _mgef(75, 5, 1.0), _mgef(79, 5, 1.0), _mgef(90, 5, 2.0), _mgef(58, 4, 2.0),
+            _mgef(13, 0, 6.0)]
+    skills = [W.record("SKIL", [W.sub("INDX", struct.pack("<i", i)),
+                                W.sub("SKDT", struct.pack("<ii4f", attr, 1, 1.0, 1.0, 1.0, 1.0))])
+              for i, attr in ((9, 1), (10, 2), (14, 1), (15, 2))]
+    spells = [("synth_heal", "Leczenie testowe", [_enam(75, 0, 5, 5, 4)]),
+              ("synth_touch", "Dotyk testowy", [_enam(23, 1, 10, 10, 0)]),
+              ("synth_soultrap", "Pulapka testowa", [_enam(58, 1, 0, 0, 30)]),
+              ("synth_open", "Otwarcie testowe", [_enam(13, 1, 20, 20, 0)]),
+              ("synth_strength", "Sila testowa", [_enam(79, 0, 10, 10, 5, attr=0)])]
+    for sid, name, enams in spells:
+        recs.append(W.record("SPEL", [W.sub("NAME", W.zs(sid)), W.sub("FNAM", W.zs(name)),
+                                      W.sub("SPDT", struct.pack("<iii", 0, 0, 1))] + enams))
+    recs.append(W.record("ALCH", [W.sub("NAME", W.zs("synth_potion")), W.sub("FNAM", W.zs("Mikstura testowa")),
+                                  W.sub("MODL", W.zs("m\\misc_synth_spoon.nif")),
+                                  W.sub("ALDT", struct.pack("<fii", 0.5, 15, 0)),
+                                  _enam(75, 0, 10, 10, 2), _enam(79, 0, 10, 10, 5, attr=0)]))
+    for iid, w, effs in (("synth_ing_a", 0.5, [(75, -1, -1), (79, -1, 0)]), ("synth_ing_b", 1.0, [(75, -1, -1), (90, -1, -1)]),
+                         ("synth_ing_c", 1.5, [(23, -1, -1), (79, -1, 0)])):
+        e = [x[0] for x in effs] + [-1] * (4 - len(effs))
+        sk = [x[1] for x in effs] + [-1] * (4 - len(effs))
+        at = [x[2] for x in effs] + [-1] * (4 - len(effs))
+        recs.append(W.record("INGR", [W.sub("NAME", W.zs(iid)), W.sub("FNAM", W.zs(iid)),
+                                      W.sub("IRDT", struct.pack("<fi4i4i4i", w, 1, *e, *sk, *at))]))
+    for aid, typ, q in (("synth_mortar", 0, 1.0), ("synth_retort", 3, 0.5), ("synth_alembic", 1, 0.5)):
+        recs.append(W.record("APPA", [W.sub("NAME", W.zs(aid)), W.sub("FNAM", W.zs(aid)),
+                                      W.sub("AADT", struct.pack("<iffi", typ, q, 1.0, 10))]))
+    for eid, typ, cost, charge, enams in (("synth_ench_ring", 2, 5, 50, [_enam(75, 0, 5, 5, 2)]),
+                                          ("synth_ench_amulet", 3, 0, 0, [_enam(79, 0, 10, 10, 0, attr=3)]),
+                                          ("synth_ench_dagger", 1, 10, 100, [_enam(23, 1, 5, 5, 0)]),
+                                          ("synth_ench_scroll", 0, 0, 0, [_enam(75, 0, 30, 30, 0)])):
+        recs.append(W.record("ENCH", [W.sub("NAME", W.zs(eid)), W.sub("ENDT", struct.pack("<iiii", typ, cost, charge, 0))] + enams))
+    for cid, typ, ench, cap in (("synth_ring", 8, "synth_ench_ring", 0), ("synth_amulet", 9, "synth_ench_amulet", 0),
+                                ("synth_plain_ring", 8, "", 500)):
+        subs = [W.sub("NAME", W.zs(cid)), W.sub("FNAM", W.zs(cid)), W.sub("CTDT", struct.pack("<ifHH", typ, 0.1, 30, cap))]
+        if ench:
+            subs.append(W.sub("ENAM", W.zs(ench)))
+        recs.append(W.record("CLOT", subs))
+    wpdt = struct.pack("<fiHHffH", 3.0, 40, 0, 200, 1.0, 1.0, 10) + bytes([2, 4, 2, 4, 2, 4]) + struct.pack("<i", 0)
+    recs.append(W.record("WEAP", [W.sub("NAME", W.zs("synth_dagger_fire")), W.sub("FNAM", W.zs("Sztylet testowy")),
+                                  W.sub("WPDT", wpdt), W.sub("ENAM", W.zs("synth_ench_dagger"))]))
+    recs.append(W.record("BOOK", [W.sub("NAME", W.zs("synth_scroll")), W.sub("FNAM", W.zs("Zwoj testowy")),
+                                  W.sub("BKDT", struct.pack("<fiiii", 0.1, 20, 1, -1, 0)), W.sub("ENAM", W.zs("synth_ench_scroll"))]))
+    recs.append(W.record("MISC", [W.sub("NAME", W.zs("misc_soulgem_synth")), W.sub("FNAM", W.zs("Kamien dusz testowy")),
+                                  W.sub("MCDT", struct.pack("<fii", 1.0, 20, 0))]))
+    return recs + skills + [_gmst(k, v) for k, v in GMST_MAGIC.items()]
+
+
 def _stage3_records() -> list:
     torch = W.record("LIGH", [W.sub("NAME", W.zs("synth_torch")), W.sub("MODL", W.zs("l\\l_synth_torch.nif")),
                               W.sub("FNAM", W.zs("Pochodnia")),
@@ -587,7 +655,7 @@ def write_actors(data_dir: Path) -> dict:
     recs += _stage3_records() + _stage4_records() + _stage5_records()
     recs += [_npc("synth_villager", False, script="synth_talker"), _npc("synth_villager_f", True), _creature(),
              _npc("synth_guard", False, GUARD_INVENTORY, faction="Synth Guild", rank=1)]
-    recs += _stage6_records() + _stage7_records()
+    recs += _stage6_records() + _stage7_records() + _stage7d_records()
     refs = []
     for rn, (base, x, y, rz) in ACTOR_REFS.items():
         refs.append(W.ref_subs(rn, base, (x, y, height_at(x, y)), (0, 0, math.radians(rz)), extra=REF_EXTRA.get(rn)))

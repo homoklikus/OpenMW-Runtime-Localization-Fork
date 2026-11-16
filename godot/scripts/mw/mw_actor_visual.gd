@@ -53,7 +53,13 @@ func records_index() -> Dictionary:
 func available() -> bool:
 	return not records_index().is_empty()
 
+var dynamic: Dictionary = {}   # etap 7d: rekordy utworzone w grze (GameState.created: plik → id → rekord)
+
 func record(file: String, id: String) -> Dictionary:
+	if not dynamic.is_empty() and dynamic.has(file):
+		var dr = dynamic[file].get(id.to_lower())
+		if dr is Dictionary:
+			return dr
 	if not _records.has(file):
 		var d = db._read_json(db.data_root.path_join("world/records/%s.json" % file))
 		_records[file] = d if d is Dictionary else {}

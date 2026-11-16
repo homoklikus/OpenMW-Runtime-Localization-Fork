@@ -93,6 +93,9 @@ func open(service: String) -> bool:
 	if actor.is_empty() or trade.refused(service):
 		main.dialogue_window.refresh()
 		return false
+	if service == "enchanting":                       # usługa zaklinacza – okno zaklinania (etap 7d)
+		main.magic_window.open_enchant(actor)
+		return true
 	mode = service
 	buy = {}
 	sell = {}

@@ -62,6 +62,8 @@ func service_entries(a: Dictionary) -> Array:
 		out.append(["spells", _dl().gmst_text("sSpells", "Zaklęcia")])
 	if has_travel(a):
 		out.append(["travel", _dl().gmst_text("sTravel", "Podróż")])
+	if s & SVC_ENCHANTING:
+		out.append(["enchanting", _dl().gmst_text("sEnchanting", "Zaklinanie")])
 	if s & SVC_TRAINING:
 		out.append(["training", _dl().gmst_text("sServiceTrainingTitle", "Trening")])
 	return out

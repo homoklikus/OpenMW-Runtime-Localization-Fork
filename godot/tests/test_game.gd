@@ -256,7 +256,7 @@ func _test_save(main) -> void:
 			"migracja v0 → v4 z kopią bezpieczeństwa")
 	var v1 := {"format": "mwgodot-save", "version": 1, "refs": {}, "player": {"interior": ""}}
 	var mig: Dictionary = GS.migrate(v1)
-	check(mig.get("migrated", false) and mig["data"]["version"] == 4 and mig["data"]["actors"] == {} and mig["data"]["inventories"] == {}
+	check(mig.get("migrated", false) and mig["data"]["version"] == 5 and mig["data"]["actors"] == {} and mig["data"]["created"] == {} and mig["data"]["inventories"] == {}
 			and mig["data"]["dynamic"] == {} and mig["data"]["player"]["level"] == 1 and mig["data"]["dialogue"] == {},
 			"migracja v1 → v4: nowe sekcje puste (dialogi, aktorzy), poziom 1")
 	check(main.load_game(dir.path_join("nie_ma.mwsave"))[0].begins_with("BŁĄD"), "brak pliku: czytelny błąd")

@@ -17,8 +17,7 @@ var errors := {}                 # opis → liczba
 var calls := {}                  # nazwa funkcji → liczba wywołań (obsługiwanych)
 var partial := {}                # funkcje zależne od późniejszych etapów – zwracają stan „spoczynku” (0)
 ## Zdarzenia walki/AI (etapy 7–8): bez walki i śmierci ich poprawna wartość to 0.
-const IDLE_ZERO := ["onknockout", "onmurder", "onpchitme", "gettarget", "getattacked", "getweapondrawn",
-	"getspellreadied", "getcommondisease", "getblightdisease", "getpcsleep", "getcurrentaipackage", "getaipackagedone",
+const IDLE_ZERO := ["onknockout", "onmurder", "onpchitme", "gettarget", "getattacked", "getpcsleep", "getcurrentaipackage", "getaipackagedone",
 	"getforcesneak", "getforcerun", "getpcjumping", "getpcsneaking", "getpcinjail", "getpctraveling", "iswerewolf",
 	"getwerewolfkills", "getpccrimelevel", "getdetected", "getlineofsight", "getlos"]
 var delta := 0.0
@@ -266,6 +265,91 @@ func resolve(id: String) -> Dictionary:
 	if not e.is_empty():
 		return {"sid": String(e.sid), "node": null, "cell": String(e.cell)}
 	return {}
+
+func _fighter(t: Dictionary) -> Dictionary:
+	var m = game.main
+	if t.is_empty() or m.get("combat") == null:
+		return {}
+	if String(t.get("sid", "")) == "player":
+		return m.combat.player_fighter()
+	var n = t.get("node")
+	if n != null and is_instance_valid(n):
+		return m.combat.fighter_of(n)
+	return m.fighter_by_sid(String(t.get("sid", ""))) if m.has_method("fighter_by_sid") else {}
+
+## Indeks efektu z nazwy skryptu („sEffectFireDamage”, jak GMST) albo liczby.
+func _effect_index(name: String) -> int:
+	if name.is_valid_int():
+		return int(name)
+	var k := name.to_lower().trim_prefix("seffect")
+	var all: Dictionary = records._all("magiceffect")
+	for id in all:
+		if String(all[id].get("name", "")).to_lower() == k:
+			return int(id)
+	return -1
+
+## GetEffect, GetSpellEffects, Cast/ExplodeSpell (natychmiast, bez pocisku), RemoveSpellEffects, RemoveEffects,
+## GetWeaponDrawn/GetSpellReadied (gracz), HasSoulGem, GetCommonDisease/GetBlightDisease.
+func _magic_function(fname: String, t: Dictionary, args: Array, c: Ctx):
+	var m = game.main
+	var f := _fighter(t)
+	if m.get("magic") == null or (f.is_empty() and fname != "hassoulgem"):
+		return 0.0 if fname.begins_with("get") or fname.begins_with("has") else null
+	var mg = m.magic
+	match fname:
+		"geteffect":
+			return 1.0 if mg.magnitude_of(f, _effect_index(_str(args, 0))) > 0.0 else 0.0
+		"getspelleffects":
+			var spid := _str(args, 0).to_lower()
+			for sp in mg.active(f):
+				if String(sp.get("id", "")) == spid:
+					return 1.0
+			return 0.0
+		"cast", "explodespell":
+			var spid2 := _str(args, 0).to_lower()
+			var sp2: Dictionary = records.record("spell", spid2)
+			if sp2.is_empty():
+				return null
+			var tgt := f
+			if fname == "cast":
+				tgt = _fighter(_target(_str(args, 1), c))
+			var src := {"id": spid2, "name": String(sp2.get("name", spid2)), "kind": "spell"}
+			for rt in [0, 1, 2]:
+				var who: Dictionary = f if rt == 0 else tgt
+				if not who.is_empty():
+					mg.inflict(who, f, src, mg.by_range(sp2.get("effects", []), rt), sp2)
+			return null
+		"removespelleffects":
+			var spid3 := _str(args, 0).to_lower()
+			for sp3 in mg.active(f):
+				if String(sp3.get("id", "")) == spid3:
+					for e in sp3.effects:
+						e.time_left = 0.0
+			mg.tick(f, 0.0)
+			return null
+		"removeeffects":
+			mg._purge_effect(f, _effect_index(_str(args, 0)))
+			mg.tick(f, 0.0)
+			return null
+		"getweapondrawn":
+			return 1.0 if f.kind == "player" and bool(m.weapon_drawn) else 0.0
+		"getspellreadied":
+			return 1.0 if f.kind == "player" and bool(m.magic_ready) else 0.0
+		"hassoulgem":
+			var cr := _str(args, 0).to_lower()
+			var n := 0
+			for e in m.interaction.inventory.contents("player", {}):
+				if mg.is_soul_gem(String(e.id)) and mg.soul_of(String(e.id)) == cr:
+					n += int(e.count)
+			return 1.0 if n > 0 else 0.0
+		"getcommondisease", "getblightdisease":
+			var want := 3 if fname == "getcommondisease" else 2
+			var list: Array = m.player_stats().get("spells", []) if f.kind == "player" else f.rec.get("spells", [])
+			for s in list:
+				if int(records.record("spell", String(s)).get("spell_type", 0)) == want:
+					return 1.0
+			return 0.0
+	return null
 
 func _target(ref, c: Ctx) -> Dictionary:
 	if ref == null:
@@ -590,6 +674,9 @@ func _call(ref, fname: String, args: Array, c: Ctx):
 			if nrec.is_empty():
 				nrec = records.record("creature", String(t11.get("base", "")))
 			return 1.0 if spell in (nrec.get("spells", []) as Array).map(func(x): return String(x).to_lower()) else 0.0
+		# --- magia (etap 7d)
+		"geteffect", "getspelleffects", "cast", "explodespell", "removespelleffects", "removeeffects", "getweapondrawn", "getspellreadied", "hassoulgem", "getcommondisease", "getblightdisease":
+			return _magic_function(fname, _target(ref, c), args, c)
 	if fname in IDLE_ZERO:
 		partial[fname] = int(partial.get(fname, 0)) + 1
 		return 0.0

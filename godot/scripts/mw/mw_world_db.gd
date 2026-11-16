@@ -62,8 +62,43 @@ func exterior_key(g: Vector2i) -> String:
 var _object_overrides = null
 
 ## Rekord bazowy z nałożonymi zmianami projektu (overrides/objects.json: id → pola).
+var created: Dictionary = {}   # etap 7d: GameState.created – obiekty utworzone w grze (mikstury, przedmioty zaklęte)
+var _potion_models := {}
+const CREATED_TYPES := {"potion": "ALCH", "weapon": "WEAP", "armor": "ARMO", "clothing": "CLOT", "book": "BOOK"}
+
+## Obiekt rekordu utworzonego w grze: przedmiot zaklęty – obiekt przedmiotu źródłowego, mikstura – obiekt
+## z tym samym modelem; kamień dusz z duszą („id@stworzenie”) – obiekt kamienia.
+func _created_object(id: String) -> Dictionary:
+	if id.contains("@"):
+		return get_object(id.get_slice("@", 0))
+	for file in created:
+		var rec = created[file].get(id)
+		if not rec is Dictionary:
+			continue
+		var o := {}
+		if rec.has("source_object"):
+			o = (_objects.get(String(rec.source_object), {}) as Dictionary).duplicate(true)
+		elif file == "potion":
+			if _potion_models.is_empty():
+				for k in _objects:
+					if String(_objects[k].get("type", "")) == "ALCH":
+						_potion_models[String(_objects[k].get("model", "")).to_lower()] = k
+			var src = _potion_models.get(String(rec.get("model", "")).to_lower())
+			if src != null:
+				o = (_objects[src] as Dictionary).duplicate(true)
+		if o.is_empty():
+			o = {"model": rec.get("model", "")}
+		o["type"] = CREATED_TYPES.get(file, String(o.get("type", "MISC")))
+		o["id"] = id
+		o["name"] = rec.get("name", id)
+		o.erase("script")
+		return o
+	return {}
+
 func get_object(base_id: String) -> Dictionary:
 	var o: Dictionary = _objects.get(base_id.to_lower(), {})
+	if o.is_empty() and (not created.is_empty() or base_id.contains("@")):
+		return _created_object(base_id.to_lower())
 	var ov: Dictionary = object_overrides().get(base_id.to_lower(), {})
 	if ov.is_empty():
 		return o

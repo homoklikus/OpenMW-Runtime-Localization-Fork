@@ -91,9 +91,14 @@ const KIND_TYPES := {"weapon": "WEAP", "armor": "ARMO", "clothing": "CLOT", "boo
 ## Nazwa przedmiotu z inwentarza (z tłumaczeniem, jeśli jest).
 func item_name(kind: String, id: String, rec: Dictionary) -> String:
 	var fb := String(rec.get("name", id))
-	if loc != null and loc.has_method("plain") and loc.is_active():
-		return loc.plain(loc.key(String(KIND_TYPES.get(kind, "")), id, "FNAM"), fb)
-	return fb
+	var base := id.get_slice("@", 0)
+	var n := fb
+	if loc != null and loc.has_method("plain") and loc.is_active() and not base.begins_with("mwg_generated_"):
+		n = loc.plain(loc.key(String(KIND_TYPES.get(kind, "")), base, "FNAM"), fb)
+	if id.contains("@"):                     # kamień dusz z duszą (nazwa stworzenia)
+		var cr: Dictionary = inventory.records.record("creature", id.get_slice("@", 1))
+		n += " (%s)" % String(cr.get("name", id.get_slice("@", 1)))
+	return n
 
 func lock_level(node: Node) -> int:
 	return state.lock_of(sid_of(node), int(extra_of(node).get("lock_level", 0)))
