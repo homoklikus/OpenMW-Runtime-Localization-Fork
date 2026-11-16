@@ -11,7 +11,7 @@ Węzły (listy JSON):
               ["return"], ["call", odniesienie|None, nazwa, [argumenty]]
   wyrażenia:  ["num", v], ["str", s], ["id", nazwa] (zmienna albo identyfikator – rozstrzyga gra),
               ["member", obiekt, zmienna], ["call", odniesienie|None, nazwa, [argumenty]], ["bin", op, a, b],
-              ["neg", a]
+              ["neg", a], ["ref", obiekt, wyr] (wyrażenie w kontekście obiektu)
   cel:        ["id", nazwa] albo ["member", obiekt, zmienna]
 """
 from __future__ import annotations
@@ -62,6 +62,7 @@ _TOKEN = re.compile(r'''
     \s*(?:
       (?P<str>"[^"]*"?)
     | (?P<arrow>->)
+    | (?P<dot>\.[A-Za-z_][\w']*)
     | (?P<op>==|!=|<=|>=|<>|<|>|=|\+|-|\*|/|\(|\)|,)
     | (?P<num>(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?(?![\w]))
     | (?P<id>[A-Za-z_][\w'.\-]*|\d+[A-Za-z_][\w'.\-]*)
@@ -88,6 +89,8 @@ def tokenize(line: str) -> list[Tok]:
         if k is None:
             continue
         t = m.group(k)
+        if k == "dot":
+            k = "id"                       # ."zmienna" po tekście: "obiekt".zmienna
         if k == "str":
             t = t[1:-1] if t.endswith('"') and len(t) > 1 else t[1:]
         elif k == "id":
@@ -201,6 +204,8 @@ def _primary(p: _P):
         # odniesienie: "obiekt"->Funkcja / obiekt->Funkcja
         if _is(p.peek(), "arrow"):
             p.next()
+            if _is(p.peek(), "op", "("):                 # obiekt->( wyrażenie ) – wyrażenie w kontekście obiektu
+                return ["ref", t.text.lower(), _primary(p)]
             f = p.next()
             if f is None or f.kind != "id":
                 raise ParseError("brak funkcji po ->")
