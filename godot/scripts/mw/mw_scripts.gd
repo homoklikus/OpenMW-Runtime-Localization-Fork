@@ -707,6 +707,29 @@ func _call(ref, fname: String, args: Array, c: Ctx):
 			if nrec.is_empty():
 				nrec = records.record("creature", String(t11.get("base", "")))
 			return 1.0 if spell in (nrec.get("spells", []) as Array).map(func(x): return String(x).to_lower()) else 0.0
+		# --- przestępstwa (etap 8)
+		"payfine", "payfinethief":
+			if game.main.get("crime") != null:
+				game.main.crime.pay_fine(fname == "payfine")
+			return null
+		"gotojail":
+			if game.main.get("crime") != null:
+				if game.main.dialogue_window != null and game.main.dialogue_window.visible:
+					game.main.dialogue_window.close()
+				game.main.crime.go_to_jail()
+			return null
+		"startcombat", "stopcombat":
+			var tn = _target(ref, c).get("node")
+			if game.main.get("ai") == null or tn == null or not is_instance_valid(tn) or not tn.has_meta("mw_actor"):
+				return null
+			if fname == "stopcombat":
+				game.main.ai.stop_combat(tn)
+			else:
+				var who := _str(args, 0).to_lower()
+				var tgt: Node = game.main.player if who == "player" else (game.main.script_host.find_ref_by_base(who) if game.main.script_host != null else null)
+				if tgt != null:
+					game.main.ai.start_combat(tn, tgt)
+			return null
 		# --- AI (etap 8)
 		"aiwander", "aitravel", "aiescort", "aiescortcell", "aifollow", "aifollowcell", "aiactivate", "getaipackagedone", "getcurrentaipackage":
 			return _ai_function(fname, _target(ref, c), args, c)

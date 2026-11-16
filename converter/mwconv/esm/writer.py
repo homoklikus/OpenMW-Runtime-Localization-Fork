@@ -68,6 +68,12 @@ def ref_subs(frmr: int, base: str, pos, rot=(0, 0, 0), scale: float = 1.0, delet
             s.append(sub("DODT", struct.pack("<6f", *d["pos"], *d["rot"])))
         if "door_dest_cell" in extra:
             s.append(sub("DNAM", zs(extra["door_dest_cell"])))
+        if "lock_level" in extra:
+            s.append(sub("FLTV", struct.pack("<i", int(extra["lock_level"]))))
+        if "trap" in extra:
+            s.append(sub("TNAM", zs(extra["trap"])))
+        if "faction" in extra:
+            s.append(sub("CNAM", zs(extra["faction"])))
     if deleted:
         s.append(sub("DELE", struct.pack("<I", 0)))
     s.append(sub("DATA", struct.pack("<6f", *pos, *rot)))

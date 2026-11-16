@@ -74,6 +74,8 @@ func _run() -> void:
 		walked = maxf(walked, Vector3(float(ai.ai_state(w).start[0]), float(ai.ai_state(w).start[1]), 0).distance_to(Vector3(ai.mw_pos(w).x, ai.mw_pos(w).y, 0)))
 	check(walked < 1000.0 + 200.0, "wędrówka w promieniu (max %.0f)" % walked)
 	# powitanie: gracz 100 jednostek od wędrowca – zatrzymanie i odwrócenie
+	main.player.global_position = w.global_position + Vector3(1500.0 / MWCoords.UNITS_PER_METER, 0, 0)
+	await _until(func(): return String(ai._rt(w).greet) == "none", 120)   # wcześniejsze powitanie (fGreetDistanceReset)
 	main.player.global_position = w.global_position + Vector3(100.0 / MWCoords.UNITS_PER_METER, 0, 0)
 	var greeted := await _until(func(): return String(ai._rt(w).greet) == "progress", 300)
 	check(greeted >= 0, "powitanie gracza (Hello 30 × iGreetDistanceMultiplier)")
@@ -88,7 +90,7 @@ func _run() -> void:
 	check(ai.current_type(tr) == 1 and not bool(ai.ai_state(tr).done), "AiTravel ze skryptu")
 	main.scripts._ai_function("aifollow", {"node": tr}, [["id", "player"], ["num", 0.0], ["num", 0.0], ["num", 0.0], ["num", 0.0]], null)
 	check(main.scripts._ai_function("getcurrentaipackage", {"node": tr}, [], null) == 3.0, "AiFollow zastępuje AiTravel (GetCurrentAIPackage = 3)")
-	main.player.global_position = tr.global_position + Vector3(4.0, 0, 0)
+	main.player.global_position = tr.global_position + Vector3(6.0, 0, 0)
 	await _frames(10)
 	var d0: float = ai.mw_pos(tr).distance_to(ai.mw_pos(main.player))
 	var fol := await _until(func(): return ai.mw_pos(tr).distance_to(ai.mw_pos(main.player)) < 260.0, 1500)

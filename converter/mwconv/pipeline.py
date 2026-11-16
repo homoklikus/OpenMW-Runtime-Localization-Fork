@@ -424,7 +424,28 @@ def _ref_index(world, wdir, write_json) -> dict:
             if b in wanted and b not in idx:
                 idx[b] = {"sid": mr.sid, "cell": k}
     write_json(wdir / "refindex.json", idx)
-    return {"objects": len(idx)}
+    # znaczniki (etap 8): więzienie (GoToJail), boska interwencja, interwencja Almsivi – wszystkie komórki
+    markers: dict = {}
+    entrance: dict = {}                       # wnętrze → pozycja drzwi do niego w świecie zewnętrznym
+    for k in sorted(world.cells):
+        if not k.startswith("ext:"):
+            continue
+        for mr in world.cells[k].refs.values():
+            dc = (mr.ref.extra or {}).get("door_dest_cell")
+            if dc and (mr.ref.extra or {}).get("door_dest"):
+                entrance.setdefault(str(dc).lower(), [round(float(v), 2) for v in mr.ref.pos])
+    for k in sorted(world.cells):
+        for mr in world.cells[k].refs.values():
+            b = mr.ref.base.lower()
+            if b in ("prisonmarker", "divinemarker", "templemarker"):
+                m = {"cell": k, "name": world.cells[k].cell.name, "pos": [round(float(v), 2) for v in mr.ref.pos],
+                     "rot": [round(float(v), 5) for v in mr.ref.rot]}
+                ent = entrance.get(world.cells[k].cell.name.lower()) if world.cells[k].cell.interior else None
+                if ent:
+                    m["exterior"] = ent
+                markers.setdefault(b, []).append(m)
+    write_json(wdir / "markers.json", markers)
+    return {"objects": len(idx), "markers": {m: len(v) for m, v in markers.items()}}
 
 
 def _sounds(world, vfs, out: Path, log) -> dict:

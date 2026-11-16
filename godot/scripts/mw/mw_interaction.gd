@@ -14,6 +14,7 @@ var db
 var state
 var records          # MWActorVisual (record(file, id))
 var inventory        # MWInventory
+var crime = null     # MWCrime (etap 8): kradzież przy podnoszeniu i wyjmowaniu z cudzych pojemników
 var loc = null       # tłumaczenia nazw (opcjonalnie)
 var _equipment = null
 
@@ -192,7 +193,12 @@ static func _join(parts: Array) -> String:
 func take_ref(c: Dictionary) -> Dictionary:
 	var n := int(c.count)
 	var g := normalize_gold(String(c.base), n)
+	var soul := String(c.extra.get("soul", "")).to_lower()       # kamień dusz z duszą (XSOL) – „id@stworzenie”
+	if not soul.is_empty() and g[0].begins_with("misc_soulgem"):
+		g[0] = g[0] + "@" + soul
 	inventory.add(PLAYER, {}, g[0], g[1])
+	if crime != null:
+		crime.item_taken(c.extra, g[0], g[1])
 	if String(c.sid).begins_with("dyn#"):
 		state.remove_dynamic(c.sid)
 	else:
@@ -205,12 +211,15 @@ func container_record(base: String) -> Dictionary:
 
 ## Przeniesienie między pojemnikiem a graczem (w obie strony). Złoto zawsze jako gold_001.
 func move(from_sid: String, from_rec: Dictionary, to_sid: String, to_rec: Dictionary, id: String, count: int) -> int:
-	return inventory.transfer(from_sid, from_rec, to_sid, to_rec, id, count)
+	var n: int = inventory.transfer(from_sid, from_rec, to_sid, to_rec, id, count)
+	if n > 0 and to_sid == PLAYER and from_sid != PLAYER and crime != null:
+		crime.container_taken(from_sid, id, n)
+	return n
 
 func take_all(sid: String, rec: Dictionary) -> int:
 	var total := 0
 	for e in inventory.contents(sid, rec):
-		total += inventory.transfer(sid, rec, PLAYER, {}, String(e.id), int(e.count))
+		total += move(sid, rec, PLAYER, {}, String(e.id), int(e.count))
 	return total
 
 ## Odłożenie przedmiotu z inwentarza gracza na ziemię przed graczem (komórka wg pozycji): nowa referencja dyn#N.

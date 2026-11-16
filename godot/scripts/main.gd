@@ -53,6 +53,7 @@ var trade_window = null
 var combat = null                     # etap 7: walka
 var magic_window = null               # etap 7d: magia, alchemia, zaklinanie
 var ai = null                         # etap 8: AI aktorów (mw_ai.gd)
+var crime = null                      # etap 8: przestępstwa i strażnicy (mw_crime.gd)
 var magic_ready := false              # przygotowana magia (klawisz R) – lewy przycisk rzuca
 var state = GameStateScript.new()   # różnice stanu gry względem danych bazowych (zapis gry)
 var pause_menu: Control
@@ -133,6 +134,8 @@ func _ready() -> void:
 	combat = CombatScript.new(self)
 	ai = preload("res://scripts/mw/mw_ai.gd").new(self)
 	ai.enabled = arg("ai", "1") != "0"
+	crime = preload("res://scripts/mw/mw_crime.gd").new(self)
+	interaction.crime = crime
 	trade_window = TradeWindowScript.new()
 	trade_window.main = self
 	trade_window.trade = trade
@@ -308,6 +311,8 @@ func _update_player_rpg(dt: float) -> void:
 	player.swim_speed = float(mv.swim) / upm
 	player.jump_velocity = float(mv.jump) / upm
 	player.air_factor = float(mv.air_factor)
+	if player.want_sneak:                      # fSneakSpeedMultiplier (chód skradając się)
+		player.walk_speed *= float(combat._gmst("fSneakSpeedMultiplier", 0.75))
 	if magic != null and magic.magnitude_of(combat.player_fighter(), magic.FX_PARALYZE) > 0.0:
 		player.walk_speed = 0.0                    # paraliż: bez ruchu i skoku (animacja – etap 10)
 		player.run_speed = 0.0
@@ -364,6 +369,8 @@ func item_slots(id: String) -> Array:
 			return EQ.CLOTHING_SLOTS.get(int(it.rec.get("clothing_type", -1)), [])
 		"light":
 			return [EQ.SLOT_CARRIED_LEFT] if bool(it.rec.get("carry", false)) else []
+		"lockpick", "probe":
+			return [EQ.SLOT_CARRIED_RIGHT]              # wytrych/sonda w prawej ręce (etap 8: Security)
 	return []
 
 func equipped_slot_of(id: String) -> int:
@@ -542,9 +549,10 @@ func _update_combat(dt: float) -> void:
 			p.vel.y -= g * dt
 		var to: Vector3 = from + p.vel * dt
 		p.life -= dt
-		var hit_actor := _projectile_actor(from, to)
+		var shooter: Node = p.get("shooter", player)
+		var hit_actor := _projectile_actor(from, to, shooter)
 		var q := PhysicsRayQueryParameters3D.create(from, to)
-		q.exclude = [player.get_rid()]
+		q.exclude = [player.get_rid()] if shooter == player else ([(shooter as CollisionObject3D).get_rid()] if shooter is CollisionObject3D else [])
 		var wall := player.get_world_3d().direct_space_state.intersect_ray(q)
 		if p.has("bolt"):
 			if not hit_actor.is_empty() or not wall.is_empty() or p.life <= 0.0:
@@ -562,13 +570,18 @@ func _update_combat(dt: float) -> void:
 			nd.global_position = to
 
 ## Aktor na odcinku lotu pocisku (odległość od osi aktora < połowa szerokości, na wysokości aktora).
-func _projectile_actor(a: Vector3, b: Vector3) -> Dictionary:
+func _projectile_actor(a: Vector3, b: Vector3, shooter: Node = null) -> Dictionary:
+	if shooter != null and shooter != player and player != null:
+		var pc := player.global_position + Vector3(0, 0.9, 0)
+		var pp := Geometry3D.get_closest_point_to_segment(pc, a, b)
+		if Vector2(pp.x - pc.x, pp.z - pc.z).length() <= 0.4 and absf(pp.y - pc.y) <= 0.95:
+			return combat.player_fighter()
 	for key in loaded:
 		var refs: Node = loaded[key].get_node_or_null("Refs")
 		if refs == null:
 			continue
 		for n in refs.get_children():
-			if not n.has_meta("mw_actor") or n.get_meta("mw_disabled", false):
+			if not n.has_meta("mw_actor") or n.get_meta("mw_disabled", false) or n == shooter:
 				continue
 			var he := _half_extents(n) / MWCoords.UNITS_PER_METER
 			var c := (n as Node3D).global_position + Vector3(0, he.z, 0)
@@ -584,9 +597,81 @@ func _end_projectile(p: Dictionary) -> void:
 	if is_instance_valid(p.node):
 		p.node.queue_free()
 
-## Aktor zaatakowany przez gracza (stan; reakcje – AI walki, przestępstwa, strażnicy – etap 8).
-func on_actor_attacked(_f: Dictionary) -> void:
-	pass
+## Aktor zaatakowany przez gracza (MechanicsManager::actorAttacked): odpowiada walką (etap 8c); napaść jako
+## przestępstwo – etap 8d (on_assault).
+func on_actor_attacked(f: Dictionary) -> void:
+	if ai == null or f.get("node") == null or not is_instance_valid(f.node) or combat.is_dead(f):
+		return
+	if not ai.in_combat(f.node):
+		if has_method("on_assault"):
+			call("on_assault", f)
+		ai.start_combat(f.node, player)
+
+func on_assault(f: Dictionary) -> void:
+	if crime != null:
+		crime.on_assault(f.node)
+
+## Pakiety AI spoza mw_ai.gd: pościg strażnika (AiPursue – mw_crime.gd).
+func ai_package(n: Node, p: Dictionary, dt: float) -> bool:
+	if String(p.get("type", "")) == "pursue" and crime != null:
+		return crime.pursue(n, p, dt)
+	return true
+
+## Pułapka (CastSpell z obiektu na aktywującego): wszystkie efekty czaru na gracza (z odpornością).
+func _trap_spell(id: String) -> void:
+	var sp: Dictionary = builder.actors.record("spell", id.to_lower())
+	if sp.is_empty():
+		return
+	var me: Dictionary = combat.player_fighter()
+	magic.inflict(me, {}, {"id": id, "name": String(sp.get("name", id)), "kind": "spell"},
+		sp.get("effects", []), sp)
+
+func player_sneaking() -> bool:
+	return player != null and bool(player.get("want_sneak")) and player.is_on_floor()
+
+## Pocisk czaru NPC (cel: gracz albo aktor) – jak launch_bolt, z głowy rzucającego w stronę celu.
+func launch_bolt_from(n: Node3D, target: Node3D, caster: Dictionary, list: Array, source: Dictionary, spell := {}) -> void:
+	var from := n.global_position + Vector3(0, 1.5, 0)
+	var to := target.global_position + Vector3(0, 1.0, 0)
+	var mg: Dictionary = magic.effect(int((list[0] as Dictionary).get("effect", -1)))
+	var speed := float(combat._gmst("fTargetSpellMaxSpeed", 1000.0)) * float(mg.get("speed", 1.0)) / MWCoords.UNITS_PER_METER
+	var nd := MeshInstance3D.new()
+	nd.name = "MagicBolt"
+	var sm := SphereMesh.new()
+	sm.radius = 0.12
+	sm.height = 0.24
+	nd.mesh = sm
+	add_child(nd)
+	var dir := (to - from).normalized()
+	nd.global_position = from + dir * 0.6
+	projectiles.append({"node": nd, "vel": dir * speed, "att": caster, "bolt": list, "source": source, "spell": spell,
+		"life": 10.0, "shooter": n})
+
+## Strzał NPC z łuku/kuszy/broni rzucanej do celu (bez celowania z wyprzedzeniem; poprawka na grawitację 0,1 ×).
+func npc_shoot(n: Node3D, target: Node3D, att: Dictionary) -> void:
+	var w: Dictionary = combat.weapon(att)
+	if w.is_empty():
+		return
+	var wt := int(w.rec.get("weapon_type", -1))
+	var ammo := w
+	if wt != 11:
+		ammo = combat.equipment(att).get(EQ.SLOT_AMMUNITION, {})
+		if ammo.is_empty():
+			return
+	interaction.inventory.remove(String(att.sid), att.rec, String(ammo.id), 1)
+	var from := n.global_position + Vector3(0, 1.5, 0)
+	var to := target.global_position + Vector3(0, 1.2, 0)
+	var speed := float(combat._gmst("fThrownWeaponMaxSpeed" if wt == 11 else "fProjectileMaxSpeed", 3000.0)) / MWCoords.UNITS_PER_METER
+	var dir := (to - from).normalized()
+	var t := from.distance_to(to) / speed
+	var g := 9.8 * 64.0 * 0.1 / MWCoords.UNITS_PER_METER
+	var vel := dir * speed + Vector3(0, 0.5 * g * t, 0)
+	var nd := Node3D.new()
+	nd.name = "Projectile"
+	add_child(nd)
+	nd.global_position = from + dir * 0.6
+	projectiles.append({"node": nd, "vel": vel, "att": att, "launcher": w if wt != 11 else {}, "ammo": ammo,
+		"strength": 1.0, "life": 10.0, "shooter": n})
 
 ## Śmierć: aktor – stan, licznik zabitych (Dead w dialogach, GetDeadCount), OnDeath, ciało do przeszukania;
 ## gracz – koniec gry (wczytanie zapisu).
@@ -596,6 +681,8 @@ func on_actor_died(f: Dictionary, _att: Dictionary) -> void:
 		return
 	if magic != null:
 		magic.soul_trap(f)                 # Pułapka dusz: dusza stworzenia do kamienia gracza
+	if crime != null and not _att.is_empty() and _att.get("kind", "") == "player" and f.get("node") != null:
+		crime.on_killed(f.node)            # actorKilled: morderstwo (etap 8)
 	var a: Dictionary = combat._actor_state(f)
 	a["dead"] = true
 	a["health"] = 0.0
@@ -1066,6 +1153,8 @@ func _process(_d: float) -> void:
 		_update_magic(_d)
 		if ai != null and arg("screenshot").is_empty():
 			ai.tick(_d)
+			if ai.enabled:
+				crime.tick(_d)
 	if scripts != null and player != null and not get_tree().paused and arg("scripts", "1") != "0":
 		scripts.tick(_d, script_host.scripted_refs())
 	_capture_tick()
@@ -1236,7 +1325,26 @@ func activate(r: Node, force_default := false) -> bool:
 		open_dialogue(r)                  # ActionTalk (NPC, stworzenia); bez powitania okno się nie otwiera
 		return true
 	var at: Vector3 = (r as Node3D).global_position
+	var snap: Dictionary = interaction.snapshot(r)
+	# wytrych/sonda w ręce: próba na zamku/pułapce zamiast aktywacji (Security)
+	var tool: Dictionary = _equipment().get(str(EQ.SLOT_CARRIED_RIGHT), {})
+	var tool_it: Dictionary = interaction.inventory.item(String(tool.get("id", ""))) if not tool.is_empty() else {}
+	if not tool_it.is_empty() and crime != null and snap.kind in ["door", "container"]:
+		var use := ""
+		if tool_it.kind == "probe" and not String(snap.trap).is_empty():
+			use = "probe"
+		elif tool_it.kind == "lockpick" and int(snap.lock) > 0:
+			use = "lockpick"
+		if not use.is_empty():
+			var sr: Dictionary = crime.use_tool(r, String(tool.id), use)
+			if not String(sr.get("message", "")).is_empty():
+				_toast(String(sr.message))
+			if audio != null and not String(sr.get("sound", "")).is_empty():
+				audio.play(String(sr.sound), at)
+			return true
 	var res: Dictionary = interaction.activate(r)
+	if not String(snap.trap).is_empty() and String(interaction.trap(r)).is_empty() and magic != null:
+		_trap_spell(String(snap.trap))           # pułapka: czar na gracza (etap 7/8)
 	if not String(res.get("message", "")).is_empty():
 		_toast(String(res["message"]))
 	if audio != null and not String(res.get("sound", "")).is_empty():
@@ -1283,6 +1391,9 @@ func travel(dest: Dictionary) -> void:
 		scripts.cell_changed = true
 	if ai != null:
 		ai.store_positions()
+	if interior.is_empty() and player != null:          # ostatnia pozycja zewnętrzna (najbliższy znacznik – więzienie)
+		var lp := MWCoords.godot_to_mw(player.global_position)
+		state.player["last_exterior"] = [lp.x, lp.y, lp.z]
 	for key in loaded.keys():
 		events.cell_unloaded.emit(key)
 		loaded[key].queue_free()

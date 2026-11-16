@@ -46,6 +46,7 @@ var no_gravity := false
 var move_input := Vector2.ZERO     # x: w prawo, y: do tyłu (jak Input.get_vector)
 var want_run := false
 var want_jump := false
+var want_sneak := false            # skradanie (etap 8: wykrywanie)
 
 var controller: Node = null:
 	set(c):

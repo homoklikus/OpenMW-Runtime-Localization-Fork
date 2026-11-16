@@ -468,12 +468,24 @@ func _select_bool(c: Dictionary, a: Dictionary) -> bool:
 			return not nf.is_empty() and expelled(nf)
 		"pcvampire": return float(_fx(st).get(str(FX_VAMPIRISM), 0.0)) > 0.0
 		"talkedtopc": return talked
-		"alarmed": return _partial("alarmed", 0) != 0
-		"detected": return _partial("detected", 1) != 0
-		"attacked": return _partial("attacked", 0) != 0
-		"shouldattack": return _partial("shouldattack", 0) != 0
+		"alarmed": return bool(_astate(a).get("alarmed", false))
+		"detected":
+			var dn = a.get("node")
+			if main.get("ai") == null or dn == null or not is_instance_valid(dn):
+				return _partial("detected", 1) != 0
+			return main.ai.awareness(main.player, dn)
+		"attacked": return bool(_astate(a).get("attacked", false))
+		"shouldattack":
+			var sn = a.get("node")
+			if main.get("ai") == null or sn == null or not is_instance_valid(sn):
+				return _partial("shouldattack", 0) != 0
+			return main.ai.in_combat(sn) or main.ai.fight_term(sn, main.player) >= 100.0
 		"werewolf": return false
 	return false
+
+func _astate(a: Dictionary) -> Dictionary:
+	var acts = main.state.get("actors") if main != null else null
+	return acts.get(String(a.get("sid", "")), {}) if acts is Dictionary else {}
 
 func _partial(f: String, v: int) -> int:
 	partial[f] = int(partial.get(f, 0)) + 1

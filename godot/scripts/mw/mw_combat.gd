@@ -388,6 +388,10 @@ func melee(att: Dictionary, vic: Dictionary, attack_type: int, strength: float, 
 		damage = weapon_damage(att, w, attack_type, strength)
 		reduce_weapon_condition(att, damage, true)
 		damage = resist_normal(vic, w, damage)
+	elif att.kind == "creature":                 # Creature::hit: obrażenia ataku z rekordu (zdrowie)
+		var atk: Array = att.rec.get("attack", [[0, 0], [0, 0], [0, 0]])
+		var pr: Array = atk[clampi(attack_type, 0, atk.size() - 1)] if not atk.is_empty() else [0, 0]
+		damage = float(pr[0]) + (float(pr[1]) - float(pr[0])) * strength
 	else:
 		var hd := hand_damage(att, helpless, strength)
 		damage = float(hd.damage)

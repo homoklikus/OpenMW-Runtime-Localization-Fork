@@ -240,6 +240,8 @@ func update_actor(n: CharacterBody3D, dt: float) -> void:
 	var react: bool = float(r.reaction) <= 0.0
 	if react:
 		r.reaction = REACTION
+	if react and not in_combat(n):
+		_engage(n)
 	var pk: Array = st.packages
 	var p: Dictionary = pk[0] if not pk.is_empty() else {}
 	_update_greeting(n, r, p, dt, react)
@@ -251,6 +253,7 @@ func update_actor(n: CharacterBody3D, dt: float) -> void:
 	var t := String(p.get("type", ""))
 	if TYPE_ID.get(t, 9) <= 4:
 		st.last = TYPE_ID[t]
+
 	var finished := false
 	if r.greet == "progress" and t in ["wander", "travel"]:
 		_stop(n)
@@ -261,6 +264,7 @@ func update_actor(n: CharacterBody3D, dt: float) -> void:
 			"escort": finished = _escort(n, r, p, dt)
 			"follow": finished = _follow(n, r, p, dt, react)
 			"activate": finished = _activate(n, r, p, dt)
+			"combat": finished = _combat(n, r, p, dt, react)
 			_:
 				if main.has_method("ai_package") :
 					finished = main.ai_package(n, p, dt)
@@ -282,6 +286,8 @@ func update_actor(n: CharacterBody3D, dt: float) -> void:
 
 func _update_greeting(n: CharacterBody3D, r: Dictionary, p: Dictionary, dt: float, react: bool) -> void:
 	var t := String(p.get("type", "none")) if not p.is_empty() else "none"
+	if in_combat(n):
+		t = "combat"
 	if t not in ["wander", "travel", "none"] or n.swimming:
 		r.greet = "none"
 		r.greet_timer = 0
@@ -311,11 +317,6 @@ func _update_greeting(n: CharacterBody3D, r: Dictionary, p: Dictionary, dt: floa
 		r.greet = "none"
 		r.greet_timer = 0
 
-## Wykrywanie (awarenessCheck) – etap 8c; do tego czasu NPC zawsze widzi gracza.
-func awareness(_observer: Node, _actor: Node) -> bool:
-	if main.has_method("awareness_check"):
-		return main.awareness_check(_observer, _actor)
-	return true
 
 func _los(a: Node3D, b: Node3D) -> bool:
 	var from := a.global_position + Vector3(0, 1.5, 0)
@@ -619,3 +620,230 @@ func store_positions(only_key := "") -> void:
 				continue
 			var mw := mw_pos(n)
 			main.state.store_ref_mw(sid, mw, Vector3(0, 0, -(n as Node3D).rotation.y))
+
+# --- wykrywanie (MechanicsManager::awarenessCheck) --------------------------------------------------------
+
+var test_roll := -1                     # testy: stały rzut 0..99
+
+func _roll100() -> int:
+	return test_roll if test_roll >= 0 else rng.randi() % 100
+
+## Czy obserwator zauważa aktora (ptr): skradanie (fSneakSkillMult × skradanie + 0,2 zręczność + 0,1 szczęście +
+## waga butów × fSneakBootMult) × (fSneakDistanceBase + fSneakDistanceMultiplier × odległość) × zmęczenie
+## + kameleon (+100 niewidzialność) wobec (skradanie + 0,2 zręczność + 0,1 szczęście − ślepota obserwatora) ×
+## zmęczenie × fSneakViewMult (przodem) / fSneakNoViewMult (tyłem); rzut 0..99 ≥ różnica.
+func awareness(ptr: Node3D, observer: Node3D, roll := -1) -> bool:
+	var cb = main.combat
+	var of: Dictionary = cb.fighter_of(observer)
+	var pf: Dictionary = cb.fighter_of(ptr)
+	if of.is_empty() or pf.is_empty() or cb.is_dead(of):
+		return false
+	var sneak_term := 0.0
+	if ptr == main.player and main.player_sneaking():
+		var at: Array = cb.attributes(pf)
+		var boots := 0.0
+		var b: Dictionary = cb.equipment(pf).get(cb.EQ.SLOT_BOOTS, {})
+		if not b.is_empty():
+			boots = float(b.rec.get("weight", 0.0))
+		sneak_term = float(_gmst("fSneakSkillMult", 1.0)) * float(cb.skill(pf, 19)) + 0.2 * float(at[3]) + 0.1 * float(at[7]) \
+			+ boots * float(_gmst("fSneakBootMult", -1.0))
+	var p1 := mw_pos(ptr)
+	var p2 := mw_pos(observer)
+	var dist_term := float(_gmst("fSneakDistanceBase", 0.5)) + float(_gmst("fSneakDistanceMultiplier", 0.002)) * p1.distance_to(p2)
+	var x := sneak_term * dist_term * float(cb.fatigue_term(pf)) + float(cb.magic_effect(pf, 40))
+	if float(cb.magic_effect(pf, 39)) > 0.0:
+		x += 100.0
+	var oat: Array = cb.attributes(of)
+	var obs := float(cb.skill(of, 19)) + 0.2 * float(oat[3]) + 0.1 * float(oat[7]) - float(cb.magic_effect(of, 47))
+	var odir := Vector2(-sin(observer.rotation.y), cos(observer.rotation.y))
+	var v := Vector2(p1.x - p2.x, p1.y - p2.y)
+	var behind := v.length() > 0.001 and odir.dot(v.normalized()) < 0.0      # kąt > 90° od kierunku patrzenia
+	var y := obs * float(cb.fatigue_term(of)) * float(_gmst("fSneakNoViewMult" if behind else "fSneakViewMult", 0.5 if behind else 1.5))
+	return float(roll if roll >= 0 else _roll100()) >= x - y
+
+# --- walka (Actors::engageCombat, AiCombat, aicombataction) ------------------------------------------------
+
+func in_combat(n: Node) -> bool:
+	for p in ai_state(n).packages:
+		if String(p.get("type", "")) == "combat":
+			return true
+	return false
+
+## MechanicsManager::startCombat: pakiet walki przed pozostałymi (priorytet 1).
+func start_combat(n: Node, target: Node) -> void:
+	if in_combat(n) or not _alive(n):
+		return
+	var tid := "player" if target == main.player else String(target.get_meta("mw_sid", ""))
+	stack(n, {"type": "combat", "target": tid, "priority": 1}, false)
+	_rt(n).action = {}
+	_rt(n).cooldown = 0.0
+	_rt(n).flee = false
+	if main.has_method("on_combat_started"):
+		main.on_combat_started(n, target)
+
+func stop_combat(n: Node) -> void:
+	var st := ai_state(n)
+	st.packages = (st.packages as Array).filter(func(x): return String(x.get("type", "")) != "combat")
+	_stop(n)
+
+## getFightTerm: walka + (iFightDistanceBase − fFightDistanceMultiplier × odległość) + (50 − postawa) ×
+## fFightDispMult (stworzenia: postawa 50).
+func fight_term(n: Node3D, target: Node3D) -> float:
+	var fight := float(main.dialogue.ai_setting(main.dialogue.make_actor(n), "fight")) if main.dialogue != null else 30.0
+	var d := Vector2(mw_pos(n).x - mw_pos(target).x, mw_pos(n).y - mw_pos(target).y).length()
+	var bias := float(_gmst("iFightDistanceBase", 20)) - float(_gmst("fFightDistanceMultiplier", 0.005)) * d
+	var disp := 50.0
+	var a: Dictionary = main.dialogue.make_actor(n) if main.dialogue != null else {}
+	if not a.is_empty() and a.npc:
+		disp = float(main.dialogue.derived_disposition(a))
+	return fight + bias + (50.0 - disp) * float(_gmst("fFightDispMult", 0.2))
+
+## engageCombat (względem gracza): agresywny (getFightTerm ≥ 100), w linii wzroku, zauważa gracza.
+func _engage(n: CharacterBody3D) -> void:
+	if in_combat(n) or main.player == null or main.combat.is_dead(main.combat.player_fighter()):
+		return
+	var calm := 49 if String(n.get_meta("mw_actor", "")) == "npc" else 50
+	if main.magic != null and main.magic.magnitude_of(main.combat.fighter_of(n), calm) > 0.0:
+		return
+	if mw_pos(n).distance_to(mw_pos(main.player)) > MAX_TRAVEL:
+		return
+	if fight_term(n, main.player) < 100.0:
+		return
+	if _los(n, main.player) and awareness(main.player, n):
+		start_combat(n, main.player)
+
+## vanillaRateWeaponAndAmmo (broń biała; bez broni 0), vanillaRateSpell (szansa × fAIMagicSpellMult /
+## fAIRangeMagicSpellMult), vanillaRateFlee – wybór akcji jak prepareNextAction (uproszczony: broń, czar, ucieczka).
+func _choose_action(n: Node3D, target: Node3D) -> Dictionary:
+	var cb = main.combat
+	var f: Dictionary = cb.fighter_of(n)
+	var w: Dictionary = cb.weapon(f)
+	var best := {"kind": "melee", "rating": 0.0}
+	var anti := 0.0
+	if not w.is_empty():
+		var sk := float(cb.skill(f, cb.weapon_skill(w))) * 0.01
+		var wt := int(w.rec.get("weapon_type", 0))
+		var chop_mult := float(_gmst("fAIMeleeWeaponMult", 1.0))
+		var bonus := 0.0
+		if wt in [9, 10, 11]:
+			var ammo: Dictionary = cb.equipment(f).get(cb.EQ.SLOT_AMMUNITION, {})
+			if wt == 11 or not ammo.is_empty():
+				bonus = float((ammo.rec.get("chop", [0, 0]) as Array)[1]) if not ammo.is_empty() and wt != 11 else 0.0
+				chop_mult = float(_gmst("fAIRangeMeleeWeaponMult", 5.0))
+				best.kind = "ranged"
+			else:
+				chop_mult = 0.0
+		var ch: Array = w.rec.get("chop", [0, 0])
+		var sl: Array = w.rec.get("slash", [0, 0])
+		var th: Array = w.rec.get("thrust", [0, 0])
+		var rating := float(cb.armor_rating(f)) * float(_gmst("fAIMeleeArmorMult", 1.0)) + maxf((float(ch[1]) + bonus) * sk * chop_mult,
+			maxf(float(sl[1]) * sk * float(_gmst("fAIMeleeWeaponMult", 1.0)), float(th[1]) * sk * float(_gmst("fAIMeleeWeaponMult", 1.0))))
+		best.rating = rating
+		anti = rating
+	var spells: Array = f.rec.get("spells", [])
+	for sid in spells:
+		var sp: Dictionary = main.builder.actors.record("spell", String(sid).to_lower())
+		if sp.is_empty() or int(sp.get("spell_type", -1)) != 0:
+			continue
+		var harmful := false
+		var ranged := false
+		for e in sp.get("effects", []):
+			var mg: Dictionary = main.magic.effect(int(e.get("effect", -1)))
+			if bool(mg.get("harmful", false)) and int(e.get("range", 0)) != 0:
+				harmful = true
+				ranged = ranged or int(e.get("range", 0)) == 2
+		if not harmful or main.magic.magicka(f) < float(main.magic.spell_cost(sp)):
+			continue
+		var mult := float(_gmst("fAIRangeMagicSpellMult" if ranged else "fAIMagicSpellMult", 5.0 if ranged else 1.0))
+		var rate := float(main.magic.spell_chance(sp, f)) * mult
+		if rate > float(best.rating):
+			best = {"kind": "spell", "spell": String(sid).to_lower(), "ranged": ranged, "rating": rate}
+			anti = rate
+	# vanillaRateFlee
+	var flee := float(main.dialogue.ai_setting(main.dialogue.make_actor(n), "flee")) if main.dialogue != null else 30.0
+	var fr := flee
+	if flee < 100.0:
+		var ratio: float = float(cb.health(f)) / maxf(1.0, float(cb.max_health(f)))
+		fr = (1.0 - ratio) * float(_gmst("fAIFleeHealthMult", 7.0)) + flee * float(_gmst("fAIFleeFleeMult", 0.3))
+		if fr != 0.0:
+			fr += float(_gmst("iFightDistanceBase", 20)) - float(_gmst("fFightDistanceMultiplier", 0.005)) * mw_pos(n).distance_to(mw_pos(target))
+	if fr < 100.0:
+		fr = 0.0
+	if fr > anti:
+		return {"kind": "flee"}
+	return best
+
+func _target_of(p: Dictionary) -> Node3D:
+	var tid := String(p.get("target", "player"))
+	if tid == "player":
+		return main.player
+	for x in actor_nodes():
+		if String(x.get_meta("mw_sid", "")) == tid:
+			return x
+	return null
+
+## AiCombat: wybór akcji co odstęp, podejście (bieg) na zasięg broni/czaru, atak w odstępach wg szybkości broni,
+## rzucanie czarów (dotyk/cel), strzał, ucieczka. Koniec: cel martwy/nieobecny albo poza zasięgiem 7168.
+func _combat(n: CharacterBody3D, r: Dictionary, p: Dictionary, dt: float, react: bool) -> bool:
+	var cb = main.combat
+	var target := _target_of(p)
+	if target == null:
+		return true
+	var tf: Dictionary = cb.fighter_of(target)
+	if tf.is_empty() or cb.is_dead(tf):
+		return true
+	var f: Dictionary = cb.fighter_of(n)
+	if bool(_actor(n).get("knocked_down", false)):
+		_actor(n)["knocked_down_t"] = float(_actor(n).get("knocked_down_t", 0.0)) + dt
+		if float(_actor(n).knocked_down_t) < 2.0:
+			_stop(n)
+			return false
+		_actor(n).erase("knocked_down")
+		_actor(n).erase("knocked_down_t")
+	var here := mw_pos(n)
+	var there := mw_pos(target)
+	if here.distance_to(there) > MAX_TRAVEL:
+		return true
+	r.cooldown = float(r.get("cooldown", 0.0)) - dt
+	if react and (not r.has("action") or (r.action as Dictionary).is_empty() or float(r.cooldown) <= 0.0 and not bool(r.get("attacking", false))):
+		r.action = _choose_action(n, target)
+		r.flee = r.action.kind == "flee"
+	if bool(r.get("flee", false)):
+		var away: Vector3 = here + (here - there).normalized() * 512.0
+		path_to(n, away, dt, 32.0, true)
+		if float(r.cooldown) <= 0.0:
+			r.cooldown = 2.0
+		return false
+	var act: Dictionary = r.get("action", {})
+	var w: Dictionary = cb.weapon(f)
+	var reach: float = cb.reach(f, w) if act.get("kind", "melee") == "melee" else (1000.0 if act.get("kind", "") == "ranged" or bool(act.get("ranged", false)) else cb.reach(f, {}))
+	var dist := Vector2(here.x - there.x, here.y - there.y).length() - 29.0 - 29.0
+	if dist > reach or not _los(n, target):
+		path_to(n, there, dt, maxf(1.0, reach * 0.8), true)
+		return false
+	_stop(n)
+	if not _turn_to(n, there, dt, 0.2):
+		return false
+	if float(r.cooldown) > 0.0:
+		return false
+	match String(act.get("kind", "melee")):
+		"spell":
+			var touch: Dictionary = tf if not bool(act.get("ranged", false)) else {}
+			var res: Dictionary = main.magic.cast_spell(f, String(act.spell), touch)
+			if bool(res.get("success", false)) and not (res.get("bolt", []) as Array).is_empty() and main.has_method("launch_bolt_from"):
+				main.launch_bolt_from(n, target, f, res.bolt, res.source, res.get("spell", {}))
+			r.cooldown = 2.0 + rng.randf()
+		"ranged":
+			if main.has_method("npc_shoot"):
+				main.npc_shoot(n, target, f)
+			r.cooldown = 1.5 + rng.randf()
+		_:
+			var strength := 0.5 + rng.randf() * 0.5
+			cb.melee(f, tf, rng.randi() % 3, strength)
+			var spd := float(w.rec.get("speed", 1.0)) if not w.is_empty() else 1.0
+			r.cooldown = (1.0 / maxf(0.25, spd)) * 0.8 + rng.randf() * 0.6
+	r.action = {}
+	return false
+
+func _actor(n: Node) -> Dictionary:
+	return main.combat._actor_state({"sid": String(n.get_meta("mw_sid", ""))})

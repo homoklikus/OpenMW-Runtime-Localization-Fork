@@ -239,10 +239,10 @@ def _body(bid, part, model, female) -> bytes:
                              W.sub("BYDT", bytes([part, 0, 1 if female else 0, 0]))])
 
 
-def _npc(nid, female, inventory=(), faction="", rank=0, script="", ai=()) -> bytes:
+def _npc(nid, female, inventory=(), faction="", rank=0, script="", ai=(), cls="Commoner") -> bytes:
     npdt = struct.pack("<h", 3) + bytes([50, 0, rank]) + b"\0\0\0" + struct.pack("<i", 10)
     subs = [W.sub("NAME", W.zs(nid)), W.sub("FNAM", W.zs("Syntetyczna" if female else "Syntetyczny")),
-            W.sub("RNAM", W.zs(RACE)), W.sub("CNAM", W.zs("Commoner"))]
+            W.sub("RNAM", W.zs(RACE)), W.sub("CNAM", W.zs(cls))]
     if faction:
         subs.append(W.sub("ANAM", W.zs(faction)))
     if script:
@@ -534,7 +534,8 @@ def _stage7_records() -> list:
                              W.sub("ENAM", struct.pack("<hbbiiiii", 14, -1, -1, 2, 0, 1, 10, 20))])
     refusal = [W.dial("Service Refusal", 0),
                W.info("sr1", "", "", "Nie handluje z takimi jak ty.", actor="synth_trader", disposition=20),
-               W.dial("Greeting 5", 2), W.info("gt", "", "", "Czego potrzebujesz?", actor="synth_trader")]
+               W.dial("Greeting 5", 2), W.info("gt", "", "gw", "Czego potrzebujesz?", actor="synth_trader"),
+               W.info("gw", "gt", "", "Stoj! Zlamales prawo.", actor="synth_watchman")]
     bow = W.record("WEAP", [W.sub("NAME", W.zs("synth_bow")), W.sub("FNAM", W.zs("Luk testowy")),
                             W.sub("WPDT", struct.pack("<fiHHffH", 5.0, 50, 9, 200, 1.0, 1.0, 10) + bytes([1, 10, 0, 0, 0, 0]) + struct.pack("<i", 0))])
     arrow = W.record("WEAP", [W.sub("NAME", W.zs("synth_arrow")), W.sub("FNAM", W.zs("Strzala testowa")),
@@ -563,7 +564,7 @@ def _enam(eff, rng, mn, mx, dur, skill=-1, attr=-1, area=0) -> bytes:
 def _stage7d_records() -> list:
     """Magia: efekty (MGEF), zaklęcia gracza, mikstura, składniki, aparaty, zaklęcia przedmiotów, kamień dusz."""
     recs = [_mgef(23, 2, 4.0), _mgef(75, 5, 1.0), _mgef(79, 5, 1.0), _mgef(90, 5, 2.0), _mgef(58, 4, 2.0),
-            _mgef(13, 0, 6.0)]
+            _mgef(13, 0, 6.0), _mgef(39, 3, 40.0)]
     skills = [W.record("SKIL", [W.sub("INDX", struct.pack("<i", i)),
                                 W.sub("SKDT", struct.pack("<ii4f", attr, 1, 1.0, 1.0, 1.0, 1.0))])
               for i, attr in ((9, 1), (10, 2), (14, 1), (15, 2))]
@@ -610,6 +611,23 @@ def _stage7d_records() -> list:
     return recs + skills + [_gmst(k, v) for k, v in GMST_MAGIC.items()]
 
 
+GMST_STAGE8 = {"iCrimeThreshold": 1000, "iCrimeThresholdMultiplier": 10, "iCrimeAttack": 40, "iCrimeKilling": 1000,
+               "fCrimeStealing": 0.5, "iCrimeTresspass": 5, "iDaysinPrisonMod": 100, "fAlarmRadius": 2000.0,
+               "fPickLockMult": -1.0, "fTrapCostMult": 0.0, "iFightAttacking": 50, "iFightAttack": 100,
+               "iFightKilling": 50, "fFightStealing": 50, "iFightTrespass": 30, "iGreetDistanceMultiplier": 6,
+               "iGreetDuration": 4, "fGreetDistanceReset": 512.0, "fIdleChanceMultiplier": 0.75}
+
+
+def _stage8_records() -> list:
+    """Przestępstwa i Security: wytrych, sonda, znacznik więzienia, GMST."""
+    pick = W.record("LOCK", [W.sub("NAME", W.zs("synth_lockpick")), W.sub("FNAM", W.zs("Wytrych testowy")),
+                             W.sub("LKDT", struct.pack("<fifi", 0.25, 10, 1.5, 3))])
+    probe = W.record("PROB", [W.sub("NAME", W.zs("synth_probe")), W.sub("FNAM", W.zs("Sonda testowa")),
+                              W.sub("PBDT", struct.pack("<fifi", 0.25, 10, 1.5, 3))])
+    marker = W.record("STAT", [W.sub("NAME", W.zs("PrisonMarker")), W.sub("MODL", W.zs("marker_prison.nif"))])
+    return [pick, probe, marker] + [_gmst(k, v) for k, v in GMST_STAGE8.items()]
+
+
 def _stage3_records() -> list:
     torch = W.record("LIGH", [W.sub("NAME", W.zs("synth_torch")), W.sub("MODL", W.zs("l\\l_synth_torch.nif")),
                               W.sub("FNAM", W.zs("Pochodnia")),
@@ -650,8 +668,13 @@ ACTOR_REFS = {  # refnum: (rekord, x, y, obrót z w stopniach)
     9010: ("synth_chest", 2450.0, 2150.0, 0.0),        # skrzynia kupca (właściciel synth_trader)
     9011: ("synth_walker", 2600.0, 2800.0, 0.0),       # etap 8: wędrowiec (AI_W, siatka ścieżek)
     9012: ("synth_traveler", 1800.0, 2000.0, 0.0),     # etap 8: podróżny (AI_T)
+    9014: ("misc_synth_spoon", 2420.0, 2250.0, 0.0),   # etap 8: łyżka kupca (własność – kradzież)
+    9015: ("synth_chest", 2500.0, 2100.0, 0.0),        # etap 8: zamknięta skrzynia kupca z pułapką
+    9016: ("synth_watchman", 5200.0, 5000.0, 180.0),   # etap 8: strażnik (Guard, Alarm 100) – daleko od testów
+    9017: ("prisonmarker", 5400.0, 5200.0, 90.0),      # etap 8: znacznik więzienia
 }
-REF_EXTRA = {9010: {"owner": "synth_trader"}}
+REF_EXTRA = {9010: {"owner": "synth_trader"}, 9014: {"owner": "synth_trader"},
+             9015: {"owner": "synth_trader", "lock_level": 20, "trap": "synth_bolt"}}
 
 
 PATHGRID_XS = (1800, 2200, 2600, 3000)
@@ -694,7 +717,9 @@ def write_actors(data_dir: Path) -> dict:
     recs += [_npc("synth_villager", False, script="synth_talker"), _npc("synth_villager_f", True), _creature(),
              _npc("synth_guard", False, GUARD_INVENTORY, faction="Synth Guild", rank=1),
              _npc("synth_walker", False, ai=[_aidt(hello=30), _ai_wander(1000, 0, idle=(0,) * 8)]),
-             _npc("synth_traveler", True, ai=[_aidt(), _ai_travel(3000.0, 2800.0, height_at(3000, 2800))])]
+             _npc("synth_traveler", True, ai=[_aidt(), _ai_travel(3000.0, 2800.0, height_at(3000, 2800))]),
+             _npc("synth_watchman", False, ai=[_aidt(fight=30, alarm=100)], cls="Guard")]
+    recs += _stage8_records()
     recs += _stage6_records() + _stage7_records() + _stage7d_records()
     refs = []
     for rn, (base, x, y, rz) in ACTOR_REFS.items():

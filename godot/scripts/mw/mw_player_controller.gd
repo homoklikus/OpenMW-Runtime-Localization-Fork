@@ -20,6 +20,9 @@ func attach(a: CharacterBody3D) -> void:
 func control(a, _delta: float) -> void:
 	a.move_input = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	a.want_run = Input.is_action_pressed("run")
+	a.want_sneak = InputMap.has_action("sneak") and Input.is_action_pressed("sneak")
+	if a.want_sneak:
+		a.want_run = false
 	if Input.is_action_just_pressed("jump"):
 		a.want_jump = true
 
