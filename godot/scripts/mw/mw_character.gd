@@ -186,7 +186,7 @@ func fall_damage(st: Dictionary, d: Dictionary, height: float) -> float:
 		return 0.0
 	var acro: float = float(d.skills[SK_ACROBATICS])
 	var x := maxf(0.0, height - dmin - (1.5 * acro + float(d.get("jump", 0.0))))
-	var a := _gmst("ffallacrobase", 0.25) + _gmst("ffallacromult", 0.0335) * (100.0 - acro)
+	var a := _gmst("ffallacrobase", 0.25) + _gmst("ffallacromult", 0.01) * (100.0 - acro)
 	x = _gmst("ffalldistancebase", 0.0) + _gmst("ffalldistancemult", 0.07) * x
 	return x * a
 

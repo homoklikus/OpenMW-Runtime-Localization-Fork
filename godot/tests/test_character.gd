@@ -39,8 +39,8 @@ func _run() -> void:
 	check(d.health.modified == 50.0 and is_equal_approx(d.magicka.modified, 80.0) and d.fatigue.modified == 180.0,
 			"zdrowie 50, magia 2,0 × 40 = 80, kondycja 50+40+40+50 = 180 (%s, %s, %s)" % [d.health.modified, d.magicka.modified, d.fatigue.modified])
 	check(st.health == 50.0 and st.magicka == d.magicka.modified and st.fatigue == 180.0, "wartości bieżące = maksymalne")
-	# upadek: 1000 jedn., akrobatyka 5 → (0,07 × (1000 − 400 − 7,5)) × (0,25 + 0,0335 × 95) × (1 − 0,25 × 1,25)
-	var expect := (0.07 * (1000.0 - 400.0 - 7.5)) * (0.25 + 0.0335 * 95.0) * (1.0 - 0.25 * 1.25)
+	# upadek: 1000 jedn., akrobatyka 5 → (0,07 × (1000 − 400 − 7,5)) × (0,25 + 0,01 × 95) × (1 − 0,25 × 1,25)
+	var expect := (0.07 * (1000.0 - 400.0 - 7.5)) * (0.25 + 0.01 * 95.0) * (1.0 - 0.25 * 1.25)
 	var lost: float = ch.apply_fall(st, 1000.0)
 	check(absf(lost - expect) < 0.01 and absf(st.health - (50.0 - expect)) < 0.01, "obrażenia od upadku jak OpenMW (%.2f, oczekiwane %.2f)" % [lost, expect])
 	check(ch.apply_fall(st, 300.0) == 0.0, "upadek poniżej fFallDamageDistanceMin – bez obrażeń")

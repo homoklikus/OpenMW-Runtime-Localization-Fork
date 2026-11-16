@@ -63,7 +63,7 @@ def _converter_ok(prev_conv: str, converter: str, vfs, key: str) -> bool:
     chk = COMPAT_CONVERTERS.get(prev_conv)
     return converter == MODEL_CONVERTER and chk is not None and chk(vfs, key)
 TEXTURE_CONVERTER = "tex2png-0.1.0"
-WORLD_EXPORT_VERSION = 3          # 2: world/records/ (etap 1); 3: rekordy etapu 3, dźwięki (sound/)
+WORLD_EXPORT_VERSION = 4          # 2: world/records/ (etap 1); 3: rekordy etapu 3, dźwięki (sound/); 4: SPEL (etap 4)
 
 _VFS: Optional[Vfs] = None
 _OUT: Optional[Path] = None
