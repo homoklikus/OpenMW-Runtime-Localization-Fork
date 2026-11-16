@@ -333,6 +333,10 @@ def run_all(run_dir: Path, timeout: float = 240.0) -> dict:
     """Przebieg w tle: python -m openmw_mcp.recordcmp <run_dir>. Wejście: run_dir/params.json."""
     p = json.loads((run_dir / "params.json").read_text(encoding="utf-8"))
     plan = json.loads((Path(p["plan"])).read_text(encoding="utf-8"))
+    from . import mechcmp
+    mreq = mechcmp.pending_request(run_dir)       # porównanie wzorów RPG zamiast rekordów (etap 7, mechcmp.py)
+    if mreq is not None:
+        return mechcmp.run_from_record_run(run_dir, plan, mreq)
     (run_dir / "progress.json").write_text(json.dumps({"running": True}), encoding="utf-8")
     res = run(plan, timeout)
     rep = compare(Path(p["records_dir"]), res["records"], p["gmst"], p["globals"])

@@ -119,3 +119,12 @@ Odtworzenie zatwierdzonej wersji: `git -C Fork/repo checkout <commit> -- tools/M
 Uruchamia `.venv/bin/openmw-mcp` jako osobny proces stdio, woła narzędzia i porównuje wyniki z wartościami wyznaczonymi niezależnie (pliki `.cfg`, Git, `flatpak info`, `manifest.json` Flatpaka, katalogi modów, nagłówki ESP, liczby z audytu). Raport JSON: `Raporty/mcp/testy/` (poza repozytorium). Kod wyjścia 0 = wszystko zaliczone.
 
 Konfiguracja: `openmw-mcp.json` (ścieżki względem katalogu projektu; `@mcp/…` — względem katalogu MCP). Zmienna `OPENMW_MCP_PROJECT_ROOT` wymusza katalog projektu. Zmienne: `OPENMW_MCP_CONFIG` (inny plik), `OPENMW_MCP_CACHE=off`, `OPENMW_MCP_PATH_MAP="/z=/do;..."` (analiza kopii lub montażu).
+
+## Porównanie wzorów RPG (0.10.0, etap 7 planu)
+
+`openmw_mechanics_compare_start` uruchamia silnik ze scenariuszem `lua/scripts/rlf_mech/player.lua` (te same
+wejścia co OpenMWGodot: atrybuty, umiejętności, zbroje, przedmioty zaklęte, mikstury). Strona OpenMWGodot:
+`godot/tools/mech_compare.gd`; porównanie: `python -m openmw_mcp.mechcmp compare <silnik> <godot> <raport>`.
+Bez restartu serwera MCP: zapisz żądanie (`python -m openmw_mcp.mechcmp request <records> <plik>`) jako
+`Raporty/mcp/mechanika/pending/request.json` i wywołaj `openmw_record_compare_start` – przebieg wykona scenariusz
+mechaniki zamiast rekordów.

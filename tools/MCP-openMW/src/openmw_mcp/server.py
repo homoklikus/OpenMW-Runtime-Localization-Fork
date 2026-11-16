@@ -950,6 +950,41 @@ def openmw_record_compare_start(types: Optional[list[str]] = None, sample: int =
 
 
 @tool
+def openmw_mechanics_compare_start(records_dir: Optional[str] = None, profile: str = "official-ref",
+                                   timeout: float = 600.0) -> dict:
+    """URUCHAMIA OpenMW w tle ze scenariuszem Lua porównania wzorów RPG (etap 7): te same wejścia (atrybuty,
+    umiejętności, zbroje, przedmioty zaklęte, mikstury z danych OpenMWGodot) – statystyki pochodne, postęp
+    umiejętności, awans, pancerz (I.Combat), ładunki, mikstury. Wynik silnika: <run_dir>/mech_engine.json; strona
+    OpenMWGodot: godot/tools/mech_compare.gd, porównanie: python -m openmw_mcp.mechcmp compare."""
+    from . import mechcmp, recordcmp
+    import subprocess as _sp
+    import sys as _sys
+    e = env()
+    if records_dir:
+        rdir = Path(records_dir)
+    else:
+        data = e.cfg["profiles"].get("openmwgodot", {}).get("paths", {}).get("data")
+        if not data:
+            return {"error": "podaj records_dir"}
+        rdir = e.p(data) / "world" / "records"
+    req = mechcmp.build_request(rdir)
+    run_dir = e.p("Raporty/mcp/mechanika") / time.strftime("%Y-%m-%d-%H%M%S")
+    run_dir.mkdir(parents=True, exist_ok=True)
+    plan = recordcmp.prepare(e, profile, run_dir, {}, [], [])
+    pend = e.p("Raporty/mcp/mechanika/pending")
+    (run_dir / "params.json").write_text(json.dumps({"plan": str(Path(plan["run_dir"]) / "plan.json"),
+                                                     "mechanics": req}, ensure_ascii=False), encoding="utf-8")
+    code = ("import json,sys; from pathlib import Path; from openmw_mcp import mechcmp; "
+            "r=Path(sys.argv[1]); p=json.loads((r/'params.json').read_text()); "
+            "mechcmp.run_from_record_run(r, json.loads(Path(p['plan']).read_text()), p['mechanics'], float(sys.argv[2]))")
+    proc = _sp.Popen([_sys.executable, "-c", code, str(run_dir), str(timeout)],
+                     stdout=open(run_dir / "runner.log", "w"), stderr=_sp.STDOUT, start_new_session=True)
+    return {"run_dir": str(run_dir), "pid": proc.pid, "records_dir": str(rdir), "pending_dir": str(pend),
+            "tests": {k: len(v) for k, v in req.items() if isinstance(v, list)},
+            "note": "silnik startuje w tle; wynik: openmw_record_compare_status(run_dir) (report.json, mech_engine.json)"}
+
+
+@tool
 def openmw_record_compare_status(run_dir: str) -> dict:
     """Postęp i wynik openmw_record_compare_start: liczby rekordów/pól na typ, niezgodne pola (do 60 przykładów),
     rekordy brakujące po którejś stronie."""

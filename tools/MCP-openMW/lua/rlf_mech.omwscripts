@@ -1,0 +1,2 @@
+GLOBAL: scripts/rlf_mech/global.lua
+PLAYER: scripts/rlf_mech/player.lua
