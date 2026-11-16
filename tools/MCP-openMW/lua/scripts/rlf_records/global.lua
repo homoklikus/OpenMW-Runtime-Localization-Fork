@@ -16,6 +16,7 @@ local function enc(v, d)
     if t == 'boolean' then return tostring(v) end
     if t == 'number' then
         if v ~= v or v == math.huge or v == -math.huge then return 'null' end
+        if v == math.floor(v) and math.abs(v) < 9007199254740992 then return string.format('%.0f', v) end
         return string.format('%.9g', v)
     end
     if t == 'string' then return '"' .. esc(v) .. '"' end
