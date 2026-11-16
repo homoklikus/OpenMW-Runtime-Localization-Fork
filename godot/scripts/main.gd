@@ -58,6 +58,7 @@ func _ready() -> void:
 	builder = MWCellBuilder.new(db, models)
 	builder.state = state
 	state.ref_changed.connect(_on_ref_changed)
+	state.dynamic_changed.connect(_on_dynamic_changed)
 	if bool(settings.get("grass", true)):
 		var fl = Flora.new(models, data, MWModelCache.base_roots)
 		if fl.is_active():
@@ -495,8 +496,10 @@ func capture_state() -> void:
 	state.time = {"day": envr.day, "hour": envr.game_hour}
 	var cam := player.get_node_or_null("Camera3D") as Camera3D
 	var p := MWCoords.godot_to_mw(player.global_position)
-	state.player = {"interior": interior, "fly": player.fly,
-		"mw": {"pos": [p.x, p.y, p.z], "rot": [-(cam.rotation.x if cam else 0.0), 0.0, -player.rotation.y]}}
+	var keep: Dictionary = state.player.duplicate()      # np. poziom gracza (etap 4)
+	keep.merge({"interior": interior, "fly": player.fly,
+		"mw": {"pos": [p.x, p.y, p.z], "rot": [-(cam.rotation.x if cam else 0.0), 0.0, -player.rotation.y]}}, true)
+	state.player = keep
 
 ## Zwraca "" albo opis błędu.
 func save_game(path: String) -> String:
@@ -574,6 +577,21 @@ func _on_ref_changed(sid: String) -> void:
 						refs_node.move_child(nn, n.get_index())
 						n.free()
 						return
+
+## Przedmiot położony/podniesiony w świecie (dyn#N) → dodanie albo usunięcie węzła we wczytanej komórce.
+func _on_dynamic_changed(sid: String) -> void:
+	for key in loaded:
+		var refs_node: Node = loaded[key].get_node_or_null("Refs")
+		if refs_node == null:
+			continue
+		for n in refs_node.get_children():
+			if String(n.get_meta("mw_sid", "")) == sid:
+				n.free()
+		for r in state.dynamic_refs(key):
+			if String(r["sid"]) == sid:
+				var nn := builder.build_ref(r)
+				if nn:
+					refs_node.add_child(nn)
 
 ## Menu pauzy (Esc): wróć, szybki zapis/odczyt, wyjście. Szkielet UI etapu 0.
 func toggle_pause_menu() -> void:

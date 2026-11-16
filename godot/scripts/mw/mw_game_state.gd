@@ -8,21 +8,33 @@ extends RefCounted
 ##   time     {"day", "hour"}
 ##   player   {"interior": nazwa wnętrza albo "", "mw": {"pos", "rot"}}  (jednostki i kąty Morrowinda)
 ##   dyn_next licznik referencji utworzonych w grze ("dyn#N")
+##   inventories  (v2) sid pojemnika/NPC (albo "player") → [{"id", "count"}, …] – pełna zawartość po pierwszej
+##            zmianie; bez wpisu = zawartość z rekordu (z listami poziomowanymi rozlosowanymi wg seed i sid)
+##   dynamic  (v2) sid "dyn#N" → {"base", "cell" (klucz komórki), "mw": {"pos","rot","scale"}, "count"} – przedmioty
+##            położone w świecie w trakcie gry
+##   seed     (v2) ziarno losowania list poziomowanych tej rozgrywki
 ##   extra    sekcje zapisu, których ta wersja nie zna – zachowywane przy ponownym zapisie
 ## Zapis nie zależy od scen ani węzłów Godota. Wpisy dla wtyczek, których brakuje, NIE są usuwane.
 
 signal ref_changed(sid: String)
 
 const FORMAT := "mwgodot-save"
-const VERSION := 1
-const KNOWN := ["format", "version", "header", "refs", "globals", "time", "player", "dyn_next"]
+const VERSION := 2
+const KNOWN := ["format", "version", "header", "refs", "globals", "time", "player", "dyn_next", "inventories",
+	"dynamic", "seed"]
 
 var refs := {}
 var globals := {}
 var time := {"day": 0, "hour": 9.0}
 var player := {}
 var dyn_next := 1
+var inventories := {}
+var dynamic := {}
+var seed := 0
 var extra := {}
+
+signal inventory_changed(sid: String)
+signal dynamic_changed(sid: String)
 
 # --- referencje -------------------------------------------------------------------------------------
 
@@ -79,6 +91,52 @@ func new_dynamic_sid() -> String:
 	dyn_next += 1
 	return s
 
+# --- inwentarze i przedmioty w świecie (etap 3) -------------------------------------------------------
+
+func has_inventory(sid: String) -> bool:
+	return inventories.has(sid)
+
+func inventory(sid: String) -> Array:
+	return inventories.get(sid, [])
+
+func set_inventory(sid: String, items: Array) -> void:
+	var clean := []
+	for it in items:
+		if int(it.get("count", 0)) != 0:
+			clean.append({"id": String(it["id"]).to_lower(), "count": int(it["count"])})
+	inventories[sid] = clean
+	inventory_changed.emit(sid)
+
+## Przedmiot położony w świecie (gracz wyrzucił/odłożył): nowy sid dyn#N.
+func add_dynamic(base: String, cell_key: String, pos: Vector3, rot: Vector3, count := 1) -> String:
+	var sid := new_dynamic_sid()
+	dynamic[sid] = {"base": base.to_lower(), "cell": cell_key, "count": count,
+			"mw": {"pos": [pos.x, pos.y, pos.z], "rot": [rot.x, rot.y, rot.z], "scale": 1.0}}
+	dynamic_changed.emit(sid)
+	return sid
+
+func remove_dynamic(sid: String) -> void:
+	if dynamic.erase(sid):
+		dynamic_changed.emit(sid)
+
+## Referencje dynamiczne komórki – w formacie referencji z konwertera (dla MWCellBuilder).
+func dynamic_refs(cell_key: String) -> Array:
+	var out := []
+	for sid in dynamic:
+		var d: Dictionary = dynamic[sid]
+		if String(d.get("cell", "")) != cell_key:
+			continue
+		var m: Dictionary = d["mw"]
+		var p: Array = m["pos"]
+		var ro: Array = m["rot"]
+		var t := Transform3D(MWCoords.mw_rot_to_basis(Vector3(ro[0], ro[1], ro[2])), MWCoords.mw_to_godot(Vector3(p[0], p[1], p[2])))
+		var r := {"sid": sid, "base": d["base"], "mw": m.duplicate(true), "source": "dynamic"}
+		r.merge(MWCoords.transform_to_ref_fields(t), true)
+		if int(d.get("count", 1)) > 1:
+			r["extra"] = {"count": int(d["count"])}
+		out.append(r)
+	return out
+
 func _compact(sid: String) -> void:
 	var e: Dictionary = refs.get(sid, {})
 	if bool(e.get("enabled", true)) and not e.has("mw") and not bool(e.get("deleted", false)):
@@ -90,7 +148,8 @@ func _compact(sid: String) -> void:
 func to_dict(header: Dictionary) -> Dictionary:
 	var d := extra.duplicate(true)
 	d.merge({"format": FORMAT, "version": VERSION, "header": header, "refs": refs, "globals": globals,
-			"time": time, "player": player, "dyn_next": dyn_next}, true)
+			"time": time, "player": player, "dyn_next": dyn_next, "inventories": inventories, "dynamic": dynamic,
+			"seed": seed}, true)
 	return d
 
 ## Wczytuje słownik zapisu (po migracji). Zwraca listę ostrzeżeń (pusta = zgodny).
@@ -101,6 +160,11 @@ func from_dict(d: Dictionary) -> Array:
 	time = (d.get("time", {"day": 0, "hour": 9.0}) as Dictionary).duplicate(true)
 	player = (d.get("player", {}) as Dictionary).duplicate(true)
 	dyn_next = int(d.get("dyn_next", 1))
+	inventories = (d.get("inventories", {}) as Dictionary).duplicate(true)
+	for k in inventories:        # JSON: liczby jako float
+		inventories[k] = (inventories[k] as Array).map(func(it): return {"id": String(it["id"]), "count": int(it["count"])})
+	dynamic = (d.get("dynamic", {}) as Dictionary).duplicate(true)
+	seed = int(d.get("seed", 0))
 	extra = {}
 	for k in d:
 		if not k in KNOWN:
@@ -114,11 +178,26 @@ static func migrate(d: Dictionary) -> Dictionary:
 	if String(d.get("format", "")) != FORMAT:
 		return {"error": "to nie jest zapis OpenMWGodot"}
 	var v := int(d.get("version", 0))
+	var v0 := v
 	if v > VERSION:
 		return {"error": "zapis z nowszej wersji gry (format %d, ta gra obsługuje %d) – oryginał pozostaje bez zmian" % [v, VERSION]}
-	# (miejsce na kolejne kroki: if v == 1: d = _v1_to_v2(d); v = 2 …)
+	if v <= 1:
+		d = _v1_to_v2(d)
+		v = 2
+	# (kolejne kroki: if v == 2: d = _v2_to_v3(d); v = 3 …)
 	d["version"] = VERSION
-	return {"data": d, "migrated": v != VERSION}
+	return {"data": d, "migrated": v0 != VERSION}
+
+## v1 → v2: inwentarze, przedmioty w świecie, ziarno losowania (puste – stan jak w danych bazowych), poziom gracza.
+static func _v1_to_v2(d: Dictionary) -> Dictionary:
+	d["inventories"] = d.get("inventories", {})
+	d["dynamic"] = d.get("dynamic", {})
+	d["seed"] = d.get("seed", 0)
+	var p: Dictionary = d.get("player", {})
+	if not p.has("level"):
+		p["level"] = 1
+	d["player"] = p
+	return d
 
 ## Zgodność zapisu z bieżącymi danymi: brakujące/zmienione wtyczki, inna kolejność ładowania.
 static func compatibility(save_header: Dictionary, current_header: Dictionary) -> Array:

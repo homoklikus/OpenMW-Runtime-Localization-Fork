@@ -188,9 +188,16 @@ func _test_save(main) -> void:
 	main.player.rotation.y = 1.25
 	main.envr.game_hour = 17.5
 	main.envr.day = 3
-	check(main.save_game(path) == "", "zapis gry v1")
+	# v2 (etap 3): inwentarz gracza i przedmiot położony w świecie
+	main.state.set_inventory("player", [{"id": "Misc_Spoon", "count": 2}, {"id": "zero", "count": 0}])
+	var cell_key: String = main.loaded.keys()[0]
+	var p_mw: Vector3 = MWCoords.godot_to_mw(main.player.global_position)
+	var dsid: String = main.state.add_dynamic("misc_spoon", cell_key, p_mw + Vector3(50, 0, 0), Vector3.ZERO, 1)
+	check(dsid.begins_with("dyn#") and _find_ref(main, dsid) != null, "przedmiot położony w świecie: węzeł w komórce (%s)" % dsid)
+	check(main.state.inventory("player") == [{"id": "misc_spoon", "count": 2}], "inwentarz: id małymi literami, bez zerowych")
+	check(main.save_game(path) == "", "zapis gry")
 	var raw: Dictionary = GS.read_file(path)
-	check(raw.get("format") == "mwgodot-save" and int(raw.get("version")) == 1 and raw["refs"].has(sid)
+	check(raw.get("format") == "mwgodot-save" and int(raw.get("version")) == GS.VERSION and raw["refs"].has(sid)
 			and raw["header"]["content"].size() >= 2, "plik zapisu: format, wersja, stan referencji, lista wtyczek (%s)"
 			% [JSON.stringify(raw).left(300)])
 	# zmiany po zapisie…
@@ -207,6 +214,11 @@ func _test_save(main) -> void:
 	check(not main.state.is_enabled(sid) and _find_ref(main, sid).get_meta("mw_disabled", false),
 			"odczyt: stan referencji odtworzony w świecie")
 	check(main.loaded.size() == 4, "odczyt: komórki wokół gracza wczytane (%d)" % main.loaded.size())
+	check(main.state.inventory("player") == [{"id": "misc_spoon", "count": 2}] and _find_ref(main, dsid) != null,
+			"odczyt v2: inwentarz gracza i przedmiot w świecie")
+	main.state.remove_dynamic(dsid)
+	check(_find_ref(main, dsid) == null, "podniesienie przedmiotu dynamicznego usuwa węzeł")
+	main.load_game(path)
 	# atomowość: poprzednia wersja jako .bak
 	main.save_game(path)
 	check(FileAccess.file_exists(path + ".bak") and not FileAccess.file_exists(path + ".tmp"), "zapis atomowy z kopią .bak")
@@ -241,7 +253,11 @@ func _test_save(main) -> void:
 	GS.write_file(dir.path_join("old.mwsave"), raw)
 	w = main.load_game(dir.path_join("old.mwsave"))
 	check(not str(w).contains("BŁĄD") and FileAccess.file_exists(dir.path_join("old.mwsave.v0.bak")),
-			"migracja v0 → v1 z kopią bezpieczeństwa")
+			"migracja v0 → v2 z kopią bezpieczeństwa")
+	var v1 := {"format": "mwgodot-save", "version": 1, "refs": {}, "player": {"interior": ""}}
+	var mig: Dictionary = GS.migrate(v1)
+	check(mig.get("migrated", false) and mig["data"]["version"] == 2 and mig["data"]["inventories"] == {}
+			and mig["data"]["dynamic"] == {} and mig["data"]["player"]["level"] == 1, "migracja v1 → v2: nowe sekcje puste, poziom 1")
 	check(main.load_game(dir.path_join("nie_ma.mwsave"))[0].begins_with("BŁĄD"), "brak pliku: czytelny błąd")
 	# sprzątanie stanu dla dalszych testów
 	main.state.from_dict({})

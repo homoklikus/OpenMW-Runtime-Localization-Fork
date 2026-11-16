@@ -22,7 +22,10 @@ SCHEMA_VERSION = 1
 FILES = {"NPC_": "npc", "CREA": "creature", "RACE": "race", "CLAS": "class", "FACT": "faction", "BODY": "bodypart",
          "BSGN": "birthsign", "SKIL": "skill", "WEAP": "weapon", "ARMO": "armor", "CLOT": "clothing", "BOOK": "book",
          "MISC": "misc", "APPA": "apparatus", "LOCK": "lockpick", "PROB": "probe", "REPA": "repair",
-         "LIGH": "light", "GMST": "gmst", "GLOB": "global"}
+         "LIGH": "light", "GMST": "gmst", "GLOB": "global",
+         # etap 3: pojemniki, listy poziomowane, pozostałe przedmioty, drzwi/aktywatory, dźwięki
+         "CONT": "container", "LEVI": "leveleditem", "LEVC": "leveledcreature", "ALCH": "potion",
+         "INGR": "ingredient", "DOOR": "door", "ACTI": "activator", "SOUN": "sound"}
 
 
 def _zs(b: bytes) -> str:
@@ -345,6 +348,99 @@ def decode_light(rec, rid: str) -> dict:
     return o
 
 
+def decode_container(rec, rid: str) -> dict:
+    o = _common(rec, {"id": rid})
+    d = rec.get("CNDT")
+    if d is not None and len(d) >= 4:
+        o["capacity"] = struct.unpack_from("<f", d, 0)[0]
+    fl = rec.get("FLAG")
+    if fl is not None and len(fl) >= 4:
+        v = struct.unpack_from("<i", fl, 0)[0]
+        o.update(flags=v, organic=bool(v & 1), respawn=bool(v & 2))
+    _inventory_spells_travel(rec, o)
+    return o
+
+
+def _leveled(item_tag: str):
+    def dec(rec, rid: str) -> dict:
+        o = {"id": rid}
+        d = rec.get("DATA")
+        o["flags"] = struct.unpack_from("<i", d, 0)[0] if d is not None and len(d) >= 4 else 0
+        n = rec.get("NNAM")
+        o["chance_none"] = n[0] if n else 0
+        items = []
+        for s in rec.subs:
+            if s.name == item_tag:
+                items.append({"id": _zs(s.data), "level": 0})
+            elif s.name == "INTV" and items and len(s.data) >= 2:
+                items[-1]["level"] = struct.unpack_from("<h", s.data, 0)[0]
+        o["items"] = items
+        return o
+    return dec
+
+
+def _effects(rec) -> list:
+    out = []
+    for s in rec.subs:
+        if s.name == "ENAM" and len(s.data) >= 24:
+            eff, skill, attr, rng, area, dur, mn, mx = struct.unpack_from("<hbbiiiii", s.data, 0)
+            out.append({"effect": eff, "skill": skill, "attribute": attr, "range": rng, "area": area,
+                        "duration": dur, "min": mn, "max": mx})
+    return out
+
+
+def decode_potion(rec, rid: str) -> dict:
+    o = _common(rec, {"id": rid})
+    o.pop("enchant", None)                       # ENAM w ALCH to efekty, nie zaklęcie
+    for tag, key in (("TEXT", "icon"),):         # ALCH: ikona w TEXT
+        v = rec.zstr(tag)
+        if v:
+            o[key] = v
+    d = rec.get("ALDT")
+    if d is not None and len(d) >= 12:
+        w, val, auto = struct.unpack_from("<fii", d, 0)
+        o.update(weight=w, value=val, autocalc=bool(auto & 1))
+    o["effects"] = _effects(rec)
+    return o
+
+
+def decode_ingredient(rec, rid: str) -> dict:
+    o = _common(rec, {"id": rid})
+    d = rec.get("IRDT")
+    if d is not None and len(d) >= 56:
+        w, val = struct.unpack_from("<fi", d, 0)
+        eff = struct.unpack_from("<4i", d, 8)
+        sk = struct.unpack_from("<4i", d, 24)
+        at = struct.unpack_from("<4i", d, 40)
+        o.update(weight=w, value=val, effects=[{"effect": eff[i], "skill": sk[i], "attribute": at[i]}
+                                                for i in range(4) if eff[i] >= 0])
+    return o
+
+
+def decode_door(rec, rid: str) -> dict:
+    o = _common(rec, {"id": rid})
+    for tag, key in (("SNAM", "open_sound"), ("ANAM", "close_sound")):
+        v = rec.zstr(tag)
+        if v:
+            o[key] = v
+    return o
+
+
+def decode_activator(rec, rid: str) -> dict:
+    return _common(rec, {"id": rid})
+
+
+def decode_sound(rec, rid: str) -> dict:
+    o = {"id": rid}
+    f = rec.zstr("FNAM")
+    if f:
+        o["file"] = f
+    d = rec.get("DATA")
+    if d is not None and len(d) >= 3:
+        o.update(volume=d[0], min_range=d[1], max_range=d[2])
+    return o
+
+
 def decode_gmst(rec, rid: str) -> dict:
     o: dict = {"id": rid}
     if rec.get("STRV") is not None:
@@ -400,6 +496,8 @@ DECODERS: dict[str, Callable] = {
     "ARMO": decode_armor, "CLOT": decode_clothing, "BOOK": decode_book, "MISC": decode_misc,
     "APPA": decode_apparatus, "LOCK": _tool("LKDT"), "PROB": _tool("PBDT"), "REPA": _tool("RIDT", repair=True),
     "LIGH": decode_light, "GMST": decode_gmst, "GLOB": decode_global,
+    "CONT": decode_container, "LEVI": _leveled("INAM"), "LEVC": _leveled("CNAM"), "ALCH": decode_potion,
+    "INGR": decode_ingredient, "DOOR": decode_door, "ACTI": decode_activator, "SOUN": decode_sound,
 }
 
 

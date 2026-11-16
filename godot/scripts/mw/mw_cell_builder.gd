@@ -61,6 +61,11 @@ func build_cell(key: String) -> Node3D:
 		var n := build_ref(state.apply_to_ref(r) if state != null else r)
 		if n:
 			refs_node.add_child(n)
+	if state != null and state.has_method("dynamic_refs"):     # przedmioty położone w grze (dyn#N)
+		for r in state.dynamic_refs(key):
+			var dn := build_ref(r)
+			if dn:
+				refs_node.add_child(dn)
 	if flora != null and not editor_mode and not c.get("interior", false):
 		var fl: Node3D = flora.build_cell(key)
 		if fl:

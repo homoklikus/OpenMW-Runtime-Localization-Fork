@@ -153,3 +153,42 @@ def test_global_nan_like_openmw():
     assert R._float_cast(-3.7, 16) == -3
     bad = []
     assert R._finite({"a": [1.0, float("inf")], "b": float("nan")}, bad) == {"a": [1.0, None], "b": None} and len(bad) == 2
+
+
+def test_stage3_records():
+    """Etap 3: pojemnik z inwentarzem, listy poziomowane (przedmioty, stworzenia), mikstura, składnik, drzwi, dźwięk."""
+    def rec(typ, subs):
+        data = W.record(typ, subs)
+        from mwconv.esm.header import iter_records
+        return next(iter_records(data))
+    cont = rec("CONT", [W.sub("NAME", W.zs("chest_small")), W.sub("FNAM", W.zs("Skrzynia")), W.sub("MODL", W.zs("c.nif")),
+                        W.sub("CNDT", struct.pack("<f", 150.0)), W.sub("FLAG", struct.pack("<i", 0x08 | 0x02)),
+                        W.sub("NPCO", struct.pack("<i", 3) + z32("misc_spoon")),
+                        W.sub("NPCO", struct.pack("<i", 1) + z32("l_random_gold"))])
+    o = R.decode(cont)
+    assert o["capacity"] == 150.0 and o["respawn"] and not o["organic"]
+    assert o["inventory"] == [{"count": 3, "item": "misc_spoon"}, {"count": 1, "item": "l_random_gold"}]
+    levi = rec("LEVI", [W.sub("NAME", W.zs("l_random_gold")), W.sub("DATA", struct.pack("<i", 3)),
+                        W.sub("NNAM", bytes([25])), W.sub("INDX", struct.pack("<i", 2)),
+                        W.sub("INAM", W.zs("gold_005")), W.sub("INTV", struct.pack("<h", 1)),
+                        W.sub("INAM", W.zs("gold_010")), W.sub("INTV", struct.pack("<h", 5))])
+    o = R.decode(levi)
+    assert o == {"id": "l_random_gold", "flags": 3, "chance_none": 25,
+                 "items": [{"id": "gold_005", "level": 1}, {"id": "gold_010", "level": 5}]}
+    levc = rec("LEVC", [W.sub("NAME", W.zs("in_cave")), W.sub("DATA", struct.pack("<i", 1)), W.sub("NNAM", bytes([0])),
+                        W.sub("INDX", struct.pack("<i", 1)), W.sub("CNAM", W.zs("rat")), W.sub("INTV", struct.pack("<h", 2))])
+    assert R.decode(levc)["items"] == [{"id": "rat", "level": 2}]
+    alch = rec("ALCH", [W.sub("NAME", W.zs("p_heal")), W.sub("MODL", W.zs("p.nif")), W.sub("TEXT", W.zs("p.dds")),
+                        W.sub("ALDT", struct.pack("<fii", 1.0, 20, 1)),
+                        W.sub("ENAM", struct.pack("<hbbiiiii", 75, -1, -1, 0, 0, 5, 10, 10))])
+    o = R.decode(alch)
+    assert o["icon"] == "p.dds" and "enchant" not in o and o["autocalc"] and o["effects"][0]["effect"] == 75
+    ingr = rec("INGR", [W.sub("NAME", W.zs("ingred_x")), W.sub("IRDT", struct.pack("<fi4i4i4i", 0.5, 3, 1, 2, -1, -1,
+                                                                                  -1, -1, -1, -1, -1, -1, -1, -1))])
+    assert [e["effect"] for e in R.decode(ingr)["effects"]] == [1, 2]
+    door = rec("DOOR", [W.sub("NAME", W.zs("door_x")), W.sub("SNAM", W.zs("Door Open")), W.sub("ANAM", W.zs("Door Close"))])
+    assert R.decode(door)["open_sound"] == "Door Open"
+    soun = rec("SOUN", [W.sub("NAME", W.zs("Item Gold Up")), W.sub("FNAM", W.zs("Fx\\item\\gold.wav")),
+                        W.sub("DATA", bytes([200, 0, 255]))])
+    assert R.decode(soun) == {"id": "Item Gold Up", "file": "Fx\\item\\gold.wav", "volume": 200, "min_range": 0,
+                              "max_range": 255}
