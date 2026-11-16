@@ -351,6 +351,11 @@ Zakres:
 - Ustawienia dostępne w grze.
 - Dźwięki otoczenia, głosy i muzyka kontekstowa.
 - Dopracowanie nieba, mgły, wody, cieni i oświetlenia.
+  - Woda: pełne poziomy odbić jak OpenMW „reflection detail” 0–5 (niebo → teren → statyki, aktywatory i drzwi →
+    przedmioty, pojemniki i cząsteczki → aktorzy → roślinność; we wnętrzach co najmniej 2) – druga kamera
+    odbijająca, warstwy renderowania wg rodzaju obiektu, rozdzielczość odbicia („rtt size” 512/1024/2048);
+    przełącznik załamania („refraction”) i kręgi deszczu („rain ripple detail” 0–2). Teraz (10h): odbija się
+    tylko niebo (poziom 0).
 - Ulepszenia graficzne remastera.
 
 Część tych prac można prowadzić wcześniej, równolegle, jeżeli nie blokują podstaw rozgrywki.
