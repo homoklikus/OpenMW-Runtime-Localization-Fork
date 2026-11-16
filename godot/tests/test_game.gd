@@ -55,16 +55,21 @@ func _run() -> void:
 	# pora dnia
 	var env: MWEnvironment = main.envr
 	env.time_running = false
+	env.forced_weather = "clear"          # kolory słońca zależą od pogody (Weather_*_Sun_*_Color)
+	env.pick_weather()
 	env.game_hour = 12.0
 	env.apply()
 	var noon: float = env.sun.light_energy
+	var noon_col: Color = env.sun.light_color
 	env.game_hour = 0.5
 	env.apply()
-	report["sun_noon_midnight"] = [noon, env.sun.light_energy, env.sun.visible]
-	check(noon > 0.4 and (env.sun.light_energy < 0.05 or not env.sun.visible), "słońce: jasno w południe, ciemno w nocy")
-	check(absf(MWEnvironment.sun_elevation_deg(12.0) - 70.0) < 1e-3, "wysokość słońca w południe 70°")
+	report["sun_noon_midnight"] = [noon, env.sun.light_energy, env.sun.visible, noon_col.to_html(), env.sun.light_color.to_html(), env.weather]
+	check(noon > 0.4 and (env.sun.light_energy < 0.05 or not env.sun.visible or env.sun.light_color.get_luminance() < noon_col.get_luminance() * 0.6), "słońce: jasno w południe, ciemno w nocy (księżyc)")
+	check(absf(MWEnvironment.sun_elevation_deg(13.0) - rad_to_deg(atan(100.0 / 75.0))) < 1e-3, "najwyżej słońce o 13:00 jak w Morrowindzie (53,13°)")
 	await process_frame
 	check(main.current_region.to_lower() == "synthetic region", "region z komórki (%s)" % main.current_region)
+	env.forced_weather = ""
+	env.pick_weather()
 	var w1: String = env.weather
 	env.pick_weather()
 	check(env.weather == w1 and env.weather in ["clear", "cloudy", "foggy", "rain"], "pogoda deterministyczna z szans REGN (%s)" % env.weather)

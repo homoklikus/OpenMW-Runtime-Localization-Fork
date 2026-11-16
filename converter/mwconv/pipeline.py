@@ -76,7 +76,7 @@ def _converter_ok(prev_conv: str, converter: str, vfs, key: str) -> bool:
     chk = COMPAT_CONVERTERS.get(prev_conv)
     return converter == MODEL_CONVERTER and chk is not None and chk(vfs, key)
 TEXTURE_CONVERTER = "tex2png-0.1.0"
-WORLD_EXPORT_VERSION = 13         # 13: SNDG (generatory dźwięków stworzeń); 12: world/fallbacks.json (pytania o klasę, awans); 11: mapa świata (world/map/); 10: głosy (sound/vo), muzyka (music/), szanse dźwięków regionów (etap 10); 9: stworzenia z punktów LEVC i znaczniki (etap 8); 8: siatki ścieżek PGRD w komórkach (etap 8); 2: world/records/ (etap 1); 3: rekordy etapu 3, dźwięki (sound/); 4: SPEL (etap 4); 5: skrypty; 6: dialogi (etap 6); 7: MGEF, ENCH (etap 7)
+WORLD_EXPORT_VERSION = 14         # 14: fallbacki pogody/wody/księżyców, tekstury nieba i słońca; 13: SNDG (generatory dźwięków stworzeń); 12: world/fallbacks.json (pytania o klasę, awans); 11: mapa świata (world/map/); 10: głosy (sound/vo), muzyka (music/), szanse dźwięków regionów (etap 10); 9: stworzenia z punktów LEVC i znaczniki (etap 8); 8: siatki ścieżek PGRD w komórkach (etap 8); 2: world/records/ (etap 1); 3: rekordy etapu 3, dźwięki (sound/); 4: SPEL (etap 4); 5: skrypty; 6: dialogi (etap 6); 7: MGEF, ENCH (etap 7)
 
 _VFS: Optional[Vfs] = None
 _OUT: Optional[Path] = None
@@ -463,7 +463,9 @@ def _ref_index(world, wdir, write_json) -> dict:
 
 # Etap 10: tekstury interfejsu jak w układach OpenMW (openmw_book.layout, openmw_scroll.layout) i ilustracje
 # książek (BookArt/ – znaczniki <IMG SRC=…> w tekstach BOOK).
-UI_TEXTURE_PREFIXES = ("textures/tx_menubook", "textures/scroll.")
+UI_TEXTURE_PREFIXES = ("textures/tx_menubook", "textures/scroll.",
+                       # etap 10: niebo – chmury pogód (Weather_*_Cloud_Texture), tarcza słońca i blask
+                       "textures/tx_sky_", "textures/tx_sun_")
 
 
 def ui_textures(vfs) -> set:

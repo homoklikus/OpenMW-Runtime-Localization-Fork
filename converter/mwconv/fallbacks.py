@@ -1,4 +1,4 @@
-"""Wartości „fallback” z instalacji gracza (etap 10): pytania o klasę i komunikaty awansu – w OpenMW
+"""Wartości „fallback” z instalacji gracza (etap 10): pytania o klasę, komunikaty awansu, pogoda, woda, księżyce – w OpenMW
 Fallback::Map ("Question_1_Question", "Level_Up_Level2"…), pochodzące z Morrowind.ini (sekcje [Question 1],
 [Level Up]) albo z openmw.cfg (fallback=Klucz,Wartość). Zapis: world/fallbacks.json (tylko lokalnie – teksty gry)."""
 
@@ -7,7 +7,8 @@ from __future__ import annotations
 import configparser
 from pathlib import Path
 
-PREFIXES = ("Question_", "Level_Up_")
+PREFIXES = ("Question_", "Level_Up_", "Weather_", "Water_", "Moons_")
+INI_SECTIONS = ("Question ", "Level Up", "Weather", "Water", "Moons")
 
 
 def _from_openmw_cfg(path: Path) -> dict:
@@ -34,11 +35,11 @@ def _from_ini(path: Path) -> dict:
         return {}
     out = {}
     for sect in cp.sections():
-        if not (sect.startswith("Question ") or sect == "Level Up"):
+        if not sect.startswith(INI_SECTIONS):
             continue
-        prefix = sect.replace(" ", "_") + "_"
-        for k, v in cp.items(sect):
-            out[prefix + k] = v
+        prefix = sect.replace(" ", "_") + "_"          # jak openmw-iniimporter: [Weather Clear] Sky Day Color →
+        for k, v in cp.items(sect):                     # Weather_Clear_Sky_Day_Color
+            out[prefix + k.replace(" ", "_")] = v.strip()
     return out
 
 

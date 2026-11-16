@@ -206,6 +206,8 @@ func _ready() -> void:
 		return
 	envr = MWEnvironment.new()
 	envr.name = "Environment"
+	envr.data_root = data
+	envr.fog_distance = float(settings.get("view_distance", 1500))
 	var regs = MWWorldDB._read_json(data.path_join("world/regions.json"))
 	if regs is Dictionary:
 		envr.regions = regs
@@ -1135,6 +1137,8 @@ func apply_live_settings() -> void:
 		if cam != null and arg("fov").is_empty():
 			cam.fov = float(settings.get("fov", 60))
 			cam.far = float(settings.get("view_distance", 1500))
+			if envr != null:
+				envr.fog_distance = cam.far
 	Engine.max_fps = int(settings.get("max_fps", 0))
 	if envr != null:
 		var sh := String(settings.get("shadows", "medium"))
@@ -1174,6 +1178,7 @@ func _apply_settings() -> void:
 	var cam := player.get_node_or_null("Camera3D") as Camera3D
 	if cam:
 		cam.far = float(settings.get("view_distance", 1500))
+		envr.fog_distance = cam.far
 
 func _start_position() -> Vector3:
 	return _start_transform().origin

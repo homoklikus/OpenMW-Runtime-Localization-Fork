@@ -97,3 +97,10 @@ Przeniesiony kod OpenMW (od sesji 4): *na razie brak* — każdy przeniesiony fr
 
 * `converter/mwconv/data/omw_map_color_palette.dds` – paleta 256 × 1 kolorów mapy świata z OpenMW
   (`files/data/textures`), bez zmian; GPL-3.0 (jak OpenMW i ten projekt). Konwerter koloruje nią wysokości WNAM.
+
+## Domyślne wartości pogody (dołączone)
+
+* `godot/data/openmw_fallback_defaults.json` – wartości `fallback=Weather_*`, `Water_*`, `Moons_*` z pliku
+  `files/openmw.cfg` OpenMW (liczby, kolory i nazwy tekstur, bez tekstów gry); GPL-3.0 jak OpenMW i ten projekt.
+  Używane tylko, gdy w Morrowind.ini / openmw.cfg gracza brakuje klucza. Tekstur nieba nie dołączamy – konwerter
+  bierze je z instalacji gracza (`textures/tx_sky_*`, `tx_sun_*`).

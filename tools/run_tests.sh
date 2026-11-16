@@ -147,6 +147,7 @@ run_gd test_chargen.gd --data="$WORK/actors_out" --project="$WORK/project_charge
 run_gd test_sound_world.gd --data="$WORK/actors_out" --project="$WORK/project_sound_world" --pos=2600,2700,900
 run_gd test_books.gd --data="$WORK/actors_out" --project="$WORK/project_books" --pos=2300,2400,900 --scripts=0
 run_gd test_map.gd --data="$WORK/actors_out" --project="$WORK/project_map" --pos=2300,2400,900 --scripts=0
+run_gd test_weather.gd --data="$WORK/actors_out" --project="$WORK/project_weather" --pos=2300,2400,900 --scripts=0
 run_gd test_chargen_class.gd --data="$WORK/actors_out" --project="$WORK/project_chargen_class" --pos=2300,2400,900 --scripts=0
 run_gd test_settings.gd --data="$WORK/actors_out" --project="$WORK/project_settings" --settings="$WORK/settings_cfg/runtime_settings.json" --pos=2300,2400,900 --scripts=0
 run_gd test_anim_sounds.gd --data="$WORK/actors_out" --project="$WORK/project_anim_sounds" --pos=2300,2400,900 --scripts=0
