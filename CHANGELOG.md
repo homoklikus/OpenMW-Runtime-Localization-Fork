@@ -25,6 +25,9 @@
 * Etap 1: konwerter eksportuje `world/records/` (NPC_, CREA, RACE, CLAS, FACT, BODY, BSGN, SKIL, broń, zbroje,
   ubrania, książki, przedmioty, światła, GMST, GLOB) ze scalaniem wg kolejności ładowania; MCP-openMW:
   `openmw_record_compare_start/status` – porównanie rekordów z silnikiem OpenMW (Lua) pole po polu.
+* Etap 4: postać gracza – statystyki początkowe, wartości pochodne i zdolności ras/znaków jak w OpenMW,
+  obrażenia od upadku, kreator postaci przy nowej grze, pasek zdrowia/magii/kondycji; rekordy SPEL
+  (eksport świata v4 – „Aktualizuj” w launcherze).
 * Etap 3: pojemniki, listy poziomowane (jak OpenMW), ekwipunek gracza i NPC z list, pochodnie NPC nocą,
   aktywacja (E) – drzwi z zamkami i pułapkami, podnoszenie i odkładanie przedmiotów, okno pojemnika i ekwipunku (I);
   pływanie; minimalny dźwięk (efekty SOUN, kroki); zapis v2 z migracją. Konwerter: nowe rekordy, dźwięki,

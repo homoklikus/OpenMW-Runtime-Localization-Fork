@@ -15,7 +15,12 @@ JSON skompresowany Zstandard (`FileAccess.open_compressed`). Kod: `godot/scripts
               "morrowind.esm#91":   {"lock": 0, "trap": ""},              // zamek otwarty kluczem, pułapka rozbrojona
               "tribunal.esm#77":    {"mw": {"pos": [x, y, z], "rot": [rx, ry, rz], "scale": 1.0}}},
   "globals": {}, "time": {"day": 3, "hour": 17.5},
-  "player":  {"interior": "", "fly": false, "level": 1, "mw": {"pos": [x, y, z], "rot": [pitch, 0, yaw]}},
+  "player":  {"interior": "", "fly": false, "level": 1, "mw": {"pos": [x, y, z], "rot": [pitch, 0, yaw]},
+              // etap 4: postać (wartości bazowe; zmodyfikowane i pochodne liczone przy wczytaniu)
+              "character": {"name": "Nerevar", "race": "dark elf", "female": false, "class": "warrior",
+                            "birthsign": "warwyrd", "head": "…", "hair": "…", "level": 1,
+                            "attributes": [8 liczb], "skills": [27 liczb], "spells": ["ancestor guardian", …],
+                            "health": 50, "magicka": 40, "fatigue": 170}},
   "dyn_next": 3,
   // v2 (etap 3):
   "inventories": {"player": [{"id": "gold_001", "count": 50}],
@@ -41,6 +46,8 @@ Zasady (plan, rewizja 2.0, §2.1–2.4):
 * Inwentarze: brak wpisu = zawartość z rekordu (CONT/NPC_/CREA) z listami poziomowanymi rozlosowanymi
   deterministycznie wg `seed` i `sid` (ten sam wynik przy każdym wczytaniu komórki); po pierwszej zmianie
   (podniesienie, przełożenie) zapisywana jest pełna zawartość. Złoto zawsze jako `gold_001`.
+* Postać (etap 4) to nowe pole w `player` – zgodne wstecz w v2; zapis bez postaci dostaje postać domyślną
+  (rekord NPC „player”).
 * Migracja v1 → v2: nowe sekcje puste, `player.level = 1` (stan świata bez zmian).
 * Każdy kolejny etap dopisuje własną sekcję (np. ekwipunek, zmienne skryptów, dziennik) – zmiana znaczenia
   istniejącego pola wymaga nowej wersji i migracji.
