@@ -7,6 +7,8 @@ extends CharacterBody3D
 ## Gracz: mw_player_controller.gd (wejście + kamera); NPC/stworzenia: kontrolery AI (etap 8).
 
 signal controller_changed(controller: Node)
+## Lądowanie po upadku: wysokość w jednostkach MW (obrażenia od upadku – etap 4, gdy aktor ma statystyki).
+signal landed(fall_height_mw: float)
 
 @export var walk_speed := 3.2      # m/s (ok. 230 jedn./s – prędkość chodu w grze to ~100–200 jedn./s)
 @export var run_speed := 6.5
@@ -17,7 +19,15 @@ var record_id := ""                # id rekordu NPC_/CREA (gracz: "player")
 var sid := ""                      # stabilny id referencji w świecie ("" dla gracza)
 var stats := {}                    # etap 4: atrybuty, umiejętności, zdrowie…
 var fly := false
-var collide := true                # kapsuła kolizji (stworzenia: etap 3 – kształt wg modelu)
+var collide := true
+## Pływanie (etap 3, jak OpenMW World::isSwimming): poziom wody (y w Godocie; -INF = brak wody) ustawia gra;
+## aktor pływa, gdy punkt na wysokości fSwimHeightScale (0,9) jego wzrostu jest pod wodą.
+var water_level := -INF
+var swim_height_scale := 0.9
+var height := 1.8
+var swim_speed := 2.2
+var swimming := false
+var _fall_start := NAN                # kapsuła kolizji (stworzenia: etap 3 – kształt wg modelu)
 
 # intencje ustawiane przez kontroler w każdej klatce fizyki
 var move_input := Vector2.ZERO     # x: w prawo, y: do tyłu (jak Input.get_vector)
@@ -59,6 +69,20 @@ func step(delta: float) -> void:
 		global_position += velocity * delta
 		want_jump = false
 		return
+	swimming = global_position.y + height * swim_height_scale < water_level
+	if swimming:
+		_fall_start = NAN
+		# kierunek ruchu wg patrzenia (także w górę/w dół), skok = w górę; nie wyżej niż powierzchnia
+		var d := look_basis() * Vector3(move_input.x, 0, move_input.y)
+		if want_jump:
+			d += Vector3.UP
+		velocity = d.normalized() * swim_speed * (1.5 if want_run else 1.0) if d.length() > 0.01 else Vector3.ZERO
+		var max_y := water_level - height * swim_height_scale - 0.01     # przy powierzchni nadal pływa
+		if global_position.y + velocity.y * delta > max_y and velocity.y > 0.0:
+			velocity.y = maxf(0.0, (max_y - global_position.y) / maxf(delta, 1e-4))
+		want_jump = false
+		move_and_slide()
+		return
 	var speed := run_speed if want_run else walk_speed
 	var wish := (transform.basis * Vector3(move_input.x, 0, move_input.y)).normalized() * speed
 	velocity.x = wish.x
@@ -68,4 +92,11 @@ func step(delta: float) -> void:
 	elif want_jump:
 		velocity.y = jump_velocity
 	want_jump = false
+	var was_floor := is_on_floor()
 	move_and_slide()
+	if not is_on_floor():
+		if is_nan(_fall_start) or global_position.y > _fall_start:
+			_fall_start = global_position.y
+	elif not was_floor and not is_nan(_fall_start):
+		landed.emit((_fall_start - global_position.y) * MWCoords.UNITS_PER_METER)
+		_fall_start = NAN

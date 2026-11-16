@@ -24,6 +24,7 @@ const ItemWindowScript := preload("res://scripts/mw/mw_item_window.gd")
 var events = Events.new()           # szyna zdarzeń (etap 0)
 var interaction = null                # MWInteraction (etap 3)
 var item_window = null                # okno pojemnika / ekwipunku
+var audio = null                      # MWAudio (etap 3)
 var state = GameStateScript.new()   # różnice stanu gry względem danych bazowych (zapis gry)
 var pause_menu: Control
 var loc  # Loc
@@ -81,6 +82,11 @@ func _ready() -> void:
 		print("MWGODOT_LOCALIZATION ", ",".join(loc.languages), " (dostępne: ", ",".join(loc.available), ")")
 	builder.with_water = bool(settings.get("water", true))
 	interaction.loc = loc
+	audio = preload("res://scripts/mw/mw_audio.gd").new()
+	audio.name = "Audio"
+	audio.setup(data, builder.actors)
+	audio.enabled = arg("screenshot").is_empty() and bool(settings.get("sound", true))
+	add_child(audio)
 	item_window = ItemWindowScript.new()
 	item_window.interaction = interaction
 	item_window.main = self
@@ -315,9 +321,16 @@ func _capture_tick() -> void:
 	if arg("quit", "1") != "0":
 		get_tree().quit(0 if err == OK else 4)
 
+var _last_pos := Vector3.ZERO
 func _process(_d: float) -> void:
 	_frames += 1
+	if player != null and audio != null:
+		var moved: float = Vector2(player.global_position.x - _last_pos.x, player.global_position.z - _last_pos.z).length()
+		_last_pos = player.global_position
+		if moved < 2.0 and not player.fly:
+			audio.footsteps(player, moved, player.is_on_floor(), player.swimming)
 	_update_torches(_d)
+	_update_water_level()
 	_capture_tick()
 	var autotest := int(arg("autotest-frames", "0"))
 	if autotest > 0 and _frames == autotest:
@@ -423,9 +436,12 @@ func _unhandled_input(e: InputEvent) -> void:
 ## Aktywacja referencji (etap 3): drzwi (zamki, pułapki, podróż), przedmioty (podnoszenie), pojemniki (okno).
 func activate(r: Node) -> bool:
 	events.activated.emit(String(r.get_meta("mw_sid", "")), String(r.get_meta("mw_base", "")), "player")
+	var at: Vector3 = (r as Node3D).global_position
 	var res: Dictionary = interaction.activate(r)
 	if not String(res.get("message", "")).is_empty():
 		_toast(String(res["message"]))
+	if audio != null and not String(res.get("sound", "")).is_empty():
+		audio.play(String(res["sound"]), null if res.get("action") == "take" else at)
 	match String(res.get("action", "")):
 		"travel":
 			travel(res["dest"])
@@ -497,6 +513,14 @@ func _load(key: String) -> void:
 		add_child(n)
 		loaded[key] = n
 		events.cell_loaded.emit(key)
+
+## Poziom wody dla gracza (pływanie): komórka zewnętrzna albo wnętrze z wodą (water_height_m z konwertera).
+func _update_water_level() -> void:
+	if player == null or db == null:
+		return
+	var key := ("int:" + interior.to_lower()) if not interior.is_empty() else db.exterior_key(MWCoords.cell_of(player.global_position))
+	var c := db.get_cell(key)
+	player.water_level = float(c.get("water_height_m", 0.0)) if c.get("has_water", false) else -INF
 
 ## World::useTorches: na zewnątrz po zmroku (przed 6:00 i po 20:00 – wschód 6, zachód 18 + 2 h zmierzchu) i bez
 ## opadów (pogody z „Using Precip”: deszcz, burza, śnieg, zamieć); we wnętrzach – gdy suma składowych światła

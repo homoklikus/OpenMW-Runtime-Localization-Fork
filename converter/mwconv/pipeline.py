@@ -63,7 +63,7 @@ def _converter_ok(prev_conv: str, converter: str, vfs, key: str) -> bool:
     chk = COMPAT_CONVERTERS.get(prev_conv)
     return converter == MODEL_CONVERTER and chk is not None and chk(vfs, key)
 TEXTURE_CONVERTER = "tex2png-0.1.0"
-WORLD_EXPORT_VERSION = 2          # 2: world/records/ (etap 1)
+WORLD_EXPORT_VERSION = 3          # 2: world/records/ (etap 1); 3: rekordy etapu 3, dźwięki (sound/)
 
 _VFS: Optional[Vfs] = None
 _OUT: Optional[Path] = None
@@ -384,6 +384,34 @@ ACTOR_SKELETONS = {"male": "meshes/base_anim.nif", "female": "meshes/base_anim_f
                    "beast": "meshes/base_animkna.nif"}
 ACTOR_ANIMS = {"base": "meshes/xbase_anim.kf", "female": "meshes/xbase_anim_female.kf",
                "beast": "meshes/xbase_animkna.kf"}
+
+
+def _sounds(world, vfs, out: Path, log) -> dict:
+    """Etap 3: pliki dźwięków efektów (rekordy SOUN, katalog Sound/) → <out>/sound/… bez zmian formatu (WAV/MP3
+    wczytuje gra). Kopiowane tylko zmienione (rozmiar + czas modyfikacji); głosy dialogów (Sound/Vo) – etap 6."""
+    done, skipped, missing = 0, 0, []
+    for s in world.records.get("SOUN", {}).values():
+        f = s.get("file")
+        if not f:
+            continue
+        k = norm("sound/" + f)
+        info = vfs.info(k)
+        if info is None:
+            missing.append(f)
+            continue
+        dst = out / k
+        if dst.is_file() and dst.stat().st_size == info.size and abs(dst.stat().st_mtime - info.mtime) < 1e-3:
+            skipped += 1
+            continue
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        tmp = dst.with_name(dst.name + ".tmp")
+        tmp.write_bytes(vfs.read(k))
+        os.utime(tmp, (info.mtime, info.mtime))
+        tmp.replace(dst)
+        done += 1
+    if done or missing:
+        log(f"Dźwięki: skopiowano {done}, bez zmian {skipped}, brak plików {len(missing)}")
+    return {"copied": done, "unchanged": skipped, "missing": len(missing), "missing_sample": sorted(missing)[:10]}
 
 
 def _expand_leveled(world, ids) -> set:
@@ -839,6 +867,7 @@ def _run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) 
         "axis_mapping": "godot(x,y,z) = (mw_x, mw_z, -mw_y) / units_per_meter",
     }
     write_json(wdir / "manifest.json", manifest)
+    stats["sounds"] = _sounds(world, vfs, out, log)
     stats["localization"] = _localization(cfg, vfs, out, log)
     stats["flora"] = _flora(world, vfs, cfg, out, opts, keys, log)
     stats["world_export"] = {"cells": len(keys), "terrain": len(terrain_json), "objects": len(objs),

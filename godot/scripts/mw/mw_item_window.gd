@@ -144,6 +144,7 @@ func _move_from_left(i: int) -> void:
 	var id: String = _left_ids[i]
 	var n := _count_in(interaction.inventory.contents(cont_sid, cont_rec), id)
 	interaction.move(cont_sid, cont_rec, interaction.PLAYER, {}, id, n)
+	_sound(id, true)
 	refresh()
 
 func _move_from_right(i: int) -> void:
@@ -155,7 +156,12 @@ func _move_from_right(i: int) -> void:
 		interaction.move(interaction.PLAYER, {}, cont_sid, cont_rec, id, n)
 	elif main != null and main.has_method("drop_item"):
 		main.drop_item(id, n)
+	_sound(id, false)
 	refresh()
+
+func _sound(id: String, up: bool) -> void:
+	if main != null and main.get("audio") != null:
+		main.audio.play(interaction.item_sound(id, up))
 
 func _take_all() -> void:
 	interaction.take_all(cont_sid, cont_rec)

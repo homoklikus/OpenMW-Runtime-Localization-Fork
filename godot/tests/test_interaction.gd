@@ -49,6 +49,12 @@ func _run() -> void:
 	var s2 := _ref(main, "misc_synth_spoon")
 	check(s2 != null and s2.get_meta("mw_disabled", false) and s2.get_node_or_null("Model") == null, "podniesiony przedmiot znika ze świata")
 	check(it.inventory.count_of("player", {}, "misc_synth_spoon") == 1, "łyżka w ekwipunku gracza")
+	check(main.audio.last_played == "Item Misc Up" and main.audio.stream("Item Misc Up") != null,
+			"dźwięk podniesienia (Item Misc Up) z pliku WAV skopiowanego przez konwerter (%s)" % main.audio.last_played)
+	check(main.audio.stream("Missing Sound") == null and main.audio.stream("nie_ma_rekordu") == null, "brak pliku/rekordu – bez błędu")
+	check(String(it.item_sound("synth_helm", false)).begins_with("Item Armor ") and it.item_sound("synth_helm", false).ends_with(" Down")
+			and it.item_sound("misc_synth_spoon", true) == "Item Misc Up"
+			and it.item_sound("synth_sword", true) == "Item Weapon Longblade Up", "dźwięki przedmiotów wg klasy (OpenMW): %s" % [[it.item_sound("synth_helm", false), it.item_sound("misc_synth_spoon", true), it.item_sound("synth_sword", true)]])
 	# pojemnik: okno + przeniesienie
 	check(main.activate(chest) and main.item_window.visible and main.item_window.mode == "container", "aktywacja skrzyni otwiera okno")
 	check(main.item_window._right_ids.has("misc_synth_spoon") and main.item_window._left_ids.size() > 0, "okno: obie listy wypełnione")
@@ -73,7 +79,8 @@ func _run() -> void:
 	main.state.set_lock(chest_sid, 25)
 	chest = _ref(main, "synth_chest")
 	var r: Dictionary = it.activate(chest)
-	check(r.action == "locked" and String(r.message).contains("Zamknięte") and it.hint(chest).contains("poziom 25"), "zamknięty pojemnik bez klucza")
+	check(r.action == "locked" and String(r.message).contains("Zamknięte") and r.get("sound") == "LockedChest"
+			and it.hint(chest).contains("poziom 25"), "zamknięty pojemnik bez klucza")
 	main.state.set_lock(chest_sid, 0)
 	main.state.set_trap(chest_sid, "trap_fire00")
 	chest = _ref(main, "synth_chest")
@@ -93,7 +100,44 @@ func _run() -> void:
 	if dn:
 		main.activate(dn)
 	check(not main.state.dynamic.has(dsid) and it.inventory.count_of("player", {}, "misc_synth_spoon") == 2, "podniesienie odłożonego stosu")
+	await _test_movement(main)
 	_finish()
+
+## Pływanie (punkt na 0,9 wzrostu pod wodą), nie wyżej niż powierzchnia; upadek – sygnał z wysokością.
+func _test_movement(main) -> void:
+	var p = main.player
+	p.fly = false
+	var y0: float = p.global_position.y
+	main.set_process(false)              # bez nadpisywania poziomu wody z komórki
+	p.water_level = y0 + 4.0
+	p.move_input = Vector2.ZERO
+	for i in 3:
+		await physics_frame
+	check(p.swimming, "pływanie, gdy woda sięga ponad 0,9 wzrostu")
+	var yb: float = p.global_position.y
+	for i in 10:
+		await physics_frame
+	check(absf(p.global_position.y - yb) < 0.05, "w wodzie bez opadania (bez grawitacji)")
+	p.want_jump = true
+	for i in 120:
+		p.want_jump = true
+		await physics_frame
+	check(p.global_position.y <= p.water_level - p.height * p.swim_height_scale + 0.05, "wynurzanie tylko do powierzchni")
+	p.water_level = -INF
+	var q := PhysicsRayQueryParameters3D.create(p.global_position + Vector3(0, 60, 0), p.global_position - Vector3(0, 60, 0))
+	q.exclude = [p.get_rid()]
+	var hit: Dictionary = p.get_world_3d().direct_space_state.intersect_ray(q)
+	var ground: float = hit["position"].y if not hit.is_empty() else y0
+	var falls := []
+	p.landed.connect(func(h): falls.append(h))
+	p.global_position.y = ground + 6.0
+	p.velocity = Vector3.ZERO
+	for i in 180:
+		await physics_frame
+		if falls.size() > 0:
+			break
+	check(falls.size() == 1 and falls[0] > 200.0, "upadek: sygnał z wysokością w jednostkach MW (%s)" % [falls])
+	main.set_process(true)
 
 func _finish() -> void:
 	print("RESULT ", JSON.stringify({"checks": checks, "failures": failures}))

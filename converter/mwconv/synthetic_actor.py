@@ -277,6 +277,28 @@ def _leveled(lid, flags, none, items) -> bytes:
     return W.record("LEVI", subs)
 
 
+def _wav(path: Path, freq: float = 440.0, seconds: float = 0.1) -> None:
+    import wave
+    n = int(22050 * seconds)
+    frames = b"".join(struct.pack("<h", int(8000 * math.sin(2 * math.pi * freq * i / 22050))) for i in range(n))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(22050)
+        w.writeframes(frames)
+
+
+# dźwięki: id SOUN → plik w Sound/
+SOUNDS = {"Item Misc Up": "Fx\\item\\synth_up.wav", "Item Misc Down": "Fx\\item\\synth_down.wav",
+          "LockedChest": "Fx\\trans\\synth_locked.wav", "FootBareLeft": "Fx\\foot\\synth_step.wav",
+          "FootBareRight": "Fx\\foot\\synth_step.wav", "Missing Sound": "Fx\\nie_ma.wav"}
+
+
+def _sound(sid, f) -> bytes:
+    return W.record("SOUN", [W.sub("NAME", W.zs(sid)), W.sub("FNAM", W.zs(f)), W.sub("DATA", bytes([255, 0, 255]))])
+
+
 def _stage3_records() -> list:
     torch = W.record("LIGH", [W.sub("NAME", W.zs("synth_torch")), W.sub("MODL", W.zs("l\\l_synth_torch.nif")),
                               W.sub("FNAM", W.zs("Pochodnia")),
@@ -288,7 +310,7 @@ def _stage3_records() -> list:
     chest = W.record("CONT", [W.sub("NAME", W.zs("synth_chest")), W.sub("MODL", W.zs("o\\synth_chest.nif")),
                               W.sub("FNAM", W.zs("Skrzynia")), W.sub("CNDT", struct.pack("<f", 100.0)),
                               W.sub("FLAG", struct.pack("<i", 0x08))] + chest_inv)
-    return [torch, spoon, chest] + [_leveled(k, *v) for k, v in LEVELED.items()]
+    return [torch, spoon, chest] + [_leveled(k, *v) for k, v in LEVELED.items()] + [_sound(k, v) for k, v in SOUNDS.items()]
 
 
 def _weapon() -> bytes:
@@ -321,6 +343,9 @@ def write_actors(data_dir: Path) -> dict:
         p = data_dir / rel
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(fn())
+    for f in set(SOUNDS.values()):
+        if "nie_ma" not in f:
+            _wav(data_dir / "Sound" / f.replace("\\", "/"))
     recs = [_race()] + [_body(k, *v) for k, v in BODYPARTS.items()]
     recs += [_item_body(k, *v) for k, v in ITEM_BODYPARTS.items()]
     recs += [_armor(k, *v) for k, v in ARMORS.items()] + [_clothing(k, *v) for k, v in CLOTHES.items()] + [_weapon()]

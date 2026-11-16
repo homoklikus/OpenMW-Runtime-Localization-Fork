@@ -15,6 +15,37 @@ var state
 var records          # MWActorVisual (record(file, id))
 var inventory        # MWInventory
 var loc = null       # tłumaczenia nazw (opcjonalnie)
+var _equipment = null
+
+const WEAPON_SOUND := {0: "Item Weapon Shortblade", 1: "Item Weapon Longblade", 2: "Item Weapon Longblade",
+	3: "Item Weapon Blunt", 4: "Item Weapon Blunt", 5: "Item Weapon Blunt", 6: "Item Weapon Spear", 7: "Item Weapon Blunt",
+	8: "Item Weapon Blunt", 9: "Item Weapon Bow", 10: "Item Weapon Crossbow", 11: "Item Weapon Blunt", 12: "Item Ammo",
+	13: "Item Ammo"}
+const KIND_SOUND := {"apparatus": "Item Apparatus", "book": "Item Book", "ingredient": "Item Ingredient",
+	"light": "Item Misc", "lockpick": "Item Lockpick", "probe": "Item Probe", "repair": "Item Repair",
+	"potion": "Item Potion"}
+
+## Dźwięk podniesienia/odłożenia przedmiotu (Class::getUpSoundId/getDownSoundId w OpenMW).
+func item_sound(id: String, up: bool) -> String:
+	var it: Dictionary = inventory.item(id)
+	if it.is_empty():
+		return ""
+	var base := ""
+	match String(it.kind):
+		"misc":
+			base = "Item Gold" if GOLD.has(String(it.id)) else "Item Misc"
+		"clothing":
+			base = "Item Ring" if int(it.rec.get("clothing_type", -1)) == 8 else "Item Clothes"
+		"armor":
+			if _equipment == null:
+				_equipment = load("res://scripts/mw/mw_equipment.gd").new(records)
+			var sk: int = _equipment.armor_skill(it.rec)
+			base = {21: "Item Armor Light", 2: "Item Armor Medium", 3: "Item Armor Heavy"}.get(sk, "Item Armor Light")
+		"weapon":
+			base = String(WEAPON_SOUND.get(int(it.rec.get("weapon_type", 0)), "Item Weapon Blunt"))
+		_:
+			base = String(KIND_SOUND.get(String(it.kind), "Item Misc"))
+	return base + (" Up" if up else " Down")
 
 func _init(world_db, game_state, records_source, inv) -> void:
 	db = world_db
@@ -132,17 +163,19 @@ func activate(node: Node) -> Dictionary:
 			var tr := trigger_trap(c)
 			var u := try_unlock(c)
 			if not u.ok:
-				return {"action": "locked", "message": _join([tr, u.message])}
+				return {"action": "locked", "sound": "LockedDoor", "message": _join([tr, u.message])}
 			if (c.dest as Dictionary).is_empty():
 				return {"action": "none", "message": _join([tr, u.message])}
-			return {"action": "travel", "dest": c.dest, "message": _join([tr, u.message])}
+			var dr: Dictionary = records.record("door", String(c.base))
+			return {"action": "travel", "dest": c.dest, "sound": String(dr.get("open_sound", "")),
+					"message": _join([tr, u.message])}
 		"item":
 			return take_ref(c)
 		"container":
 			var tr2 := trigger_trap(c)
 			var u2 := try_unlock(c)
 			if not u2.ok:
-				return {"action": "locked", "message": _join([tr2, u2.message])}
+				return {"action": "locked", "sound": "LockedChest", "message": _join([tr2, u2.message])}
 			return {"action": "open_container", "sid": c.sid, "base": c.base, "name": c.name,
 					"message": _join([tr2, u2.message])}
 	return {"action": "none", "message": ""}
@@ -159,7 +192,7 @@ func take_ref(c: Dictionary) -> Dictionary:
 		state.remove_dynamic(c.sid)
 	else:
 		state.delete_ref(c.sid)
-	return {"action": "take", "item": g[0], "count": g[1], "message": "Podniesiono: %s%s" % [c.name, (" × %d" % n if n > 1 else "")]}
+	return {"action": "take", "item": g[0], "count": g[1], "sound": item_sound(g[0], true), "message": "Podniesiono: %s%s" % [c.name, (" × %d" % n if n > 1 else "")]}
 
 ## Rekord pojemnika (CONT) referencji.
 func container_record(base: String) -> Dictionary:
