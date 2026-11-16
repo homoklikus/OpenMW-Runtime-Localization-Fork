@@ -74,13 +74,19 @@ func _ready() -> void:
 		return
 	# zrzut: NPC przodem do kamery; --anim=0 – poza spoczynkowa (bez animacji)
 	var ap := model.get_node("MWAnimations") as AnimationPlayer
+	var at := float(arg("anim_time", "-1"))
 	if arg("anim", "1") == "0":
 		ap.stop()
 		sk.reset_bone_poses()
+	elif at >= 0.0:
+		ap.play(arg("anim_name", "idle"))
+		ap.seek(at, true)
+		ap.pause()
 	var cam := Camera3D.new()
 	add_child(cam)
-	cam.position = Vector3(0, 1.0, 3.0)
-	cam.look_at(Vector3(0, 0.95, 0))
+	var side := -1.0 if arg("view", "front") == "front" else 1.0     # NPC patrzy w −Z (kierunek +Y w MW)
+	cam.position = Vector3(0.0, float(arg("cam_y", "1.0")), side * float(arg("cam_d", "3.0")))
+	cam.look_at(Vector3(0, float(arg("cam_y", "1.0")) - 0.05, 0))
 	cam.fov = 50
 	var sun := DirectionalLight3D.new()
 	add_child(sun)
