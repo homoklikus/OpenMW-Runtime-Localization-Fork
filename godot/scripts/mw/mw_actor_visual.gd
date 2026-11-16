@@ -277,6 +277,7 @@ func anim_library(key: String, docs: Array, sk: Skeleton3D) -> AnimationLibrary:
 		for name in clips:
 			var c: Dictionary = clips[name]
 			var a := MWControllers.slice(full, float(c["start"]), float(c["stop"]))
+			a.set_meta("mw_keys", MWControllers.sound_keys(doc, float(c["start"]), float(c["stop"])))
 			var nm := String(name).to_lower()
 			if c.get("loop_start") != null or nm.begins_with("idle"):
 				a.loop_mode = Animation.LOOP_LINEAR

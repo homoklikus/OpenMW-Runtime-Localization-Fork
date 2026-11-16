@@ -96,7 +96,10 @@ def make_kf(female: bool = False) -> bytes:
     """Idle 0–2 s: kręgosłup kołysze się (±8°), ramiona opuszczają się z pozy T (−70° wokół Y)."""
     nb = NifBuilder()
     root = nb.add("NiSequenceStreamHelper", name="")
-    tk = nb.add("NiTextKeyExtraData", keys=[(0.0, "Idle: Start"), (2.0, "Idle: Stop")])
+    # etap 10: klucze dźwięku w grupie (kroki NPC wg butów, dźwięk nazwany)
+    tk = nb.add("NiTextKeyExtraData", keys=[(0.0, "Idle: Start"), (0.5, "SoundGen: Left"),
+                                           (1.0, "Sound: Item Misc Up"), (1.5, "SoundGen: Right 0.5 1.2"),
+                                           (2.0, "Idle: Stop")])
     names = ["Bip01 Spine", "Bip01 L UpperArm", "Bip01 R UpperArm"]
     strs = [nb.add("NiStringExtraData", string=n) for n in names]
     nb.set(tk, next=strs[0])
@@ -718,6 +721,10 @@ def _stage10_records() -> list:
 StreamMusic "Battle\\synth_battle.wav"
 StopScript synth_music
 End"""),
+            W.record("SNDG", [W.sub("NAME", W.zs("synth_creature_moan")), W.sub("DATA", struct.pack("<i", 4)),
+                              W.sub("CNAM", W.zs("synth_creature")), W.sub("SNAM", W.zs("Item Misc Down"))]),
+            W.record("SNDG", [W.sub("NAME", W.zs("generic_left")), W.sub("DATA", struct.pack("<i", 0)),
+                              W.sub("SNAM", W.zs("FootBareLeft"))]),
             W.dial("Hello", 1),
             W.info("hello_walker", "", "", "Witaj, wedrowcze.", actor="synth_walker", sound="Vo\\synth\\hello.wav")]
 

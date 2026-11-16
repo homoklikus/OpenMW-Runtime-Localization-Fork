@@ -358,6 +358,7 @@ static func attach_anim_library(root: Node, doc: Dictionary) -> AnimationPlayer:
 			var a := slice(full, float(c["start"]), float(c["stop"]))
 			if c.get("loop_start") != null:
 				a.loop_mode = Animation.LOOP_LINEAR
+			a.set_meta("mw_keys", sound_keys(doc, float(c["start"]), float(c["stop"])))
 			lib.add_animation(String(name), a)
 	var ap := AnimationPlayer.new()
 	ap.name = "MWAnimations"
@@ -384,6 +385,20 @@ static func _anim_targets(root: Node) -> Dictionary:
 	return out
 
 ## Wycina fragment [t0, t1] animacji (z kluczami na brzegach) i przesuwa do zera.
+## Klucze dźwięku z tekstów animacji (etap 10, jak CharacterController::handleTextKey): „Sound: <id>” i
+## „SoundGen: <left|right|moan|roar|scream|land|swimleft|swimright> [głośność] [wysokość]” w zakresie grupy –
+## czasy względem początku grupy (meta „mw_keys” animacji).
+static func sound_keys(doc: Dictionary, t0: float, t1: float) -> Array:
+	var out := []
+	for k in doc.get("text_keys", []):
+		var t := float(k[0])
+		if t < t0 - 1e-4 or t > t1 + 1e-4:
+			continue
+		var line := String(k[1]).strip_edges().to_lower()
+		if line.begins_with("sound:") or line.begins_with("soundgen:"):
+			out.append([t - t0, line])
+	return out
+
 static func slice(src: Animation, t0: float, t1: float) -> Animation:
 	var a := Animation.new()
 	a.length = maxf(t1 - t0, 0.001)

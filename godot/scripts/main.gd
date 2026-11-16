@@ -39,6 +39,7 @@ var interaction = null                # MWInteraction (etap 3)
 var item_window = null                # okno pojemnika / ekwipunku
 var audio = null                      # MWAudio (etap 3)
 var music = null                      # MWMusic (etap 10)
+var anim_sounds = null                # etap 10: dźwięki z kluczy animacji (kroki NPC, stworzenia)
 var book_window = null                # etap 10: książki i zwoje
 var local_map = null                  # etap 10: mapa lokalna (segmenty, mgła wojny)
 var map_window = null                 # etap 10: okno mapy (N)
@@ -183,6 +184,10 @@ func _ready() -> void:
 	audio.setup(data, builder.actors)
 	audio.enabled = arg("screenshot").is_empty() and bool(settings.get("sound", true))
 	add_child(audio)
+	anim_sounds = preload("res://scripts/mw/mw_anim_sounds.gd").new()
+	anim_sounds.name = "AnimSounds"
+	anim_sounds.main = self
+	add_child(anim_sounds)
 	music = preload("res://scripts/mw/mw_music.gd").new()
 	music.name = "Music"
 	music.setup(data)
@@ -1333,7 +1338,7 @@ func _process(_d: float) -> void:
 		var moved: float = Vector2(player.global_position.x - _last_pos.x, player.global_position.z - _last_pos.z).length()
 		_last_pos = player.global_position
 		if moved < 2.0 and not player.fly:
-			audio.footsteps(player, moved, player.is_on_floor(), player.swimming)
+			audio.footsteps(player, moved, player.is_on_floor(), player.swimming, _player_step_sound)
 	_perf_mark("")
 	_update_torches(_d)
 	_update_water_level()
@@ -1802,11 +1807,20 @@ func _update_sound_world(delta: float) -> void:
 	var dead: bool = combat != null and combat.is_dead(combat.player_fighter())
 	if music != null:
 		music.tick(delta, fighting, dead)
+	if anim_sounds != null:
+		anim_sounds.tick(delta)
 	var exterior: bool = interior.is_empty() or bool(db.get_cell("int:" + interior.to_lower()).get("behave_like_exterior", false))
 	audio.region_tick(delta, envr.regions.get(current_region.to_lower(), {}) if envr != null else {}, exterior)
 	var cam := player.get_node_or_null("Camera3D") as Node3D
 	var head_y: float = cam.global_position.y if cam != null else player.global_position.y + 1.6
 	audio.ambient_tick(envr.weather if envr != null else "", exterior, head_y < float(player.water_level))
+
+func _player_step_sound(left: bool) -> String:
+	if anim_sounds == null:
+		return "FootBareLeft" if left else "FootBareRight"
+	var cam := player.get_node_or_null("Camera3D") as Node3D
+	var feet_in_water: bool = player.global_position.y < float(player.water_level)
+	return anim_sounds.footstep(player, left, player.swimming, feet_in_water, player.is_on_floor())
 
 func _update_water_level() -> void:
 	if player == null or db == null:

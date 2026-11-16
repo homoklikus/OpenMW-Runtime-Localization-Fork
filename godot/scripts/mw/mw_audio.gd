@@ -135,14 +135,17 @@ func play(sound_id: String, at = null, volume := 1.0) -> Node:
 var _step_dist := 0.0
 var _step_left := true
 
-func footsteps(actor: Node3D, delta_pos: float, on_floor: bool, swimming: bool) -> void:
-	if not on_floor or swimming:
+## choose(left: bool) -> id dźwięku (etap 10: wg butów i wody jak Npc::getSoundIdFromSndGen); bez – boso.
+func footsteps(actor: Node3D, delta_pos: float, on_floor: bool, swimming: bool, choose: Callable = Callable()) -> void:
+	if (not on_floor and not swimming):
 		_step_dist = 0.0
 		return
 	_step_dist += delta_pos
-	if _step_dist >= 0.9:
+	if _step_dist >= (1.4 if swimming else 0.9):
 		_step_dist = 0.0
-		play("FootBareLeft" if _step_left else "FootBareRight", null, footsteps_volume / maxf(sfx_volume, 0.01))
+		var snd := String(choose.call(_step_left)) if choose.is_valid() else ("FootBareLeft" if _step_left else "FootBareRight")
+		if not snd.is_empty():
+			play(snd, null, footsteps_volume / maxf(sfx_volume, 0.01))
 		_step_left = not _step_left
 
 # --- głosy (etap 10) -------------------------------------------------------------------------------------

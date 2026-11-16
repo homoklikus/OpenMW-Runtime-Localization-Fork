@@ -31,7 +31,9 @@ FILES = {"NPC_": "npc", "CREA": "creature", "RACE": "race", "CLAS": "class", "FA
          # etap 5: skrypty (drzewo składni z kompilatora mwscript) i skrypty startowe
          "SCPT": "script", "SSCR": "startscript",
          # etap 7: efekty magiczne i zaklęcia przedmiotów
-         "MGEF": "magiceffect", "ENCH": "enchantment"}
+         "MGEF": "magiceffect", "ENCH": "enchantment",
+         # etap 10: generatory dźwięków stworzeń (kroki, pomruki, ryk, krzyk, lądowanie)
+         "SNDG": "soundgen"}
 
 
 def _zs(b: bytes) -> str:
@@ -573,8 +575,26 @@ DECODERS: dict[str, Callable] = {
     "CONT": decode_container, "LEVI": _leveled("INAM"), "LEVC": _leveled("CNAM"), "ALCH": decode_potion,
     "INGR": decode_ingredient, "DOOR": decode_door, "ACTI": decode_activator, "SOUN": decode_sound,
     "SPEL": decode_spell, "SCPT": decode_script, "SSCR": decode_startscript,
-    "MGEF": decode_mgef, "ENCH": decode_enchantment,
+    "MGEF": decode_mgef, "ENCH": decode_enchantment, "SNDG": None,
 }
+
+
+SOUNDGEN_TYPES = ["left", "right", "swimleft", "swimright", "moan", "roar", "scream", "land"]
+
+
+def decode_soundgen(rec, rid: str) -> dict:
+    """SNDG (ESM::SoundGenerator): typ (0 lewa stopa … 7 lądowanie), stworzenie (puste = ogólny), dźwięk."""
+    o = {"id": rid}
+    d = rec.get("DATA")
+    t = struct.unpack_from("<i", d, 0)[0] if d is not None and len(d) >= 4 else -1
+    o["type"] = t
+    o["type_name"] = SOUNDGEN_TYPES[t] if 0 <= t < len(SOUNDGEN_TYPES) else ""
+    o["creature"] = (rec.zstr("CNAM") or "").lower()
+    o["sound"] = rec.zstr("SNAM") or ""
+    return o
+
+
+DECODERS["SNDG"] = decode_soundgen
 
 
 def record_id(rec) -> Optional[str]:

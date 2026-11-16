@@ -25,6 +25,10 @@
 * Etap 1: konwerter eksportuje `world/records/` (NPC_, CREA, RACE, CLAS, FACT, BODY, BSGN, SKIL, broń, zbroje,
   ubrania, książki, przedmioty, światła, GMST, GLOB) ze scalaniem wg kolejności ładowania; MCP-openMW:
   `openmw_record_compare_start/status` – porównanie rekordów z silnikiem OpenMW (Lua) pole po polu.
+* Etap 10 (w toku) – dźwięki z kluczy animacji jak OpenMW (handleTextKey): „Sound:” i „SoundGen:” z tekstów
+  .kf – kroki NPC wg butów (boso, lekkie, średnie, ciężkie), w wodzie i przy pływaniu; stworzenia z rekordów SNDG
+  (pomruk, ryk, krzyk, kroki – własne, z tego samego modelu albo ogólne); kroki gracza też wg butów i wody.
+  Konwerter: rekordy SNDG (eksport świata v13 – „Aktualizuj”).
 * Etap 10 (w toku) – ustawienia w grze (Esc → Ustawienia): głośności (ogólna, muzyka, głosy, efekty, kroki),
   napisy, czułość myszy, odwrócenie osi, pole widzenia (domyślnie 60° jak OpenMW), odległość widzenia, cienie,
   mgła, V-Sync, limit FPS – działają od razu, „Zapisz”/„Anuluj”; zapis do ingame_settings.json, launcher scala
