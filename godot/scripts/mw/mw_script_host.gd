@@ -44,7 +44,7 @@ func find_ref_by_base(id: String) -> Node:
 	return n if n != null and is_instance_valid(n) else null
 
 func menu_mode() -> bool:
-	for w in [main.item_window, main.chargen, main.pause_menu, main.msgbox, main.dialogue_window, main.journal_window, main.rest_window, main.trade_window, main.get("magic_window")]:
+	for w in [main.item_window, main.chargen, main.pause_menu, main.msgbox, main.dialogue_window, main.journal_window, main.rest_window, main.trade_window, main.get("magic_window"), main.get("book_window")]:
 		if w != null and is_instance_valid(w) and w.visible:
 			return true
 	return false

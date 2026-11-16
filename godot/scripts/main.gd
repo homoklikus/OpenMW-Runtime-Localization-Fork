@@ -39,6 +39,7 @@ var interaction = null                # MWInteraction (etap 3)
 var item_window = null                # okno pojemnika / ekwipunku
 var audio = null                      # MWAudio (etap 3)
 var music = null                      # MWMusic (etap 10)
+var book_window = null                # etap 10: książki i zwoje
 var character = null                  # MWCharacter (etap 4) – statystyki w state.player["character"]
 var chargen = null                    # kreator postaci
 var scripts = null                    # MWScripts (etap 5)
@@ -155,6 +156,12 @@ func _ready() -> void:
 	journal_window.dialogue = dialogue
 	journal_window.main = self
 	add_child(journal_window)
+	book_window = preload("res://scripts/mw/mw_book_window.gd").new()
+	book_window.name = "BookWindow"
+	book_window.main = self
+	book_window.data_root = data
+	book_window.closed.connect(_on_book_closed)
+	add_child(book_window)
 	audio = preload("res://scripts/mw/mw_audio.gd").new()
 	audio.name = "Audio"
 	audio.setup(data, builder.actors)
@@ -1489,6 +1496,8 @@ func activate(r: Node, force_default := false) -> bool:
 			if audio != null and not String(sr.get("sound", "")).is_empty():
 				audio.play(String(sr.sound), at)
 			return true
+	if String(snap.kind) == "item" and String(db.get_object(String(snap.base)).get("type", "")) == "BOOK":
+		return read_book(String(snap.base), r)     # ActionRead: okno z przyciskiem „Weź”
 	var res: Dictionary = interaction.activate(r)
 	if not String(snap.trap).is_empty() and String(interaction.trap(r)).is_empty() and magic != null:
 		_trap_spell(String(snap.trap))           # pułapka: czar na gracza (etap 7/8)
@@ -1507,6 +1516,51 @@ func activate(r: Node, force_default := false) -> bool:
 		_:
 			return false
 	return true
+
+## ActionRead (etap 10): okno książki albo zwoju; node – referencja w świecie (przycisk „Weź”), null – z ekwipunku.
+## W walce nie można czytać z ekwipunku (sInventoryMessage4). Pierwsze przeczytanie książki z umiejętnością
+## podnosi ją o 1 (skillLevelUp „book”, flagAsUsed – player.books_read).
+var _book_node: Node = null
+
+func read_book(id: String, node: Node = null) -> bool:
+	if book_window == null:
+		return false
+	var rid := id.to_lower()
+	var rec: Dictionary = interaction.records.record("book", rid)
+	if rec.is_empty():
+		return false
+	if node == null and _player_in_combat():
+		_toast(dialogue.gmst_text("sInventoryMessage4", "Nie możesz tego zrobić podczas walki.") if dialogue != null else "Walka.")
+		return false
+	_book_node = node
+	book_window.open(rid, rec, node != null)
+	var skill := int(rec.get("skill", -1))
+	var read: Dictionary = state.player.get("books_read", {})
+	if skill >= 0 and not read.has(rid) and character != null and not player_stats().is_empty():
+		read[rid] = true
+		state.player["books_read"] = read
+		for m in character.skill_level_up(player_stats(), skill, "book"):
+			_skill_message(m)
+	return true
+
+func _player_in_combat() -> bool:
+	if ai == null:
+		return false
+	for n in ai.actor_nodes():
+		for p in ai.ai_state(n).packages:
+			if String(p.get("type", "")) == "combat" and String(p.get("target", "")) == "player":
+				return true
+	return false
+
+func _on_book_closed(taken: bool) -> void:
+	if taken and _book_node != null and is_instance_valid(_book_node):
+		var snap: Dictionary = interaction.snapshot(_book_node)
+		interaction.take_ref(snap)
+	_book_node = null
+	if item_window != null and item_window.visible:
+		get_tree().paused = true             # powrót do ekwipunku (okno książki było nad nim)
+		if DisplayServer.get_name() != "headless":
+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 ## Rozmowa (etap 6): okno dialogu, jeśli rozmówca ma powitanie.
 func open_dialogue(node: Node) -> bool:

@@ -448,6 +448,19 @@ def _ref_index(world, wdir, write_json) -> dict:
     return {"objects": len(idx), "markers": {m: len(v) for m, v in markers.items()}}
 
 
+# Etap 10: tekstury interfejsu jak w układach OpenMW (openmw_book.layout, openmw_scroll.layout) i ilustracje
+# książek (BookArt/ – znaczniki <IMG SRC=…> w tekstach BOOK).
+UI_TEXTURE_PREFIXES = ("textures/tx_menubook", "textures/scroll.")
+
+
+def ui_textures(vfs) -> set:
+    exts = (".dds", ".tga", ".bmp")
+    out = {k for k in vfs.list("bookart/") if k.endswith(exts)}
+    for p in UI_TEXTURE_PREFIXES:
+        out |= {k for k in vfs.list(p) if k.endswith(exts)}
+    return out
+
+
 def _copy_vfs(vfs, k: str, out: Path) -> str:
     """Kopia pliku z VFS do <out>/<k> (zapis atomowy); „unchanged”, gdy rozmiar i czas modyfikacji się zgadzają."""
     info = vfs.info(k)
@@ -632,6 +645,7 @@ def _assets_only(cfg, opts, vfs, cache, state, stats, run_id, T0, log) -> dict:
         tex.update(_deps(cache, k))
     if opts.all_textures:
         tex |= {k for k in vfs.list("textures/") if k.endswith((".dds", ".tga", ".bmp"))}
+    tex |= ui_textures(vfs)
     tex = dedupe_textures(tex)
     ttodo, tskip, tbase = _plan(cache, "texture", tex, vfs, TEXTURE_CONVERTER, opts)
     _run_jobs(convert_texture_job, ttodo, cfg, opts, "textures", log, cache, "texture", TEXTURE_CONVERTER, vfs, stats)
@@ -915,6 +929,7 @@ def _run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) 
 
     if opts.all_textures:
         tex_needed |= {k for k in vfs.list("textures/") if k.endswith((".dds", ".tga", ".bmp"))}
+    tex_needed |= ui_textures(vfs)
     tex_needed = dedupe_textures(tex_needed)
     ttodo, tskip, tbase = _plan(cache, "texture", tex_needed, vfs, TEXTURE_CONVERTER, opts)
     log(f"Tekstury: {len(tex_needed)} potrzebnych, {len(ttodo)} do konwersji, {tskip} bez zmian, {tbase} z bazy")

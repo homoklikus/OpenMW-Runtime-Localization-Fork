@@ -689,10 +689,25 @@ STAGE10_FILES = {"Sound/Vo/synth/hello.wav": 0.6, "Sound/Vo/synth.wav": 0.8, "So
                  "Music/Battle/synth_battle.wav": 0.5}
 
 
+BOOK_TEXT = ('<DIV ALIGN="CENTER"><FONT COLOR="000000" SIZE="3" FACE="Magic Cards">KSIEGA TESTOWA<BR><BR>'
+             '<DIV ALIGN="LEFT">'
+             + "".join(f"Akapit {i}: " + "slowo " * 40 + "<BR><BR>" for i in range(12))
+             + '<IMG SRC="synth_pic.tga" WIDTH="64" HEIGHT="32"><BR>Koniec ksiegi.<BR>UKRYTY OGON')
+NOTE_TEXT = ('<DIV ALIGN="LEFT"><FONT COLOR="000000" SIZE="3" FACE="Magic Cards">Notatka testowa %PCName.<BR>'
+             '<FONT FACE="Daedric">ALMSIVI<BR>')
+
+
 def _stage10_records() -> list:
-    """Etap 10: kwestia głosowa „Hello” wędrowca z plikiem Vo, dźwięk otoczenia regionu (szansa 100), muzyka."""
+    """Etap 10: kwestia głosowa „Hello” wędrowca z plikiem Vo, dźwięk otoczenia regionu (szansa 100), muzyka;
+    książka z umiejętnością (wiele stron, ilustracja z BookArt) i zwój z czcionką daedryjską."""
     from .synthetic_world import REGION_WEATHER
-    return [W.record("SOUN", [W.sub("NAME", W.zs("Synth Wind")), W.sub("FNAM", W.zs("Fx\\envrn\\synth_wind.wav")),
+    book = W.record("BOOK", [W.sub("NAME", W.zs("synth_book")), W.sub("MODL", W.zs("m\\misc_synth_spoon.nif")),
+                             W.sub("FNAM", W.zs("Ksiega testowa")), W.sub("BKDT", struct.pack("<fiiii", 1.0, 10, 0, 8, 0)),
+                             W.sub("TEXT", W.zs(BOOK_TEXT))])
+    note = W.record("BOOK", [W.sub("NAME", W.zs("synth_note")), W.sub("MODL", W.zs("m\\misc_synth_spoon.nif")),
+                             W.sub("FNAM", W.zs("Notatka testowa")), W.sub("BKDT", struct.pack("<fiiii", 0.1, 1, 1, -1, 0)),
+                             W.sub("TEXT", W.zs(NOTE_TEXT))])
+    return [book, note,W.record("SOUN", [W.sub("NAME", W.zs("Synth Wind")), W.sub("FNAM", W.zs("Fx\\envrn\\synth_wind.wav")),
                               W.sub("DATA", bytes([200, 0, 0]))]),
             W.region("Synthetic Region", "Kraina Syntetyczna", REGION_WEATHER, sounds=[("Synth Wind", 100)]),
             _script_rec("synth_music", """Begin synth_music
@@ -761,6 +776,7 @@ ACTOR_REFS = {  # refnum: (rekord, x, y, obrót z w stopniach)
     9016: ("synth_watchman", 5200.0, 5000.0, 180.0),   # etap 8: strażnik (Guard, Alarm 100) – daleko od testów
     9017: ("prisonmarker", 5400.0, 5200.0, 90.0),      # etap 8: znacznik więzienia
     9018: ("synth_lev_creature", 5600.0, 4800.0, 0.0),  # etap 8: punkt pojawiania się stworzenia (LEVC)
+    9020: ("synth_book", 2330.0, 2450.0, 0.0),        # etap 10: książka w świecie (czytanie, „Weź”)
 }
 REF_EXTRA = {9010: {"owner": "synth_trader"}, 9014: {"owner": "synth_trader"},
              9015: {"owner": "synth_trader", "lock_level": 20, "trap": "synth_bolt"}}
@@ -801,6 +817,9 @@ def write_actors(data_dir: Path) -> dict:
             _wav(data_dir / "Sound" / f.replace("\\", "/"))
     for rel, secs in STAGE10_FILES.items():
         _wav(data_dir / rel, 330.0, secs)
+    from PIL import Image
+    (data_dir / "BookArt").mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (64, 32), (120, 40, 40)).save(data_dir / "BookArt" / "synth_pic.tga")
     recs = [_race()] + [_body(k, *v) for k, v in BODYPARTS.items()]
     recs += [_item_body(k, *v) for k, v in ITEM_BODYPARTS.items()]
     recs += [_armor(k, *v) for k, v in ARMORS.items()] + [_clothing(k, *v) for k, v in CLOTHES.items()] + [_weapon()]

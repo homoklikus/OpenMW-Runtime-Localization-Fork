@@ -25,6 +25,14 @@
 * Etap 1: konwerter eksportuje `world/records/` (NPC_, CREA, RACE, CLAS, FACT, BODY, BSGN, SKIL, broń, zbroje,
   ubrania, książki, przedmioty, światła, GMST, GLOB) ze scalaniem wg kolejności ładowania; MCP-openMW:
   `openmw_record_compare_start/status` – porównanie rekordów z silnikiem OpenMW (Lua) pole po polu.
+* Etap 10 (w toku) – książki i zwoje jak w OpenMW: aktywacja książki w świecie otwiera ją do czytania (przycisk
+  „Weź”), z ekwipunku – bez „Weź” (w walce nie wolno); książka – dwie strony z numerami, poprzednia/następna
+  (strzałki), zwój – jedna przewijana kolumna; znaczniki Morrowinda (BR, P, DIV ALIGN, FONT COLOR/FACE, IMG
+  z BookArt; tekst po ostatnim BR ukryty) i lokalizacji RLF ([c=#], [b], [i], [pagebreak]), podział na strony
+  w granicach linii jak Paginator OpenMW, tłumaczenia tekstów (BOOK|id|TEXT), podstawienia (%PCName…),
+  czcionki MysticCards i daedryjska (OFL, z OpenMW), tła i przyciski z tekstur gry (tx_menubook, scroll),
+  dźwięki otwierania, kartkowania i zamykania. Pierwsze przeczytanie książki z umiejętnością podnosi ją o 1
+  (raz na książkę, w zapisie). Konwerter: ilustracje BookArt i tekstury okien („Aktualizuj”).
 * Etap 10 (w toku) – dźwięk świata: głosy NPC z plików Vo jak OpenMW (`DialogueManager::say`: powitanie Hello,
   Idle wg fVoiceIdleOdds, Attack przy rozpoczęciu walki i atakach wg iVoiceAttackOdds, Hit wg iVoiceHitOdds
   i przy śmierci, Flee, Thief, Intruder; jedna kwestia naraz, głos z głowy aktora, napisy), Say ze skryptu

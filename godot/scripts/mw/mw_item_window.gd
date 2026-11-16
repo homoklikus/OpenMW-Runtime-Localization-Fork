@@ -192,13 +192,9 @@ func use_item(i: int) -> void:
 			toggle_equip(i)
 			return
 		"book":
-			var en: Dictionary = main.magic.item_enchantment(it)
-			if not en.is_empty() and int(en.get("type", -1)) == main.magic.ENCH_CAST_ONCE:
-				main.select_magic("item", id)
-				info.text = "Wybrano zwój: %s (R – przygotuj magię)" % interaction.item_name("book", id, it.rec)
-			else:
-				toggle_equip(i)
-				return
+			# ActionRead jak w OpenMW (także zwoje z zaklęciem – rzuca się je z okna magii M)
+			main.read_book(id)
+			return
 		_:
 			toggle_equip(i)
 			return

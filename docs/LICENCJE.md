@@ -85,3 +85,10 @@ Przeniesiony kod OpenMW (od sesji 4): *na razie brak* — każdy przeniesiony fr
   zakaz użycia w plikach sprzedawanych; uwagi autora: „GNU GPL V2”. Zasoby są osobnym dziełem dołączonym do
   programu (agregacja) – kod OpenMWGodot pozostaje na GPL-3.0-or-later.
 * Zasoby Bethesdy nadal NIE są częścią repozytorium – te pliki nie zawierają danych z gry.
+
+## Czcionki książek i zwojów (dołączone)
+
+* `godot/fonts/MysticCards.ttf` (czcionka książek – „Journalbook DefaultFont”) i `godot/fonts/DemonicLetters.ttf`
+  (pismo daedryjskie) z OpenMW (`files/data/fonts`), bez zmian. Licencja: **SIL Open Font License 1.1**
+  (copyright OpenMW Team; oparte na Pelagiad – Isak Larborn, OMWAyembedt – Georg Duffner); pełne teksty licencji
+  obok czcionek (`*FontLicense.txt`). OFL pozwala dołączać czcionki do programu (także GPL) bez zmiany nazwy.
