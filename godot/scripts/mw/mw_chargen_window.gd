@@ -157,6 +157,20 @@ func _update() -> void:
 const STEP_ROWS := {"name": ["Imię"], "race": ["Rasa", "Płeć", "Głowa", "Włosy"], "class": ["Klasa"],
 	"birth": ["Znak zodiaku"], "statreview": ["Imię", "Rasa", "Płeć", "Głowa", "Włosy", "Klasa", "Znak zodiaku"]}
 
+## Automatyzacja/testy: wybór rasy, klasy, znaku po id (jak kliknięcie na liście).
+func choose(kind: String, id: String) -> bool:
+	var pairs := {"race": [race_opt, _races], "class": [class_opt, _classes], "birthsign": [sign_opt, _signs]}
+	if not pairs.has(kind):
+		return false
+	var i: int = (pairs[kind][1] as Array).find(id.to_lower())
+	if i < 0:
+		return false
+	(pairs[kind][0] as OptionButton).select(i)
+	if kind == "race":
+		_fill_heads()
+	_update()
+	return true
+
 func open_step(s: String, defaults: Dictionary) -> void:
 	open(defaults)
 	step = s

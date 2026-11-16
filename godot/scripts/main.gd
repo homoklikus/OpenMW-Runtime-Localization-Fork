@@ -1390,7 +1390,7 @@ func _unhandled_input(e: InputEvent) -> void:
 		item_window.open_inventory()
 		get_viewport().set_input_as_handled()
 		return
-	if e.is_action_pressed("activate") and player:
+	if e.is_action_pressed("activate") and player and control_allowed("controls"):
 		for ch in player.get_children():
 			if ch is Camera3D:
 				var r := MWTravel.pick(ch)

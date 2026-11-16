@@ -356,13 +356,13 @@ func player_standing_on(t: Dictionary) -> bool:
 			col = col.get_parent()
 	return false
 
-var _say_until := {}         # sid → czas (ms) końca kwestii
+var _say_until := {}         # sid → czas gry (MWScripts.clock) końca kwestii
 
 ## Say: napis jak w OpenMW przy włączonych napisach (nagrania głosów – etap 10); czas kwestii z długości tekstu.
 func say(t: Dictionary, _file: String, text: String) -> void:
 	var key := String(t.get("sid", ""))
 	var secs := 1.0 + 0.06 * text.length()
-	_say_until[key] = Time.get_ticks_msec() + int(secs * 1000.0)
+	_say_until[key] = float(main.scripts.clock) + secs
 	if not text.is_empty():
 		var who := ""
 		var n := _node(t)
@@ -371,7 +371,7 @@ func say(t: Dictionary, _file: String, text: String) -> void:
 		main.subtitle(who + text, secs)
 
 func say_done(t: Dictionary) -> bool:
-	return Time.get_ticks_msec() >= int(_say_until.get(String(t.get("sid", "")), 0))
+	return float(main.scripts.clock) >= float(_say_until.get(String(t.get("sid", "")), 0.0))
 
 ## Przedmioty ze skryptem w ekwipunku gracza: [[id, skrypt, liczba]].
 func player_scripted_items() -> Array:
@@ -397,3 +397,16 @@ func script_rotate(t: Dictionary, axis: String, deg: float) -> void:
 		"z": n.rotate_y(-a)                     # MW Z (w górę) = Godot Y; kąt MW zgodnie ze wskazówkami
 		"x": n.rotate_object_local(Vector3.RIGHT, a)
 		"y": n.rotate_object_local(Vector3.FORWARD, a)
+
+## PlayGroup/LoopGroup: animacja z biblioteki aktora albo obiektu (np. bezczynność skryptowa); bez grupy – nic.
+func play_group(t: Dictionary, group: String, _mode: int, loop: bool, _count: int) -> void:
+	var n := _node(t)
+	if n == null:
+		return
+	for ap in n.find_children("*", "AnimationPlayer", true, false):
+		var a := ap as AnimationPlayer
+		if a.has_animation(group):
+			a.play(group)
+			if loop:
+				a.get_animation(group).loop_mode = Animation.LOOP_LINEAR
+			return

@@ -120,8 +120,11 @@ func _unsupported(fname: String) -> void:
 # --- wykonanie ---------------------------------------------------------------------------------------------
 
 ## Jedna klatka: skrypty globalne, potem lokalne obiektów we wczytanych komórkach.
+var clock := 0.0                 # czas gry skryptów (s) – kwestie Say, liczniki niezależne od zegara systemowego
+
 func tick(dt: float, local_refs: Array) -> void:
 	delta = dt
+	clock += dt
 	frame += 1
 	for id in (_sc().running as Array).duplicate():
 		var c := Ctx.new()
@@ -450,6 +453,8 @@ func _eval(e, c: Ctx):
 				# funkcja bez argumentów zapisana bez nawiasów („if ( SayDone == 1 )”) – kompilator Morrowinda to przyjmuje
 				var r = _call(null, String(e[1]).to_lower(), [], c)
 				return r if r != null else 0.0
+			if v == null and String(e[1]).to_lower() == "xbox":
+				return 0.0                    # zmienna wersji Xbox (w PC Morrowindzie nieokreślona = 0)
 			if v == null:
 				_err("%s: nieznany identyfikator %s" % [c.scr, e[1]])
 				return 0.0
@@ -795,6 +800,20 @@ func _call(ref, fname: String, args: Array, c: Ctx):
 			return null
 		"changeweather":
 			game.change_weather(_str(args, 0), int(_num(args, 1, c)))
+			return null
+		"getrace":
+			var tr := _target(ref, c)
+			var race := ""
+			if String(tr.get("sid", "")) == "player" or (tr.is_empty() and c.sid.is_empty()):
+				race = String(game.main.player_stats().get("race", ""))
+			else:
+				race = String(records.record("npc", String(tr.get("base", ""))).get("race", ""))
+			return 1.0 if race.to_lower() == _str(args, 0).to_lower() else 0.0
+		"getcurrentweather":
+			var wi: int = game.WEATHER_NAMES.find(String(game.envr.weather).to_lower())
+			return float(maxi(wi, 0))
+		"playgroup", "loopgroup":
+			game.play_group(_target(ref, c), _str(args, 0).to_lower(), int(_num(args, 1, c)) if args.size() > 1 else 0, fname == "loopgroup", int(_num(args, 2, c, 1)) if args.size() > 2 else 1)
 			return null
 		"getstandingpc":
 			return 1.0 if game.player_standing_on(_target(ref, c)) else 0.0
