@@ -81,6 +81,37 @@ local function holdActors(force)
     end
 end
 
+-- Etap 5 (MWScript): stan włączenia obiektów ze skryptem lokalnym w komórce ujęcia i sąsiednich.
+-- Format: RLF_ENABLED <ujęcie> <recordId> <skrypt> <x> <y> <z> <0|1>
+local enabledTypes = { types.Static, types.Activator, types.Door, types.Container, types.Light, types.NPC,
+                       types.Creature, types.Miscellaneous, types.Weapon, types.Armor, types.Clothing, types.Book,
+                       types.Ingredient, types.Potion }
+local function dumpEnabled(shot)
+    if not shot.dump_enabled then return end
+    local n = 0
+    for dx = -1, 1 do
+        for dy = -1, 1 do
+            local ok, err = pcall(function()
+                local cell = world.getExteriorCell(shot.cell[1] + dx, shot.cell[2] + dy)
+                for _, t in ipairs(enabledTypes) do
+                    for _, o in ipairs(cell:getAll(t)) do
+                        local rec = o.type.record(o)
+                        local scr = rec and rec.mwscript or nil
+                        if scr ~= nil and scr ~= '' then
+                            local p = o.position
+                            print(string.format('RLF_ENABLED %s %s %s %.1f %.1f %.1f %d', shot.id,
+                                o.recordId:gsub(' ', '_'), tostring(scr):gsub(' ', '_'), p.x, p.y, p.z, o.enabled and 1 or 0))
+                            n = n + 1
+                        end
+                    end
+                end
+            end)
+            if not ok then log('WARN enabled ' .. tostring(err)) end
+        end
+    end
+    log('ENABLED ' .. shot.id .. ' ' .. n)
+end
+
 local function setHour(hour)
     local ok, err = pcall(function()
         world.mwscript.getGlobalVariables(player).gamehour = hour
@@ -129,6 +160,7 @@ return {
                 deadline = now + S.settleSeconds
             elseif phase == 'settle' and now >= deadline then
                 dumpBounds(S.shots[index])
+                dumpEnabled(S.shots[index])
                 freezeActors(S.shots[index])
                 holdActors(true)
                 world.setGameTimeScale(0)

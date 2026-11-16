@@ -49,7 +49,8 @@ EXPR_ARITY: dict[str, int] = {
     "getscale": 0, "getwerewolfkills": 0, "iswerewolf": 0, "getpcvisionbonus": 0, "getinterior": 0,
     "getpccrimelevel": 0, "getweapondrawn": 0, "getspellreadied": 0, "getsilence": 0, "getsuperjump": 0,
     "getflee": 0, "getfight": 0, "gethello": 0, "getalarm": 0, "getdefaultlevel": 0, "getpcvisionbonus": 0,
-    "getcastpenalty": 0, "getcurrentmagicka": 0,
+    "getcastpenalty": 0, "getcurrentmagicka": 0, "gettarget": 1, "getpcsleep": 0, "getinterior": 0,
+    "geteffect": 1, "getbuttonpressed": 0, "getpcfacrep": 0, "getsoundplaying": 1, "getdistance": 1,
 }
 for _a in _ATTRS + _SKILLS + _RESIST:
     EXPR_ARITY["get" + _a] = 0
