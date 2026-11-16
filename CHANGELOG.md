@@ -25,6 +25,10 @@
 * Etap 1: konwerter eksportuje `world/records/` (NPC_, CREA, RACE, CLAS, FACT, BODY, BSGN, SKIL, broń, zbroje,
   ubrania, książki, przedmioty, światła, GMST, GLOB) ze scalaniem wg kolejności ładowania; MCP-openMW:
   `openmw_record_compare_start/status` – porównanie rekordów z silnikiem OpenMW (Lua) pole po polu.
+* Etap 3: pojemniki, listy poziomowane (jak OpenMW), ekwipunek gracza i NPC z list, pochodnie NPC nocą,
+  aktywacja (E) – drzwi z zamkami i pułapkami, podnoszenie i odkładanie przedmiotów, okno pojemnika i ekwipunku (I);
+  pływanie; minimalny dźwięk (efekty SOUN, kroki); zapis v2 z migracją. Konwerter: nowe rekordy, dźwięki,
+  eksport świata v3 (wymaga „Aktualizuj” w launcherze).
 * Etap 2 ukończony: NPC i stworzenia jako `MWActor` (bez AI); porównanie 13 NPC z Seyda Neen i Balmory z OpenMW –
   wygląd i ekwipunek zgodne w 12 ujęciach (różnica: listy poziomowane strażnika cesarskiego – etap 3).
   MCP-openMW 0.9.0: `openmw_capture_npcs`, zamrażanie aktorów w OpenMW, kolejka ujęć; zrzuty Godota bez vsync.
