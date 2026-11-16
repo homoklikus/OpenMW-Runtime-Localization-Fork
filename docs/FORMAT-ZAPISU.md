@@ -1,11 +1,11 @@
-# Format zapisu gry OpenMWGodot — v2 (etap 3; v1 – etap 0)
+# Format zapisu gry OpenMWGodot — v3 (etap 6; v2 – etap 3; v1 – etap 0)
 
 Plik `*.mwsave` (domyślnie w katalogu zapisów profilu, `--saves`; szybki zapis: `quicksave.mwsave`),
 JSON skompresowany Zstandard (`FileAccess.open_compressed`). Kod: `godot/scripts/mw/mw_game_state.gd`.
 
 ```json
 {
-  "format": "mwgodot-save", "version": 2,
+  "format": "mwgodot-save", "version": 3,
   "header": {"profile": "default", "character": "", "game": "OpenMWGodot", "created": "…",
              "world_format": 1,
              "content": [{"name": "Morrowind.esm", "sha256": "…"}, …],   // kolejność ładowania
@@ -20,7 +20,11 @@ JSON skompresowany Zstandard (`FileAccess.open_compressed`). Kod: `godot/scripts
               "character": {"name": "Nerevar", "race": "dark elf", "female": false, "class": "warrior",
                             "birthsign": "warwyrd", "head": "…", "hair": "…", "level": 1,
                             "attributes": [8 liczb], "skills": [27 liczb], "spells": ["ancestor guardian", …],
-                            "health": 50, "magicka": 40, "fatigue": 170}},
+                            "health": 50, "magicka": 40, "fatigue": 170,
+                            // etap 6: frakcje gracza (członkostwo, ranga, wydalenie), reputacja we frakcjach,
+                            // reputacja i grzywna gracza
+                            "factions": {"blades": {"rank": 0, "expelled": false}},
+                            "faction_reputation": {"blades": 1}, "reputation": 0, "bounty": 0}},
   "dyn_next": 3,
   // v2 (etap 3):
   "inventories": {"player": [{"id": "gold_001", "count": 50}],
@@ -31,7 +35,16 @@ JSON skompresowany Zstandard (`FileAccess.open_compressed`). Kod: `godot/scripts
   // etap 5:
   "scripts": {"started": true, "running": ["main", "bloodmoonscript"],                // skrypty globalne
               "locals": {"bloodmoon.esm#1234": {"doonce": 1}, "global:main": {}}},  // zmienne lokalne
-  "journal": {"co_9a": 10}                                                        // indeksy zadań
+  "journal": {"co_9a": 10},                                                       // indeksy zadań
+  // v3 (etap 6):
+  "dialogue": {"known": {"caius cosades": true, "orders": true},                  // tematy znane graczowi
+               "entries": [{"quest": "a1_1_findspymaster", "info": "<id odpowiedzi>", "text": "<tekst po podstawieniach>",
+                            "actor": "Caius Cosades", "day": 1, "month": 7, "day_of_month": 16}],  // wpisy dziennika
+               "quests": {"a1_1_findspymaster": {"finished": true, "infos": ["<id>", …]}},
+               "topics": {"orders": [{"info": "<id>", "text": "…", "actor": "Caius Cosades"}]},  // dziennik tematów
+               "npcs": {"morrowind.esm#5678": {"disposition": 60, "talked": true, "fight": 30}},  // postawa, AI
+               "reactions": {"blades": {"camonna tong": -5}},                     // zmienione reakcje frakcji
+               "deaths": {}, "map_markers": ["Balmora"]}
 }
 ```
 
@@ -54,8 +67,10 @@ Zasady (plan, rewizja 2.0, §2.1–2.4):
 * Postać (etap 4) to nowe pole w `player` – zgodne wstecz w v2; zapis bez postaci dostaje postać domyślną
   (rekord NPC „player”).
 * Migracja v1 → v2: nowe sekcje puste, `player.level = 1` (stan świata bez zmian).
+* Migracja v2 → v3: pusta sekcja `dialogue` (indeksy zadań z `journal` zostają; wpisy dziennika z tekstem
+  powstają od tej wersji). Teksty wpisów są zapisywane po tłumaczeniu i podstawieniach (%PCName…), jak w OpenMW.
 * Każdy kolejny etap dopisuje własną sekcję (np. ekwipunek, zmienne skryptów, dziennik) – zmiana znaczenia
   istniejącego pola wymaga nowej wersji i migracji.
 
 Klawisze: **F5** szybki zapis, **F9** szybki odczyt, **Esc** menu pauzy, **E** aktywacja (drzwi, przedmioty,
-pojemniki), **I** ekwipunek.
+pojemniki, rozmowa z NPC), **I** ekwipunek, **J** dziennik.

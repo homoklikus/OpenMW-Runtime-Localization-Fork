@@ -25,6 +25,11 @@
 * Etap 1: konwerter eksportuje `world/records/` (NPC_, CREA, RACE, CLAS, FACT, BODY, BSGN, SKIL, broń, zbroje,
   ubrania, książki, przedmioty, światła, GMST, GLOB) ze scalaniem wg kolejności ładowania; MCP-openMW:
   `openmw_record_compare_start/status` – porównanie rekordów z silnikiem OpenMW (Lua) pole po polu.
+* Etap 6: dialogi, zadania i dziennik – rekordy DIAL/INFO (kolejność odpowiedzi jak OpenMW, eksport świata v6 –
+  „Aktualizuj” w launcherze), filtr odpowiedzi, powitania, tematy z hiperłączami, pytania, skrypty wyniku,
+  podstawienia (%PCName…), postawa i perswazja, frakcje gracza, dziennik z datą i dziennik tematów; okno rozmowy
+  (E na NPC) i dziennika (J); tłumaczenia dialogów z lokalizacji RLF; zapis v3 z migracją. Odbiór: rozmowa
+  z Caiusem Cosadesem na danych z gry – wstąpienie do Blades i zadanie „Antabolis Informant” z wpisem w dzienniku.
 * Etap 5: MWScript – kompilator skryptów w konwerterze, maszyna skryptów w grze (skrypty startowe i lokalne,
   zmienne, Enable/Disable, OnActivate, dziennik, przedmioty, pozycje, komunikaty), stan skryptów w zapisie,
   raport nieobsługiwanych funkcji; Raven Rock po starcie zgodny z OpenMW (344/344 obiektów). Eksport świata v5.
