@@ -15,6 +15,12 @@ var _scripts := {}   # id → rekord skryptu (cache)
 var unsupported := {}            # nazwa funkcji → liczba wywołań
 var errors := {}                 # opis → liczba
 var calls := {}                  # nazwa funkcji → liczba wywołań (obsługiwanych)
+var partial := {}                # funkcje zależne od późniejszych etapów – zwracają stan „spoczynku” (0)
+## Zdarzenia walki/AI (etapy 7–8): bez walki i śmierci ich poprawna wartość to 0.
+const IDLE_ZERO := ["ondeath", "onknockout", "onmurder", "onpchitme", "gettarget", "getattacked", "getweapondrawn",
+	"getspellreadied", "getcommondisease", "getblightdisease", "getpcsleep", "getcurrentaipackage", "getaipackagedone",
+	"getforcesneak", "getforcerun", "getpcjumping", "getpcsneaking", "getpcinjail", "getpctraveling", "iswerewolf",
+	"getwerewolfkills", "getpccrimelevel", "getdetected", "getlineofsight", "getlos"]
 var delta := 0.0
 var button_pressed := -1
 var cell_changed := false
@@ -445,6 +451,11 @@ func _call(ref, fname: String, args: Array, c: Ctx):
 		"getlevel", "gethealth", "getmagicka", "getfatigue":
 			return game.script_stat(_target(ref, c), fname)
 		"dontsaveobject": return null
+	if fname in IDLE_ZERO:
+		partial[fname] = int(partial.get(fname, 0)) + 1
+		return 0.0
+	if fname == "getinterior":
+		return 0.0 if game.main.interior.is_empty() else 1.0
 	if fname.begins_with("get") and fname.substr(3) in game.character_stat_names():
 		return game.script_stat(_target(ref, c), fname)
 	_unsupported(fname)
@@ -492,5 +503,5 @@ func _format(args: Array, c: Ctx) -> Array:
 
 ## Raport (MCP / diagnostyka): nieobsługiwane funkcje, błędy, liczba wywołań.
 func report() -> Dictionary:
-	return {"unsupported": unsupported, "errors": errors, "calls": calls, "running": _sc().running,
-		"frames": frame}
+	return {"unsupported": unsupported, "partial": partial, "errors": errors, "calls": calls,
+		"running": _sc().running, "frames": frame}

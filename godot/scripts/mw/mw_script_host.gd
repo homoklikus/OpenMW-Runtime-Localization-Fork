@@ -188,13 +188,57 @@ func script_stat(t: Dictionary, fname: String) -> float:
 		if name in skills:
 			return float(d.skills[skills.find(name)])
 		return 0.0
-	var rec: Dictionary = main.builder.actors.record("npc", String(t.get("base", "")))
+	var base := String(t.get("base", ""))
+	var rec: Dictionary = main.builder.actors.record("npc", base)
 	if rec.is_empty():
+		var cr: Dictionary = main.builder.actors.record("creature", base)
+		match name:
+			"level": return float(cr.get("level", 1))
+			"health": return float(cr.get("health", 0))
 		return 0.0
 	match name:
 		"level": return float(rec.get("level", 1))
-		"health": return float(rec.get("health", 0))
+		"health": return npc_health(rec)        # obrażenia aktorów – etap 7 (bieżące = maksymalne)
 	return 0.0
+
+## Zdrowie NPC: z rekordu albo autoobliczone jak OpenMW (npc.cpp autoCalculateAttributes): atrybuty rasy + 10
+## ulubionym klasy + (poziom − 1) × suma mnożników umiejętności atrybutu (główne 1, drugorzędne 0,5, pozostałe 0,2);
+## zdrowie = ⌊(siła + wytrzymałość) / 2⌋ + mnożnik × (poziom − 1), mnożnik 3 (+2 walka, +1 skradanie, +1 gdy
+## wytrzymałość jest ulubionym atrybutem).
+func npc_health(rec: Dictionary) -> float:
+	if not bool(rec.get("autocalc", false)) and rec.has("health"):
+		return float(rec["health"])
+	var av = main.builder.actors
+	var race: Dictionary = av.record("race", String(rec.get("race", "")))
+	var cls: Dictionary = av.record("class", String(rec.get("class", "")))
+	var female := bool(rec.get("female", false))
+	var level := int(rec.get("level", 1))
+	var ra: Array = (race.get("attributes", {}) as Dictionary).get("female" if female else "male", [])
+	var attrs := []
+	for i in 8:
+		attrs.append(float(ra[i]) if i < ra.size() else 0.0)
+	var fav: Array = cls.get("attributes", [])
+	for a in fav:
+		if int(a) >= 0 and int(a) < 8:
+			attrs[int(a)] += 10.0
+	var major: Array = cls.get("major_skills", [])
+	var minor: Array = cls.get("minor_skills", [])
+	var names: Array = av.records_index().get("skills", [])
+	for ai in [0, 5]:                                      # siła, wytrzymałość
+		var mod := 0.0
+		for si in names.size():
+			var sk: Dictionary = av.record("skill", String(names[si]))
+			if int(sk.get("attribute", -1)) != ai:
+				continue
+			mod += 1.0 if (si in major or float(si) in major) else (0.5 if (si in minor or float(si) in minor) else 0.2)
+		attrs[ai] = minf(floorf(attrs[ai] + (level - 1) * mod + 0.5), 100.0)
+	var mult := 3
+	match int(cls.get("specialization", -1)):
+		0: mult += 2
+		2: mult += 1
+	if 5 in fav or 5.0 in fav:
+		mult += 1
+	return floorf(0.5 * (attrs[0] + attrs[5])) + mult * (level - 1)
 
 # --- umieszczanie obiektów -------------------------------------------------------------------------------
 
