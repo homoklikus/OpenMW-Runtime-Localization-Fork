@@ -28,6 +28,8 @@ var _refresh_t := 0.0
 var _waiting := false
 
 const WIN := Vector2(600, 560)
+const UI := preload("res://scripts/mw/mw_ui.gd")
+var embedded := false                    # część trybu menu (okna jak w OpenMW: mapa obok ekwipunku, statystyk, magii)
 
 func _ready() -> void:
 	layer = 24
@@ -51,19 +53,24 @@ func _load_world() -> void:
 		if img != null:
 			_world_tex = ImageTexture.create_from_image(img)
 
-func open() -> void:
+## rect – położenie okna w trybie menu (osadzone: bez pauzy i własnego zamykania – robi to tryb menu).
+func open(rect := Rect2()) -> void:
 	_load_world()
+	embedded = rect.size != Vector2.ZERO
 	var vp := get_viewport().get_visible_rect().size if get_viewport() != null else Vector2(1280, 720)
 	scale_ui = clampf(vp.y / 600.0, 1.0, 3.0)
 	if _root != null:
 		_root.queue_free()
 	_root = Control.new()
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE if embedded else Control.MOUSE_FILTER_STOP
+	_root.theme = UI.theme(clampf(vp.y / 720.0, 1.0, 3.0))
 	add_child(_root)
 	_win = PanelContainer.new()
-	_win.position = ((vp - WIN * scale_ui) / 2.0).floor()
-	_win.custom_minimum_size = WIN * scale_ui
-	_win.size = WIN * scale_ui
+	var wsize: Vector2 = rect.size if embedded else WIN * scale_ui
+	_win.position = rect.position.floor() if embedded else ((vp - wsize) / 2.0).floor()
+	_win.custom_minimum_size = wsize
+	_win.size = wsize
 	_root.add_child(_win)
 	var box := VBoxContainer.new()
 	_win.add_child(box)
@@ -78,16 +85,18 @@ func open() -> void:
 	var close_b := Button.new()
 	close_b.text = _t("sClose", "Zamknij")
 	close_b.pressed.connect(close)
+	close_b.visible = not embedded
 	top.add_child(close_b)
 	_view = Control.new()
 	_view.clip_contents = true
 	_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_view.custom_minimum_size = Vector2(WIN.x - 20, WIN.y - 60) * scale_ui
+	_view.custom_minimum_size = (wsize - Vector2(24, 40 + 22 * scale_ui)).max(Vector2(64, 64)) if embedded else Vector2(WIN.x - 20, WIN.y - 60) * scale_ui
 	box.add_child(_view)
 	visible = true
-	get_tree().paused = true
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	if not embedded:
+		get_tree().paused = true
+		if DisplayServer.get_name() != "headless":
+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	set_world(world_mode)
 
 func set_world(on: bool) -> void:
@@ -295,15 +304,19 @@ func close() -> void:
 	if _root != null:
 		_root.queue_free()
 		_root = null
-	get_tree().paused = false
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	if not embedded:
+		get_tree().paused = false
+		if DisplayServer.get_name() != "headless":
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	embedded = false
 	closed.emit()
 
 func _unhandled_input(e: InputEvent) -> void:
 	if not visible:
 		return
-	if e.is_action_pressed("ui_cancel") or e.is_action_pressed("menu") or e.is_action_pressed("map_menu"):
+	if embedded and not (e is InputEventMouseButton):
+		return                               # klawisze obsługuje tryb menu
+	if not embedded and (e.is_action_pressed("ui_cancel") or e.is_action_pressed("menu") or e.is_action_pressed("map_menu")):
 		close()
 		get_viewport().set_input_as_handled()
 	elif world_mode and e is InputEventMouseButton and e.pressed:

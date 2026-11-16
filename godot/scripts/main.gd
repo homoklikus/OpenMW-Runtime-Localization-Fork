@@ -57,6 +57,8 @@ var trade = null                      # etap 7: handel i usługi
 var trade_window = null
 var combat = null                     # etap 7: walka
 var magic_window = null               # etap 7d: magia, alchemia, zaklinanie
+var data_dir := ""                    # katalog przekonwertowanych danych
+var menu_mode = null                  # etap 10: tryb menu (statystyki, ekwipunek, magia, mapa)
 var ai = null                         # etap 8: AI aktorów (mw_ai.gd)
 var crime = null                      # etap 8: przestępstwa i strażnicy (mw_crime.gd)
 var magic_ready := false              # przygotowana magia (klawisz R) – lewy przycisk rzuca
@@ -84,6 +86,7 @@ func _ready() -> void:
 	mk.main = self
 	add_child(mk)
 	var data := arg("data", ProjectSettings.get_setting("mwgodot/data_root", "user://mwdata"))
+	data_dir = data
 	var base := arg("base")
 	if not base.is_empty():
 		MWModelCache.base_roots = PackedStringArray([ProjectSettings.globalize_path(base)])
@@ -197,6 +200,10 @@ func _ready() -> void:
 	item_window.interaction = interaction
 	item_window.main = self
 	add_child(item_window)
+	menu_mode = preload("res://scripts/mw/mw_menu_mode.gd").new()
+	menu_mode.name = "MenuModeLayer"
+	menu_mode.main = self
+	add_child(menu_mode)
 	if db.cell_index().is_empty():
 		push_error("Brak danych świata w %s – uruchom konwerter (README)." % data)
 		_add_message("Brak danych świata w:\n%s\nUruchom konwerter mwconv (patrz docs/DEBIAN13.md)." % data)
@@ -303,6 +310,34 @@ func _on_chargen_step(step: String, ch: Dictionary) -> void:
 		st["name"] = String(old.get("name", "")) if not String(old.get("name", "")).is_empty() else "Przybysz"
 	state.player["character"] = st
 	_rebuild_player_visual()
+
+## Czy otwarte jest jakieś okno (wtedy klawisze trybu menu nie działają).
+func _no_window_open() -> bool:
+	for w in [item_window, magic_window, map_window, journal_window, rest_window, dialogue_window, menu_mode]:
+		if w != null and w.visible:
+			return false
+	return not get_tree().paused
+
+## Postać gracza do podglądu w ekwipunku: rekord NPC „player” z wyglądem z kreatora i założonymi rzeczami.
+func player_doll() -> Node3D:
+	var av = builder.actors if builder != null else null
+	if av == null or not av.available():
+		return null
+	var npc: Dictionary = av.record("npc", "player").duplicate()
+	if npc.is_empty():
+		return null
+	var st := player_stats()
+	for k in ["race", "head", "hair"]:
+		if not String(st.get(k, "")).is_empty():
+			npc[k] = st[k]
+	npc["female"] = bool(st.get("female", npc.get("female", false)))
+	var slots := {}
+	var eq := _equipment()
+	for sl in eq:
+		var it: Dictionary = interaction.inventory.item(String(eq[sl].id))
+		if not it.is_empty():
+			slots[int(sl)] = {"kind": String(it.kind), "rec": it.rec}
+	return av.build_npc_rec(npc, "player", 0, "", slots)
 
 func _rebuild_player_visual() -> void:
 	if player != null and player.has_method("rebuild_visual"):
@@ -1529,8 +1564,10 @@ func _unhandled_input(e: InputEvent) -> void:
 		_toast(("Magia gotowa: " + selected_magic_name()) if magic_ready else "Magia schowana", 1.5)
 		get_viewport().set_input_as_handled()
 		return
-	if e.is_action_pressed("magic_menu") and player and magic_window != null and not magic_window.visible and menu_allowed("magic"):
-		magic_window.open_spells()
+	if (e.is_action_pressed("magic_menu") or e.is_action_pressed("map_menu") or e.is_action_pressed("inventory") \
+			or e.is_action_pressed("menu_mode")) and player and menu_mode != null and not menu_mode.visible and _no_window_open() \
+			and (menu_allowed("magic") or menu_allowed("map") or menu_allowed("inventory") or menu_allowed("stats")):
+		menu_mode.open()                       # etap 10: tryb menu – statystyki, ekwipunek, magia, mapa naraz
 		get_viewport().set_input_as_handled()
 		return
 	if e.is_action_pressed("attack") and player and magic_ready and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -1547,14 +1584,6 @@ func _unhandled_input(e: InputEvent) -> void:
 		return
 	if e.is_action_pressed("rest") and player and rest_window != null and not rest_window.visible and menu_allowed("rest"):
 		rest_window.open()
-		get_viewport().set_input_as_handled()
-		return
-	if e.is_action_pressed("map_menu") and player and map_window != null and not map_window.visible and menu_allowed("map"):
-		map_window.open()
-		get_viewport().set_input_as_handled()
-		return
-	if e.is_action_pressed("inventory") and player and item_window != null and not item_window.visible and menu_allowed("inventory"):
-		item_window.open_inventory()
 		get_viewport().set_input_as_handled()
 		return
 	if e.is_action_pressed("activate") and player and control_allowed("controls"):

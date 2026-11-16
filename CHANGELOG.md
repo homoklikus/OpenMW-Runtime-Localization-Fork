@@ -25,6 +25,13 @@
 * Etap 1: konwerter eksportuje `world/records/` (NPC_, CREA, RACE, CLAS, FACT, BODY, BSGN, SKIL, broń, zbroje,
   ubrania, książki, przedmioty, światła, GMST, GLOB) ze scalaniem wg kolejności ładowania; MCP-openMW:
   `openmw_record_compare_start/status` – porównanie rekordów z silnikiem OpenMW (Lua) pole po polu.
+* Etap 10 (w toku) – tryb menu jak w Morrowindzie: prawy przycisk myszy (także I, M, N) pokazuje naraz okna
+  statystyk, ekwipunku, magii i mapy w położeniach OpenMW (przesuwanie, zmiana rozmiaru, układ w zapisie gry);
+  wygląd z tekstur gry gracza (ramki, paski, tła ikon), kolory FontColor i czcionka MysticCards. Ekwipunek:
+  podgląd postaci w założonych rzeczach, pancerz, obciążenie, kategorie, ikony przedmiotów kolumnami, podpowiedzi,
+  przeciąganie na postać (załóż/użyj) i poza okna (upuść). Statystyki: paski, poziom, rasa, klasa, atrybuty,
+  umiejętności wg klasy z postępem, frakcje, znak, reputacja, grzywna. Magia: działające efekty, moce, zaklęcia,
+  przedmioty magiczne. Konwerter kopiuje tekstury interfejsu i ikony.
 * Etap 10 (w toku) – woda jak OpenMW: woda „shader” (port water.frag – fale z 6 warstw mapy normalnych, Fresnel,
   załamanie z barwą głębi, rozpraszanie i odblask słońca, chwiejne brzegi, mocniejsze fale w deszczu; odbija niebo)
   albo prosta woda z animowanych tekstur gry (ustawienie „Woda z falami”); pod wodą mgła i kolor jak w OpenMW

@@ -361,6 +361,11 @@ func build_npc(npc_id: String, seed: int = 0, sid := "") -> Node3D:
 	var npc := record("npc", npc_id)
 	if npc.is_empty():
 		return null
+	return build_npc_rec(npc, npc_id, seed, sid)
+
+## Postać z rekordu NPC (także zmienionego – wygląd gracza: rasa, płeć, głowa, włosy z kreatora); items – lista
+## {"id","count"} zamiast inwentarza albo słownik gotowych miejsc {slot: {"kind","rec"}} (założone rzeczy gracza).
+func build_npc_rec(npc: Dictionary, npc_id: String, seed: int = 0, sid := "", items = null) -> Node3D:
 	var race := record("race", String(npc.get("race", "")))
 	var female := bool(npc.get("female", false))
 	var beast := bool(race.get("beast", false))
@@ -381,7 +386,7 @@ func build_npc(npc_id: String, seed: int = 0, sid := "") -> Node3D:
 	src.free()
 	root.add_child(sk)
 	# części: ekwipunek (priorytety), głowa i włosy z NPC, rasa (szyja…ogon) tam, gdzie nic nie zajęło miejsca
-	var parts := npc_parts(npc, female, sid)
+	var parts := npc_parts(npc, female, sid, items)
 	var keys := parts.keys()
 	keys.sort()
 	for prt in keys:
@@ -416,11 +421,15 @@ static func _model_glb(model: String) -> String:
 	return "" if model.is_empty() else "meshes/" + model.replace("\\", "/").to_lower().get_basename() + ".glb"
 
 ## PRT → GLB do założenia (NpcAnimation::updateParts, 3. osoba, broń schowana).
-func npc_parts(npc: Dictionary, female: bool, sid := "") -> Dictionary:
+func npc_parts(npc: Dictionary, female: bool, sid := "", items_override = null) -> Dictionary:
 	if equipment == null:
 		equipment = Equipment.new(self)
-	var items = inventory.contents(sid, npc) if inventory != null and not sid.is_empty() else null
-	var slots: Dictionary = equipment.auto_equip(npc, items, torches)
+	var slots: Dictionary
+	if items_override is Dictionary:
+		slots = items_override                  # gotowe miejsca {slot: {"kind","rec"}} (założone rzeczy gracza)
+	else:
+		var items = items_override if items_override != null else (inventory.contents(sid, npc) if inventory != null and not sid.is_empty() else null)
+		slots = equipment.auto_equip(npc, items, torches)
 	last_slots = slots
 	var prio := {}
 	var chosen := {}

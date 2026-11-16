@@ -7,8 +7,8 @@ from __future__ import annotations
 import configparser
 from pathlib import Path
 
-PREFIXES = ("Question_", "Level_Up_", "Weather_", "Water_", "Moons_")
-INI_SECTIONS = ("Question ", "Level Up", "Weather", "Water", "Moons")
+PREFIXES = ("Question_", "Level_Up_", "Weather_", "Water_", "Moons_", "FontColor_")
+INI_SECTIONS = ("Question ", "Level Up", "Weather", "Water", "Moons", "FontColor")
 
 
 def _from_openmw_cfg(path: Path) -> dict:
