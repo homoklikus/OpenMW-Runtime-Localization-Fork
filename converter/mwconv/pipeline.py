@@ -773,7 +773,8 @@ def _run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) 
     vfs_sig = hashlib.sha256("\n".join(f"{k}|{f.source}|{f.size}|{f.mtime:.3f}" for k, f in sorted(vfs.files.items())
                                        if not k.startswith("localization/"))
                              .encode()).hexdigest()
-    export_key = {"v": __version__, "world": WORLD_EXPORT_VERSION, "base": str(opts.base_out or ""), "content": content_fingerprint(cfg.content),
+    from .mwscript import COMPILER_VERSION
+    export_key = {"v": __version__, "world": WORLD_EXPORT_VERSION, "mwscript": COMPILER_VERSION, "base": str(opts.base_out or ""), "content": content_fingerprint(cfg.content),
                   "flora": opts.flora, "groundcover": content_fingerprint(cfg.groundcover), "cells": sorted(opts.cells),
                   "grids": sorted(map(list, opts.grids)), "all_cells": opts.all_cells, "all_models": opts.all_models,
                   "vfs": vfs_sig}

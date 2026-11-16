@@ -20,6 +20,9 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 
+# zmiana wyniku kompilacji → ponowny eksport świata (klucz eksportu w pipeline.py)
+COMPILER_VERSION = 2
+
 _ATTRS = ["strength", "intelligence", "willpower", "agility", "speed", "endurance", "personality", "luck"]
 _SKILLS = ["block", "armorer", "mediumarmor", "heavyarmor", "bluntweapon", "longblade", "axe", "spear", "athletics",
            "enchant", "destruction", "alteration", "illusion", "conjuration", "mysticism", "restoration", "alchemy",

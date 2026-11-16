@@ -27,7 +27,11 @@ JSON skompresowany Zstandard (`FileAccess.open_compressed`). Kod: `godot/scripts
                   "morrowind.esm#4567": [{"id": "potion_local_brew_01", "count": 2}]},   // pełna zawartość po zmianie
   "dynamic": {"dyn#2": {"base": "misc_com_bottle_01", "cell": "ext:-2,-9", "count": 1,
                         "mw": {"pos": [x, y, z], "rot": [0, 0, yaw], "scale": 1.0}}},     // przedmiot odłożony w świecie
-  "seed": 123456                                                                  // losowanie list poziomowanych
+  "seed": 123456,                                                                 // losowanie list poziomowanych
+  // etap 5:
+  "scripts": {"started": true, "running": ["main", "bloodmoonscript"],                // skrypty globalne
+              "locals": {"bloodmoon.esm#1234": {"doonce": 1}, "global:main": {}}},  // zmienne lokalne
+  "journal": {"co_9a": 10}                                                        // indeksy zadań
 }
 ```
 
@@ -46,6 +50,7 @@ Zasady (plan, rewizja 2.0, §2.1–2.4):
 * Inwentarze: brak wpisu = zawartość z rekordu (CONT/NPC_/CREA) z listami poziomowanymi rozlosowanymi
   deterministycznie wg `seed` i `sid` (ten sam wynik przy każdym wczytaniu komórki); po pierwszej zmianie
   (podniesienie, przełożenie) zapisywana jest pełna zawartość. Złoto zawsze jako `gold_001`.
+* Zmienne globalne (GLOB) zmienione przez skrypty – w `globals` (nazwa małymi literami → wartość).
 * Postać (etap 4) to nowe pole w `player` – zgodne wstecz w v2; zapis bez postaci dostaje postać domyślną
   (rekord NPC „player”).
 * Migracja v1 → v2: nowe sekcje puste, `player.level = 1` (stan świata bez zmian).

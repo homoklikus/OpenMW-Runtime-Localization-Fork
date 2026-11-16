@@ -25,6 +25,9 @@
 * Etap 1: konwerter eksportuje `world/records/` (NPC_, CREA, RACE, CLAS, FACT, BODY, BSGN, SKIL, broń, zbroje,
   ubrania, książki, przedmioty, światła, GMST, GLOB) ze scalaniem wg kolejności ładowania; MCP-openMW:
   `openmw_record_compare_start/status` – porównanie rekordów z silnikiem OpenMW (Lua) pole po polu.
+* Etap 5: MWScript – kompilator skryptów w konwerterze, maszyna skryptów w grze (skrypty startowe i lokalne,
+  zmienne, Enable/Disable, OnActivate, dziennik, przedmioty, pozycje, komunikaty), stan skryptów w zapisie,
+  raport nieobsługiwanych funkcji; Raven Rock po starcie zgodny z OpenMW (344/344 obiektów). Eksport świata v5.
 * Etap 4: postać gracza – statystyki początkowe, wartości pochodne i zdolności ras/znaków jak w OpenMW,
   obrażenia od upadku, kreator postaci przy nowej grze, pasek zdrowia/magii/kondycji; rekordy SPEL
   (eksport świata v4 – „Aktualizuj” w launcherze).

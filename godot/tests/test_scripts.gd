@@ -57,6 +57,9 @@ func _run() -> void:
 	# zapis → zmiany → odczyt
 	var path := ProjectSettings.globalize_path("user://test_saves/skrypty.mwsave")
 	check(main.save_game(path) == "", "zapis")
+	var rp: String = main.saves_dir().path_join("scripts_report.json")
+	var rj = JSON.parse_string(FileAccess.get_file_as_string(rp)) if FileAccess.file_exists(rp) else null
+	check(rj is Dictionary and rj.unsupported.has("synthunknownfunction"), "raport skryptów zapisany przy zapisie gry")
 	st.globals["synthstate"] = 0.0
 	st.journal["synth_q"] = 0
 	st.scripts.running.erase("synth_start")

@@ -451,6 +451,15 @@ func _call(ref, fname: String, args: Array, c: Ctx):
 		"getlevel", "gethealth", "getmagicka", "getfatigue":
 			return game.script_stat(_target(ref, c), fname)
 		"dontsaveobject": return null
+		"getspell":
+			var t11 := _target(ref, c)
+			var spell := _str(args, 0).to_lower()
+			if String(t11.get("sid", "")) == "player" or t11.is_empty() and c.sid.is_empty():
+				return 1.0 if spell in (game.main.player_stats().get("spells", []) as Array) else 0.0
+			var nrec: Dictionary = records.record("npc", String(t11.get("base", "")))
+			if nrec.is_empty():
+				nrec = records.record("creature", String(t11.get("base", "")))
+			return 1.0 if spell in (nrec.get("spells", []) as Array).map(func(x): return String(x).to_lower()) else 0.0
 	if fname in IDLE_ZERO:
 		partial[fname] = int(partial.get(fname, 0)) + 1
 		return 0.0

@@ -434,6 +434,8 @@ func _process(_d: float) -> void:
 
 ## Widok z ostatniej sesji – zapisywany lokalnie (katalog zapisów profilu), launcher pokazuje go na ekranie głównym.
 func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		write_scripts_report()
 	if what == NOTIFICATION_WM_CLOSE_REQUEST and DisplayServer.get_name() != "headless":
 		var saves := arg("saves")
 		if not saves.is_empty() and player != null:
@@ -689,6 +691,7 @@ func save_game(path: String) -> String:
 	if err != OK:
 		return "kod %d" % err
 	print("MWGODOT_SAVE ", path)
+	write_scripts_report()
 	events.game_saved.emit(path)
 	return ""
 
@@ -760,6 +763,18 @@ func _on_ref_changed(sid: String) -> void:
 						refs_node.move_child(nn, n.get_index())
 						n.free()
 						return
+
+## Raport skryptów (nieobsługiwane i częściowe funkcje, błędy) – w katalogu zapisów, dla MCP i diagnostyki.
+func write_scripts_report() -> void:
+	if scripts == null:
+		return
+	var path := saves_dir().path_join("scripts_report.json")
+	DirAccess.make_dir_recursive_absolute(saves_dir())
+	var f := FileAccess.open(path + ".tmp", FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify(scripts.report(), " "))
+		f.close()
+		DirAccess.rename_absolute(path + ".tmp", path)
 
 ## Referencja z danych bazowych (wczytane komórki) – pozycja startowa dla skryptów.
 func base_ref(sid: String) -> Dictionary:
