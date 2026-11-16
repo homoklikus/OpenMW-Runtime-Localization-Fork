@@ -8,6 +8,7 @@ const DEFAULTS := {
 	"quick_load": KEY_F9,
 	"toggle_coords": KEY_F3,
 	"copy_position": KEY_F4,
+	"inventory": KEY_I,
 }
 
 static func register_defaults() -> void:

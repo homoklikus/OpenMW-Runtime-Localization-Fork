@@ -2,7 +2,8 @@ extends RefCounted
 ## GameState – jedyne miejsce zmian świata w trakcie gry (plan, rewizja 2.0, §2.1 i §2.4).
 ##
 ## Dane bazowe z konwertera (world/…) są tylko do odczytu; tu żyją wyłącznie RÓŻNICE względem nich:
-##   refs     sid → {"enabled": bool, "deleted": bool, "mw": {"pos": [x,y,z], "rot": [rx,ry,rz], "scale": s}}
+##   refs     sid → {"enabled": bool, "deleted": bool, "mw": {"pos": [x,y,z], "rot": [rx,ry,rz], "scale": s},
+##            "lock": poziom zamka (0 = otwarty), "trap": id czaru pułapki ("" = rozbrojona)}
 ##            (sid = "<plik, który utworzył referencję>#<refnum>" – stabilny, niezależny od kolejności modów)
 ##   globals  zmienne globalne (GLOB; skrypty – etap 5)
 ##   time     {"day", "hour"}
@@ -61,6 +62,21 @@ func delete_ref(sid: String) -> void:
 ## Nowa pozycja/obrót referencji w jednostkach MW (np. przesunięty przedmiot).
 func set_ref_mw(sid: String, pos: Vector3, rot: Vector3, scale := 1.0) -> void:
 	_entry(sid)["mw"] = {"pos": [pos.x, pos.y, pos.z], "rot": [rot.x, rot.y, rot.z], "scale": scale}
+	ref_changed.emit(sid)
+
+## Zamek i pułapka referencji (etap 3): stan gry nadpisuje wartości z danych (FLTV, TNAM).
+func lock_of(sid: String, base_level: int) -> int:
+	return int(refs.get(sid, {}).get("lock", base_level))
+
+func set_lock(sid: String, level: int) -> void:
+	_entry(sid)["lock"] = level
+	ref_changed.emit(sid)
+
+func trap_of(sid: String, base_trap: String) -> String:
+	return String(refs.get(sid, {}).get("trap", base_trap))
+
+func set_trap(sid: String, trap: String) -> void:
+	_entry(sid)["trap"] = trap
 	ref_changed.emit(sid)
 
 func has_override(sid: String) -> bool:
@@ -139,7 +155,8 @@ func dynamic_refs(cell_key: String) -> Array:
 
 func _compact(sid: String) -> void:
 	var e: Dictionary = refs.get(sid, {})
-	if bool(e.get("enabled", true)) and not e.has("mw") and not bool(e.get("deleted", false)):
+	if bool(e.get("enabled", true)) and not e.has("mw") and not bool(e.get("deleted", false)) \
+			and not e.has("lock") and not e.has("trap"):
 		refs.erase(sid)
 
 # --- zapis/odczyt -----------------------------------------------------------------------------------

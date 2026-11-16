@@ -18,7 +18,12 @@ const Flora := preload("res://scripts/mw/mw_flora.gd")
 const GameStateScript := preload("res://scripts/mw/mw_game_state.gd")
 const Events := preload("res://scripts/mw/mw_events.gd")
 const MWInput := preload("res://scripts/mw/mw_input.gd")
+const InteractionScript := preload("res://scripts/mw/mw_interaction.gd")
+const InventoryScript := preload("res://scripts/mw/mw_inventory.gd")
+const ItemWindowScript := preload("res://scripts/mw/mw_item_window.gd")
 var events = Events.new()           # szyna zdarzeń (etap 0)
+var interaction = null                # MWInteraction (etap 3)
+var item_window = null                # okno pojemnika / ekwipunku
 var state = GameStateScript.new()   # różnice stanu gry względem danych bazowych (zapis gry)
 var pause_menu: Control
 var loc  # Loc
@@ -59,6 +64,10 @@ func _ready() -> void:
 	builder.state = state
 	state.ref_changed.connect(_on_ref_changed)
 	state.dynamic_changed.connect(_on_dynamic_changed)
+	# etap 3: ziarno list poziomowanych tej rozgrywki (tryb zrzutu/testów: stałe), inwentarze, interakcje
+	state.seed = int(arg("seed", "0" if not arg("screenshot").is_empty() else str(randi())))
+	builder.actors.inventory = InventoryScript.new(builder.actors, state)
+	interaction = InteractionScript.new(db, state, builder.actors, builder.actors.inventory)
 	if bool(settings.get("grass", true)):
 		var fl = Flora.new(models, data, MWModelCache.base_roots)
 		if fl.is_active():
@@ -71,6 +80,11 @@ func _ready() -> void:
 	if loc.is_active():
 		print("MWGODOT_LOCALIZATION ", ",".join(loc.languages), " (dostępne: ", ",".join(loc.available), ")")
 	builder.with_water = bool(settings.get("water", true))
+	interaction.loc = loc
+	item_window = ItemWindowScript.new()
+	item_window.interaction = interaction
+	item_window.main = self
+	add_child(item_window)
 	if db.cell_index().is_empty():
 		push_error("Brak danych świata w %s – uruchom konwerter (README)." % data)
 		_add_message("Brak danych świata w:\n%s\nUruchom konwerter mwconv (patrz docs/DEBIAN13.md)." % data)
@@ -331,10 +345,10 @@ func _process(_d: float) -> void:
 				cam = ch
 	if cam:
 		var r := MWTravel.pick(cam)
-		# podpowiedź tylko dla tego, co klawisz E faktycznie obsługuje (na razie: drzwi z celem podróży)
-		if r and not r.has_meta("mw_marker") and not MWTravel.door_destination(r).is_empty():
-			var base := db.get_object(String(r.get_meta("mw_base", "")))
-			hint = "\n[lb]E] %s" % loc.object_name_bbcode(base, String(r.get_meta("mw_base", "")))
+		# podpowiedź tylko dla tego, co klawisz E faktycznie obsługuje (drzwi, przedmioty, pojemniki)
+		var h: String = interaction.hint(r) if r and interaction != null else ""
+		if not h.is_empty():
+			hint = "\n[lb]E] %s" % Loc.escape_bbcode(h)
 	var rname := display_location()
 	hud.text = "%s  |  dzień %d, %02d:%02d  |  %s%s%s" % [rname, envr.day + 1, int(envr.game_hour), int(fmod(envr.game_hour, 1.0) * 60), envr.weather, coords_text(), hint]
 
@@ -395,6 +409,10 @@ func _unhandled_input(e: InputEvent) -> void:
 		DisplayServer.clipboard_set(line)
 		print("MWGODOT_POS ", line)
 		_toast("Skopiowano do schowka: " + line)
+	if e.is_action_pressed("inventory") and player and item_window != null and not item_window.visible:
+		item_window.open_inventory()
+		get_viewport().set_input_as_handled()
+		return
 	if e.is_action_pressed("activate") and player:
 		for ch in player.get_children():
 			if ch is Camera3D:
@@ -402,14 +420,38 @@ func _unhandled_input(e: InputEvent) -> void:
 				if r:
 					activate(r)
 
-## Aktywacja referencji: na razie drzwi z celem (DODT/DNAM).
+## Aktywacja referencji (etap 3): drzwi (zamki, pułapki, podróż), przedmioty (podnoszenie), pojemniki (okno).
 func activate(r: Node) -> bool:
 	events.activated.emit(String(r.get_meta("mw_sid", "")), String(r.get_meta("mw_base", "")), "player")
-	var dest := MWTravel.door_destination(r)
-	if dest.is_empty():
-		return false
-	travel(dest)
+	var res: Dictionary = interaction.activate(r)
+	if not String(res.get("message", "")).is_empty():
+		_toast(String(res["message"]))
+	match String(res.get("action", "")):
+		"travel":
+			travel(res["dest"])
+		"open_container":
+			item_window.open_container(String(res["sid"]), interaction.container_record(String(res["base"])),
+					String(res.get("name", "")))
+		"take", "locked":
+			pass
+		_:
+			return false
 	return true
+
+## Odłożenie przedmiotu z ekwipunku przed graczem (na ziemi pod punktem 0,8 m przed nim).
+func drop_item(id: String, count: int) -> String:
+	if player == null:
+		return ""
+	var fwd := -player.global_transform.basis.z
+	fwd.y = 0
+	var at := player.global_position + fwd.normalized() * 0.8 + Vector3(0, 1.0, 0)
+	var q := PhysicsRayQueryParameters3D.create(at, at - Vector3(0, 6, 0))
+	q.exclude = [player.get_rid()]
+	var hit := player.get_world_3d().direct_space_state.intersect_ray(q)
+	var ground: Vector3 = hit["position"] if not hit.is_empty() else player.global_position
+	var key := ("int:" + interior.to_lower()) if not interior.is_empty() else db.exterior_key(MWCoords.cell_of(ground))
+	var sid: String = interaction.drop(id, count, key, MWCoords.godot_to_mw(ground), -player.rotation.y)
+	return sid
 
 func travel(dest: Dictionary) -> void:
 	for key in loaded.keys():
