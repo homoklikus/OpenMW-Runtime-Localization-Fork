@@ -1229,18 +1229,23 @@ func _process(_d: float) -> void:
 		_last_pos = player.global_position
 		if moved < 2.0 and not player.fly:
 			audio.footsteps(player, moved, player.is_on_floor(), player.swimming)
+	_perf_mark("")
 	_update_torches(_d)
 	_update_water_level()
+	_perf_mark("torches+water")
 	if not get_tree().paused:
 		_update_player_rpg(_d)
 		_update_combat(_d)
 		_update_magic(_d)
+		_perf_mark("rpg+combat+magic")
 		if ai != null and arg("screenshot").is_empty():
 			ai.tick(_d)
 			if ai.enabled:
 				crime.tick(_d)
+		_perf_mark("ai+crime")
 	if scripts != null and player != null and not get_tree().paused and arg("scripts", "1") != "0":
 		scripts.tick(_d, script_host.scripted_refs())
+	_perf_mark("scripts")
 	_capture_tick()
 	var autotest := int(arg("autotest-frames", "0"))
 	if autotest > 0 and _frames == autotest:
@@ -1264,6 +1269,7 @@ func _process(_d: float) -> void:
 			if wo.has(reg.to_lower()):                  # ChangeWeather ze skryptu ma pierwszeństwo przed losowaniem
 				envr.weather = String(wo[reg.to_lower()])
 				envr.apply()
+	_perf_mark("streaming")
 	var hint := ""
 	var cam := player.get_node_or_null("Camera3D") as Camera3D
 	if cam == null:
@@ -1292,6 +1298,48 @@ func _process(_d: float) -> void:
 			stats_line += "  |  broń dobyta"
 	var rname := display_location()
 	hud.text = "%s  |  dzień %d, %02d:%02d  |  %s%s%s" % [rname, envr.day + 1, int(envr.game_hour), int(fmod(envr.game_hour, 1.0) * 60), envr.weather, coords_text() + stats_line, hint]
+	_perf_mark("hud")
+	_perf_report(_d)
+
+## Pomiar czasu podsystemów w klatce (--perf=1): co 5 s średni i największy czas każdej części (ms) oraz
+## najdłuższa klatka – do szukania przycięć (MWGODOT_PERF w logu).
+var _perf_on := -1
+var _perf_t := 0
+var _perf_acc := {}
+var _perf_time := 0.0
+var _perf_n := 0
+var _perf_worst := 0.0
+
+func _perf_mark(label: String) -> void:
+	if _perf_on < 0:
+		_perf_on = 1 if arg("perf", "0") != "0" else 0
+	if _perf_on == 0:
+		return
+	var now := Time.get_ticks_usec()
+	if not label.is_empty():
+		var a: Array = _perf_acc.get(label, [0.0, 0.0])
+		var dt := (now - _perf_t) / 1000.0
+		_perf_acc[label] = [a[0] + dt, maxf(a[1], dt)]
+	_perf_t = now
+
+func _perf_report(delta: float) -> void:
+	if _perf_on != 1:
+		return
+	_perf_n += 1
+	_perf_time += delta
+	_perf_worst = maxf(_perf_worst, delta * 1000.0)
+	if _perf_time < 5.0:
+		return
+	var parts := {}
+	for k in _perf_acc:
+		parts[k] = [snappedf(_perf_acc[k][0] / _perf_n, 0.01), snappedf(_perf_acc[k][1], 0.01)]
+	print("MWGODOT_PERF ", JSON.stringify({"fps": snappedf(_perf_n / _perf_time, 0.1), "worst_frame_ms": snappedf(_perf_worst, 0.1),
+			"physics_ms": snappedf(Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0, 0.01),
+			"parts_avg_max_ms": parts, "pos": position_string(), "cells": loaded.size()}))
+	_perf_acc.clear()
+	_perf_n = 0
+	_perf_time = 0.0
+	_perf_worst = 0.0
 
 ## Widok z ostatniej sesji – zapisywany lokalnie (katalog zapisów profilu), launcher pokazuje go na ekranie głównym.
 func _notification(what: int) -> void:

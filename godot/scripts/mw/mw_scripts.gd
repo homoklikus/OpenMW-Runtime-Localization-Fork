@@ -742,10 +742,15 @@ func _call(ref, fname: String, args: Array, c: Ctx):
 				# skryptów); SayDone po czasie trwania nagrania
 				game.say(t10 if not t10.is_empty() else {"sid": c.sid, "base": c.base, "node": c.node}, snd, _str(args, 1))
 				return null
-			game.script_sound(snd, t10 if fname.contains("3d") else {})
+			var vp := fname.ends_with("vp")
+			game.script_sound(snd, t10 if fname.contains("3d") else {}, t10,
+					_num(args, 1, c, 1.0) if vp else 1.0, _num(args, 2, c, 1.0) if vp else 1.0, fname.begins_with("playloop"))
 			return null
-		"stopsound": return null
-		"getsoundplaying": return 0.0
+		"stopsound":
+			game.stop_sound(_target(ref, c), _str(args, 0))
+			return null
+		"getsoundplaying":
+			return 1.0 if game.sound_playing(_target(ref, c), _str(args, 0)) else 0.0
 		# --- postać gracza
 		"getlevel", "gethealth", "getmagicka", "getfatigue":
 			return game.script_stat(_target(ref, c), fname)

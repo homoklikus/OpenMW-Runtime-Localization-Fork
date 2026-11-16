@@ -41,6 +41,9 @@ var _fall_start := NAN
 var capsule_radius := 0.35
 var capsule_height := 1.8
 var no_gravity := false
+## Wchodzenie na stopnie (jak OpenMW Stepper: Constants::sStepSizeUp = 34 jedn., sMaxSlope = 46°) – bez tego
+## kapsuła zatrzymuje się na każdej krawędzi wyższej niż kilka cm (np. trap okrętu więziennego, progi, schody).
+var step_height := 34.0 / MWCoords.UNITS_PER_METER
 
 # intencje ustawiane przez kontroler w każdej klatce fizyki
 var move_input := Vector2.ZERO     # x: w prawo, y: do tyłu (jak Input.get_vector)
@@ -54,11 +57,14 @@ var controller: Node = null:
 		controller_changed.emit(c)
 
 func _ready() -> void:
+	floor_max_angle = deg_to_rad(46.0)
 	if not collide:
 		return
 	var col := CollisionShape3D.new()
 	col.name = "Capsule"
-	var cap := CapsuleShape3D.new()
+	# walec (płaski spód) zamiast kapsuły: OpenMW koliduje aktorów prostopadłościanem, więc stoją pewnie na
+	# krawędziach stopni i trapów; zaokrąglony spód kapsuły zsuwał się z nich (normalna kontaktu stroma)
+	var cap := CylinderShape3D.new()
 	cap.radius = capsule_radius
 	cap.height = maxf(capsule_height, capsule_radius * 2.0)
 	col.shape = cap
@@ -113,10 +119,63 @@ func step(delta: float) -> void:
 		jumped.emit()
 	want_jump = false
 	var was_floor := is_on_floor()
+	var start := global_position
 	move_and_slide()
+	if was_floor and Vector2(wish.x, wish.z).length() > 0.01:
+		_try_step(start, Vector3(wish.x, 0.0, wish.z) * delta)
 	if not is_on_floor():
 		if is_nan(_fall_start) or global_position.y > _fall_start:
 			_fall_start = global_position.y
 	elif not was_floor and not is_nan(_fall_start):
 		landed.emit((_fall_start - global_position.y) * MWCoords.UNITS_PER_METER)
 		_fall_start = NAN
+
+## Stopień: gdy ruch poziomy zatrzymała ściana, spróbuj „w górę o step_height → do przodu → w dół na podłoże”
+## (OpenMW MovementSolver/Stepper). Krok przyjmujemy, jeśli dalej sięga niż sam ruch z poślizgiem
+## i ląduje na powierzchni nie bardziej stromej niż floor_max_angle.
+func _try_step(start: Vector3, motion: Vector3) -> void:
+	var blocked := false
+	for i in get_slide_collision_count():
+		var n := get_slide_collision(i).get_normal()
+		if n.angle_to(Vector3.UP) > floor_max_angle and n.dot(motion) < 0.0:
+			blocked = true
+			break
+	if not blocked:
+		return
+	var slid := global_position - start
+	slid.y = 0.0
+	if slid.length() >= motion.length() * 0.9:
+		return
+	var xf := Transform3D(global_transform.basis, start)
+	var res := KinematicCollision3D.new()
+	var up := Vector3.UP * step_height
+	if test_move(xf, up, res):
+		up = res.get_travel()
+	xf.origin += up
+	if up.y < 0.05:
+		return
+	var fwd := motion
+	if test_move(xf, fwd, res):
+		fwd = res.get_travel()
+	if Vector2(fwd.x, fwd.z).length() <= Vector2(slid.x, slid.z).length() + 0.001:
+		return
+	xf.origin += fwd
+	if not test_move(xf, -up - Vector3.UP * 0.05, res):
+		return                          # brak podłoża w zasięgu – to nie stopień
+	if res.get_normal().angle_to(Vector3.UP) > floor_max_angle and not _walkable_below(res.get_position(), motion):
+		return
+	xf.origin += res.get_travel()
+	global_position = xf.origin
+	velocity.y = 0.0
+	apply_floor_snap()
+
+## Kapsuła opiera się na KRAWĘDZI stopnia zaokrąglonym spodem, więc normalna kontaktu jest stroma, choć sam
+## stopień jest płaski (OpenMW używa prostopadłościanu i tego problemu nie ma). Sprawdź promieniem w dół tuż
+## za punktem kontaktu, czy jest tam powierzchnia do chodzenia.
+func _walkable_below(contact: Vector3, motion: Vector3) -> bool:
+	var dir := Vector3(motion.x, 0.0, motion.z).normalized() * 0.03
+	var from := contact + dir + Vector3.UP * 0.1
+	var q := PhysicsRayQueryParameters3D.create(from, from - Vector3.UP * 0.25)
+	q.exclude = [get_rid()]
+	var hit := get_world_3d().direct_space_state.intersect_ray(q)
+	return not hit.is_empty() and (hit.normal as Vector3).angle_to(Vector3.UP) <= floor_max_angle

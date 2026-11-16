@@ -43,6 +43,52 @@ func stream(sound_id: String) -> AudioStream:
 	_cache[k] = s
 	return s
 
+## Dźwięki skryptów przypisane do obiektu (klucz „obiekt|id dźwięku”), jak w OpenMW SoundManager: na jednym
+## obiekcie gra naraz tylko jedna kopia danego dźwięku – GetSoundPlaying/StopSound je sprawdzają i zatrzymują,
+## a PlayLoopSound3D, gdy ta pętla już gra, niczego nie dokłada. Bez tego skrypty w rodzaju
+## „if (GetSoundPlaying … == 0) PlayLoopSound3DVP …” tworzyły setki odtwarzaczy na sekundę (przycięcia gry).
+var _tracked := {}
+
+func play_on(owner_key: String, sound_id: String, at = null, volume := 1.0, pitch := 1.0, loop := false) -> Node:
+	var k := owner_key + "|" + sound_id.to_lower()
+	var old = _tracked.get(k)
+	if old != null and is_instance_valid(old):
+		if loop and bool(old.get_meta("mw_loop", false)):
+			if at is Vector3 and old is Node3D:
+				(old as Node3D).position = at
+			return old
+		old.queue_free()                 # nowe odtworzenie zastępuje poprzednią kopię na tym obiekcie
+	_tracked.erase(k)
+	var p := play(sound_id, at, volume)
+	if p == null:
+		return null
+	p.set("pitch_scale", maxf(pitch, 0.01))
+	if loop:
+		p.set_meta("mw_loop", true)
+		p.finished.disconnect(p.queue_free)
+		p.finished.connect(p.play)
+	_tracked[k] = p
+	p.tree_exiting.connect(func():
+		if _tracked.get(k) == p:
+			_tracked.erase(k))
+	return p
+
+func is_playing_on(owner_key: String, sound_id: String) -> bool:
+	var p = _tracked.get(owner_key + "|" + sound_id.to_lower())
+	return p != null and is_instance_valid(p) and not p.is_queued_for_deletion()
+
+func stop_on(owner_key: String, sound_id := "") -> void:
+	for k in _tracked.keys():
+		if (k as String).begins_with(owner_key + "|") and (sound_id.is_empty() or k == owner_key + "|" + sound_id.to_lower()):
+			var p = _tracked[k]
+			if p != null and is_instance_valid(p):
+				p.queue_free()
+			_tracked.erase(k)
+
+## Liczba aktywnych odtwarzaczy (diagnostyka/testy).
+func player_count() -> int:
+	return get_child_count()
+
 ## Odtwarza dźwięk SOUN; at = pozycja w Godocie (NAN – bez pozycji). Zwraca odtwarzacz albo null.
 func play(sound_id: String, at = null, volume := 1.0) -> Node:
 	if not enabled or sound_id.is_empty():

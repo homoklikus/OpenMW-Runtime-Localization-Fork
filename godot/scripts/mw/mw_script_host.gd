@@ -157,11 +157,25 @@ func player_cell_name() -> String:
 	var n := String(c.get("name", ""))
 	return n if not n.is_empty() else String(c.get("region", ""))
 
-func script_sound(id: String, t: Dictionary) -> void:
+## Dźwięk ze skryptu: t – obiekt (PlaySound3D…; pusty = PlaySound bez pozycji), owner – obiekt, do którego
+## dźwięk należy (GetSoundPlaying/StopSound), vol/pitch z wariantów VP, loop z PlayLoopSound3D….
+func script_sound(id: String, t: Dictionary, owner := {}, vol := 1.0, pitch := 1.0, loop := false) -> void:
 	if main.audio == null:
 		return
 	var n := _node(t)
-	main.audio.play(id, n.global_position if n != null and n != main.player else null)
+	main.audio.play_on(_sound_owner(owner if not owner.is_empty() else t), id,
+			n.global_position if n != null and n != main.player else null, vol, pitch, loop)
+
+func sound_playing(t: Dictionary, id: String) -> bool:
+	return main.audio != null and main.audio.is_playing_on(_sound_owner(t), id)
+
+func stop_sound(t: Dictionary, id: String) -> void:
+	if main.audio != null:
+		main.audio.stop_on(_sound_owner(t), id)
+
+func _sound_owner(t: Dictionary) -> String:
+	var sid := String(t.get("sid", ""))
+	return sid if not sid.is_empty() else "player"
 
 # --- statystyki ------------------------------------------------------------------------------------------
 

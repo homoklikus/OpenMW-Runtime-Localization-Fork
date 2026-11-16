@@ -34,6 +34,12 @@
   GetCurrentWeather, GetStandingPC, Rotate, PlayGroup/LoopGroup, Disable/EnableRest, ShowRestMenu. Gracz po
   teleporcie stawiany na podłożu (bez obrażeń od upadku przy wyjściu z budynków), siła i odstęp ataków AI jak
   w OpenMW. Szybki kreator jak dotąd: ustawienie "chargen_mode": "quick".
+  Poprawki po pierwszej grze: koniec przycięć – skrypty sprawdzające GetSoundPlaying przed PlayLoopSound3D
+  tworzyły setki odtwarzaczy dźwięku na sekundę (fizyka 15–25 ms na klatkę, teraz ok. 1,5 ms); dźwięki
+  skryptów należą do obiektu jak w OpenMW (GetSoundPlaying, StopSound, pętle, głośność i wysokość z VP).
+  Aktorzy wchodzą na stopnie do 34 jedn. (OpenMW Stepper) i mają kolizję walcem zamiast kapsuły – da się
+  zejść trapem ze statku na pomost, schody i progi już nie zatrzymują. `--perf=1`: czasy podsystemów
+  w logu (MWGODOT_PERF).
 * Etap 8: AI, nawigacja i reakcje świata – siatki ścieżek PGRD (eksport świata v8 – „Aktualizuj” w launcherze;
   A* i składowe spójne jak OpenMW), pakiety AI z rekordów i skryptów (wander, travel, escort, follow, activate;
   AiWander/AiTravel/AiEscort/AiFollow/AiActivate, GetAIPackageDone, GetCurrentAIPackage), powitania (Hello),
