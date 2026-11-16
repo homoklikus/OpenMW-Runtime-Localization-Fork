@@ -480,10 +480,12 @@ func sorted_items(sid := "player", rec := {}) -> Array:
 	return out
 
 ## Siatka ikon w przewijanym obszarze (ItemView): zwraca kontrolkę siatki; source – „inventory” | „container”.
-func _make_grid(parent: Control, source: String) -> Control:
+## owner – obiekt obsługujący activate_item(id, source), dropped_on(target, data) i (opcjonalnie) click_item(id, source)
+## – tryb menu albo inne okno (handel, alchemia).
+func _make_grid(parent: Control, source: String, owner = null) -> Control:
 	var gp = _DollDrop.new()                      # obszar przyjmujący upuszczone przedmioty
 	gp.name = "GridPanel"
-	gp.menu = self
+	gp.menu = owner if owner != null else self
 	gp.target = source
 	gp.add_theme_stylebox_override("panel", UI.inner_box())
 	gp.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -501,20 +503,21 @@ func _make_grid(parent: Control, source: String) -> Control:
 	sc.resized.connect(func(): _layout(grid))
 	return grid
 
-func _fill_grid(grid: Control, entries: Array, source: String) -> Array:
+## entries: {"id","count","rec","magic","worn"} (+ „state”: "barter"/"equip", „tip” – dodatkowy wiersz podpowiedzi).
+func _fill_grid(grid: Control, entries: Array, source: String, owner = null) -> Array:
 	for c in grid.get_children():
 		c.queue_free()
 	var ids := []
 	for e in entries:
 		var cell = _ItemCell.new()
-		cell.menu = self
+		cell.menu = owner if owner != null else self
 		cell.item_id = e.id
-		cell.source = source
+		cell.source = String(e.get("source", source))
 		cell.mouse_filter = Control.MOUSE_FILTER_PASS
 		cell.custom_minimum_size = Vector2(CELL, CELL) * scale_ui
 		cell.size = cell.custom_minimum_size
-		cell.tooltip_text = item_tooltip(e.id)
-		var fr := UI.icon_frame(e.magic, "equip" if e.worn else "")
+		cell.tooltip_text = item_tooltip(e.id) + (("\n" + String(e.tip)) if e.has("tip") else "")
+		var fr := UI.icon_frame(e.magic, String(e.get("state", "equip" if e.worn else "")))
 		if fr != null:
 			var fb := TextureRect.new()
 			fb.texture = fr
@@ -539,13 +542,13 @@ func _fill_grid(grid: Control, entries: Array, source: String) -> Array:
 		cell.add_child(ic)
 		if ic.texture == null:
 			var nl := Label.new()
-			nl.text = String(e.name).left(3)
+			nl.text = String(e.get("name", main.interaction.item_name(String(e.get("kind", "")), String(e.id), e.rec) if main != null else e.id)).left(3)
 			nl.position = Vector2(4, 8) * scale_ui
 			nl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			cell.add_child(nl)
-		if int(e.count) > 1:
+		if int(e.count) > 1 or e.has("count_text"):
 			var cl := Label.new()
-			cl.text = str(e.count)
+			cl.text = String(e.get("count_text", str(e.count)))
 			cl.add_theme_color_override("font_color", UI.color("count"))
 			cl.add_theme_font_size_override("font_size", roundi(13 * scale_ui))
 			cl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT

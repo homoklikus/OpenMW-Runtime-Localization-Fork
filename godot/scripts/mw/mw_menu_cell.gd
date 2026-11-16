@@ -18,6 +18,10 @@ func _get_drag_data(_at: Vector2) -> Variant:
 	return {"mw_item": item_id, "source": source}
 
 func _gui_input(e: InputEvent) -> void:
-	if e is InputEventMouseButton and e.pressed and e.double_click and e.button_index == MOUSE_BUTTON_LEFT:
-		menu.activate_item(item_id, source)
-		accept_event()
+	if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+		if e.double_click:
+			menu.activate_item(item_id, source)
+			accept_event()
+		elif menu.has_method("click_item"):
+			menu.click_item(item_id, source)
+			accept_event()

@@ -8,6 +8,7 @@ extends CanvasLayer
 ##             z zaklęć gracza (wielkość, czas, obszar, zasięg), sposób rzucania, punkty, szansa/cena (EnchantingDialog).
 ## Logika w mw_magic.gd.
 
+const UI := preload("res://scripts/mw/mw_ui.gd")
 var main
 var magic
 var mode := ""
@@ -49,7 +50,7 @@ func _ready() -> void:
 	panel.add_child(box)
 	title = Label.new()
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(title)
+	box.add_child(UI.make_head(title))
 	var row := HBoxContainer.new()
 	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_child(row)
@@ -57,6 +58,7 @@ func _ready() -> void:
 	right = _list(row)
 	left.item_clicked.connect(func(i, _p, _b): _click_left(i))
 	right.item_clicked.connect(func(i, _p, _b): _click_right(i))
+	_build_alchemy(row)
 	params = HBoxContainer.new()
 	box.add_child(params)
 	for k in ["min", "max", "duration", "area"]:
@@ -189,6 +191,11 @@ func refresh() -> void:
 	right.clear()
 	_left_ids = []
 	_right_ids = []
+	alch_box.visible = mode == "alchemy"
+	left.visible = mode != "alchemy"
+	right.visible = mode != "alchemy"
+	params.visible = mode == "enchant"
+	cast_opt.visible = mode == "enchant"
 	match mode:
 		"spells": _refresh_spells()
 		"alchemy": _refresh_alchemy()
@@ -239,6 +246,126 @@ func _refresh_spells() -> void:
 
 # --- alchemia --------------------------------------------------------------------------------------------
 
+## Układ jak openmw_alchemy_window.layout: aparaty (4 pola: moździerz, alembik, kalcynator, retorta), składniki
+## (4 pola – kliknięcie usuwa), efekty, poniżej siatka składników z ekwipunku (kliknięcie – dodaj).
+var alch_box: VBoxContainer
+var _apparatus_slots: Array = []
+var _ingredient_slots: Array = []
+var _alch_effects: VBoxContainer
+var _alch_grid: Control = null
+var alch_grid_ids: Array = []        # testy
+const APPARATUS_GMST := [["sMortar", "Moździerz"], ["sAlembic", "Alembik"], ["sCalcinator", "Kalcynator"], ["sRetort", "Retorta"]]
+
+func _slot(parent: Control) -> Panel:
+	var p := Panel.new()
+	p.add_theme_stylebox_override("panel", UI.inner_box(Color(0, 0, 0, 0.6)))
+	p.custom_minimum_size = Vector2(50, 50) * _scale()
+	var ic := TextureRect.new()
+	ic.name = "Icon"
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ic.offset_left = 6
+	ic.offset_top = 6
+	ic.offset_right = -6
+	ic.offset_bottom = -6
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	p.add_child(ic)
+	parent.add_child(p)
+	return p
+
+func _scale() -> float:
+	return clampf(get_viewport().get_visible_rect().size.y / 720.0, 1.0, 3.0) if get_viewport() != null else 1.0
+
+func _build_alchemy(row: Control) -> void:
+	alch_box = VBoxContainer.new()
+	alch_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	alch_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	alch_box.visible = false
+	row.add_child(alch_box)
+	var top := HBoxContainer.new()
+	alch_box.add_child(top)
+	var ap := VBoxContainer.new()
+	top.add_child(ap)
+	ap.add_child(UI.header(_t("sApparatus", "Aparaty")))
+	var aprow := HBoxContainer.new()
+	ap.add_child(aprow)
+	for i in 4:
+		_apparatus_slots.append(_slot(aprow))
+	var ing := VBoxContainer.new()
+	top.add_child(ing)
+	ing.add_child(UI.header(_t("sIngredients", "Składniki")))
+	var irow := HBoxContainer.new()
+	ing.add_child(irow)
+	for i in 4:
+		var sl := _slot(irow)
+		var idx := i
+		sl.gui_input.connect(func(e): if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and idx < ingredients.size(): remove_ingredient(String(ingredients[idx])))
+		_ingredient_slots.append(sl)
+	var fx := VBoxContainer.new()
+	fx.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(fx)
+	fx.add_child(UI.header(_t("sCreatedEffects", "Efekty")))
+	_alch_effects = VBoxContainer.new()
+	fx.add_child(UI.framed(_alch_effects))
+
+func click_item(id: String, _source: String) -> void:
+	if mode == "alchemy" and not id in ingredients and ingredients.size() < 4:
+		ingredients.append(id)
+		refresh()
+
+func activate_item(_id: String, _source: String) -> void:
+	pass
+
+func dropped_on(_target: String, data: Dictionary) -> void:
+	click_item(String(data.get("mw_item", "")), "")
+
+func remove_ingredient(id: String) -> void:
+	ingredients.erase(id)
+	refresh()
+
+func _refresh_alchemy_layout(tools: Dictionary, res: Dictionary) -> void:
+	var mm = main.menu_mode
+	if _alch_grid == null:
+		mm.scale_ui = _scale()
+		_alch_grid = mm._make_grid(alch_box, "alchemy", self)
+	for i in 4:
+		var ic := _apparatus_slots[i].get_node("Icon") as TextureRect
+		var nm: String = _t(APPARATUS_GMST[i][0], APPARATUS_GMST[i][1])
+		if tools.has(i):
+			var it: Dictionary = main.interaction.inventory.item(String(tools[i].id))
+			ic.texture = UI.icon(String(it.get("rec", {}).get("icon", "")))
+			_apparatus_slots[i].tooltip_text = "%s\n%s (%.2f)" % [nm, _item_name(String(tools[i].id)), float(tools[i].quality)]
+		else:
+			ic.texture = null
+			_apparatus_slots[i].tooltip_text = nm
+	for i in 4:
+		var ic2 := _ingredient_slots[i].get_node("Icon") as TextureRect
+		if i < ingredients.size():
+			var it2: Dictionary = main.interaction.inventory.item(String(ingredients[i]))
+			ic2.texture = UI.icon(String(it2.get("rec", {}).get("icon", "")))
+			_ingredient_slots[i].tooltip_text = _item_name(String(ingredients[i]))
+		else:
+			ic2.texture = null
+			_ingredient_slots[i].tooltip_text = ""
+	for c in _alch_effects.get_children():
+		c.queue_free()
+	for e2 in res.get("effects", []):
+		var l := Label.new()
+		l.text = effect_text(e2)
+		_alch_effects.add_child(l)
+	var entries := []
+	var inv = main.interaction.inventory
+	for e in inv.ordered(inv.contents("player", {})):
+		if String(e.kind) != "ingredient":
+			continue
+		var used := 1 if String(e.id) in ingredients else 0
+		if int(e.count) - used <= 0:
+			continue
+		var it3: Dictionary = inv.item(String(e.id))
+		entries.append({"id": String(e.id), "count": int(e.count) - used, "rec": it3.get("rec", {}), "worn": false, "magic": false})
+	alch_grid_ids = mm._fill_grid(_alch_grid, entries, "inventory", self)
+
 func _refresh_alchemy() -> void:
 	title.text = _t("sAlchemyMenu1", "Alchemia")
 	action_btn.text = _t("sCreate", "Stwórz")
@@ -255,10 +382,11 @@ func _refresh_alchemy() -> void:
 	for t in tools:
 		tl.append("%s (%.2f)" % [_item_name(String(tools[t].id)), float(tools[t].quality)])
 	var res: Dictionary = magic.alchemy_result(_me(), ingredients, tools)
+	_refresh_alchemy_layout(tools, res)
 	var fx := []
 	for e2 in res.get("effects", []):
 		fx.append(effect_text(e2))
-	info.text = "Aparaty: %s\nEfekty: %s\nKliknij składnik, aby dodać (do 4), a wybrany – aby usunąć." % [
+	info.text = "Aparaty: %s\nEfekty: %s\nKliknij składnik w siatce, aby dodać (do 4), a w polu składnika – aby usunąć." % [
 		", ".join(tl) if not tl.is_empty() else "brak (potrzebny moździerz)", ", ".join(fx) if not fx.is_empty() else "—"]
 
 # --- zaklinanie ------------------------------------------------------------------------------------------

@@ -25,6 +25,10 @@
 * Etap 1: konwerter eksportuje `world/records/` (NPC_, CREA, RACE, CLAS, FACT, BODY, BSGN, SKIL, broń, zbroje,
   ubrania, książki, przedmioty, światła, GMST, GLOB) ze scalaniem wg kolejności ładowania; MCP-openMW:
   `openmw_record_compare_start/status` – porównanie rekordów z silnikiem OpenMW (Lua) pole po polu.
+* Etap 10 (w toku) – okna jak w OpenMW: rozmowa (położenie i rozmiar z [Windows] dialogue, kolory nagłówków,
+  odnośników i odpowiedzi z FontColor, pasek postawy), handel (siatki ikon kupca i gracza, przenoszenie sztuk
+  kliknięciem lub przeciąganiem, tła „barter”, ceny w podpowiedziach), alchemia (pola aparatów i składników z
+  ikonami, efekty, siatka składników); paski tytułu okien z tekstur gry.
 * Etap 10 (w toku) – HUD jak w Morrowindzie: paski zdrowia, magii i kondycji, pole broni (stan) i czaru (szansa,
   ładunek), ikona skradania, minimapa z kompasem, ikony działających efektów, nazwa broni/czaru i miejsca po
   zmianie, celownik i podpowiedź nad celem; F11 – ukryj HUD, F3 – pasek informacji (domyślnie ukryty). Pojemniki

@@ -71,7 +71,7 @@ func _run() -> void:
 	win._on_meta("choice:1")
 	var vsid := String(v.get_meta("mw_sid"))
 	check(String(_last(dl).get("text", "")) == "Dziekuje. Opowiem ci o @Synth Secret#." and not dl.in_choice
-			and win.history_label.text.contains("[url=topic:synth%20secret][color=#7090d0]Synth Secret[/color][/url]."),
+			and win.history_label.text.contains("[url=topic:synth%20secret][color=" + win.LINK + "]Synth Secret[/color][/url]."),
 			"odpowiedź na pytanie (Choice == 1), „@temat#” jako odnośnik z nazwą (%s)" % [_last(dl)])
 	check(float(st.scripts.locals.get(vsid, {}).get("helped", 0)) == 1.0, "skrypt wyniku: zmienna lokalna rozmówcy")
 	check(int(st.journal.get("synth_q", 0)) == 30 and bool(dl._ds().quests.get("synth_q", {}).get("finished", false)),

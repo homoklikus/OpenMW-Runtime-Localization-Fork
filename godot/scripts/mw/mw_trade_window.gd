@@ -7,6 +7,7 @@ extends CanvasLayer
 
 const Loc := preload("res://scripts/mw/mw_localization.gd")
 
+const UI := preload("res://scripts/mw/mw_ui.gd")
 var main
 var trade
 var mode := ""
@@ -25,6 +26,14 @@ var _left_ids: Array = []
 var _right_ids: Array = []
 var _merchant: Array = []
 var _player: Array = []
+var grids_row: HBoxContainer
+var merchant_head: Label
+var player_head: Label
+var merchant_grid: Control = null
+var player_grid: Control = null
+var _grid_parents: Array = []
+var grid_merchant_ids: Array = []     # testy
+var grid_player_ids: Array = []
 
 func _ready() -> void:
 	layer = 24
@@ -37,12 +46,30 @@ func _ready() -> void:
 	panel.add_child(box)
 	title = Label.new()
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(title)
+	box.add_child(UI.make_head(title))
 	var row := HBoxContainer.new()
 	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_child(row)
 	left = _list(row)
 	right = _list(row)
+	# handel jak OpenMW: siatki ikon – towar kupca i rzeczy gracza; kliknięcie przenosi sztukę na drugą stronę
+	# (tło menu_icon_barter), ponowne kliknięcie – cofa
+	grids_row = HBoxContainer.new()
+	grids_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	grids_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grids_row.visible = false
+	row.add_child(grids_row)
+	var lbox := VBoxContainer.new()
+	lbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grids_row.add_child(lbox)
+	merchant_head = UI.header("")
+	lbox.add_child(merchant_head)
+	var rbox := VBoxContainer.new()
+	rbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grids_row.add_child(rbox)
+	player_head = UI.header("")
+	rbox.add_child(player_head)
+	_grid_parents = [lbox, rbox]
 	left.item_clicked.connect(func(i, _p, _b): _click_left(i))
 	right.item_clicked.connect(func(i, _p, _b): _click_right(i))
 	basket_label = Label.new()
@@ -111,7 +138,9 @@ func refresh() -> void:
 	_left_ids = []
 	_right_ids = []
 	var pg: int = trade.player_gold()
-	right.visible = mode == "barter"
+	right.visible = false
+	left.visible = mode != "barter"
+	grids_row.visible = mode == "barter"
 	offer_spin.visible = mode == "barter"
 	offer_btn.visible = mode == "barter"
 	(panel.find_child("Clear", true, false) as Button).visible = mode == "barter"
@@ -134,6 +163,7 @@ func refresh() -> void:
 				var p2: int = trade.barter_offer(actor, trade.item_value(it.id), false)
 				right.add_item("%s%s – %d" % [_name(it.id), (" (%d)" % left_p) if left_p > 1 else "", p2])
 				_right_ids.append(it.id)
+			_fill_barter_grids()
 			var mo: int = trade.merchant_offer(actor, buy, sell)
 			offer_spin.set_value_no_signal(mo)
 			var lines := []
@@ -171,6 +201,64 @@ func refresh() -> void:
 				_left_ids.append(int(o.index))
 			basket_label.text = ""
 			gold_label.text = "%s %d" % [_t("sGold", "Złoto:"), pg]
+
+func _entry(it: Dictionary, count: int, src: String, merchant_side: bool, state := "") -> Dictionary:
+	var item: Dictionary = main.interaction.inventory.item(String(it.id))
+	var price: int = trade.barter_offer(actor, trade.item_value(String(it.id)), merchant_side)
+	return {"id": String(it.id), "count": count, "rec": item.get("rec", {}), "worn": false,
+		"magic": not String(item.get("rec", {}).get("enchant", "")).is_empty(), "state": state, "source": src,
+		"tip": "%s: %d" % [_t("sBarterDialog7", "Cena"), price]}
+
+func _fill_barter_grids() -> void:
+	var mm = main.menu_mode
+	if merchant_grid == null:
+		mm.scale_ui = clampf(get_viewport().get_visible_rect().size.y / 720.0, 1.0, 3.0)
+		merchant_grid = mm._make_grid(_grid_parents[0], "merchant", self)
+		player_grid = mm._make_grid(_grid_parents[1], "player", self)
+	merchant_head.text = main.dialogue.actor_name(actor)
+	player_head.text = _t("sInventory", "Ekwipunek")
+	var me := []
+	for it in _merchant:
+		var n := int(it.count) - int(buy.get(it.id, 0))
+		if n > 0:
+			me.append(_entry(it, n, "merchant", true))
+	for it in _player:                             # sprzedawane – po stronie kupca, z tłem „barter”
+		if int(sell.get(it.id, 0)) > 0:
+			me.append(_entry(it, int(sell[it.id]), "sold", false, "barter"))
+	var pe := []
+	for it in _player:
+		var n2 := int(it.count) - int(sell.get(it.id, 0))
+		if n2 > 0:
+			pe.append(_entry(it, n2, "player", false))
+	for it in _merchant:                           # kupowane – po stronie gracza
+		if int(buy.get(it.id, 0)) > 0:
+			pe.append(_entry(it, int(buy[it.id]), "bought", true, "barter"))
+	grid_merchant_ids = mm._fill_grid(merchant_grid, me, "merchant", self)
+	grid_player_ids = mm._fill_grid(player_grid, pe, "player", self)
+
+## Kliknięcie ikony w siatce handlu: towar kupca → koszyk zakupu, rzecz gracza → sprzedaż; z tłem – cofnięcie.
+func click_item(id: String, source: String) -> void:
+	match source:
+		"merchant": buy[id] = int(buy.get(id, 0)) + 1
+		"player": sell[id] = int(sell.get(id, 0)) + 1
+		"bought":
+			buy[id] = int(buy.get(id, 0)) - 1
+			if int(buy[id]) <= 0:
+				buy.erase(id)
+		"sold":
+			sell[id] = int(sell.get(id, 0)) - 1
+			if int(sell[id]) <= 0:
+				sell.erase(id)
+	refresh()
+
+func activate_item(_id: String, _source: String) -> void:
+	pass                                           # dwuklik = dwa kliknięcia (po sztuce)
+
+## Przeciągnięcie na drugą siatkę – jak kliknięcie przedmiotu.
+func dropped_on(target: String, data: Dictionary) -> void:
+	var src := String(data.get("source", ""))
+	if (target == "merchant" and src in ["player", "bought"]) or (target == "player" and src in ["merchant", "sold"]):
+		click_item(String(data.get("mw_item", "")), src)
 
 func _click_left(i: int) -> void:
 	if i < 0 or i >= _left_ids.size():

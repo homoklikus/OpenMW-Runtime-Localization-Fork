@@ -286,3 +286,23 @@ static func header(text: String) -> Label:
 	l.text = text
 	l.add_theme_color_override("font_color", color("header"))
 	return l
+
+## Pasek tytułu okna (menu_head_block) z etykietą tytułu – jak nagłówki okien OpenMW.
+static func make_head(title: Label) -> PanelContainer:
+	var head := PanelContainer.new()
+	head.name = "Head"
+	head.add_theme_stylebox_override("panel", head_box())
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_color_override("font_color", color("header"))
+	head.add_child(title)
+	return head
+
+## Ramka wewnętrzna (menu_thin_border) wokół kontrolki – zwraca opakowanie do wstawienia w miejsce kontrolki.
+static func framed(c: Control) -> PanelContainer:
+	var p := PanelContainer.new()
+	p.add_theme_stylebox_override("panel", inner_box())
+	p.size_flags_horizontal = c.size_flags_horizontal
+	p.size_flags_vertical = c.size_flags_vertical
+	p.size_flags_stretch_ratio = c.size_flags_stretch_ratio
+	p.add_child(c)
+	return p

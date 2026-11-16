@@ -6,6 +6,7 @@ extends CanvasLayer
 
 signal closed
 
+const UI := preload("res://scripts/mw/mw_ui.gd")
 var interaction            # MWInteraction
 var main                   # main.gd (pozycja gracza, komórka, komunikaty)
 var mode := ""             # "container" | "inventory"
@@ -34,7 +35,7 @@ func _ready() -> void:
 	panel.add_child(box)
 	title = Label.new()
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(title)
+	box.add_child(UI.make_head(title))
 	var lists := HBoxContainer.new()
 	lists.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_child(lists)

@@ -8,11 +8,13 @@ extends CanvasLayer
 signal closed
 
 const Loc := preload("res://scripts/mw/mw_localization.gd")
-const HEADER := "#dfc99f"
-const LINK := "#7090d0"
-const ANSWER := "#c8a050"
-const NOTIFY := "#e0e0a0"
+# kolory jak OpenMW (Fallback FontColor_color_header/link/answer/notify)
+var HEADER := "#dfc99f"
+var LINK := "#707ecf"
+var ANSWER := "#96321e"
+var NOTIFY := "#dfc99f"
 
+const UI := preload("res://scripts/mw/mw_ui.gd")
 var dialogue                      # MWDialogue
 var main
 var panel: PanelContainer
@@ -39,7 +41,7 @@ func _ready() -> void:
 	panel.add_child(box)
 	title = Label.new()
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(title)
+	box.add_child(UI.make_head(title))
 	var row := HBoxContainer.new()
 	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_child(row)
@@ -49,13 +51,13 @@ func _ready() -> void:
 	history_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	history_label.size_flags_stretch_ratio = 2.6
 	history_label.meta_clicked.connect(_on_meta)
+	history_label.add_theme_stylebox_override("normal", UI.inner_box())
 	row.add_child(history_label)
 	var right := VBoxContainer.new()
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(right)
-	disp_bar = ProgressBar.new()
+	disp_bar = UI.progress_bar("magic")
 	disp_bar.max_value = 100
-	disp_bar.show_percentage = false
 	right.add_child(disp_bar)
 	disp_label = Label.new()
 	disp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -112,7 +114,16 @@ func open(node: Node) -> bool:
 	visible = true
 	persuasion.visible = false
 	refresh()
-	panel.position = (get_viewport().get_visible_rect().size - panel.custom_minimum_size) / 2.0
+	# położenie i rozmiar jak OpenMW ([Windows] dialogue: 0,15; 0,5; 0,7 × 0,45 ekranu)
+	var vp := get_viewport().get_visible_rect().size
+	panel.custom_minimum_size = Vector2(0.7, 0.45) * vp
+	panel.size = panel.custom_minimum_size
+	panel.position = (Vector2(0.15, 0.5) * vp).floor()
+	HEADER = "#" + UI.color("header").to_html(false)
+	LINK = "#" + UI.color("link").to_html(false)
+	ANSWER = "#" + UI.color("answer").to_html(false)
+	NOTIFY = "#" + UI.color("notify").to_html(false)
+	_render_history()
 	get_tree().paused = true
 	if DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE

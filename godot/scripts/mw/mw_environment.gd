@@ -512,10 +512,14 @@ static func _water_material() -> ShaderMaterial:
 		_water_mat.render_priority = -1
 		_water_mat.set_shader_parameter("upm", MWCoords.UNITS_PER_METER)
 		if _nm_tex == null:
-			var img := Image.load_from_file("res://data/water_nm.png")
-			if img != null and not img.is_empty():
-				img.generate_mipmaps()
-				_nm_tex = ImageTexture.create_from_image(img)
+			const NM := "res://data/water_nm.png"
+			if ResourceLoader.exists(NM):            # zaimportowana (edytor, wydanie)
+				_nm_tex = load(NM) as Texture2D
+			else:                                    # uruchomienie bez importu (testy)
+				var img := Image.load_from_file(ProjectSettings.globalize_path(NM))
+				if img != null and not img.is_empty():
+					img.generate_mipmaps()
+					_nm_tex = ImageTexture.create_from_image(img)
 		_water_mat.set_shader_parameter("normal_map", _nm_tex)
 	return _water_mat
 
