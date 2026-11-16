@@ -302,3 +302,87 @@ func script_place(fname: String, id: String, count: int, t: Dictionary, args: Ar
 	for i in maxi(1, count):
 		main.state.add_dynamic(id, key, pos, Vector3(0, 0, rot_z), 1)
 	dirty = true
+
+# --- etap 9: tworzenie postaci przez skrypty, sterowanie, menu, pogoda, głosy ------------------------------
+
+## Blokady sterowania gracza (Disable/EnablePlayerControls, …Fighting, …Jumping, …Magic, …ViewSwitch,
+## VanityMode, …Looking) – w stanie gracza (zapis), brak wpisu = dozwolone.
+func set_control(kind: String, on: bool) -> void:
+	var c: Dictionary = main.state.player.get("controls", {})
+	c[kind] = on
+	main.state.player["controls"] = c
+
+func control_enabled(kind: String) -> bool:
+	return bool((main.state.player.get("controls", {}) as Dictionary).get(kind, true))
+
+## Menu tworzenia postaci wywoływane skryptem (EnableNameMenu, …Race…, …Class…, …Birth…, …StatReview…).
+func chargen_menu(step: String) -> void:
+	main.open_chargen_step(step)
+
+## Dostęp do okien (nowa gra w Morrowindzie: okna zablokowane, odblokowują je skrypty CharGen).
+func enable_menu(kind: String) -> void:
+	var m: Dictionary = main.state.player.get("menus", {})
+	m[kind] = true
+	main.state.player["menus"] = m
+
+func show_rest_menu() -> void:
+	if main.rest_window != null and not main.rest_window.visible:
+		main.rest_window.open()
+
+const WEATHER_NAMES := ["clear", "cloudy", "foggy", "overcast", "rain", "thunderstorm", "ashstorm", "blight", "snow", "blizzard"]
+
+## ChangeWeather region typ – natychmiast, gdy gracz jest w tym regionie (WeatherManager::changeWeather).
+func change_weather(region: String, idx: int) -> void:
+	if idx < 0 or idx >= WEATHER_NAMES.size() or main.envr == null:
+		return
+	var over: Dictionary = main.state.player.get("weather_override", {})
+	over[region.to_lower()] = WEATHER_NAMES[idx]
+	main.state.player["weather_override"] = over
+	if String(main.envr.region).to_lower() == region.to_lower():
+		main.envr.weather = WEATHER_NAMES[idx]
+		main.envr.apply()
+
+## GetStandingPC: gracz stoi na tym obiekcie (kolizja podłoża po ruchu).
+func player_standing_on(t: Dictionary) -> bool:
+	var n := _node(t)
+	var p: CharacterBody3D = main.player
+	if n == null or p == null or not p.is_on_floor():
+		return false
+	for i in p.get_slide_collision_count():
+		var col := p.get_slide_collision(i).get_collider() as Node
+		while col != null:
+			if col == n:
+				return true
+			col = col.get_parent()
+	return false
+
+var _say_until := {}         # sid → czas (ms) końca kwestii
+
+## Say: napis jak w OpenMW przy włączonych napisach (nagrania głosów – etap 10); czas kwestii z długości tekstu.
+func say(t: Dictionary, _file: String, text: String) -> void:
+	var key := String(t.get("sid", ""))
+	var secs := 1.0 + 0.06 * text.length()
+	_say_until[key] = Time.get_ticks_msec() + int(secs * 1000.0)
+	if not text.is_empty():
+		var who := ""
+		var n := _node(t)
+		if n != null and main.dialogue != null and main.dialogue.is_actor_node(n):
+			who = main.dialogue.actor_name(main.dialogue.make_actor(n)) + ": "
+		main.subtitle(who + text, secs)
+
+func say_done(t: Dictionary) -> bool:
+	return Time.get_ticks_msec() >= int(_say_until.get(String(t.get("sid", "")), 0))
+
+## Przedmioty ze skryptem w ekwipunku gracza: [[id, skrypt, liczba]].
+func player_scripted_items() -> Array:
+	var out := []
+	if main.interaction == null:
+		return out
+	for e in main.interaction.inventory.contents("player", {}):
+		var it: Dictionary = main.interaction.inventory.item(String(e.id))
+		var s := String((it.get("rec", {}) as Dictionary).get("script", "")) if not it.is_empty() else ""
+		if s.is_empty():
+			s = String(main.db.get_object(String(e.id).to_lower()).get("script", ""))
+		if not s.is_empty():
+			out.append([String(e.id).to_lower(), s.to_lower(), int(e.count)])
+	return out

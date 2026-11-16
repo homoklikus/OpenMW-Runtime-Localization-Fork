@@ -24,6 +24,8 @@ var delta := 0.0
 var button_pressed := -1
 var cell_changed := false
 var activated := {}              # sid → true (aktywowany w tej klatce; OnActivate)
+var flags := {}                  # "klucz|onpcadd/onpcequip/onpcdrop" → zdarzenie dla skryptu (odczyt je kasuje)
+var _inv_counts := {}            # przedmiot ze skryptem u gracza → liczba w poprzedniej klatce (OnPCAdd)
 var died := {}                   # sid → true (zginął od ostatniej klatki; OnDeath – etap 7)
 var _refindex = null
 var frame := 0
@@ -135,9 +137,43 @@ func tick(dt: float, local_refs: Array) -> void:
 		c.key = c.sid
 		c.node = n
 		run(c)
+	# skrypty przedmiotów w ekwipunku gracza (OpenMW: LocalScripts dla zawartości gracza); OnPCAdd przy przybyciu
+	var now := {}
+	var scr_of := {}
+	for e in game.player_scripted_items():
+		var iid := String(e[0])
+		now[iid] = int(e[2])
+		scr_of[iid] = String(e[1])
+		if int(e[2]) > int(_inv_counts.get(iid, 0)):
+			flags["inv:" + iid + "|onpcadd"] = true
+	for iid in now:
+		var c := Ctx.new()
+		c.base = iid
+		c.scr = String(scr_of[iid])
+		c.key = "inv:" + iid
+		c.sid = ""
+		run(c)
+	_inv_counts = now
 	activated.clear()
 	died.clear()
 	cell_changed = false
+
+## Przedmiot przeszedł ze świata do gracza: zmienne lokalne skryptu idą z nim (RefData przenoszone z obiektem).
+func item_to_player(from_sid: String, item_id: String) -> void:
+	var src: Dictionary = _sc().locals.get(from_sid, {})
+	if not src.is_empty() and not _sc().locals.has("inv:" + item_id.to_lower()):
+		_sc().locals["inv:" + item_id.to_lower()] = src.duplicate()
+
+## Gracz założył przedmiot: OnPCEquip (zdarzenie i zmienna lokalna „OnPCEquip”, jak w Morrowindzie).
+func item_equipped(item_id: String) -> void:
+	var k := "inv:" + item_id.to_lower()
+	flags[k + "|onpcequip"] = true
+	var scr := ""
+	for e in game.player_scripted_items():
+		if String(e[0]) == item_id.to_lower():
+			scr = String(e[1])
+	if not scr.is_empty() and not _var_type(scr, "onpcequip").is_empty():
+		_locals(k)["onpcequip"] = 1.0
 
 ## Skrypt wyniku odpowiedzi (BNAM): w kontekście rozmówcy – jego zmienne lokalne (DialogueManager::executeScript).
 func run_dialogue(body: Array, who: Dictionary) -> void:
@@ -684,11 +720,9 @@ func _call(ref, fname: String, args: Array, c: Ctx):
 			var snd := _str(args, 0)
 			var t10 := _target(ref, c)
 			if fname == "say":
-				# głosy (pliki Sound/Vo) – etap 10; napisy (drugi argument) jak w OpenMW przy włączonych napisach
-				partial["say (głosy – etap 10)"] = int(partial.get("say (głosy – etap 10)", 0)) + 1
-				var sub := _str(args, 1)
-				if not sub.is_empty():
-					game.script_message_box(sub, [])
+				# głos (Sound/Vo…) z napisem jak w OpenMW przy włączonych napisach – bez okna (nie wstrzymuje
+				# skryptów); SayDone po czasie trwania nagrania
+				game.say(t10 if not t10.is_empty() else {"sid": c.sid, "base": c.base, "node": c.node}, snd, _str(args, 1))
 				return null
 			game.script_sound(snd, t10 if fname.contains("3d") else {})
 			return null
@@ -730,6 +764,35 @@ func _call(ref, fname: String, args: Array, c: Ctx):
 				if tgt != null:
 					game.main.ai.start_combat(tn, tgt)
 			return null
+		# --- tworzenie postaci i sterowanie gracza (etap 9: CharGen – OpenMW controlextensions, guiextensions)
+		"disableplayercontrols", "enableplayercontrols", "disableplayerfighting", "enableplayerfighting", "disableplayerjumping", "enableplayerjumping", "disableplayermagic", "enableplayermagic", "disableplayerviewswitch", "enableplayerviewswitch", "disablevanitymode", "enablevanitymode", "disableplayerlooking", "enableplayerlooking":
+			var on := fname.begins_with("enable")
+			game.set_control(fname.substr(6 if on else 7).replace("player", ""), on)
+			return null
+		"getplayercontrolsdisabled", "getplayerfightingdisabled", "getplayerjumpingdisabled", "getplayermagicdisabled", "getplayerviewswitchdisabled", "getvanitymodedisabled", "getplayerlookingdisabled":
+			return 0.0 if game.control_enabled(fname.substr(3).replace("player", "").replace("disabled", "")) else 1.0
+		"enablenamemenu", "enableracemenu", "enableclassmenu", "enablebirthmenu", "enablestatreviewmenu":
+			game.chargen_menu(fname.substr(6).replace("menu", ""))
+			return null
+		"enableinventorymenu", "enablemagicmenu", "enablemapmenu", "enablestatsmenu", "enablerest", "enablelevelupmenu":
+			game.enable_menu(fname.substr(6).replace("menu", ""))
+			return null
+		"showrestmenu":
+			game.show_rest_menu()
+			return null
+		"changeweather":
+			game.change_weather(_str(args, 0), int(_num(args, 1, c)))
+			return null
+		"getstandingpc":
+			return 1.0 if game.player_standing_on(_target(ref, c)) else 0.0
+		"onpcadd", "onpcequip", "onpcdrop":
+			var fk := c.key + "|" + fname
+			if flags.has(fk):
+				flags.erase(fk)
+				return 1.0
+			return float(_locals(c.key).get(fname, 0.0)) if not _var_type(c.scr, fname).is_empty() else 0.0
+		"saydone":
+			return 1.0 if game.say_done(_target(ref, c)) else 0.0
 		# --- AI (etap 8)
 		"aiwander", "aitravel", "aiescort", "aiescortcell", "aifollow", "aifollowcell", "aiactivate", "getaipackagedone", "getcurrentaipackage":
 			return _ai_function(fname, _target(ref, c), args, c)

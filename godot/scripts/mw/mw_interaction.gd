@@ -14,6 +14,7 @@ var db
 var state
 var records          # MWActorVisual (record(file, id))
 var inventory        # MWInventory
+var main_scripts = null          # MWScripts (etap 9: skrypty przedmiotów w ekwipunku)
 var crime = null     # MWCrime (etap 8): kradzież przy podnoszeniu i wyjmowaniu z cudzych pojemników
 var loc = null       # tłumaczenia nazw (opcjonalnie)
 var _equipment = null
@@ -197,6 +198,8 @@ func take_ref(c: Dictionary) -> Dictionary:
 	if not soul.is_empty() and g[0].begins_with("misc_soulgem"):
 		g[0] = g[0] + "@" + soul
 	inventory.add(PLAYER, {}, g[0], g[1])
+	if main_scripts != null:
+		main_scripts.item_to_player(String(c.sid), g[0])     # zmienne skryptu przedmiotu idą z nim
 	if crime != null:
 		crime.item_taken(c.extra, g[0], g[1])
 	if String(c.sid).begins_with("dyn#"):

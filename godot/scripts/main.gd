@@ -119,6 +119,7 @@ func _ready() -> void:
 	chargen.loc = loc
 	add_child(chargen)
 	chargen.created.connect(_on_character_created)
+	chargen.step_done.connect(_on_chargen_step)
 	script_host = ScriptHost.new(self)
 	scripts = ScriptsVM.new(builder.actors, state, script_host, db)
 	dialogue = DialogueScript.new(builder.actors, state, self)
@@ -136,6 +137,7 @@ func _ready() -> void:
 	ai.enabled = arg("ai", "1") != "0"
 	crime = preload("res://scripts/mw/mw_crime.gd").new(self)
 	interaction.crime = crime
+	interaction.main_scripts = scripts
 	trade_window = TradeWindowScript.new()
 	trade_window.main = self
 	trade_window.trade = trade
@@ -180,6 +182,8 @@ func _ready() -> void:
 	player.mouse_sens = float(settings.get("mouse_sensitivity", player.mouse_sens))
 	player.invert_y = bool(settings.get("invert_y", false))
 	add_child(player)
+	if player.controller != null:
+		player.controller.allowed = control_allowed       # blokady sterowania ze skryptów (CharGen)
 	_apply_settings()
 	var start_t := _start_transform()
 	player.global_position = start_t.origin
@@ -199,16 +203,94 @@ func _ready() -> void:
 		_update_streaming(true)
 	player.landed.connect(_on_player_landed)
 	player.jumped.connect(_on_player_jumped)
-	if lp.is_empty() and scripts != null:
+	var scripted_start := lp.is_empty() and scripts != null and _scripted_chargen_wanted()
+	if scripted_start:
+		_start_scripted_chargen()          # nowa gra jak w Morrowindzie: statek więzienny i CharGen ze skryptów
+	elif lp.is_empty() and scripts != null:
 		scripts.start_new_game()          # skrypty startowe nowej gry („main”, SSCR)
 	# nowa gra: kreator postaci (gra z launchera, bez wczytywania zapisu); tryby zrzutu/testów – postać domyślna
 	if not (state.player.get("character", {}) as Dictionary).is_empty():
 		pass
+	elif scripted_start:
+		state.player["character"] = character.build(default_choice())
 	elif launched_by_launcher and lp.is_empty() and arg("screenshot").is_empty() and arg("autotest-frames", "0") == "0" \
 			and bool(settings.get("character_creation", true)) and builder.actors.available():
 		chargen.open(default_choice())
 	else:
 		state.player["character"] = character.build(default_choice())
+
+# --- nowa gra ze skryptami CharGen (etap 9) -------------------------------------------------------------------
+
+const CHARGEN_MENUS := ["inventory", "magic", "map", "stats", "rest"]
+
+## Nowa gra jak w Morrowindzie (World::startNewGame bez pomijania): gdy są skrypty CharGen i tryb nie jest
+## „szybki” (ustawienie chargen_mode, argument --newgame=morrowind|quick).
+func _scripted_chargen_wanted() -> bool:
+	var mode := arg("newgame", String(settings.get("chargen_mode", "morrowind")) if launched_by_launcher else "")
+	if mode != "morrowind" or not arg("cell").is_empty() or not arg("pos").is_empty():
+		return false
+	return not scripts.script_rec("chargen").is_empty() and not scripts.script_rec("main").is_empty()
+
+## CharGenState = 1, okna zablokowane (setNewGame), skrypty startowe uruchomione 5 razy przed pierwszą klatką
+## („main” uruchamia CharGen, który przenosi gracza na statek PositionCell i ustawia CharGenState 10).
+func _start_scripted_chargen() -> void:
+	state.player["menus"] = {}
+	for m in CHARGEN_MENUS:
+		state.player["menus"][m] = false
+	state.player["chargen_choice"] = default_choice()
+	scripts.set_global("chargenstate", 1.0)
+	scripts.start_new_game()
+	for i in 5:
+		scripts.tick(0.0, [])
+
+func menu_allowed(kind: String) -> bool:
+	return bool((state.player.get("menus", {}) as Dictionary).get(kind, true))
+
+func control_allowed(kind: String) -> bool:
+	return script_host == null or script_host.control_enabled(kind)
+
+## Menu tworzenia postaci wywołane skryptem: imię, rasa (z płcią, głową, włosami), klasa, znak, przegląd.
+func open_chargen_step(step: String) -> void:
+	if chargen == null:
+		return
+	var ch: Dictionary = state.player.get("chargen_choice", default_choice())
+	chargen.open_step(step, ch)
+
+func _on_chargen_step(step: String, ch: Dictionary) -> void:
+	var merged: Dictionary = state.player.get("chargen_choice", default_choice())
+	merged.merge(ch, true)
+	state.player["chargen_choice"] = merged
+	var old: Dictionary = state.player.get("character", {})
+	var st: Dictionary = character.build(merged)
+	if String(st.get("name", "")).is_empty():
+		st["name"] = String(old.get("name", "")) if not String(old.get("name", "")).is_empty() else "Przybysz"
+	state.player["character"] = st
+	_rebuild_player_visual()
+
+func _rebuild_player_visual() -> void:
+	if player != null and player.has_method("rebuild_visual"):
+		player.rebuild_visual()
+
+## Napis kwestii (Say) – bez okna, nie wstrzymuje gry.
+var _subtitle: Label = null
+func subtitle(text: String, seconds: float) -> void:
+	print("MWGODOT_SAY ", text.length())
+	if _subtitle == null and hud != null:
+		_subtitle = Label.new()
+		_subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_subtitle.anchor_left = 0.15
+		_subtitle.anchor_right = 0.85
+		_subtitle.anchor_top = 0.78
+		_subtitle.anchor_bottom = 0.9
+		_subtitle.add_theme_color_override("font_outline_color", Color.BLACK)
+		_subtitle.add_theme_constant_override("outline_size", 6)
+		hud.get_parent().add_child(_subtitle)
+	if _subtitle != null:
+		_subtitle.text = text
+		_subtitle.visible = true
+		var t := get_tree().create_timer(seconds, false)
+		t.timeout.connect(func(): if _subtitle != null and _subtitle.text == text: _subtitle.visible = false)
 
 # --- postać gracza (etap 4) ---------------------------------------------------------------------------------
 
@@ -404,6 +486,8 @@ func equip_item(id: String) -> String:
 		eq.erase(str(prev))
 	eq[str(slot)] = {"id": k, "health": -1.0}
 	_weight_cache = -1.0
+	if scripts != null:
+		scripts.item_equipped(k)             # OnPCEquip
 	return ""
 
 func unequip_slot(slot: int) -> void:
@@ -1176,6 +1260,10 @@ func _process(_d: float) -> void:
 		if reg != current_region:
 			current_region = reg
 			envr.set_region(reg)
+			var wo: Dictionary = state.player.get("weather_override", {})
+			if wo.has(reg.to_lower()):                  # ChangeWeather ze skryptu ma pierwszeństwo przed losowaniem
+				envr.weather = String(wo[reg.to_lower()])
+				envr.apply()
 	var hint := ""
 	var cam := player.get_node_or_null("Camera3D") as Camera3D
 	if cam == null:
@@ -1264,21 +1352,21 @@ func _unhandled_input(e: InputEvent) -> void:
 		DisplayServer.clipboard_set(line)
 		print("MWGODOT_POS ", line)
 		_toast("Skopiowano do schowka: " + line)
-	if e.is_action_pressed("ready_weapon") and player:
+	if e.is_action_pressed("ready_weapon") and player and control_allowed("fighting"):
 		weapon_drawn = not weapon_drawn
 		if weapon_drawn:
 			magic_ready = false
 		_toast("Broń dobyta" if weapon_drawn else "Broń schowana", 1.0)
 		get_viewport().set_input_as_handled()
 		return
-	if e.is_action_pressed("ready_magic") and player:
+	if e.is_action_pressed("ready_magic") and player and control_allowed("magic"):
 		magic_ready = not magic_ready
 		if magic_ready:
 			weapon_drawn = false
 		_toast(("Magia gotowa: " + selected_magic_name()) if magic_ready else "Magia schowana", 1.5)
 		get_viewport().set_input_as_handled()
 		return
-	if e.is_action_pressed("magic_menu") and player and magic_window != null and not magic_window.visible:
+	if e.is_action_pressed("magic_menu") and player and magic_window != null and not magic_window.visible and menu_allowed("magic"):
 		magic_window.open_spells()
 		get_viewport().set_input_as_handled()
 		return
@@ -1294,11 +1382,11 @@ func _unhandled_input(e: InputEvent) -> void:
 		player_attack()
 		get_viewport().set_input_as_handled()
 		return
-	if e.is_action_pressed("rest") and player and rest_window != null and not rest_window.visible:
+	if e.is_action_pressed("rest") and player and rest_window != null and not rest_window.visible and menu_allowed("rest"):
 		rest_window.open()
 		get_viewport().set_input_as_handled()
 		return
-	if e.is_action_pressed("inventory") and player and item_window != null and not item_window.visible:
+	if e.is_action_pressed("inventory") and player and item_window != null and not item_window.visible and menu_allowed("inventory"):
 		item_window.open_inventory()
 		get_viewport().set_input_as_handled()
 		return

@@ -3,6 +3,7 @@ extends CanvasLayer
 ## liczonych jak w OpenMW (MWCharacter.build/derived). Pełny kreator w stylu Morrowinda – etap 10.
 
 signal created(stats: Dictionary)
+signal step_done(step: String, choice: Dictionary)      # etap 9: pojedyncze menu CharGen (skrypty)
 
 var character          # MWCharacter
 var loc = null
@@ -19,6 +20,9 @@ var _classes := []
 var _signs := []
 var _heads := []
 var _hairs := []
+var step := ""                   # "" – pełny kreator; name/race/class/birth/statreview – menu ze skryptu
+var ok_button: Button
+var _rows := {}                  # pole → [etykieta, kontrolka]
 
 func _ready() -> void:
 	layer = 25
@@ -45,6 +49,7 @@ func _ready() -> void:
 	var ok := Button.new()
 	ok.text = "Utwórz postać"
 	ok.pressed.connect(_create)
+	ok_button = ok
 	form.add_child(Control.new())
 	form.add_child(ok)
 	preview = RichTextLabel.new()
@@ -65,6 +70,7 @@ func _row(grid: GridContainer, label: String, ctl: Control) -> Control:
 	var l := Label.new()
 	l.text = label
 	grid.add_child(l)
+	_rows[label] = [l, ctl]
 	ctl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	grid.add_child(ctl)
 	return ctl
@@ -147,7 +153,39 @@ func _update() -> void:
 		t += "\n\n[b]Zdolności i moce[/b]: " + ", ".join((st.spells as Array).map(func(s): return _name("spell", "SPEL", s)))
 	preview.text = t
 
+## Menu CharGen wywołane skryptem: tylko pola danego kroku; przegląd (statreview) – wszystkie.
+const STEP_ROWS := {"name": ["Imię"], "race": ["Rasa", "Płeć", "Głowa", "Włosy"], "class": ["Klasa"],
+	"birth": ["Znak zodiaku"], "statreview": ["Imię", "Rasa", "Płeć", "Głowa", "Włosy", "Klasa", "Znak zodiaku"]}
+
+func open_step(s: String, defaults: Dictionary) -> void:
+	open(defaults)
+	step = s
+	for label in _rows:
+		var show: bool = label in (STEP_ROWS.get(s, _rows.keys()) as Array)
+		_rows[label][0].visible = show
+		_rows[label][1].visible = show
+	ok_button.text = "Gotowe" if s == "statreview" else "Dalej"
+
 func _create() -> void:
+	if not step.is_empty():
+		var s := step
+		step = ""
+		for label in _rows:
+			_rows[label][0].visible = true
+			_rows[label][1].visible = true
+		ok_button.text = "Utwórz postać"
+		visible = false
+		get_tree().paused = false
+		if DisplayServer.get_name() != "headless":
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		var ch := choice()
+		var part := {}
+		for k in {"name": ["name"], "race": ["race", "female", "head", "hair"], "class": ["class"], "birth": ["birthsign"]}.get(s, ch.keys()):
+			part[k] = ch[k]
+		if s == "name" and String(part.get("name", "")).is_empty():
+			part.erase("name")
+		step_done.emit(s, part)
+		return
 	var st: Dictionary = character.build(choice())
 	if String(st.name).is_empty():
 		st["name"] = "Przybysz"
