@@ -152,6 +152,8 @@ func _run() -> void:
 	var name := _arg("name", "Testowy")
 	goals = CHARGEN_GOALS.duplicate(true)
 	goal_i = int(_arg("goal-start", "0"))
+	if not _arg("goal-end").is_empty():
+		goals = goals.slice(0, int(_arg("goal-end")))     # przerwanie w połowie (zapis → nowy proces → odczyt)
 	Engine.time_scale = float(_arg("speed", "1"))
 	if not _arg("goals").is_empty():
 		goals = JSON.parse_string(FileAccess.get_file_as_string(_arg("goals")))
@@ -291,7 +293,11 @@ func _run() -> void:
 	var rep: Dictionary = main.scripts.report()
 	var out := {"events": log_events, "goal_next": goal_i, "player": {"cell": last.cell, "pos": main.ai.mw_pos(main.player).round(),
 		"character": {"name": main.player_stats().get("name", ""), "race": main.player_stats().get("race", ""),
-		"class": main.player_stats().get("class", ""), "birthsign": main.player_stats().get("birthsign", "")}},
+		"class": main.player_stats().get("class", ""), "birthsign": main.player_stats().get("birthsign", "")},
+		"journal": main.state.journal.duplicate(), "factions": dl.player_factions().duplicate(true),
+		"chargenstate": float(main.state.globals.get("chargenstate", 0)), "menus": main.state.player.get("menus", {}),
+		"controls": main.state.player.get("controls", {}), "gold": main.interaction.inventory.count_of("player", {}, "gold_001"),
+		"items": main.interaction.inventory.contents("player", {}).size()},
 		"scripts": {"unsupported": rep.get("unsupported"), "errors": rep.get("errors"), "partial": rep.get("partial")}}
 	print("END ", JSON.stringify(out.player), " ", JSON.stringify(out.scripts))
 	var f := FileAccess.open(_arg("out"), FileAccess.WRITE)

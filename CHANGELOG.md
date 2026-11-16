@@ -25,6 +25,15 @@
 * Etap 1: konwerter eksportuje `world/records/` (NPC_, CREA, RACE, CLAS, FACT, BODY, BSGN, SKIL, broń, zbroje,
   ubrania, książki, przedmioty, światła, GMST, GLOB) ze scalaniem wg kolejności ładowania; MCP-openMW:
   `openmw_record_compare_start/status` – porównanie rekordów z silnikiem OpenMW (Lua) pole po polu.
+* Etap 9: pełna rozgrywka początku gry – nowa gra jak w Morrowindzie: statek więzienny i tworzenie postaci
+  przez skrypty CharGen (imię, rasa, klasa, znak, przegląd w kolejnych menu wywoływanych przez NPC; blokady
+  sterowania, walki, magii i okien, odblokowywane po kolei; kwestie Say z napisami i SayDone; urząd celny,
+  papiery, sztylet, pierścień w beczce, kapitan Gravius i paczka), potem łazik do Balmory, Caius Cosades (A1_1),
+  Gildia Wojowników i zadanie ze szczurami u Drarayne Thelas (walka, dziennik, nagroda). Skrypty przedmiotów
+  w ekwipunku (OnPCAdd, OnPCEquip), funkcje bez nawiasów (SayDone, GetAIPackageDone…), GetRace, ChangeWeather,
+  GetCurrentWeather, GetStandingPC, Rotate, PlayGroup/LoopGroup, Disable/EnableRest, ShowRestMenu. Gracz po
+  teleporcie stawiany na podłożu (bez obrażeń od upadku przy wyjściu z budynków), siła i odstęp ataków AI jak
+  w OpenMW. Szybki kreator jak dotąd: ustawienie "chargen_mode": "quick".
 * Etap 8: AI, nawigacja i reakcje świata – siatki ścieżek PGRD (eksport świata v8 – „Aktualizuj” w launcherze;
   A* i składowe spójne jak OpenMW), pakiety AI z rekordów i skryptów (wander, travel, escort, follow, activate;
   AiWander/AiTravel/AiEscort/AiFollow/AiActivate, GetAIPackageDone, GetCurrentAIPackage), powitania (Hello),

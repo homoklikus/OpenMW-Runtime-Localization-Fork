@@ -59,6 +59,12 @@ JSON skompresowany Zstandard (`FileAccess.open_compressed`). Kod: `godot/scripts
   // v4 (etap 7): stan aktorów zmieniony w grze (te same klucze magii co u gracza)
   "actors": {"morrowind.esm#5678": {"health": 20, "fatigue": 80, "magicka": 10, "dead": false, "knocked_down": false,
                                     "attacked": true, "condition": {"16": 250}, "active_spells": [], "magic_damage": {}}},
+  // etap 9 (bez zmiany wersji): w „player” – "controls": {"controls": true, "fighting": false, …} (blokady
+  //   Disable/EnablePlayer…; brak klucza = dozwolone), "menus": {"inventory": true, "magic": false, "map": …,
+  //   "stats": …, "rest": …} (okna odblokowywane skryptami CharGen; brak klucza = dozwolone), "chargen_choice":
+  //   {imię, rasa, płeć, głowa, włosy, klasa, znak} (stan menu tworzenia postaci), "weather_override":
+  //   {"bitter coast region": "rain"} (ChangeWeather); w „scripts.locals” klucze "inv:<id przedmiotu>" – zmienne
+  //   skryptów przedmiotów w ekwipunku gracza (przenoszone ze świata przy podniesieniu)
   // etap 8 (bez zmiany wersji – nowe pola, starsze zapisy działają): w „actors” stan AI aktora
   //   "ai": {"packages": [{"type": "wander", "distance": 512, "remaining": 5, "idle": […], "repeat": false},
   //                       {"type": "pursue", "target": "player", "priority": 2}], "done": false, "last": 0,

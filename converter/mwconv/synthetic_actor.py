@@ -618,6 +618,71 @@ GMST_STAGE8 = {"iCrimeThreshold": 1000, "iCrimeThresholdMultiplier": 10, "iCrime
                "iGreetDuration": 4, "fGreetDistanceReset": 512.0, "fIdleChanceMultiplier": 0.75}
 
 
+STAGE9_SCRIPTS = {
+    "synth_cg": """Begin synth_cg
+short state
+float timer
+if ( MenuMode == 1 )
+  return
+endif
+if ( state == 0 )
+  DisablePlayerControls
+  DisablePlayerFighting
+  "synth_villager"->Say "vo\\synth.wav" "Kim jestes?"
+  set state to 10
+elseif ( state == 10 )
+  if ( "synth_villager"->SayDone == 1 )
+    EnableNameMenu
+    set state to 20
+  endif
+elseif ( state == 20 )
+  EnableRaceMenu
+  set state to 30
+elseif ( state == 30 )
+  EnableClassMenu
+  set state to 40
+elseif ( state == 40 )
+  EnableBirthMenu
+  set state to 50
+elseif ( state == 50 )
+  EnableStatReviewMenu
+  set state to 60
+elseif ( state == 60 )
+  EnablePlayerControls
+  EnableInventoryMenu
+  ChangeWeather "Synthetic Region" 4
+  if ( player->GetRace "Synth Elf" == 1 )
+    set SynthState to 77
+  endif
+  set state to 70
+endif
+End""",
+    "synth_paper": """Begin synth_paper
+short state
+short OnPCEquip
+if ( OnPCAdd == 1 )
+  set state to state + 1
+endif
+if ( OnPCEquip == 1 )
+  set state to 10
+  set OnPCEquip to 0
+endif
+End""",
+}
+
+
+def _stage9_records() -> list:
+    """Etap 9: skrypt w stylu CharGen (menu tworzenia postaci, blokady, Say/SayDone, pogoda, GetRace) i skrypt
+    przedmiotu w ekwipunku (OnPCAdd, OnPCEquip)."""
+    recs = [_script_rec(k, v) for k, v in STAGE9_SCRIPTS.items()]
+    recs.append(W.record("MISC", [W.sub("NAME", W.zs("synth_papers")), W.sub("FNAM", W.zs("Papiery testowe")),
+                                  W.sub("MCDT", struct.pack("<fii", 0.1, 1, 0)), W.sub("SCRI", W.zs("synth_paper"))]))
+    wpdt = struct.pack("<fiHHffH", 3.0, 5, 0, 300, 2.5, 1.0, 10) + bytes([1, 4, 1, 4, 1, 4]) + struct.pack("<i", 0)
+    recs.append(W.record("WEAP", [W.sub("NAME", W.zs("synth_cg_dagger")), W.sub("FNAM", W.zs("Sztylet CharGen")),
+                                  W.sub("WPDT", wpdt), W.sub("SCRI", W.zs("synth_paper"))]))
+    return recs
+
+
 def _stage8_records() -> list:
     """Przestępstwa i Security: wytrych, sonda, znacznik więzienia, GMST."""
     pick = W.record("LOCK", [W.sub("NAME", W.zs("synth_lockpick")), W.sub("FNAM", W.zs("Wytrych testowy")),
@@ -724,6 +789,7 @@ def write_actors(data_dir: Path) -> dict:
              _npc("synth_traveler", True, ai=[_aidt(), _ai_travel(3000.0, 2800.0, height_at(3000, 2800))]),
              _npc("synth_watchman", False, ai=[_aidt(fight=30, alarm=100)], cls="Guard")]
     recs += _stage8_records()
+    recs += _stage9_records()
     recs += _stage6_records() + _stage7_records() + _stage7d_records()
     refs = []
     for rn, (base, x, y, rz) in ACTOR_REFS.items():
