@@ -30,6 +30,9 @@ func _globals(n: Node, acc: Transform3D, out: Dictionary) -> void:
 			_globals(c, t, out)
 
 func _ready() -> void:
+	if not arg("cell").is_empty():
+		await _grid()
+		return
 	var data := arg("data")
 	var npc_id := arg("npc", "fargoth")
 	var db := MWWorldDB.new(data)
@@ -103,4 +106,55 @@ func _ready() -> void:
 	var img := get_viewport().get_texture().get_image()
 	img.save_png(shot)
 	print("MWGODOT_SHOT ", shot)
+	get_tree().quit()
+
+
+## Wszyscy NPC z komórki (--cell=ext:-3,-2) obok siebie, przodem, z podpisami; lista id w logu.
+func _grid() -> void:
+	var data := arg("data")
+	var db := MWWorldDB.new(data)
+	var models := MWModelCache.new(data)
+	var av = ActorVisual.new(db, models)
+	var c := db.get_cell(arg("cell"))
+	var ids := []
+	for r in c.get("refs", []):
+		var o: Dictionary = db.get_object(String(r.get("base", "")))
+		if String(o.get("type", "")) == "NPC_" and not String(r.get("base", "")).to_lower() in ids:
+			ids.append(String(r.get("base", "")).to_lower())
+	ids = ids.slice(0, int(arg("max", "12")))
+	var info := []
+	for i in ids.size():
+		var m: Node3D = av.build_npc(ids[i], i * 7)
+		if m == null:
+			info.append([ids[i], "BRAK"])
+			continue
+		add_child(m)
+		m.position = Vector3((i - ids.size() / 2.0) * 0.9, 0, 0)
+		var npc: Dictionary = av.record("npc", ids[i])
+		var obj: Dictionary = db.get_object(ids[i])
+		info.append([ids[i], npc.get("race", ""), "K" if npc.get("female", false) else "M", obj.get("model", "")])
+		var lab := Label3D.new()
+		lab.text = "%d %s" % [i, ids[i]]
+		lab.font_size = 24
+		lab.pixel_size = 0.002
+		lab.position = Vector3(0, 2.05, 0)
+		m.add_child(lab)
+	print("MWGODOT_GRID ", JSON.stringify(info))
+	var cam := Camera3D.new()
+	add_child(cam)
+	cam.position = Vector3(0, 1.1, -float(arg("cam_d", "7.0")))
+	cam.look_at(Vector3(0, 1.0, 0))
+	var sun := DirectionalLight3D.new()
+	add_child(sun)
+	sun.rotation_degrees = Vector3(-40, 150, 0)
+	var env := WorldEnvironment.new()
+	env.environment = Environment.new()
+	env.environment.background_mode = Environment.BG_COLOR
+	env.environment.background_color = Color(0.35, 0.4, 0.45)
+	env.environment.ambient_light_color = Color(0.7, 0.7, 0.7)
+	env.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	add_child(env)
+	for i in int(arg("frames", "45")):
+		await get_tree().process_frame
+	get_viewport().get_texture().get_image().save_png(arg("screenshot"))
 	get_tree().quit()
