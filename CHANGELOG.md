@@ -25,6 +25,9 @@
 * Etap 1: konwerter eksportuje `world/records/` (NPC_, CREA, RACE, CLAS, FACT, BODY, BSGN, SKIL, broń, zbroje,
   ubrania, książki, przedmioty, światła, GMST, GLOB) ze scalaniem wg kolejności ładowania; MCP-openMW:
   `openmw_record_compare_start/status` – porównanie rekordów z silnikiem OpenMW (Lua) pole po polu.
+* Konwerter (nif2gltf-0.1.1): transformacja korzenia NIF stosowana jak w OpenMW (wcześniej zerowana – części
+  ciała z modów z obróconym korzeniem, np. uda Dark Elfa, leżały poziomo). Pamięć podręczna 0.1.0 pozostaje
+  ważna dla modeli z korzeniem jednostkowym, więc „Aktualizuj” konwertuje ponownie tylko modele, których to dotyczy.
 * Etap 2: NPC składani z części ciała jak w OpenMW (szkielet base_anim/female/kna → Skeleton3D, części rasy
   BODY ze skinningiem przepinane na kości po nazwach, części sztywne na kościach mocowania z lustrem lewej strony,
   głowa i włosy z rekordu NPC, zastępcze męskie części dla kobiet, pomijanie „1st”); animacje bezczynności NPC

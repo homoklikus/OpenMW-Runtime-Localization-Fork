@@ -75,6 +75,12 @@ class Cache:
         self.db.execute("UPDATE assets SET status=?, error=? WHERE kind=? AND key=?", (status, error, kind, key))
         self.db.commit()
 
+    def set_converter(self, kind: str, key: str, converter: str, commit: bool = False):
+        """Zgodna starsza wersja konwertera (wynik identyczny) – wpis przenoszony na nową bez konwersji."""
+        self.db.execute("UPDATE assets SET converter=? WHERE kind=? AND key=?", (converter, kind, key))
+        if commit:
+            self.db.commit()
+
     def get(self, kind: str, key: str) -> Optional[dict]:
         cur = self.db.execute("SELECT key, kind, source, sha256, size, mtime, converter, status, error, outputs, deps,"
                               " report, duration_ms FROM assets WHERE kind=? AND key=?", (kind, key))

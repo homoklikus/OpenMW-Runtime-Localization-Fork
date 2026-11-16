@@ -83,9 +83,20 @@ class Report:
 
 
 def _local_matrix_nif(b: Block, is_root: bool) -> np.ndarray:
-    if is_root and b.get("name", "").lower() != "bip01":
-        return np.eye(4)
+    # Jak OpenMW (nifloader.cpp, createNode): transformacja korzenia jest stosowana – także gdy korzeniem jest
+    # kształt (np. części ciała z modów: NiTriShape jako korzeń z obrotem 90°).
     return coords.trs_matrix(b["translation"], b["rotation"], b["scale"])
+
+
+def root_is_identity(nif) -> bool:
+    """Czy transformacja korzenia jest jednostkowa (wtedy wynik jak w nif2gltf-0.1.0, które ją zerowało)."""
+    r = nif.block(nif.roots[0]) if nif.roots else None
+    if r is None or r.get("translation") is None:
+        return True
+    try:
+        return bool(np.allclose(coords.trs_matrix(r["translation"], r["rotation"], r["scale"]), np.eye(4), atol=1e-6))
+    except (KeyError, TypeError):
+        return True
 
 
 def _to_g4(m_nif: np.ndarray) -> np.ndarray:
@@ -166,9 +177,6 @@ class NifToGltf:
             return None
         t = b.type
         local = _local_matrix_nif(b, is_root)
-        if is_root and b.get("name", "").lower() != "bip01":
-            if not np.allclose(coords.trs_matrix(b["translation"], b["rotation"], b["scale"]), np.eye(4), atol=1e-6):
-                self.rep.note("lossy", "transformacja korzenia wyzerowana (zgodnie z silnikiem gry)")
         world = parent_world @ local
         self.world_nif[bi] = world
 

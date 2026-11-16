@@ -38,7 +38,30 @@ from .world import (cell_file_rel, cell_to_json, content_fingerprint, load_world
 
 # Wersje konwerterów zasobów – zmiana wymusza ponowną konwersję modeli/tekstur, więc są niezależne od wersji
 # pakietu. Eksport świata ma własną wersję (WORLD_EXPORT_VERSION): nowe dane świata bez ponownej konwersji zasobów.
-MODEL_CONVERTER = "nif2gltf-0.1.0"
+MODEL_CONVERTER = "nif2gltf-0.1.1"
+# Starsze wersje, których wynik jest identyczny dla danego modelu (bez ponownej konwersji całej instalacji):
+# 0.1.0 zerowało transformację korzenia – identyczne, gdy korzeń ma transformację jednostkową.
+_ROOT_CHECK: dict = {}
+
+
+def _model_compat(vfs, key: str) -> bool:
+    if key not in _ROOT_CHECK:
+        from .nif2gltf import root_is_identity
+        try:
+            _ROOT_CHECK[key] = root_is_identity(parse(vfs.read(key), key))
+        except Exception:
+            _ROOT_CHECK[key] = False
+    return _ROOT_CHECK[key]
+
+
+COMPAT_CONVERTERS = {"nif2gltf-0.1.0": _model_compat}
+
+
+def _converter_ok(prev_conv: str, converter: str, vfs, key: str) -> bool:
+    if prev_conv == converter:
+        return True
+    chk = COMPAT_CONVERTERS.get(prev_conv)
+    return converter == MODEL_CONVERTER and chk is not None and chk(vfs, key)
 TEXTURE_CONVERTER = "tex2png-0.1.0"
 WORLD_EXPORT_VERSION = 2          # 2: world/records/ (etap 1)
 
@@ -204,8 +227,10 @@ class Progress:
 def _needs(cache: Cache, kind: str, key: str, vfs: Vfs, converter: str, verify: bool, out: Path) -> tuple[bool, str]:
     info = vfs.info(key)
     prev = cache.get(kind, key)
-    if prev is None or prev["converter"] != converter or prev["status"] != "ok":
+    if prev is None or prev["status"] != "ok" or not _converter_ok(prev["converter"], converter, vfs, key):
         return True, "nowy/zmiana wersji/poprzedni błąd" if prev else "nowy"
+    if prev["converter"] != converter:
+        cache.set_converter(kind, key, converter)
     if any(not (out / o).exists() for o in (prev["outputs"] or [])):
         return True, "brak pliku wynikowego"
     if prev["source"] != info.source:
@@ -312,7 +337,7 @@ def _in_base(base_cache: Optional[Cache], base_out: Optional[Path], kind: str, k
         return False
     prev = base_cache.get(kind, key)
     info = vfs.info(key)
-    if prev is None or info is None or prev["status"] != "ok" or prev["converter"] != converter:
+    if prev is None or info is None or prev["status"] != "ok" or not _converter_ok(prev["converter"], converter, vfs, key):
         return False
     if prev["source"] != info.source or prev["size"] != info.size or abs((prev["mtime"] or 0) - info.mtime) > 1e-3:
         return False
@@ -339,6 +364,7 @@ def _plan(cache: Cache, kind: str, keys, vfs: Vfs, converter: str, opts: Options
             todo.append(k)
         else:
             skipped += 1
+    cache.db.commit()
     return todo, skipped, from_base
 
 
