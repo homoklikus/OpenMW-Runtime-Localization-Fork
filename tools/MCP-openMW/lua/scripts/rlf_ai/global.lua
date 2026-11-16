@@ -43,6 +43,7 @@ local actors = {}          -- id → {recordId, start, samples, packages}
 local pkgs = {}            -- tag → id → pkg
 local tag = 0
 local crime = {}
+local initial = {}         -- id → pozycja w pierwszej klatce (przed ruchem AI) – do dopasowania aktorów
 
 local function v3(p) return { math.floor(p.x + 0.5), math.floor(p.y + 0.5), math.floor(p.z + 0.5) } end
 
@@ -82,7 +83,7 @@ local function sample()
     for _, a in ipairs(objs) do
         local e = actors[a.id]
         if e == nil then
-            e = { recordId = a.recordId, start = v3(a.position), samples = {}, tags = {} }
+            e = { recordId = a.recordId, start = initial[a.id] or v3(a.position), samples = {}, tags = {} }
             actors[a.id] = e
         end
         e.samples[#e.samples + 1] = v3(a.position)
@@ -103,12 +104,17 @@ local function finish_actors()
     end
 end
 
+local last_phase = nil
 local function update(dt)
     clock = clock + dt
+    if phase ~= last_phase then print('RLF_AI PHASE ' .. phase .. ' ' .. string.format('%.1f', clock)); last_phase = phase end
     if clock < next_t then return end
     if phase == 'start' then
         player = world.players[1]
         if player == nil then return end
+        for _, a in ipairs(world.activeActors) do
+            if a ~= player then initial[a.id] = v3(a.position) end
+        end
         player:teleport(R.cell or '', util.vector3(R.pos[1], R.pos[2], R.pos[3]), { onGround = true })
         phase, next_t = 'settle', clock + (R.settle or 3)
     elseif phase == 'settle' then
@@ -134,9 +140,11 @@ local function update(dt)
         end
         crime.v, crime.g = v, g
         local at = v.position + forward(v) * (R.crime.distance or 100)
-        player:teleport(v.cell.name, at, { onGround = true })
-        local gpos = at + (g.position - at):normalize() * (R.crime.guard_distance or 400)
-        g:teleport(v.cell.name, gpos, { onGround = true })
+        local cn = v.cell.isExterior and '' or v.cell.name     -- zewnętrze: pusta nazwa (komórka z pozycji)
+        player:teleport(cn, at, { onGround = true })
+        local gd = g.position - at
+        gd = util.vector3(gd.x, gd.y, 0):normalize()
+        g:teleport(cn, at + gd * (R.crime.guard_distance or 400) + util.vector3(0, 0, 50), { onGround = true })
         phase, next_t = 'commit', clock + 1.0
     elseif phase == 'commit' then
         local b0 = types.Player.getCrimeLevel(player)
@@ -171,7 +179,10 @@ local function update(dt)
 end
 
 return {
-    engineHandlers = { onUpdate = update },
+    engineHandlers = { onUpdate = function(dt)
+        local ok, err = pcall(update, dt)
+        if not ok then print('RLF_AI ERROR ' .. tostring(err)); phase = 'done' end
+    end },
     eventHandlers = {
         RlfAiPackage = function(data)
             if pkgs[data.tag] and data.actor then pkgs[data.tag][data.actor.id] = data.pkg end

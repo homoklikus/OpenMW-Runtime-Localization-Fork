@@ -63,6 +63,9 @@ func _run() -> void:
 	var st: Dictionary = main.player_stats()
 	st.health_base = 2000.0
 	st.health = 2000.0
+	var initial := {}                     # pozycje w pierwszych klatkach (przed ruchem AI) – do dopasowania aktorów
+	for n in ai.actor_nodes():
+		initial[String(n.get_meta("mw_sid", ""))] = _v(ai.mw_pos(n))
 	var grids := []
 	for key in main.loaded:
 		var k := String(key)
@@ -78,7 +81,7 @@ func _run() -> void:
 		for n in ai.actor_nodes():
 			var sid := String(n.get_meta("mw_sid", ""))
 			if not acc.has(sid):
-				acc[sid] = {"recordId": String(n.get_meta("mw_base", "")).to_lower(), "start": _v(ai.mw_pos(n)),
+				acc[sid] = {"recordId": String(n.get_meta("mw_base", "")).to_lower(), "start": initial.get(sid, _v(ai.mw_pos(n))),
 					"samples": [], "packages": [], "package": _pkg(ai, n)}
 			acc[sid].samples.append(_v(ai.mw_pos(n)))
 			acc[sid].packages.append(String(_pkg(ai, n).type))

@@ -344,6 +344,18 @@ func _wander(n: CharacterBody3D, r: Dictionary, st: Dictionary, p: Dictionary, d
 		return true
 	if r.allowed == null:
 		r.allowed = _allowed_positions(n, start, dist)
+	# reactionTimeActions: bez punktów siatki w promieniu – co reakcję 4% szans na spacer w pobliżu startu
+	# (wanderNearStart), inaczej bezczynność; spacer kończy się u celu albo na przeszkodzie (completeManualWalking)
+	if react and dist > 0.0 and (r.allowed as Array).is_empty() and not bool(r.get("manual", false)):
+		if rng.randi() % 100 >= 96:
+			r.dest = _random_point_around(start, (0.2 + rng.randf() * 0.8) * dist)
+			r.path = [r.dest]
+			r.manual = true
+			r.wstate = "walk"
+			r.stuck_count = 0
+		elif String(r.wstate) in ["choose", "move"]:
+			r.wstate = "idle"
+			r.idle_t = 0.0 if String(r.idle_anim).is_empty() else float(r.idle_t)
 	match String(r.wstate):
 		"choose":
 			if n.velocity.length() > 0.01 and r.moving:
@@ -382,23 +394,24 @@ func _wander(n: CharacterBody3D, r: Dictionary, st: Dictionary, p: Dictionary, d
 				r.dest = dest
 				r.wstate = "walk"
 				r.stuck_count = 0
-			elif dist > 0.0 and rng.randi() % 100 >= 96:
-				r.dest = _random_point_around(start, (0.2 + rng.randf() * 0.8) * dist)
-				r.path = [r.dest]
-				r.wstate = "walk"
-				r.stuck_count = 0
 			else:
 				r.wstate = "idle"
 				r.idle_t = 1.0
 		"walk":
+			if float(r.evade_t) > 0.0:
+				r.stuck_count = int(r.stuck_count) + 1      # evadeObstacles: mStuckCount++ w każdej klatce omijania
 			if (r.path as Array).is_empty() or path_to(n, r.dest, dt, DESTINATION_TOLERANCE):
 				r.path = []
 				_stop(n)
-				r.wstate = "choose"
-			elif int(r.stuck_count) >= COUNT_BEFORE_RESET:
+				r.wstate = "idle" if bool(r.get("manual", false)) else "choose"
+				r.idle_t = 0.0
+				r.manual = false
+			elif int(r.stuck_count) >= COUNT_BEFORE_RESET or (bool(r.get("manual", false)) and float(r.evade_t) > 0.0):
 				r.path = []
 				_stop(n)
-				r.wstate = "choose"
+				r.wstate = "idle" if bool(r.get("manual", false)) else "choose"
+				r.idle_t = 0.0
+				r.manual = false
 				r.stuck_count = 0
 	return false
 

@@ -23,7 +23,7 @@ from . import capture
 LUA_DIR = capture.LUA_DIR
 MOVED = 32.0            # jednostki MW: przesunięcie uznawane za ruch
 RANGE_TOL = 400.0       # tolerancja promienia wędrówki (punkty siatki ścieżek leżą do kilkuset jednostek dalej)
-MATCH_DIST = 300.0      # dopasowanie aktorów: ten sam recordId i najbliższa pozycja w pierwszej próbce
+MATCH_DIST = 150.0      # dopasowanie aktorów: ten sam recordId i pozycja z pierwszej klatki (przed ruchem AI)
 
 
 def request_lua(req: dict) -> str:
@@ -87,7 +87,7 @@ def run(plan: dict, timeout: float = 300.0, popen=subprocess.Popen) -> dict:
 def parse_log(log: Path) -> list:
     res = []
     for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
-        if "RLF_AI " not in line or "RLF_AI DONE" in line:
+        if "RLF_AI " not in line or "RLF_AI DONE" in line or "RLF_AI PHASE" in line:
             continue
         rest = line.split("RLF_AI ", 1)[1]
         kind, _, rest = rest.partition(" ")
@@ -112,12 +112,13 @@ def summarize(e: dict) -> dict:
     """Aktor → {recordId, start, package, distance, moved, max_disp, in_range, types}."""
     d = e["data"]
     s = [tuple(map(float, p)) for p in d.get("samples", [])]
-    st = s[0] if s else tuple(map(float, d.get("start", [0, 0, 0])))
+    first = tuple(map(float, d.get("start", s[0] if s else [0, 0, 0])))   # pozycja przed ruchem – dopasowanie
+    st = s[0] if s else first
     disp = max((math.hypot(p[0] - st[0], p[1] - st[1]) for p in s), default=0.0)
     pk = d.get("package") or {}
     dist = float(pk.get("distance") or 0.0)
     t = _ptype(pk)
-    return {"recordId": str(d.get("recordId", "")).lower(), "start": st, "package": t, "distance": dist,
+    return {"recordId": str(d.get("recordId", "")).lower(), "start": first, "package": t, "distance": dist,
             "moved": disp > MOVED, "max_disp": round(disp, 1),
             "in_range": t != "wander" or disp <= dist + RANGE_TOL,
             "types": sorted({_ptype({"type": x}) for x in d.get("packages", [])})}
