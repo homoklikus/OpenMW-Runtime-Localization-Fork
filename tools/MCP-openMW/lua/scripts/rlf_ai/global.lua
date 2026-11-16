@@ -156,12 +156,9 @@ local function update(dt)
         crime.bounty = types.Player.getCrimeLevel(player) - b0
         phase, next_t = 'react', clock + 0.1
     elseif phase == 'react' then
-        -- 3 s obserwacji co 0,25 s: czy strażnik ścigał (Pursue), czy ofiara walczyła (Combat)
+        -- obserwacja co 0,25 s (do 3 s): czy strażnik ścigał (Pursue), czy ofiara walczyła (Combat). Wynik jest
+        -- wypisywany po każdej próbce – rozmowa strażnika z graczem wstrzymuje symulację (i skrypty globalne)
         crime.tags = crime.tags or {}
-        crime.tags[#crime.tags + 1] = query({ crime.v, crime.g })
-        next_t = clock + 0.25
-        if #crime.tags >= 12 then phase, next_t = 'report', clock + 0.5 end
-    elseif phase == 'report' then
         local gpur, vcom, gtypes = false, false, {}
         for _, tg in ipairs(crime.tags) do
             local p = pkgs[tg] or {}
@@ -169,9 +166,16 @@ local function update(dt)
             if gp then gtypes[#gtypes + 1] = gp.type; gpur = gpur or gp.type == 'Pursue' end
             if vp then vcom = vcom or vp.type == 'Combat' end
         end
-        out('crime', 'assault', { victim = crime.v.recordId, guard = crime.g.recordId, seen = crime.seen,
-            bounty = crime.bounty, guard_pursue = gpur, victim_combat = vcom, guard_packages = gtypes, error = crime.err })
-        phase = 'done'
+        if #crime.tags > 0 then
+            out('crime', 'assault', { victim = crime.v.recordId, guard = crime.g.recordId, seen = crime.seen,
+                bounty = crime.bounty, guard_pursue = gpur, victim_combat = vcom, guard_packages = gtypes, error = crime.err })
+        end
+        if (gpur and vcom) or #crime.tags >= 12 then
+            phase = 'done'
+            return
+        end
+        crime.tags[#crime.tags + 1] = query({ crime.v, crime.g })
+        next_t = clock + 0.25
     elseif phase == 'done' then
         print('RLF_AI DONE')
         phase = 'finished'

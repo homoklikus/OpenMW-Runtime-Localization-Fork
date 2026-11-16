@@ -64,11 +64,18 @@ def run(plan: dict, timeout: float = 300.0, popen=subprocess.Popen) -> dict:
     out = open(Path(plan["run_dir"]) / "stdout.log", "w", encoding="utf-8")
     proc = popen(plan["cmd"], cwd=plan["cwd"], env={**os.environ, **plan["env"]}, stdout=out, stderr=subprocess.STDOUT)
     status, end = "timeout", time.time() + timeout
+    crime_seen_at = None
     try:
         while time.time() < end:
-            if log.is_file() and "RLF_AI DONE" in log.read_text(encoding="utf-8", errors="replace"):
+            text = log.read_text(encoding="utf-8", errors="replace") if log.is_file() else ""
+            if "RLF_AI DONE" in text:
                 status = "done"
                 break
+            if "RLF_AI crime" in text:          # rozmowa strażnika wstrzymała symulację – wynik już jest
+                crime_seen_at = crime_seen_at or time.time()
+                if time.time() - crime_seen_at > 10.0:
+                    status = "done (paused by dialogue)"
+                    break
             if proc.poll() is not None:
                 status = f"process exited ({proc.returncode})"
                 break
@@ -175,8 +182,8 @@ def compare(engine: list, ours: list) -> dict:
         chk["in_range_ours"][1] += 1
         chk["in_range_ours"][0] += y["in_range"]
     rep["checks"] = {k: {"agree": v[0], "of": v[1]} for k, v in chk.items()}
-    ec = next((e["data"] for e in engine if e["kind"] == "crime"), None)
-    oc = next((e["data"] for e in ours if e["kind"] == "crime"), None)
+    ec = next((e["data"] for e in reversed(engine) if e["kind"] == "crime"), None)   # ostatni (pełny) wpis
+    oc = next((e["data"] for e in reversed(ours) if e["kind"] == "crime"), None)
     if ec is not None and oc is not None:
         fields = ["seen", "bounty", "guard_pursue", "victim_combat"]
         rep["crime"] = {f: {"openmw": ec.get(f), "ours": oc.get(f),
