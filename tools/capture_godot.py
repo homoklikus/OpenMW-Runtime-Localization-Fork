@@ -18,7 +18,9 @@ import sys
 import time
 from pathlib import Path
 
-SETTINGS = {"window_mode": "windowed", "resolution": "1920x1080", "vsync": True, "scale_3d": 1.0,
+# vsync wyłączone: przy zablokowanym/wygaszonym ekranie kompozytor dławi klatki okna z vsync (240 klatek trwało
+# ~5 min zamiast kilku sekund – 2026-11-16); zrzut nie potrzebuje synchronizacji z ekranem.
+SETTINGS = {"window_mode": "windowed", "resolution": "1920x1080", "vsync": False, "scale_3d": 1.0,
             "shadows": "medium", "load_radius": 1, "view_distance": 1500, "water": True, "grass": True,
             "grass_distance": 90, "grass_density": 1.0}
 
@@ -71,7 +73,10 @@ def main(argv=None) -> int:
                 errors.append(f"{shot['id']}: kod wyjścia {r.returncode}")
             errors += [f"{shot['id']}: {l.strip()}" for l in (r.stdout + r.stderr).splitlines()
                        if "SCRIPT ERROR" in l or "MWGODOT_ERROR" in l][:5]
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as e:
+            def _txt(b):
+                return b.decode("utf-8", "replace") if isinstance(b, bytes) else (b or "")
+            log.write(_txt(e.stdout) + _txt(e.stderr) + f"\n[przekroczony czas {a.timeout:.0f} s]\n")
             errors.append(f"{shot['id']}: przekroczony czas {a.timeout:.0f} s")
         except OSError as e:
             errors.append(f"{shot['id']}: nie można uruchomić Godota: {e}")
