@@ -20,6 +20,12 @@ var partial := {}                # funkcje zależne od późniejszych etapów �
 const IDLE_ZERO := ["onknockout", "onmurder", "onpchitme", "gettarget", "getattacked", "getpcsleep",
 	"getforcesneak", "getforcerun", "getpcjumping", "getpcsneaking", "getpcinjail", "getpctraveling", "iswerewolf",
 	"getwerewolfkills", "getpccrimelevel", "getdetected", "getlineofsight", "getlos"]
+## Funkcje bez argumentów, które skrypty zapisują jak zmienne (bez nawiasów).
+const BARE_FUNCTIONS := ["saydone", "getaipackagedone", "onactivate", "menumode", "getbuttonpressed", "cellchanged",
+	"getsecondspassed", "onpcadd", "onpcequip", "onpcdrop", "ondeath", "onknockout", "onmurder", "getpcsleep",
+	"getpcjumping", "getstandingpc", "getcurrenttime", "getdisabled", "getinterior", "getcurrentaipackage",
+	"getweapondrawn", "getspellreadied", "getpccrimelevel", "random100", "getlevel", "gethealth", "getpcrank",
+	"getdeadcount", "getlocked", "getscale", "getpcinjail", "getpctraveling", "getwaterlevel", "onpchitme"]
 var delta := 0.0
 var button_pressed := -1
 var cell_changed := false
@@ -440,6 +446,10 @@ func _eval(e, c: Ctx):
 			return String(e[1])
 		"id":
 			var v = _read_var(String(e[1]), c)
+			if v == null and String(e[1]).to_lower() in BARE_FUNCTIONS:
+				# funkcja bez argumentów zapisana bez nawiasów („if ( SayDone == 1 )”) – kompilator Morrowinda to przyjmuje
+				var r = _call(null, String(e[1]).to_lower(), [], c)
+				return r if r != null else 0.0
 			if v == null:
 				_err("%s: nieznany identyfikator %s" % [c.scr, e[1]])
 				return 0.0
@@ -708,6 +718,9 @@ func _call(ref, fname: String, args: Array, c: Ctx):
 			return game.script_get_transform(t9, fname, int(AXES.get(_str(args, 0).to_lower(), 0)))
 		"setpos", "setangle", "position", "positioncell", "setatstart":
 			game.script_set_transform(_target(ref, c), fname, args, c, self)
+			return null
+		"rotate", "rotateworld":
+			game.script_rotate(_target(ref, c), _str(args, 0).to_lower(), _num(args, 1, c) * delta)
 			return null
 		"getdistance":
 			var a := _target(ref, c)

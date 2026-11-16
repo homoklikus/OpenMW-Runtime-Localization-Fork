@@ -386,3 +386,14 @@ func player_scripted_items() -> Array:
 		if not s.is_empty():
 			out.append([String(e.id).to_lower(), s.to_lower(), int(e.count)])
 	return out
+
+## Rotate/RotateWorld oś stopnie·s⁻¹ (× czas klatki): obrót wizualny obiektu (latarnie, statek kołyszą się).
+func script_rotate(t: Dictionary, axis: String, deg: float) -> void:
+	var n := _node(t)
+	if n == null or n == main.player or deg == 0.0:
+		return
+	var a := deg_to_rad(deg)
+	match axis:
+		"z": n.rotate_y(-a)                     # MW Z (w górę) = Godot Y; kąt MW zgodnie ze wskazówkami
+		"x": n.rotate_object_local(Vector3.RIGHT, a)
+		"y": n.rotate_object_local(Vector3.FORWARD, a)

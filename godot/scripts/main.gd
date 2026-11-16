@@ -1780,6 +1780,16 @@ func show_message_box(text: String, buttons: Array) -> void:
 	if DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
+## Automatyzacja/testy: naciśnięcie przycisku otwartego MessageBox (jak kliknięcie).
+func press_message_button(i: int) -> bool:
+	if msgbox == null or not is_instance_valid(msgbox) or not msgbox.visible:
+		return false
+	var btns: Array = msgbox.find_children("*", "Button", true, false)
+	if i >= btns.size():
+		return false
+	(btns[i] as Button).pressed.emit()
+	return true
+
 ## Przedmiot położony/podniesiony w świecie (dyn#N) → dodanie albo usunięcie węzła we wczytanej komórce.
 func _on_dynamic_changed(sid: String) -> void:
 	if script_host != null:
