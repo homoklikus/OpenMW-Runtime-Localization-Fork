@@ -25,6 +25,11 @@
 * Etap 1: konwerter eksportuje `world/records/` (NPC_, CREA, RACE, CLAS, FACT, BODY, BSGN, SKIL, broń, zbroje,
   ubrania, książki, przedmioty, światła, GMST, GLOB) ze scalaniem wg kolejności ładowania; MCP-openMW:
   `openmw_record_compare_start/status` – porównanie rekordów z silnikiem OpenMW (Lua) pole po polu.
+* Etap 10 (w toku) – klasa postaci jak w OpenMW: „Pytania…” – 10 pytań z Morrowind.ini/openmw.cfg (albo
+  tłumaczeń lokalizacji RLF), odpowiedzi w losowej kolejności, głos lektora, wynik według tabeli OpenMW i okno
+  z opisem klasy (Wróć/OK); „Własna…” – nazwa, opis, specjalizacja, 2 ulubione atrybuty, 5 głównych
+  i 5 drugorzędnych umiejętności bez powtórzeń (domyślne jak OpenMW), klasa zapisywana w grze. Konwerter:
+  world/fallbacks.json (eksport świata v12 – „Aktualizuj”); bez tekstów pytań w instalacji przycisk jest ukryty.
 * Etap 10 (w toku) – poprawki po porównaniu z OpenMW (kominek w urzędzie celnym w Seyda Neen): konwerter zeruje
   transformację korzenia NiNode (rekord 0, poza „Bip01”) jak OpenMW (`components/nif/node.cpp`) – modele z obróconym
   korzeniem (m.in. kominki) stały tyłem do pokoju; korzeń-kształt zachowuje obrót (nif2gltf-0.1.2, ponowna

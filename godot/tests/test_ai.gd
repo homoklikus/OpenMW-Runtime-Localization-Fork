@@ -90,6 +90,10 @@ func _run() -> void:
 	# powitanie: gracz 100 jednostek od wędrowca – zatrzymanie i odwrócenie
 	main.player.global_position = w.global_position + Vector3(1500.0 / MWCoords.UNITS_PER_METER, 0, 0)
 	await _until(func(): return String(ai._rt(w).greet) == "none", 120)   # wcześniejsze powitanie (fGreetDistanceReset)
+	# etap 10: gdy wędrowiec jeszcze mówi (głos poprzedniego powitania), DialogueManager::say odmawia i powitanie
+	# kończy się od razu (jak w OpenMW) – czekamy na koniec kwestii
+	var wsid := String(w.get_meta("mw_sid", ""))
+	await _until(func(): return main.audio == null or not main.audio.say_active(wsid), 300)
 	main.player.global_position = w.global_position + Vector3(100.0 / MWCoords.UNITS_PER_METER, 0, 0)
 	var greeted := await _until(func():
 		if String(ai._rt(w).greet) != "progress":        # wędrowiec może iść dalej – gracz trzyma się obok

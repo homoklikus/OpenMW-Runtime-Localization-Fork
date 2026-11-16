@@ -707,7 +707,11 @@ def _stage10_records() -> list:
     note = W.record("BOOK", [W.sub("NAME", W.zs("synth_note")), W.sub("MODL", W.zs("m\\misc_synth_spoon.nif")),
                              W.sub("FNAM", W.zs("Notatka testowa")), W.sub("BKDT", struct.pack("<fiiii", 0.1, 1, 1, -1, 0)),
                              W.sub("TEXT", W.zs(NOTE_TEXT))])
-    return [book, note,W.record("SOUN", [W.sub("NAME", W.zs("Synth Wind")), W.sub("FNAM", W.zs("Fx\\envrn\\synth_wind.wav")),
+    # klasa „Warrior” (wynik pytań) – niegrywalna na liście, żeby nie zmieniać list wyboru innych testów
+    warrior = W.record("CLAS", [W.sub("NAME", W.zs("Warrior")), W.sub("FNAM", W.zs("Wojownik")),
+                                W.sub("CLDT", struct.pack("<15i", 0, 5, 0, 16, 5, 8, 6, 9, 7, 10, 0, 11, 1, 0, 0)),
+                                W.sub("DESC", W.zs("Klasa z pytan (test)."))])
+    return [book, note, warrior,W.record("SOUN", [W.sub("NAME", W.zs("Synth Wind")), W.sub("FNAM", W.zs("Fx\\envrn\\synth_wind.wav")),
                               W.sub("DATA", bytes([200, 0, 0]))]),
             W.region("Synthetic Region", "Kraina Syntetyczna", REGION_WEATHER, sounds=[("Synth Wind", 100)]),
             _script_rec("synth_music", """Begin synth_music
@@ -817,6 +821,10 @@ def write_actors(data_dir: Path) -> dict:
             _wav(data_dir / "Sound" / f.replace("\\", "/"))
     for rel, secs in STAGE10_FILES.items():
         _wav(data_dir / rel, 330.0, secs)
+    # Morrowind.ini obok katalogu danych: 10 pytań o klasę (teksty testowe, nie z gry) – etap 10
+    ini = ["[General]"] + [f"[Question {n}]\nQuestion=Pytanie testowe {n}?\nAnswerOne=Walka {n}\n"
+                           f"AnswerTwo=Magia {n}\nAnswerThree=Skradanie {n}" for n in range(1, 11)]
+    (data_dir.parent / "Morrowind.ini").write_text("\n".join(ini) + "\n", encoding="cp1252")
     from PIL import Image
     (data_dir / "BookArt").mkdir(parents=True, exist_ok=True)
     Image.new("RGB", (64, 32), (120, 40, 40)).save(data_dir / "BookArt" / "synth_pic.tga")

@@ -121,6 +121,7 @@ func _ready() -> void:
 	chargen = ChargenScript.new()
 	chargen.character = character
 	chargen.loc = loc
+	chargen.main = self
 	add_child(chargen)
 	chargen.created.connect(_on_character_created)
 	chargen.step_done.connect(_on_chargen_step)

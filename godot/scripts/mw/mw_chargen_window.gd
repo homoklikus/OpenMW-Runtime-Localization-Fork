@@ -1,6 +1,6 @@
 extends CanvasLayer
-## Minimalny kreator postaci (etap 4): imię, rasa, płeć, głowa, włosy, klasa, znak zodiaku; podgląd statystyk
-## liczonych jak w OpenMW (MWCharacter.build/derived). Pełny kreator w stylu Morrowinda – etap 10.
+## Kreator postaci (etap 4): imię, rasa, płeć, głowa, włosy, klasa, znak zodiaku; podgląd statystyk liczonych jak
+## w OpenMW (MWCharacter.build/derived). Etap 10: klasa także z pytań i własna klasa (mw_chargen_class.gd).
 
 signal created(stats: Dictionary)
 signal step_done(step: String, choice: Dictionary)      # etap 9: pojedyncze menu CharGen (skrypty)
@@ -23,6 +23,9 @@ var _hairs := []
 var step := ""                   # "" – pełny kreator; name/race/class/birth/statreview – menu ze skryptu
 var ok_button: Button
 var _rows := {}                  # pole → [etykieta, kontrolka]
+var main = null
+var class_dialog                 # etap 10: pytania o klasę i własna klasa
+var questions_button: Button
 
 func _ready() -> void:
 	layer = 25
@@ -44,7 +47,21 @@ func _ready() -> void:
 	sex_opt = _row(form, "Płeć", OptionButton.new())
 	head_opt = _row(form, "Głowa", OptionButton.new())
 	hair_opt = _row(form, "Włosy", OptionButton.new())
-	class_opt = _row(form, "Klasa", OptionButton.new())
+	var class_row := HBoxContainer.new()
+	class_opt = OptionButton.new()
+	class_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	class_row.add_child(class_opt)
+	questions_button = Button.new()
+	questions_button.text = "Pytania…"
+	questions_button.tooltip_text = "Odpowiedz na pytania – klasa dobrana jak w Morrowindzie"
+	questions_button.pressed.connect(func(): class_dialog.start_questions())
+	class_row.add_child(questions_button)
+	var custom_button := Button.new()
+	custom_button.text = "Własna…"
+	custom_button.tooltip_text = "Utwórz własną klasę"
+	custom_button.pressed.connect(func(): class_dialog.start_custom())
+	class_row.add_child(custom_button)
+	_row(form, "Klasa", class_row)
 	sign_opt = _row(form, "Znak zodiaku", OptionButton.new())
 	var ok := Button.new()
 	ok.text = "Utwórz postać"
@@ -64,6 +81,10 @@ func _ready() -> void:
 	for o in [head_opt, hair_opt, class_opt, sign_opt]:
 		o.item_selected.connect(func(_i): _update())
 	panel.position = (get_viewport().get_visible_rect().size - panel.custom_minimum_size) / 2.0
+	class_dialog = preload("res://scripts/mw/mw_chargen_class.gd").new()
+	class_dialog.name = "ClassDialog"
+	add_child(class_dialog)
+	class_dialog.class_chosen.connect(_on_class_chosen)
 	visible = false
 
 func _row(grid: GridContainer, label: String, ctl: Control) -> Control:
@@ -83,8 +104,16 @@ func _name(file: String, rtype: String, id: String) -> String:
 	return fb
 
 func open(defaults: Dictionary = {}) -> void:
+	class_dialog.main = main
+	class_dialog.character = character
+	class_dialog.loc = loc
+	if main != null and main.db != null:
+		class_dialog.load_fallbacks(main.db.data_root)
+	questions_button.visible = class_dialog.questions_available()   # bez tekstów pytań w danych – bez przycisku
 	_races = character.playable("race")
-	_classes = character.playable("class")
+	_classes = character.playable("class").filter(func(c): return c != class_dialog.CUSTOM_ID)
+	if not character.records.record("class", class_dialog.CUSTOM_ID).is_empty():
+		_classes.append(class_dialog.CUSTOM_ID)            # własna klasa (rekord utworzony w grze)
 	_signs = character.playable("birthsign")
 	for pair in [[race_opt, _races, "race", "RACE"], [class_opt, _classes, "class", "CLAS"], [sign_opt, _signs, "birthsign", "BSGN"]]:
 		var o: OptionButton = pair[0]
@@ -152,6 +181,19 @@ func _update() -> void:
 	if not (st.spells as Array).is_empty():
 		t += "\n\n[b]Zdolności i moce[/b]: " + ", ".join((st.spells as Array).map(func(s): return _name("spell", "SPEL", s)))
 	preview.text = t
+
+## Klasa z pytań albo własna: dopisanie do listy (własna) i zaznaczenie.
+func _on_class_chosen(id: String) -> void:
+	var cid := id.to_lower()
+	var i := _classes.find(cid)
+	if i < 0:
+		_classes.append(cid)
+		class_opt.add_item(_name("class", "CLAS", cid))
+		i = _classes.size() - 1
+	else:
+		class_opt.set_item_text(i, _name("class", "CLAS", cid))
+	class_opt.select(i)
+	_update()
 
 ## Menu CharGen wywołane skryptem: tylko pola danego kroku; przegląd (statreview) – wszystkie.
 const STEP_ROWS := {"name": ["Imię"], "race": ["Rasa", "Płeć", "Głowa", "Włosy"], "class": ["Klasa"],

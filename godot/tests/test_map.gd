@@ -34,7 +34,8 @@ func _run() -> void:
 	var mw := MWCoords.godot_to_mw(pp)
 	var exp_uv := Vector2(fposmod(mw.x, 8192.0) / 8192.0, 1.0 - fposmod(mw.y, 8192.0) / 8192.0)
 	check(L.uv.distance_to(exp_uv) < 0.01, "położenie w segmencie (%s ≈ %s)" % [L.uv, exp_uv])
-	# mgła
+	# mgła (odkrywanie co 0,2 s w _process – w teście wywołanie bezpośrednie, niezależne od tempa klatek)
+	lm.update_player(pp)
 	check(lm.explored(L.seg, L.uv), "mgła odkryta pod graczem")
 	var far_uv := Vector2(fmod(L.uv.x + 0.5, 1.0), fmod(L.uv.y + 0.5, 1.0))
 	check(not lm.explored(L.seg, far_uv), "pół segmentu dalej – nadal mgła")
