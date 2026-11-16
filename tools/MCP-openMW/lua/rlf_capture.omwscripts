@@ -1,2 +1,3 @@
 GLOBAL: scripts/rlf_capture/global.lua
 PLAYER: scripts/rlf_capture/player.lua
+CUSTOM: scripts/rlf_capture/actor.lua

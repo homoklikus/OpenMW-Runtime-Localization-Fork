@@ -14,7 +14,7 @@ local function applyCamera(shot)
     camera.setStaticPosition(util.vector3(shot.camera[1], shot.camera[2], shot.camera[3]))
     camera.setYaw(shot.yaw)
     camera.setPitch(shot.pitch)
-    if shot.fov then camera.setFieldOfView(shot.fov) end
+    if shot.fov then camera.setFieldOfView(math.rad(shot.fov)) end   -- shot.fov w stopniach (pionowe, jak w Godot)
 end
 
 return {

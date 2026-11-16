@@ -5,6 +5,7 @@ from __future__ import annotations
 import collections
 import functools
 import json
+from dataclasses import asdict
 import os
 import time
 import traceback
@@ -852,6 +853,58 @@ def openmw_capture_start(cells: list[str], profile_list: Optional[list[str]] = N
                      stdout=log, stderr=_sp.STDOUT, start_new_session=True)
     return {"run_dir": str(run_dir), "pid": proc.pid, "shots": [s.id for s in shots],
             "profiles": pl, "note": "silniki uruchamiają się kolejno; nie używaj w tym czasie myszy/klawiatury w oknie gry"}
+
+
+def npc_refs(cells: list, profile: str = "official-ref", max_per_cell: int = 4, npcs: Optional[list] = None) -> list:
+    """Referencje NPC w komórkach zewnętrznych po rozstrzygnięciu pluginów: [{"id","pos","rotz","cell"}]."""
+    sc = _scene(profile)
+    want = {n.lower() for n in npcs} if npcs else None
+    out = []
+    for cx, cy in _parse_cells(cells):
+        n = 0
+        for ref in sorted(sc.world.refs(cx, cy), key=lambda r: r.refnum):
+            base = sc.world.base(ref.id)
+            if base is None or base[0] != "NPC_" or (want is not None and ref.id.lower() not in want):
+                continue
+            out.append({"id": ref.id.lower(), "pos": list(ref.pos), "rotz": float(ref.rot[2]), "cell": [cx, cy]})
+            n += 1
+            if n >= max_per_cell:
+                break
+    return out
+
+
+@tool
+def openmw_capture_npcs(cells: list[str], profile_list: Optional[list[str]] = None, npcs: Optional[list[str]] = None,
+                        max_per_cell: int = 4, distance: float = 230.0, hour: float = 12.0, weather: str = "Clear",
+                        start: bool = False, timeout_per_engine: float = 300.0) -> dict:
+    """Etap 2d: ujęcia NPC z przodu (wygląd, ubrania, zbroje) – kamera przed każdym NPC z komórek (albo z listy
+    npcs), aktor w OpenMW zamrożony na pozycji z danych (bez AI), jak w porcie Godot. start=False: tylko plan;
+    start=True: uruchamia silniki jak openmw_capture_start (domyślnie official-ref i openmwgodot)."""
+    from . import capture
+    pl = profile_list or ["official-ref", "openmwgodot"]
+    refs = npc_refs(cells, next((p for p in pl if env().cfg["profiles"].get(p, {}).get("target") != "external"),
+                                "official-ref"), max_per_cell, npcs)
+    if not refs:
+        return {"error": "brak NPC w podanych komórkach"}
+    shots = [capture.npc_shot(r, f"npc-{r['id'].replace(' ', '_')}", distance, hour=hour, weather=weather) for r in refs]
+    e = env()
+    if start:
+        issues = _capture_prereq(pl)
+        if issues:
+            return {"error": "nie spełnione warunki: " + "; ".join(issues)}
+    run_dir = capture.new_run_dir(e, "npc" if start else "npc-plan")
+    plans = [capture.prepare(e, p, shots, run_dir) for p in pl]
+    out = {"run_dir": str(run_dir), "shots": [asdict(sh) for sh in shots], "profiles": pl}
+    if start:
+        import subprocess as _sp
+        import sys as _sys
+        log = open(run_dir / "runner.log", "w", encoding="utf-8")
+        proc = _sp.Popen([_sys.executable, "-m", "openmw_mcp.capture", str(run_dir), str(timeout_per_engine)],
+                         stdout=log, stderr=_sp.STDOUT, start_new_session=True)
+        out["pid"] = proc.pid
+    else:
+        out["commands"] = {p["profile"]: p["cmd"] for p in plans}
+    return out
 
 
 @tool

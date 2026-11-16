@@ -46,6 +46,8 @@ class Shot:
     weather: Optional[str] = "Clear"
     note: str = ""
     visibility: Optional[dict] = None            # ocena kadru (etap 2b) — tylko w plan.json, nie w scenariuszu Lua
+    fov: Optional[float] = None
+    actors: Optional[list] = None                # aktorzy zamrażani w kadrze: [{"id", "pos", "rotz"}] (etap 2d)
 
 
 def repeat_shots(shots: list[Shot], repeat: int = 1) -> list[Shot]:
@@ -84,6 +86,9 @@ def scenario_lua(shots: list[Shot], timing: dict) -> str:
         d = asdict(s)
         d.pop("note", None)
         d.pop("visibility", None)
+        for k in ("fov", "actors"):
+            if d.get(k) is None:
+                d.pop(k, None)
         lines.append("        " + _lua_value(d) + ",")
     lines += ["    },", "}", ""]
     return "\n".join(lines)
@@ -240,7 +245,7 @@ def prepare(env, profile: str, shots: list[Shot], run_dir: Path, timing: Optiona
     for d in (cfg, data / "scripts/rlf_capture", ud / "data", ud / "screenshots"):
         d.mkdir(parents=True, exist_ok=True)
     shutil.copy2(LUA_DIR / "rlf_capture.omwscripts", data / "rlf_capture.omwscripts")
-    for f in ("global.lua", "player.lua"):
+    for f in ("global.lua", "player.lua", "actor.lua"):
         shutil.copy2(LUA_DIR / "scripts/rlf_capture" / f, data / "scripts/rlf_capture" / f)
     (data / "scripts/rlf_capture/scenario.lua").write_text(scenario_lua(shots, {**DEFAULT_TIMING, **(timing or {})}),
                                                            encoding="utf-8")
@@ -455,8 +460,52 @@ def compare(a: Path, b: Path, out: Path, labels=("official", "fork")) -> dict:
 
 # --- przebieg w tle: python -m openmw_mcp.capture <run_dir> ---------------------------------------------
 
+def npc_shot(ref: dict, shot_id: str, distance: float = 230.0, eye: float = 105.0, look: float = 85.0,
+             hour: float = 12.0, weather: Optional[str] = "Clear", fov: Optional[float] = 55.0,
+             side: float = 0.0) -> Shot:
+    """Ujęcie NPC z przodu (ref: {"id", "pos" [x,y,z], "rotz", "cell" [cx,cy]}): kamera w odległości distance
+    w kierunku, w którym NPC patrzy (rotz = kurs; side – przesunięcie kąta), na wysokości eye nad stopami, celuje
+    w punkt look nad stopami; aktor zamrożony na pozycji z danych. Gracz za kamerą."""
+    x, y, z = (float(v) for v in ref["pos"])
+    h = float(ref.get("rotz", 0.0)) + side
+    cx, cy = x + math.sin(h) * distance, y + math.cos(h) * distance
+    yaw = math.atan2(x - cx, y - cy)
+    pitch = math.atan2(eye - look, distance)
+    px, py = cx + math.sin(h) * 200.0, cy + math.cos(h) * 200.0
+    cell = ref.get("cell") or [math.floor(x / 8192.0), math.floor(y / 8192.0)]
+    return Shot(id=shot_id, cell=list(cell), camera=[round(cx, 1), round(cy, 1), round(z + eye, 1)],
+                player=[round(px, 1), round(py, 1), round(z + 10.0, 1)], yaw=round(yaw, 5), pitch=round(pitch, 5),
+                hour=hour, weather=weather, note=f"NPC {ref['id']} z przodu", fov=fov,
+                actors=[{"id": ref["id"], "pos": [x, y, z], "rotz": float(ref.get("rotz", 0.0))}])
+
+
+QUEUE_NAME = "kolejka-ujec.json"
+
+
+def apply_queue(run_dir: Path, env=None) -> Optional[dict]:
+    """Kolejka ujęć: <Raporty/mcp/zrzuty>/kolejka-ujec.json {"shots": [...], "timing": {...}} zastępuje ujęcia
+    następnego przebiegu (np. ujęcia NPC wyliczone poza serwerem MCP, bez jego restartu). Plany profili są
+    przygotowywane od nowa, a plik kolejki przenoszony do katalogu przebiegu (ślad, co zrobiono)."""
+    q = run_dir.parent / QUEUE_NAME
+    if not q.is_file():
+        return None
+    data = json.loads(q.read_text(encoding="utf-8"))
+    shots = [Shot(**{k: v for k, v in s.items() if k in Shot.__dataclass_fields__}) for s in data["shots"]]
+    if env is None:
+        from .environment import load_env
+        env = load_env()
+    profiles_list = [json.loads(p.read_text(encoding="utf-8"))["profile"] for p in run_dir.glob("*/plan.json")]
+    for prof in profiles_list:
+        prepare(env, prof, shots, run_dir, data.get("timing"))
+    q.replace(run_dir / QUEUE_NAME)
+    return {"shots": [s.id for s in shots], "profiles": profiles_list}
+
+
 def run_all(run_dir: Path, timeout: float = 300.0) -> dict:
     """Uruchamia kolejno plany z run_dir/*/plan.json (najpierw official, potem fork), potem porównuje pary."""
+    queued = apply_queue(run_dir)
+    if queued:
+        print("kolejka ujęć:", json.dumps(queued, ensure_ascii=False))
     order = {"official": 0, "fork": 1, "external": 2}
     plans = sorted((json.loads(p.read_text(encoding="utf-8")) for p in run_dir.glob("*/plan.json")),
                    key=lambda p: order.get(p["target"], 3))

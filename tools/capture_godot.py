@@ -28,7 +28,7 @@ def godot_args(shot: dict, a, settings: Path, out: Path) -> list[str]:
     w = (shot.get("weather") or "clear").lower()
     args = [a.godot, "--path", a.project, "--", f"--data={a.data}", f"--settings={settings}",
             f"--camera={cam}", f"--look={float(shot['yaw']):.5f},{float(shot['pitch']):.5f}",
-            f"--hour={float(shot.get('hour', 12.0))}", f"--weather={w}", f"--fov={a.fov}",
+            f"--hour={float(shot.get('hour', 12.0))}", f"--weather={w}", f"--fov={shot.get('fov') or a.fov}",
             f"--screenshot={out / ('shot-' + shot['id'] + '.png')}", f"--shot-frames={a.frames}", "--quit=1"]
     if a.base:
         args.insert(args.index("--") + 1, f"--base={a.base}")

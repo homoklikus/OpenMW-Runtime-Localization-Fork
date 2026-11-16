@@ -50,6 +50,37 @@ local function dumpBounds(shot)
     log('BBOX ' .. shot.id .. ' ' .. n)
 end
 
+-- Aktorzy w kadrze (ujęcia NPC, etap 2d): na czas ujęcia bez AI i na pozycji z danych (jak w porcie Godot,
+-- gdzie NPC stoją w miejscu). shot.actors = { { id = recordId, pos = {x,y,z}, rotz = kąt } }.
+local frozen = {}
+
+local function freezeActors(shot)
+    frozen = {}
+    if not shot.actors then return end
+    local want = {}
+    for _, a in ipairs(shot.actors) do want[string.lower(a.id)] = a end
+    for _, actor in ipairs(world.activeActors) do
+        local a = want[string.lower(actor.recordId)]
+        if a and actor ~= player then
+            local ok, err = pcall(function() actor:addScript('scripts/rlf_capture/actor.lua') end)
+            if not ok then log('WARN actor script ' .. tostring(err)) end
+            table.insert(frozen, { obj = actor, pos = util.vector3(a.pos[1], a.pos[2], a.pos[3]),
+                                   rot = util.transform.rotateZ(a.rotz or 0) })
+            want[string.lower(actor.recordId)] = nil
+        end
+    end
+    log('FROZEN ' .. shot.id .. ' ' .. #frozen)
+end
+
+local function holdActors(force)
+    for _, f in ipairs(frozen) do
+        if f.obj:isValid() and (force or (f.obj.position - f.pos):length() > 2) then
+            local cellName = (f.obj.cell and not f.obj.cell.isExterior) and f.obj.cell.name or ''
+            pcall(function() f.obj:teleport(cellName, f.pos, { rotation = f.rot }) end)
+        end
+    end
+end
+
 local function setHour(hour)
     local ok, err = pcall(function()
         world.mwscript.getGlobalVariables(player).gamehour = hour
@@ -98,16 +129,21 @@ return {
                 deadline = now + S.settleSeconds
             elseif phase == 'settle' and now >= deadline then
                 dumpBounds(S.shots[index])
+                freezeActors(S.shots[index])
+                holdActors(true)
                 world.setGameTimeScale(0)
                 setHour(S.shots[index].hour)
                 player:sendEvent('RlfCaptureCamera', S.shots[index])
                 phase = 'render'
                 deadline = now + S.renderSeconds
+            elseif (phase == 'render' or phase == 'capture') and #frozen > 0 and now < deadline then
+                holdActors(false)
             elseif phase == 'render' and now >= deadline then
                 log('READY ' .. S.shots[index].id)
                 phase = 'capture'
                 deadline = now + S.captureSeconds
             elseif phase == 'capture' and now >= deadline then
+                frozen = {}
                 phase = 'next'
                 deadline = now
             elseif phase == 'quit' and now >= deadline then
