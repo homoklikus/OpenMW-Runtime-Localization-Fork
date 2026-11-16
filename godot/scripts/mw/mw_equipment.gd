@@ -4,8 +4,9 @@ extends RefCounted
 ## umiejętności NPC z autoobliczaniem: mwclass/npc.cpp autoCalculateSkills).
 ## Moduł danych bez węzłów – przyda się też w etapie 3 (inwentarz gracza, stan gry).
 ##
-## Pominięte na razie (opisane w docs/PLAN-WDROZENIA.md, etap 3): listy poziomowane w inwentarzu (LEVI –
-## losowanie przy pojawieniu się NPC), światła w lewej ręce (Actors::updateEquippedLight – pochodnie nocą).
+## Inwentarz z MWInventory (listy poziomowane rozlosowane, zmiany z gry); bez niego – rekord bez list.
+## Pochodnie: Actors::updateEquippedLight – po zmroku (i w ciemnych wnętrzach) NPC poza walką bierze do lewej
+## ręki pierwsze światło z inwentarza (zamiast tarczy).
 
 const SLOT_HELMET := 0
 const SLOT_CUIRASS := 1
@@ -111,18 +112,21 @@ func npc_skills(npc: Dictionary) -> Array:
 	return out
 
 func _item(id: String) -> Dictionary:
-	for kind in ["armor", "clothing", "weapon"]:
+	for kind in ["armor", "clothing", "weapon", "light"]:
 		var r: Dictionary = av.record(kind, id)
 		if not r.is_empty():
 			return {"kind": kind, "id": id.to_lower(), "rec": r}
 	return {}
 
-## Kolejność jak w ContainerStore: listy według typu (zbroje, ubrania, …, broń), w każdej kolejność z rekordu.
-func inventory(npc: Dictionary) -> Dictionary:
-	var by_kind := {"armor": [], "clothing": [], "weapon": []}
+## Kolejność jak w ContainerStore: listy według typu (zbroje, ubrania, światła, broń), w każdej kolejność z inwentarza.
+## items: [{"id", "count"}] (MWInventory.contents) albo null – wtedy rekord (bez list poziomowanych).
+func inventory(npc: Dictionary, items = null) -> Dictionary:
+	var by_kind := {"armor": [], "clothing": [], "weapon": [], "light": []}
 	var seen := {}
-	for e in npc.get("inventory", []):
-		var id := String(e.get("item", "")).to_lower()
+	var src: Array = items if items is Array else (npc.get("inventory", []) as Array).map(
+			func(e): return {"id": String(e.get("item", "")), "count": int(e.get("count", 1))})
+	for e in src:
+		var id := String(e.get("id", "")).to_lower()
 		if id.is_empty() or seen.has(id):
 			continue
 		seen[id] = true
@@ -217,10 +221,10 @@ func _equip_weapon(slots: Dictionary, weapons: Array, skills: Array) -> void:
 				break
 		visited[best] = true
 
-## Sloty → przedmiot {"kind", "id", "rec"} (InventoryStore::autoEquip dla NPC).
-func auto_equip(npc: Dictionary) -> Dictionary:
+## Sloty → przedmiot {"kind", "id", "rec"} (InventoryStore::autoEquip dla NPC; torches – updateEquippedLight).
+func auto_equip(npc: Dictionary, items = null, torches := false) -> Dictionary:
 	var slots := {}
-	var inv := inventory(npc)
+	var inv := inventory(npc, items)
 	var skills := npc_skills(npc)
 	var race: Dictionary = av.record("race", String(npc.get("race", "")))
 	var beast := bool(race.get("beast", false))
@@ -261,4 +265,9 @@ func auto_equip(npc: Dictionary) -> Dictionary:
 						continue
 			slots[slot] = it
 			break
+	if torches:
+		for it in inv.light:
+			if bool(it.rec.get("carry", false)):
+				slots[SLOT_CARRIED_LEFT] = it          # zamiast tarczy (NPC poza walką)
+				break
 	return slots

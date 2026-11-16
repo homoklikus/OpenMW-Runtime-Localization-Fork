@@ -171,6 +171,10 @@ MODELS = {
     "meshes/c/c_synth_shirt_cheap.nif": lambda: make_rigid("C_Synth_Shirt_Cheap", (44, 28, 46), (0, 0, 0)),
     "meshes/c/c_synth_shirt_fine.nif": lambda: make_rigid("C_Synth_Shirt_Fine", (44, 28, 46), (0, 0, 0)),
     "meshes/w/w_synth_sword.nif": lambda: make_rigid("W_Synth_Sword", (4, 4, 90), (0, 0, 45)),
+    # etap 3: pochodnia, skrzynia, przedmioty
+    "meshes/l/l_synth_torch.nif": lambda: make_rigid("L_Synth_Torch", (4, 4, 40), (0, 0, 20)),
+    "meshes/o/synth_chest.nif": lambda: make_rigid("Synth_Chest", (60, 40, 40), (0, 0, 20)),
+    "meshes/m/misc_synth_spoon.nif": lambda: make_rigid("Misc_Synth_Spoon", (4, 16, 2), (0, 0, 1)),
 }
 
 RACE = "Synth Elf"
@@ -206,7 +210,15 @@ CLOTHES = {
     "synth_shirt_rag": (2, 1, "c\\c_synth_shirt_cheap.nif", [(3, "c_synth_shirt_cheap")]),
 }
 GUARD_INVENTORY = ["synth_shirt_cheap", "synth_shirt_fine", "synth_shirt_rag", "synth_greaves_weak", "synth_sword",
-                   "synth_helm", "synth_cuirass", "synth_shield"]
+                   "l_synth_helm", "synth_cuirass", "synth_shield", "synth_torch"]
+# listy poziomowane: id → (flagi, szansa „brak”, [(id, poziom)])  (flagi LEVI: 1 każdy, 2 wszystkie poziomy)
+LEVELED = {
+    "l_synth_helm": (0, 0, [("synth_helm", 1), ("synth_cuirass", 30)]),          # na poz. 1 tylko hełm
+    "l_synth_loot": (1 | 2, 0, [("misc_synth_spoon", 1), ("l_synth_nested", 1)]),
+    "l_synth_nested": (0, 0, [("synth_shirt_fine", 1)]),
+    "l_synth_never": (0, 100, [("synth_sword", 1)]),
+}
+CHEST_INVENTORY = [(2, "misc_synth_spoon"), (3, "l_synth_loot"), (1, "l_synth_never"), (1, "no_such_item")]
 
 
 def _race() -> bytes:
@@ -257,6 +269,28 @@ def _clothing(cid, typ, val, model, parts) -> bytes:
                              W.sub("CTDT", struct.pack("<ifHH", typ, 1.0, val, 10))] + _parts_subs(parts))
 
 
+def _leveled(lid, flags, none, items) -> bytes:
+    subs = [W.sub("NAME", W.zs(lid)), W.sub("DATA", struct.pack("<i", flags)), W.sub("NNAM", bytes([none])),
+            W.sub("INDX", struct.pack("<i", len(items)))]
+    for iid, lv in items:
+        subs += [W.sub("INAM", W.zs(iid)), W.sub("INTV", struct.pack("<h", lv))]
+    return W.record("LEVI", subs)
+
+
+def _stage3_records() -> list:
+    torch = W.record("LIGH", [W.sub("NAME", W.zs("synth_torch")), W.sub("MODL", W.zs("l\\l_synth_torch.nif")),
+                              W.sub("FNAM", W.zs("Pochodnia")),
+                              W.sub("LHDT", struct.pack("<fiii", 4.0, 2, 600, 256) + bytes([255, 180, 90, 0])
+                                    + struct.pack("<i", 0x2 | 0x80))])
+    spoon = W.record("MISC", [W.sub("NAME", W.zs("misc_synth_spoon")), W.sub("MODL", W.zs("m\\misc_synth_spoon.nif")),
+                              W.sub("FNAM", W.zs("Lyzka")), W.sub("MCDT", struct.pack("<fii", 0.5, 2, 0))])
+    chest_inv = [W.sub("NPCO", struct.pack("<i", n) + iid.encode().ljust(32, b"\0")) for n, iid in CHEST_INVENTORY]
+    chest = W.record("CONT", [W.sub("NAME", W.zs("synth_chest")), W.sub("MODL", W.zs("o\\synth_chest.nif")),
+                              W.sub("FNAM", W.zs("Skrzynia")), W.sub("CNDT", struct.pack("<f", 100.0)),
+                              W.sub("FLAG", struct.pack("<i", 0x08))] + chest_inv)
+    return [torch, spoon, chest] + [_leveled(k, *v) for k, v in LEVELED.items()]
+
+
 def _weapon() -> bytes:
     wpdt = struct.pack("<fiHHffH", 10.0, 40, 1, 300, 1.0, 1.0, 10) + bytes([2, 8, 2, 9, 1, 4]) + struct.pack("<i", 0)
     return W.record("WEAP", [W.sub("NAME", W.zs("synth_sword")), W.sub("MODL", W.zs("w\\w_synth_sword.nif")),
@@ -275,6 +309,8 @@ ACTOR_REFS = {  # refnum: (rekord, x, y, obrót z w stopniach)
     9002: ("synth_villager_f", 2500.0, 2400.0, -20.0),
     9003: ("synth_creature", 2800.0, 2200.0, 0.0),
     9004: ("synth_guard", 2350.0, 2700.0, 0.0),
+    9005: ("synth_chest", 2000.0, 2600.0, 0.0),
+    9006: ("misc_synth_spoon", 2050.0, 2500.0, 0.0),
 }
 
 
@@ -288,6 +324,7 @@ def write_actors(data_dir: Path) -> dict:
     recs = [_race()] + [_body(k, *v) for k, v in BODYPARTS.items()]
     recs += [_item_body(k, *v) for k, v in ITEM_BODYPARTS.items()]
     recs += [_armor(k, *v) for k, v in ARMORS.items()] + [_clothing(k, *v) for k, v in CLOTHES.items()] + [_weapon()]
+    recs += _stage3_records()
     recs += [_npc("synth_villager", False), _npc("synth_villager_f", True), _creature(),
              _npc("synth_guard", False, GUARD_INVENTORY)]
     refs = []

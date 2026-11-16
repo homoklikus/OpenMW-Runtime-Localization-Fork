@@ -38,6 +38,8 @@ func _initialize() -> void:
 	var db := MWWorldDB.new(data)
 	var models := MWModelCache.new(data)
 	builder = MWCellBuilder.new(db, models)
+	builder.state = load("res://scripts/mw/mw_game_state.gd").new()
+	builder.state.seed = 1234
 	check(builder.actors.available(), "rekordy aktorów dostępne")
 	cell = builder.build_cell("ext:0,0")
 	root.add_child(cell)
@@ -99,12 +101,54 @@ func _initialize() -> void:
 		var eq: Dictionary = builder.actors.equipment.auto_equip(builder.actors.record("npc", "synth_guard"))
 		check(eq.has(8) and eq[8].id == "synth_shirt_fine", "najcenniejsza koszula w slocie (%s)" % [eq.get(8, {}).get("id", "")])
 		check(eq.has(16) and eq[16].id == "synth_sword", "miecz w prawej ręce (slot)")
+		# etap 3: hełm z listy poziomowanej (MWInventory), pochodnia po zmroku zamiast tarczy
+		var inv = builder.actors.inventory
+		check(inv != null, "MWInventory utworzony przy budowie NPC")
+		var gitems: Array = inv.contents(String(g.get_meta("mw_sid")), builder.actors.record("npc", "synth_guard"))
+		check(gitems.any(func(e): return e.id == "synth_helm") and not gitems.any(func(e): return e.id == "synth_cuirass" and e.count > 1),
+				"lista poziomowana na poziomie 1: hełm (nie napierśnik z poz. 30): %s" % [gitems])
+		builder.actors.torches = true
+		var tm: Node3D = builder.actors.build_npc("synth_guard", 1, String(g.get_meta("mw_sid")))
+		var tn := []
+		_all(tm, tn)
+		var tnames := tn.filter(func(n): return n is MeshInstance3D).map(func(n): return String(n.name))
+		check("Tri L_Synth_Torch" in tnames and not "Tri A_Synth_Shield" in tnames and tn.any(func(n): return n is OmniLight3D),
+				"po zmroku: pochodnia ze światłem zamiast tarczy (%s)" % [tnames])
+		tm.free()
+		builder.actors.torches = false
+		_test_inventory(inv)
 	var ap := m.get_node("Model/MWAnimations") as AnimationPlayer
 	check(ap.is_playing() and ap.current_animation == "idle", "NPC: bezczynność w pętli (%s)" % ap.current_animation)
 	var cap := c.get_node("Model").find_children("MWAnimations", "AnimationPlayer", true, false)
 	check(cap.size() > 0 and (cap[0] as AnimationPlayer).is_playing() and (cap[0] as AnimationPlayer).current_animation == "idle",
 			"stworzenie: animacja bezczynności")
 	rest_arm = sk.get_bone_rest(sk.find_bone("Bip01 L UpperArm")).basis.get_rotation_quaternion()
+
+## Etap 3: zawartość pojemnika (listy poziomowane jak OpenMW), determinizm, przenoszenie do GameState.
+func _test_inventory(inv) -> void:
+	var chest: Dictionary = builder.actors.record("container", "synth_chest")
+	check(not chest.is_empty(), "rekord pojemnika")
+	var a: Array = inv.base_contents(chest, "mwg_actors.esp#9005")
+	var b: Array = inv.base_contents(chest, "mwg_actors.esp#9005")
+	check(a == b, "losowanie list deterministyczne dla sid i ziarna")
+	var by := {}
+	for e in a:
+		by[e.id] = e.count
+	# 2 łyżki + „każdy”×3 z {łyżka, lista→koszula} (wszystkie poziomy); „nigdy” (100% brak); nieistniejący – pominięty
+	var spoons := int(by.get("misc_synth_spoon", 0))
+	var shirts := int(by.get("synth_shirt_fine", 0))
+	check(spoons + shirts == 5 and spoons >= 2 and not by.has("synth_sword") and not by.has("no_such_item"),
+			"zawartość skrzyni: %s" % [by])
+	var st = builder.state
+	var moved: int = inv.transfer("mwg_actors.esp#9005", chest, "player", {}, "misc_synth_spoon", 1)
+	check(moved == 1 and st.has_inventory("player") and st.has_inventory("mwg_actors.esp#9005"),
+			"przeniesienie: obie zawartości w GameState")
+	check(inv.count_of("player", {}, "misc_synth_spoon") == 1 and inv.count_of("mwg_actors.esp#9005", chest, "misc_synth_spoon") == spoons - 1,
+			"przeniesienie: liczby po obu stronach")
+	var order: Array = inv.ordered([{"id": "synth_sword", "count": 1}, {"id": "misc_synth_spoon", "count": 2}, {"id": "synth_helm", "count": 1}])
+	check(order.map(func(e): return e.kind) == ["armor", "misc", "weapon"], "kolejność typów jak w ContainerStore")
+	var other: Array = load("res://scripts/mw/mw_inventory.gd").new(builder.actors, null).base_contents(chest, "mwg_actors.esp#9005")
+	check(other.size() > 0, "inwentarz bez stanu gry (ziarno 0)")
 
 func _process(_delta: float) -> bool:
 	frames += 1

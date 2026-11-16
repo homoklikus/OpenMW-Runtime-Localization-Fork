@@ -303,6 +303,7 @@ func _capture_tick() -> void:
 
 func _process(_d: float) -> void:
 	_frames += 1
+	_update_torches(_d)
 	_capture_tick()
 	var autotest := int(arg("autotest-frames", "0"))
 	if autotest > 0 and _frames == autotest:
@@ -447,11 +448,47 @@ func _update_streaming(_force: bool) -> void:
 			loaded.erase(key)
 
 func _load(key: String) -> void:
+	if builder.actors != null:
+		builder.actors.torches = use_torches(key)
 	var n := builder.build_cell(key)
 	if n:
 		add_child(n)
 		loaded[key] = n
 		events.cell_loaded.emit(key)
+
+## World::useTorches: na zewnątrz po zmroku (przed 6:00 i po 20:00 – wschód 6, zachód 18 + 2 h zmierzchu) i bez
+## opadów (pogody z „Using Precip”: deszcz, burza, śnieg, zamieć); we wnętrzach – gdy suma składowych światła
+## otoczenia ≤ 201 i spanie nie jest zabronione.
+func use_torches(key := "") -> bool:
+	var k := key if not key.is_empty() else ("" if interior.is_empty() else "int:" + interior.to_lower())
+	if k.begins_with("int:"):
+		var c := db.get_cell(k)
+		if c.get("behave_like_exterior", false):
+			pass
+		else:
+			var amb: Array = (c.get("ambient", {}) as Dictionary).get("ambient_rgb", [255, 255, 255])
+			return (int(c.get("flags", 0)) & 0x04) == 0 and int(amb[0]) + int(amb[1]) + int(amb[2]) <= 201
+	var h := float(envr.game_hour)
+	return (h < 6.0 or h > 20.0) and not String(envr.weather) in ["rain", "thunder", "snow", "blizzard"]
+
+## Co sekundę (jak Actors::update): zmiana pory/pogody → NPC biorą albo odkładają pochodnie.
+var _torch_timer := 0.0
+func _update_torches(delta: float) -> void:
+	_torch_timer += delta
+	if _torch_timer < 1.0 or builder == null or builder.actors == null:
+		return
+	_torch_timer = 0.0
+	var t := use_torches()
+	if t == builder.actors.torches:
+		return
+	builder.actors.torches = t
+	for key in loaded:
+		var refs_node: Node = loaded[key].get_node_or_null("Refs")
+		if refs_node == null:
+			continue
+		for n in refs_node.get_children():
+			if n.get_meta("mw_actor", "") == "npc":
+				_on_ref_changed(String(n.get_meta("mw_sid", "")))
 
 func _toast(text: String, seconds := 3.0) -> void:
 	var l := Label.new()

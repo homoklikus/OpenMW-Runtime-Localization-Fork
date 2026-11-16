@@ -27,6 +27,9 @@ var _libs := {}             # klucz animacji → AnimationLibrary (wspólna dla 
 var _race_parts := {}       # (rasa, kobieta) → {PRT: rekord BODY}
 var stats := {"npcs": 0, "creatures": 0, "parts": 0, "skinned": 0, "rigid": 0, "missing_parts": 0, "equipped": 0}
 var equipment = null        # MWEquipment (etap 2c)
+var inventory = null        # MWInventory (etap 3) – zawartość z listami poziomowanymi i zmianami z gry
+var torches := false
+var last_slots := {}         # sloty ostatnio złożonego NPC (diagnostyka, światło pochodni)        # pora/pogoda/wnętrze, w których NPC zapalają pochodnie (World::useTorches)
 
 const Equipment := preload("res://scripts/mw/mw_equipment.gd")
 # NpcAnimation::updateParts: kolejność slotów i priorytet bazowy (szata 11, spódnica 3, reszta 0)
@@ -319,7 +322,7 @@ static func play_idle(ap: AnimationPlayer, seed: int = 0) -> bool:
 # --- składanie --------------------------------------------------------------------------------------
 
 ## Wygląd NPC jako węzeł „Model” (albo null, gdy brak danych). npc_id – rekord NPC_.
-func build_npc(npc_id: String, seed: int = 0) -> Node3D:
+func build_npc(npc_id: String, seed: int = 0, sid := "") -> Node3D:
 	var npc := record("npc", npc_id)
 	if npc.is_empty():
 		return null
@@ -343,11 +346,13 @@ func build_npc(npc_id: String, seed: int = 0) -> Node3D:
 	src.free()
 	root.add_child(sk)
 	# części: ekwipunek (priorytety), głowa i włosy z NPC, rasa (szyja…ogon) tam, gdzie nic nie zajęło miejsca
-	var parts := npc_parts(npc, female)
+	var parts := npc_parts(npc, female, sid)
 	var keys := parts.keys()
 	keys.sort()
 	for prt in keys:
 		_attach_part(sk, int(prt), String(parts[prt]))
+	if last_slots.has(17) and last_slots[17].kind == "light":
+		_add_held_light(sk, last_slots[17].rec)
 	# animacje: baza + (żeńskie | zwierzęce) z pierwszeństwem
 	var docs := [_anim_doc(String(anims.get("base", "")))]
 	if kind != "male" and anims.has(kind):
@@ -376,10 +381,12 @@ static func _model_glb(model: String) -> String:
 	return "" if model.is_empty() else "meshes/" + model.replace("\\", "/").to_lower().get_basename() + ".glb"
 
 ## PRT → GLB do założenia (NpcAnimation::updateParts, 3. osoba, broń schowana).
-func npc_parts(npc: Dictionary, female: bool) -> Dictionary:
+func npc_parts(npc: Dictionary, female: bool, sid := "") -> Dictionary:
 	if equipment == null:
 		equipment = Equipment.new(self)
-	var slots: Dictionary = equipment.auto_equip(npc)
+	var items = inventory.contents(sid, npc) if inventory != null and not sid.is_empty() else null
+	var slots: Dictionary = equipment.auto_equip(npc, items, torches)
+	last_slots = slots
 	var prio := {}
 	var chosen := {}
 	var add := func(prt: int, p: int, glb: String) -> bool:
@@ -425,6 +432,11 @@ func npc_parts(npc: Dictionary, female: bool) -> Dictionary:
 		var hair := record("bodypart", String(npc.get("hair", "")))
 		if not hair.is_empty():
 			add.call(1, 1, _part_glb(hair))
+	# światło w lewej ręce (pochodnia) – model światła na kości tarczy
+	if slots.has(17) and slots[17].kind == "light" and int(prio.get(10, 0)) < 1:
+		var lg := _model_glb(String(slots[17].rec.get("model", "")))
+		if not lg.is_empty():
+			add.call(10, 1, lg)
 	# tarcza w lewej ręce (showCarriedLeft): bez części ciała – model przedmiotu
 	if slots.has(17) and slots[17].kind == "armor" and int(prio.get(10, 0)) < 1:
 		var shield_glb := ""
@@ -440,6 +452,28 @@ func npc_parts(npc: Dictionary, female: bool) -> Dictionary:
 		if int(prio.get(prt, 0)) < 1 and body.has(prt):
 			add.call(prt, 1, _part_glb(body[prt]))
 	return chosen
+
+## Światło trzymanej pochodni (Actors::updateEquippedLight → addExtraLight): promień i barwa z rekordu LIGH.
+func _add_held_light(sk: Skeleton3D, rec: Dictionary) -> void:
+	var att: BoneAttachment3D = null
+	for c in sk.get_children():
+		if c is BoneAttachment3D and (c as BoneAttachment3D).bone_name == "Shield Bone":
+			att = c
+	if att == null:                                     # pochodnia bez modelu – samo światło
+		if sk.find_bone("Shield Bone") < 0:
+			return
+		att = BoneAttachment3D.new()
+		att.bone_name = "Shield Bone"
+		sk.add_child(att)
+	var l := OmniLight3D.new()
+	l.name = "HeldLight"
+	var col: Array = rec.get("color", [255, 200, 120, 0])
+	l.light_color = Color8(int(col[0]), int(col[1]), int(col[2]))
+	l.omni_range = maxf(float(rec.get("radius", 128)) / MWCoords.UNITS_PER_METER, 0.5)
+	l.light_energy = 1.0
+	l.shadow_enabled = false
+	att.add_child(l)
+	stats["held_lights"] = int(stats.get("held_lights", 0)) + 1
 
 ## Stworzenie: model z biblioteką animacji z xname.kf (dołączoną przez MWModelCache) – bezczynność w pętli.
 func animate_creature(model: Node, seed: int = 0) -> bool:

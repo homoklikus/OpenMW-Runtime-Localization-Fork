@@ -386,6 +386,22 @@ ACTOR_ANIMS = {"base": "meshes/xbase_anim.kf", "female": "meshes/xbase_anim_fema
                "beast": "meshes/xbase_animkna.kf"}
 
 
+def _expand_leveled(world, ids) -> set:
+    """Id przedmiotów z rozwinięciem list poziomowanych (LEVI) – wszystkie możliwe wyniki losowania."""
+    levi = world.records.get("LEVI", {})
+    out, todo, seen = set(), list(ids), set()
+    while todo:
+        i = todo.pop()
+        if i in seen:
+            continue
+        seen.add(i)
+        if i in levi:
+            todo += [(x.get("id") or "").lower() for x in levi[i].get("items", [])]
+        else:
+            out.add(i)
+    return out
+
+
 def _actor_models(world, keys, vfs) -> set:
     """Modele NPC w wybranych komórkach (etap 2): szkielety, głowy, włosy, części ciała ras (BODY, typ skóra),
     własne modele NPC. Animacje .kf dochodzą jako pliki sąsiednie (xname.kf)."""
@@ -408,10 +424,10 @@ def _actor_models(world, keys, vfs) -> set:
                 if bp:
                     add(bp.get("model"))
             add(n.get("model"))
-            # ekwipunek (etap 2c): części ciała ubrań i zbroi (obie płcie) + model przedmiotu (tarcza bez części)
-            for e in n.get("inventory", []):
-                iid = (e.get("item") or "").lower()
-                for kind in ("ARMO", "CLOT"):
+            # ekwipunek (etap 2c/3): części ciała ubrań i zbroi (obie płcie) + model przedmiotu (tarcza bez części,
+            # pochodnia); listy poziomowane – wszystkie możliwe wyniki
+            for iid in _expand_leveled(world, [(e.get("item") or "").lower() for e in n.get("inventory", [])]):
+                for kind in ("ARMO", "CLOT", "LIGH"):
                     it = world.records.get(kind, {}).get(iid)
                     if it is None:
                         continue

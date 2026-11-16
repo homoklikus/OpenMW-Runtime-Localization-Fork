@@ -23,6 +23,7 @@ const HIDDEN_MARKERS := ["templemarker", "divinemarker", "prisonmarker", "northm
 static func is_hidden_marker(base_id: String) -> bool:
 	return base_id.to_lower() in HIDDEN_MARKERS
 
+const InventoryScript := preload("res://scripts/mw/mw_inventory.gd")
 const ActorScript := preload("res://scripts/mw/mw_actor.gd")
 const ActorVisual := preload("res://scripts/mw/mw_actor_visual.gd")
 
@@ -108,7 +109,9 @@ func build_ref(r: Dictionary) -> Node3D:
 		return n
 	var btype := String(base.get("type", ""))
 	if btype == "NPC_" and actors != null and actors.available():
-		var am: Node3D = actors.build_npc(String(r.get("base", "")), String(r.get("sid", "")).hash())
+		if actors.inventory == null and state != null:
+			actors.inventory = InventoryScript.new(actors, state)
+		var am: Node3D = actors.build_npc(String(r.get("base", "")), String(r.get("sid", "")).hash(), String(r.get("sid", "")))
 		if am:
 			n.add_child(am)
 			n.set_meta("mw_actor", "npc")
