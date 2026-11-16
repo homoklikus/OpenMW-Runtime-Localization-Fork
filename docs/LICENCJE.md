@@ -92,3 +92,8 @@ Przeniesiony kod OpenMW (od sesji 4): *na razie brak* — każdy przeniesiony fr
   (pismo daedryjskie) z OpenMW (`files/data/fonts`), bez zmian. Licencja: **SIL Open Font License 1.1**
   (copyright OpenMW Team; oparte na Pelagiad – Isak Larborn, OMWAyembedt – Georg Duffner); pełne teksty licencji
   obok czcionek (`*FontLicense.txt`). OFL pozwala dołączać czcionki do programu (także GPL) bez zmiany nazwy.
+
+## Paleta mapy świata (dołączona)
+
+* `converter/mwconv/data/omw_map_color_palette.dds` – paleta 256 × 1 kolorów mapy świata z OpenMW
+  (`files/data/textures`), bez zmian; GPL-3.0 (jak OpenMW i ten projekt). Konwerter koloruje nią wysokości WNAM.

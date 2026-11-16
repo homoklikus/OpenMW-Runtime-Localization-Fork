@@ -66,7 +66,9 @@ JSON skompresowany Zstandard (`FileAccess.open_compressed`). Kod: `godot/scripts
   //   {"bitter coast region": "rain"} (ChangeWeather); w „scripts.locals” klucze "inv:<id przedmiotu>" – zmienne
   //   skryptów przedmiotów w ekwipunku gracza (przenoszone ze świata przy podniesieniu)
   // etap 10 (bez zmiany wersji): w „player” – "books_read": {"bk_x": true} (książki, które już podniosły
-  //   umiejętność – NpcStats::flagAsUsed; brak klucza = żadna)
+  //   umiejętność – NpcStats::flagAsUsed; brak klucza = żadna), "map_fog": {"ext|-3|1": "<base64 deflate 32×32
+  //   bajtów alfy mgły>", "int:<komórka>|0|0": …} (mgła wojny mapy lokalnej na segment), "map_visited": {"-3,-2":
+  //   true} (odwiedzone nazwane komórki zewnętrzne – znaczniki mapy świata)
   // etap 8 (bez zmiany wersji – nowe pola, starsze zapisy działają): w „actors” stan AI aktora
   //   "ai": {"packages": [{"type": "wander", "distance": 512, "remaining": 5, "idle": […], "repeat": false},
   //                       {"type": "pursue", "target": "player", "priority": 2}], "done": false, "last": 0,

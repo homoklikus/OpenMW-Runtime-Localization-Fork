@@ -40,6 +40,8 @@ var item_window = null                # okno pojemnika / ekwipunku
 var audio = null                      # MWAudio (etap 3)
 var music = null                      # MWMusic (etap 10)
 var book_window = null                # etap 10: książki i zwoje
+var local_map = null                  # etap 10: mapa lokalna (segmenty, mgła wojny)
+var map_window = null                 # etap 10: okno mapy (N)
 var character = null                  # MWCharacter (etap 4) – statystyki w state.player["character"]
 var chargen = null                    # kreator postaci
 var scripts = null                    # MWScripts (etap 5)
@@ -162,6 +164,18 @@ func _ready() -> void:
 	book_window.data_root = data
 	book_window.closed.connect(_on_book_closed)
 	add_child(book_window)
+	local_map = preload("res://scripts/mw/mw_local_map.gd").new()
+	local_map.name = "LocalMap"
+	local_map.main = self
+	local_map.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(local_map)
+	map_window = preload("res://scripts/mw/mw_map_window.gd").new()
+	map_window.name = "MapWindow"
+	map_window.main = self
+	map_window.lmap = local_map
+	map_window.data_root = data
+	add_child(map_window)
+	events.game_loaded.connect(func(_p, _w): local_map.reset_fog())
 	audio = preload("res://scripts/mw/mw_audio.gd").new()
 	audio.name = "Audio"
 	audio.setup(data, builder.actors)
@@ -1250,7 +1264,8 @@ func _process(_d: float) -> void:
 	_update_torches(_d)
 	_update_water_level()
 	_update_sound_world(_d)
-	_perf_mark("torches+water+sound")
+	_update_map(_d)
+	_perf_mark("torches+water+sound+map")
 	if not get_tree().paused:
 		_update_player_rpg(_d)
 		_update_combat(_d)
@@ -1450,6 +1465,10 @@ func _unhandled_input(e: InputEvent) -> void:
 		return
 	if e.is_action_pressed("rest") and player and rest_window != null and not rest_window.visible and menu_allowed("rest"):
 		rest_window.open()
+		get_viewport().set_input_as_handled()
+		return
+	if e.is_action_pressed("map_menu") and player and map_window != null and not map_window.visible and menu_allowed("map"):
+		map_window.open()
 		get_viewport().set_input_as_handled()
 		return
 	if e.is_action_pressed("inventory") and player and item_window != null and not item_window.visible and menu_allowed("inventory"):
@@ -1674,6 +1693,27 @@ func _load(key: String) -> void:
 		_apply_dead_poses()
 
 ## Poziom wody dla gracza (pływanie): komórka zewnętrzna albo wnętrze z wodą (water_height_m z konwertera).
+## Etap 10: obszar mapy lokalnej (zewnętrze / wnętrze z NorthMarker), mgła wojny wokół gracza, odwiedzone
+## nazwane komórki zewnętrzne (znaczniki mapy świata – WindowManager::changeCell → addVisitedLocation).
+func _update_map(delta: float) -> void:
+	if local_map == null or player == null or get_tree().paused:
+		return
+	var want := "ext" if interior.is_empty() else "int:" + interior.to_lower()
+	if want != local_map.area:
+		var refs: Node = null
+		if loaded.has(want):
+			refs = loaded[want].get_node_or_null("Refs")
+		if want == "ext" or refs != null:
+			local_map.set_area(want, refs)
+	local_map.tick(delta, player.global_position)
+	if interior.is_empty():
+		var g := MWCoords.cell_of(player.global_position)
+		var vk := "%d,%d" % [g.x, g.y]
+		var visited: Dictionary = state.player.get("map_visited", {})
+		if not visited.has(vk) and not String(db.get_cell(db.exterior_key(g)).get("name", "")).is_empty():
+			visited[vk] = true
+			state.player["map_visited"] = visited
+
 ## Etap 10: muzyka (walka, gdy któryś aktor w zasięgu walczy), dźwięki otoczenia regionu, pętle pogody,
 ## dźwięk pod wodą (głowa gracza pod powierzchnią).
 func _update_sound_world(delta: float) -> void:

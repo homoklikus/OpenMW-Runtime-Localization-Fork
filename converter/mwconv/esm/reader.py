@@ -149,6 +149,7 @@ class Land:
     normals: Optional[np.ndarray] = None   # (65, 65, 3) int8
     colors: Optional[np.ndarray] = None    # (65, 65, 3) uint8
     textures: Optional[np.ndarray] = None  # (16, 16) uint16, [y, x], 0 = domyślna, n = LTEX(n-1)
+    wnam: Optional[np.ndarray] = None      # (9, 9) int8, [y, x] – wysokości do mapy świata (etap 10)
     deleted: bool = False
 
 
@@ -223,6 +224,9 @@ def parse_land(rec: Record) -> Land:
     v = rec.get("VTEX")
     if v is not None and len(v) >= 512:
         land.textures = transpose_vtex(np.frombuffer(v, "<u2", 256))
+    v = rec.get("WNAM")
+    if v is not None and len(v) >= 81:
+        land.wnam = np.frombuffer(v, np.int8, 81).reshape(9, 9)
     return land
 
 

@@ -25,6 +25,12 @@
 * Etap 1: konwerter eksportuje `world/records/` (NPC_, CREA, RACE, CLAS, FACT, BODY, BSGN, SKIL, broń, zbroje,
   ubrania, książki, przedmioty, światła, GMST, GLOB) ze scalaniem wg kolejności ładowania; MCP-openMW:
   `openmw_record_compare_start/status` – porównanie rekordów z silnikiem OpenMW (Lua) pole po polu.
+* Etap 10 (w toku) – mapa (klawisz N) jak w OpenMW: mapa lokalna – widok z góry segmentów po 8192 jedn.
+  (komórka zewnętrzna; wnętrze obrócone wg NorthMarker), mgła wojny 32 × 32 na segment odkrywana wokół gracza
+  (w zapisie), drzwi z nazwą celu, strzałka gracza; mapa świata – obraz z wysokości WNAM w kolorach palety
+  OpenMW (18 px na komórkę), znaczniki odwiedzonych nazwanych miejsc i odkrytych przez ShowMap, pozycja gracza,
+  przybliżanie kółkiem myszy; przełącznik „Świat”/„Lokalna”. Konwerter: world/map/ (eksport świata v11 –
+  „Aktualizuj”). Brak (później): nakładanie odkrytych map lokalnych na mapę świata, własne notatki na mapie.
 * Etap 10 (w toku) – książki i zwoje jak w OpenMW: aktywacja książki w świecie otwiera ją do czytania (przycisk
   „Weź”), z ekwipunku – bez „Weź” (w walce nie wolno); książka – dwie strony z numerami, poprzednia/następna
   (strzałki), zwój – jedna przewijana kolumna; znaczniki Morrowinda (BR, P, DIV ALIGN, FONT COLOR/FACE, IMG
