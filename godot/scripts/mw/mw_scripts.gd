@@ -17,7 +17,7 @@ var errors := {}                 # opis → liczba
 var calls := {}                  # nazwa funkcji → liczba wywołań (obsługiwanych)
 var partial := {}                # funkcje zależne od późniejszych etapów – zwracają stan „spoczynku” (0)
 ## Zdarzenia walki/AI (etapy 7–8): bez walki i śmierci ich poprawna wartość to 0.
-const IDLE_ZERO := ["onknockout", "onmurder", "onpchitme", "gettarget", "getattacked", "getpcsleep", "getcurrentaipackage", "getaipackagedone",
+const IDLE_ZERO := ["onknockout", "onmurder", "onpchitme", "gettarget", "getattacked", "getpcsleep",
 	"getforcesneak", "getforcerun", "getpcjumping", "getpcsneaking", "getpcinjail", "getpctraveling", "iswerewolf",
 	"getwerewolfkills", "getpccrimelevel", "getdetected", "getlineofsight", "getlos"]
 var delta := 0.0
@@ -265,6 +265,39 @@ func resolve(id: String) -> Dictionary:
 	if not e.is_empty():
 		return {"sid": String(e.sid), "node": null, "cell": String(e.cell)}
 	return {}
+
+## Pakiety AI ze skryptów (OpenMW mwscript/aiextensions.cpp): argumenty jak w Morrowindzie.
+func _ai_function(fname: String, t: Dictionary, args: Array, c: Ctx):
+	var m = game.main
+	var n = t.get("node")
+	var is_get := fname.begins_with("get")
+	if m.get("ai") == null or n == null or not is_instance_valid(n) or not n.has_meta("mw_actor"):
+		return 0.0 if is_get else null
+	match fname:
+		"getaipackagedone":
+			return 1.0 if bool(m.ai.ai_state(n).get("done", false)) else 0.0
+		"getcurrentaipackage":
+			return float(m.ai.current_type(n))
+		"aiwander":
+			var idle := []
+			for i in 8:
+				idle.append(int(_num(args, 3 + i, c, 0)))
+			m.ai.stack(n, {"type": "wander", "distance": _num(args, 0, c), "duration": _num(args, 1, c),
+				"time_of_day": _num(args, 2, c), "idle": idle, "repeat": _num(args, 11, c, 0) != 0.0})
+		"aitravel":
+			m.ai.stack(n, {"type": "travel", "pos": [_num(args, 0, c), _num(args, 1, c), _num(args, 2, c)],
+				"repeat": _num(args, 3, c, 0) != 0.0})
+		"aiescort", "aifollow":
+			m.ai.stack(n, {"type": "escort" if fname == "aiescort" else "follow", "target": _str(args, 0).to_lower(),
+				"duration": _num(args, 1, c), "pos": [_num(args, 2, c), _num(args, 3, c), _num(args, 4, c)],
+				"repeat": _num(args, 5, c, 0) != 0.0})
+		"aiescortcell", "aifollowcell":
+			m.ai.stack(n, {"type": "escort" if fname == "aiescortcell" else "follow", "target": _str(args, 0).to_lower(),
+				"cell": _str(args, 1), "duration": _num(args, 2, c),
+				"pos": [_num(args, 3, c), _num(args, 4, c), _num(args, 5, c)], "repeat": _num(args, 6, c, 0) != 0.0})
+		"aiactivate":
+			m.ai.stack(n, {"type": "activate", "target": _str(args, 0).to_lower(), "repeat": _num(args, 1, c, 0) != 0.0})
+	return null
 
 func _fighter(t: Dictionary) -> Dictionary:
 	var m = game.main
@@ -674,6 +707,9 @@ func _call(ref, fname: String, args: Array, c: Ctx):
 			if nrec.is_empty():
 				nrec = records.record("creature", String(t11.get("base", "")))
 			return 1.0 if spell in (nrec.get("spells", []) as Array).map(func(x): return String(x).to_lower()) else 0.0
+		# --- AI (etap 8)
+		"aiwander", "aitravel", "aiescort", "aiescortcell", "aifollow", "aifollowcell", "aiactivate", "getaipackagedone", "getcurrentaipackage":
+			return _ai_function(fname, _target(ref, c), args, c)
 		# --- magia (etap 7d)
 		"geteffect", "getspelleffects", "cast", "explodespell", "removespelleffects", "removeeffects", "getweapondrawn", "getspellreadied", "hassoulgem", "getcommondisease", "getblightdisease":
 			return _magic_function(fname, _target(ref, c), args, c)

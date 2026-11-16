@@ -52,6 +52,7 @@ var trade = null                      # etap 7: handel i usługi
 var trade_window = null
 var combat = null                     # etap 7: walka
 var magic_window = null               # etap 7d: magia, alchemia, zaklinanie
+var ai = null                         # etap 8: AI aktorów (mw_ai.gd)
 var magic_ready := false              # przygotowana magia (klawisz R) – lewy przycisk rzuca
 var state = GameStateScript.new()   # różnice stanu gry względem danych bazowych (zapis gry)
 var pause_menu: Control
@@ -130,6 +131,8 @@ func _ready() -> void:
 	db.created = state.created
 	trade = TradeScript.new(self)
 	combat = CombatScript.new(self)
+	ai = preload("res://scripts/mw/mw_ai.gd").new(self)
+	ai.enabled = arg("ai", "1") != "0"
 	trade_window = TradeWindowScript.new()
 	trade_window.main = self
 	trade_window.trade = trade
@@ -1061,6 +1064,8 @@ func _process(_d: float) -> void:
 		_update_player_rpg(_d)
 		_update_combat(_d)
 		_update_magic(_d)
+		if ai != null and arg("screenshot").is_empty():
+			ai.tick(_d)
 	if scripts != null and player != null and not get_tree().paused and arg("scripts", "1") != "0":
 		scripts.tick(_d, script_host.scripted_refs())
 	_capture_tick()
@@ -1276,6 +1281,8 @@ func drop_item(id: String, count: int) -> String:
 func travel(dest: Dictionary) -> void:
 	if scripts != null:
 		scripts.cell_changed = true
+	if ai != null:
+		ai.store_positions()
 	for key in loaded.keys():
 		events.cell_unloaded.emit(key)
 		loaded[key].queue_free()
@@ -1307,6 +1314,8 @@ func _update_streaming(_force: bool) -> void:
 			_load(key)
 	for key in loaded.keys():
 		if not want.has(key):
+			if ai != null:
+				ai.store_positions(key)
 			events.cell_unloaded.emit(key)
 			loaded[key].queue_free()
 			loaded.erase(key)
@@ -1405,6 +1414,8 @@ func save_header() -> Dictionary:
 		"created": Time.get_datetime_string_from_system(), "game": "OpenMWGodot"}
 
 func capture_state() -> void:
+	if ai != null:
+		ai.store_positions()
 	state.time = {"day": envr.day, "hour": envr.game_hour}
 	var cam := player.get_node_or_null("Camera3D") as Camera3D
 	var p := MWCoords.godot_to_mw(player.global_position)

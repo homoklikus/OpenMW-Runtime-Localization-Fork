@@ -85,8 +85,7 @@ func build_ref(r: Dictionary) -> Node3D:
 		n.kind = "npc" if atype == "NPC_" else "creature"
 		n.record_id = String(r.get("base", "")).to_lower()
 		n.sid = String(r.get("sid", ""))
-		n.collide = atype == "NPC_"
-		n.set_physics_process(false)
+		n.collide = true
 	n.name = _safe_name(r.get("base", "ref") + "_" + String(r.get("sid", "")).get_slice("#", 1))
 	n.transform = MWCoords.ref_transform(r)
 	n.set_meta("mw_sid", r.get("sid", ""))
@@ -113,6 +112,7 @@ func build_ref(r: Dictionary) -> Node3D:
 			actors.inventory = InventoryScript.new(actors, state)
 		var am: Node3D = actors.build_npc(String(r.get("base", "")), String(r.get("sid", "")).hash(), String(r.get("sid", "")))
 		if am:
+			_strip_collision(am)            # części ciała i ekwipunek nie kolidują z kapsułą aktora (dryf – etap 8)
 			n.add_child(am)
 			n.set_meta("mw_actor", "npc")
 			return n
@@ -125,6 +125,9 @@ func build_ref(r: Dictionary) -> Node3D:
 			if btype == "CREA" and actors != null:
 				actors.animate_creature(m, String(r.get("sid", "")).hash())
 				n.set_meta("mw_actor", "creature")
+			if is_actor:
+				_strip_collision(m)
+				_fit_capsule(n, m, actors.record("creature", String(r.get("base", ""))) if actors != null else {})
 		else:
 			stats.missing_model += 1
 			n.add_child(_placeholder())
@@ -142,6 +145,33 @@ func build_ref(r: Dictionary) -> Node3D:
 		ol.shadow_enabled = false
 		n.add_child(ol)
 	return n
+
+## Kolizje modelu aktora (siatki bez szkieletu dostają StaticBody3D w MWModelCache) – usuwane: kapsuła aktora
+## stała w nich i była wypychana (NPC „dryfowały”).
+static func _strip_collision(m: Node) -> void:
+	for b in m.find_children("*", "CollisionObject3D", true, false):
+		b.get_parent().remove_child(b)
+		b.free()
+
+## Kapsuła stworzenia z wymiarów modelu (OpenMW: kształt kolizji z granic modelu) i brak grawitacji dla
+## stworzeń tylko latających/pływających.
+static func _fit_capsule(n: Node3D, m: Node3D, rec: Dictionary) -> void:
+	var aabb := AABB()
+	var first := true
+	for mi in m.find_children("*", "MeshInstance3D", true, false):
+		var b: AABB = (mi as MeshInstance3D).transform * (mi as MeshInstance3D).get_aabb()
+		var p := (mi as Node3D).get_parent()
+		while p != null and p != m:
+			if p is Node3D:
+				b = (p as Node3D).transform * b
+			p = p.get_parent()
+		aabb = b if first else aabb.merge(b)
+		first = false
+	if not first:
+		n.capsule_radius = clampf(maxf(aabb.size.x, aabb.size.z) * 0.5, 0.15, 2.0)
+		n.capsule_height = clampf(aabb.size.y, 0.3, 6.0)
+	var walks := bool(rec.get("walks", true)) or bool(rec.get("bipedal", false))
+	n.no_gravity = not walks and (bool(rec.get("flies", false)) or bool(rec.get("swims", false)))
 
 func _placeholder() -> Node3D:
 	var mi := MeshInstance3D.new()

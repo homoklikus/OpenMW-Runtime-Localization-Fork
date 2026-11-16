@@ -78,6 +78,7 @@ class World:
     ltex_by_file: dict = field(default_factory=dict)  # nazwa pliku → {INTV: tekstura}
     masters_by_file: dict = field(default_factory=dict)
     pathgrids: dict = field(default_factory=dict)     # (x, y) → (punkty [(x, y, z) świat], krawędzie [(i, j)])
+    pathgrid_cells: dict = field(default_factory=dict)  # klucz komórki (także wnętrza) → (punkty świat, krawędzie) – etap 8
     records: dict = field(default_factory=dict)       # typ → {id_lower: rekord} (etap 1: postacie, przedmioty, GMST…)
     dialogue: object = None                           # etap 6: DialogueStore (DIAL + INFO w kolejności ładowania)
 
@@ -167,6 +168,12 @@ def load_world(paths: Iterable, log: Callable[[str], None] = lambda s: None) -> 
                         world.pathgrids.pop(grid, None)
                     else:
                         world.pathgrids[grid] = (pts, edges)
+                pk = parse_pathgrid(rec, interiors=True)
+                if pk is not None:
+                    if rec.deleted:
+                        world.pathgrid_cells.pop(pk[0], None)
+                    else:
+                        world.pathgrid_cells[pk[0]] = (pk[1], pk[2])
             elif rec.type == "LAND":
                 ld = parse_land(rec)
                 if ld.deleted:
@@ -176,12 +183,24 @@ def load_world(paths: Iterable, log: Callable[[str], None] = lambda s: None) -> 
         log(f"{f.name}: {f.num_records} rekordów w {time.perf_counter() - t0:.2f} s")
     for g, (ld, _none, src) in list(world.lands.items()):
         world.lands[g] = (ld, world.ltex_resolver(src), src)
+    resolve_pathgrid_keys(world)
     return world
 
 
-def parse_pathgrid(rec):
+def resolve_pathgrid_keys(world) -> None:
+    """Jak Store<ESM::Pathgrid>: siatka (0,0) należy do wnętrza, gdy istnieje wnętrze o tej nazwie; inaczej do
+    komórki zewnętrznej o współrzędnych z DATA."""
+    out = {}
+    for (gx, gy, name), v in world.pathgrid_cells.items():
+        ik = f"int:{name}"
+        key = ik if gx == 0 and gy == 0 and ik in world.cells else f"ext:{gx},{gy}"
+        out[key] = v
+    world.pathgrid_cells = out
+
+
+def parse_pathgrid(rec, interiors: bool = False):
     """PGRD komórki zewnętrznej → ((x, y), punkty w układzie świata MW, krawędzie). Wnętrza pomijamy
-    (używane tylko do wykluczeń roślinności). Format: DATA x,y,granularity,count; PGRP 16 B/punkt
+    (używane do wykluczeń roślinności); z interiors=True wnętrze → (nazwa komórki, punkty, krawędzie) – etap 8 (AI). Format: DATA x,y,granularity,count; PGRP 16 B/punkt
     (x, y, z int32 względem początku komórki, auto u8, liczba połączeń u8); PGRC – indeksy u32 kolejno."""
     import struct
     data = rec.get("DATA")
@@ -189,7 +208,8 @@ def parse_pathgrid(rec):
         return None
     gx, gy, _gran, _count = struct.unpack_from("<iiHH", data, 0)
     name = rec.zstr("NAME") or ""
-    if gx == 0 and gy == 0 and name:          # wnętrze (komórka nazwana, siatka 0,0)
+    interior = gx == 0 and gy == 0 and bool(name)   # może być wnętrzem (komórka nazwana, siatka 0,0)
+    if interior and not interiors:
         return None
     pts_raw = rec.get("PGRP") or b""
     n = len(pts_raw) // 16
@@ -207,6 +227,8 @@ def parse_pathgrid(rec):
             if j < n:
                 edges.append((i, j))
         k += c
+    if interiors:                              # klucz rozstrzygany po wczytaniu (resolve_pathgrid_keys)
+        return (gx, gy, name.lower()), pts, edges
     return (gx, gy), pts, edges
 
 
@@ -328,6 +350,9 @@ def cell_to_json(mc: MergedCell, world: World) -> dict:
         "region": c.region, "flags": c.flags, "sources": mc.sources,
         "refs": [ref_to_json(mr, world) for mr in sorted(mc.refs.values(), key=lambda m: m.sid)],
     }
+    pg = world.pathgrid_cells.get(mc.key)
+    if pg and len(pg[0]) > 0:                  # siatka ścieżek (PGRD) w układzie świata MW – AI (etap 8)
+        j["pathgrid"] = {"points": [list(p) for p in pg[0]], "edges": [list(e) for e in pg[1]]}
     if c.ambient:
         a = c.ambient
         rgb = lambda v: [v & 0xFF, (v >> 8) & 0xFF, (v >> 16) & 0xFF]  # noqa: E731 – kolory TES3: 0x00BBGGRR

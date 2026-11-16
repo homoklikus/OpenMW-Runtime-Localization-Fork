@@ -131,6 +131,7 @@ run_gd test_progress.gd --data="$WORK/actors_out" --project="$WORK/project_progr
 run_gd test_trade.gd --data="$WORK/actors_out" --project="$WORK/project_trade" --pos=2300,2400,900 --scripts=0
 run_gd test_combat.gd --data="$WORK/actors_out" --project="$WORK/project_combat" --pos=2300,2400,900 --scripts=0
 run_gd test_magic.gd --data="$WORK/actors_out" --project="$WORK/project_magic" --pos=2300,2400,900 --scripts=0
+run_gd test_ai.gd --data="$WORK/actors_out" --project="$WORK/project_ai" --pos=2300,2400,900 --scripts=0
 
 if ls "$ROOT/godot/bin/"libmw_native* >/dev/null 2>&1; then
   run_gd test_gdextension.gd

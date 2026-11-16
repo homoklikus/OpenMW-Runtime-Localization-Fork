@@ -149,3 +149,16 @@ def info(iid: str, prev: str = "", nxt: str = "", text: str = "", typ: int = 0, 
     if quest:
         subs.append(sub({"name": "QSTN", "finished": "QSTF", "restart": "QSTR"}[quest], b"\1"))
     return record("INFO", subs)
+
+
+def pgrd(cell_name: str, grid, points, edges) -> bytes:
+    """PGRD: punkty (x, y, z) względem początku komórki (zewnętrze) albo bezwzględne (wnętrze), krawędzie (i, j)
+    – w PGRC kolejno połączenia punktu 0, 1, …; DATA: x, y, ziarnistość, liczba punktów."""
+    conns = {i: [] for i in range(len(points))}
+    for a, b in edges:
+        conns[a].append(b)
+    pgrp = b"".join(struct.pack("<iiiBB", int(x), int(y), int(z), 1, len(conns[i])) + b"\0\0"
+                    for i, (x, y, z) in enumerate(points))
+    pgrc = b"".join(struct.pack("<I", j) for i in range(len(points)) for j in conns[i])
+    return record("PGRD", [sub("DATA", struct.pack("<iiHH", grid[0], grid[1], 128, len(points))),
+                           sub("NAME", zs(cell_name)), sub("PGRP", pgrp), sub("PGRC", pgrc)])

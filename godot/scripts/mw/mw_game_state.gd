@@ -78,6 +78,12 @@ func set_ref_mw(sid: String, pos: Vector3, rot: Vector3, scale := 1.0) -> void:
 	_entry(sid)["mw"] = {"pos": [pos.x, pos.y, pos.z], "rot": [rot.x, rot.y, rot.z], "scale": scale}
 	ref_changed.emit(sid)
 
+## Pozycja aktora przesuniętego przez AI (etap 8) – bez sygnału (węzeł już stoi w tym miejscu).
+func store_ref_mw(sid: String, pos: Vector3, rot: Vector3) -> void:
+	var e := _entry(sid)
+	var sc := float((e.get("mw", {}) as Dictionary).get("scale", 1.0))
+	e["mw"] = {"pos": [pos.x, pos.y, pos.z], "rot": [rot.x, rot.y, rot.z], "scale": sc}
+
 ## Zamek i pułapka referencji (etap 3): stan gry nadpisuje wartości z danych (FLTV, TNAM).
 func lock_of(sid: String, base_level: int) -> int:
 	return int(refs.get(sid, {}).get("lock", base_level))

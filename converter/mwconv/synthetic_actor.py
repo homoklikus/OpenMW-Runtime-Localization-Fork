@@ -239,7 +239,7 @@ def _body(bid, part, model, female) -> bytes:
                              W.sub("BYDT", bytes([part, 0, 1 if female else 0, 0]))])
 
 
-def _npc(nid, female, inventory=(), faction="", rank=0, script="") -> bytes:
+def _npc(nid, female, inventory=(), faction="", rank=0, script="", ai=()) -> bytes:
     npdt = struct.pack("<h", 3) + bytes([50, 0, rank]) + b"\0\0\0" + struct.pack("<i", 10)
     subs = [W.sub("NAME", W.zs(nid)), W.sub("FNAM", W.zs("Syntetyczna" if female else "Syntetyczny")),
             W.sub("RNAM", W.zs(RACE)), W.sub("CNAM", W.zs("Commoner"))]
@@ -252,7 +252,20 @@ def _npc(nid, female, inventory=(), faction="", rank=0, script="") -> bytes:
             W.sub("NPDT", npdt), W.sub("FLAG", struct.pack("<i", (0x01 if female else 0) | 0x08 | 0x10))]
     for it in inventory:
         subs.append(W.sub("NPCO", struct.pack("<i", 1) + it.encode("latin-1").ljust(32, b"\0")))
+    subs += list(ai)
     return W.record("NPC_", subs)
+
+
+def _aidt(hello=0, fight=30, flee=30, alarm=0, services=0) -> bytes:
+    return W.sub("AIDT", struct.pack("<HBBB", hello, fight, flee, alarm) + b"\0\0\0" + struct.pack("<i", services))
+
+
+def _ai_wander(dist, dur, tod=0, idle=(0,) * 8, repeat=1) -> bytes:
+    return W.sub("AI_W", struct.pack("<hhB", dist, dur, tod) + bytes(idle) + bytes([repeat]))
+
+
+def _ai_travel(x, y, z, repeat=0) -> bytes:
+    return W.sub("AI_T", struct.pack("<fff", x, y, z) + bytes([repeat, 0, 0, 0]))
 
 
 def _item_body(bid, part, model, typ) -> bytes:
@@ -635,8 +648,33 @@ ACTOR_REFS = {  # refnum: (rekord, x, y, obrót z w stopniach)
     9008: ("synth_lever", 1950.0, 2250.0, 0.0),
     9009: ("synth_trader", 2400.0, 2200.0, 0.0),
     9010: ("synth_chest", 2450.0, 2150.0, 0.0),        # skrzynia kupca (właściciel synth_trader)
+    9011: ("synth_walker", 2600.0, 2800.0, 0.0),       # etap 8: wędrowiec (AI_W, siatka ścieżek)
+    9012: ("synth_traveler", 1800.0, 2000.0, 0.0),     # etap 8: podróżny (AI_T)
 }
 REF_EXTRA = {9010: {"owner": "synth_trader"}}
+
+
+PATHGRID_XS = (1800, 2200, 2600, 3000)
+PATHGRID_YS = (2000, 2400, 2800)
+
+
+def pathgrid_points():
+    """Siatka ścieżek Synthville (etap 8): 4 × 3 punkty połączone z sąsiadami w obie strony + osobna para
+    (druga składowa spójności, jak kilka siatek w Seyda Neen)."""
+    pts = [(x, y, int(height_at(x, y))) for y in PATHGRID_YS for x in PATHGRID_XS]
+    edges = []
+    nx = len(PATHGRID_XS)
+    for j in range(len(PATHGRID_YS)):
+        for i in range(nx):
+            k = j * nx + i
+            if i + 1 < nx:
+                edges += [(k, k + 1), (k + 1, k)]
+            if j + 1 < len(PATHGRID_YS):
+                edges += [(k, k + nx), (k + nx, k)]
+    n = len(pts)
+    pts += [(5000, 5000, int(height_at(5000, 5000))), (5400, 5000, int(height_at(5400, 5000)))]
+    edges += [(n, n + 1), (n + 1, n)]
+    return pts, edges
 
 
 def write_actors(data_dir: Path) -> dict:
@@ -654,12 +692,16 @@ def write_actors(data_dir: Path) -> dict:
     recs += [_armor(k, *v) for k, v in ARMORS.items()] + [_clothing(k, *v) for k, v in CLOTHES.items()] + [_weapon()]
     recs += _stage3_records() + _stage4_records() + _stage5_records()
     recs += [_npc("synth_villager", False, script="synth_talker"), _npc("synth_villager_f", True), _creature(),
-             _npc("synth_guard", False, GUARD_INVENTORY, faction="Synth Guild", rank=1)]
+             _npc("synth_guard", False, GUARD_INVENTORY, faction="Synth Guild", rank=1),
+             _npc("synth_walker", False, ai=[_aidt(hello=30), _ai_wander(1000, 0, idle=(0,) * 8)]),
+             _npc("synth_traveler", True, ai=[_aidt(), _ai_travel(3000.0, 2800.0, height_at(3000, 2800))])]
     recs += _stage6_records() + _stage7_records() + _stage7d_records()
     refs = []
     for rn, (base, x, y, rz) in ACTOR_REFS.items():
         refs.append(W.ref_subs(rn, base, (x, y, height_at(x, y)), (0, 0, math.radians(rz)), extra=REF_EXTRA.get(rn)))
     recs.append(W.cell("Synthville", (0, 0), False, refs, region="Synthetic Region"))
+    pts, edges = pathgrid_points()
+    recs.append(W.pgrd("Synthville", (0, 0), pts, edges))
     esp = data_dir / "mwg_actors.esp"
     esp.write_bytes(W.header([("mwg_synthtown.esm", 0)], len(recs), desc="synthetic actors", is_master=False)
                     + b"".join(recs))

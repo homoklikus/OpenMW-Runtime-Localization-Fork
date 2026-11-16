@@ -35,7 +35,12 @@ var swim_height_scale := 0.9
 var height := 1.8
 var swim_speed := 2.2
 var swimming := false
-var _fall_start := NAN                # kapsuła kolizji (stworzenia: etap 3 – kształt wg modelu)
+var _fall_start := NAN
+## Kapsuła kolizji (NPC: stała; stworzenia: z wymiarów modelu – etap 8) i aktorzy bez grawitacji (stworzenia
+## latające/wodne, które nie chodzą – jak isPureFlyingCreature/isPureWaterCreature).
+var capsule_radius := 0.35
+var capsule_height := 1.8
+var no_gravity := false
 
 # intencje ustawiane przez kontroler w każdej klatce fizyki
 var move_input := Vector2.ZERO     # x: w prawo, y: do tyłu (jak Input.get_vector)
@@ -53,10 +58,10 @@ func _ready() -> void:
 	var col := CollisionShape3D.new()
 	col.name = "Capsule"
 	var cap := CapsuleShape3D.new()
-	cap.radius = 0.35
-	cap.height = 1.8
+	cap.radius = capsule_radius
+	cap.height = maxf(capsule_height, capsule_radius * 2.0)
 	col.shape = cap
-	col.position.y = 0.9
+	col.position.y = cap.height * 0.5
 	add_child(col)
 
 ## Baza kierunku latania: kamera, jeśli aktor ją ma (gracz), inaczej sam aktor.
@@ -97,7 +102,9 @@ func step(delta: float) -> void:
 		wish *= air_factor
 	velocity.x = wish.x
 	velocity.z = wish.z
-	if not is_on_floor():
+	if no_gravity:
+		velocity.y = 0.0
+	elif not is_on_floor():
 		velocity.y = maxf(velocity.y - gravity * delta, -max_fall_speed)
 	elif want_jump and jump_velocity > 0.0:
 		# skok w ruchu: wektor (kierunek, 1) × wysokość × 0,707 (character.cpp) – pionowo 0,707 prędkości skoku

@@ -280,11 +280,39 @@ func anim_library(key: String, docs: Array, sk: Skeleton3D) -> AnimationLibrary:
 			var nm := String(name).to_lower()
 			if c.get("loop_start") != null or nm.begins_with("idle"):
 				a.loop_mode = Animation.LOOP_LINEAR
+			if nm.begins_with("walk") or nm.begins_with("run") or nm.begins_with("swim") or nm.begins_with("sneak"):
+				strip_root_motion(a)
+				a.loop_mode = Animation.LOOP_LINEAR
 			if lib.has_animation(nm):
 				lib.remove_animation(nm)
 			lib.add_animation(nm, a)
 	_libs[key] = lib
 	return lib
+
+## Ruch korzenia (kość Bip01) w grupach chodu/biegu: przesunięcie poziome usunięte (aktor porusza się sam –
+## jak akumulacja ruchu w OpenMW), prędkość grupy (m/s) w meta „mw_speed” – do dopasowania tempa animacji.
+static func strip_root_motion(a: Animation) -> void:
+	for ti in a.get_track_count():
+		if a.track_get_type(ti) != Animation.TYPE_POSITION_3D or String(a.track_get_path(ti)) != "Skeleton:Bip01":
+			continue
+		var n := a.track_get_key_count(ti)
+		if n < 2:
+			return
+		var p0: Vector3 = a.track_get_key_value(ti, 0)
+		var p1: Vector3 = a.track_get_key_value(ti, n - 1)
+		var dt := a.track_get_key_time(ti, n - 1) - a.track_get_key_time(ti, 0)
+		var d := p1 - p0
+		var ax := 0                      # oś przesunięcia (przód) – największa zmiana; układ kości bywa Z-w-górę
+		for i in 3:
+			if absf(d[i]) > absf(d[ax]):
+				ax = i
+		if dt > 0.0:
+			a.set_meta("mw_speed", absf(d[ax]) / dt)
+		for k in n:
+			var v: Vector3 = a.track_get_key_value(ti, k)
+			v[ax] = p0[ax]
+			a.track_set_key_value(ti, k, v)
+		return
 
 static func _doc_animation(doc: Dictionary, sk: Skeleton3D) -> Animation:
 	var full := Animation.new()
