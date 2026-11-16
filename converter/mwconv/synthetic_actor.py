@@ -625,7 +625,10 @@ def _stage8_records() -> list:
     probe = W.record("PROB", [W.sub("NAME", W.zs("synth_probe")), W.sub("FNAM", W.zs("Sonda testowa")),
                               W.sub("PBDT", struct.pack("<fifi", 0.25, 10, 1.5, 3))])
     marker = W.record("STAT", [W.sub("NAME", W.zs("PrisonMarker")), W.sub("MODL", W.zs("marker_prison.nif"))])
-    return [pick, probe, marker] + [_gmst(k, v) for k, v in GMST_STAGE8.items()]
+    levc = W.record("LEVC", [W.sub("NAME", W.zs("synth_lev_creature")), W.sub("DATA", struct.pack("<i", 0)),
+                             W.sub("NNAM", bytes([0])), W.sub("INDX", struct.pack("<i", 1)),
+                             W.sub("CNAM", W.zs("synth_creature")), W.sub("INTV", struct.pack("<h", 1))])
+    return [pick, probe, marker, levc] + [_gmst(k, v) for k, v in GMST_STAGE8.items()]
 
 
 def _stage3_records() -> list:
@@ -672,6 +675,7 @@ ACTOR_REFS = {  # refnum: (rekord, x, y, obrót z w stopniach)
     9015: ("synth_chest", 2500.0, 2100.0, 0.0),        # etap 8: zamknięta skrzynia kupca z pułapką
     9016: ("synth_watchman", 5200.0, 5000.0, 180.0),   # etap 8: strażnik (Guard, Alarm 100) – daleko od testów
     9017: ("prisonmarker", 5400.0, 5200.0, 90.0),      # etap 8: znacznik więzienia
+    9018: ("synth_lev_creature", 5600.0, 4800.0, 0.0),  # etap 8: punkt pojawiania się stworzenia (LEVC)
 }
 REF_EXTRA = {9010: {"owner": "synth_trader"}, 9014: {"owner": "synth_trader"},
              9015: {"owner": "synth_trader", "lock_level": 20, "trap": "synth_bolt"}}

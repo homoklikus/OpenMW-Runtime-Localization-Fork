@@ -39,6 +39,13 @@ func _run() -> void:
 	root.add_child(main)
 	await _frames(5)
 	var ai = main.ai
+	# punkt pojawiania się stworzenia (LEVC): stworzenie z listy, sid punktu
+	var spawned: Node3D = null
+	for n in ai.actor_nodes():
+		if String(n.get_meta("mw_sid", "")).ends_with("#9018"):
+			spawned = n
+	check(spawned != null and String(spawned.get_meta("mw_base", "")) == "synth_creature" and spawned.get_meta("mw_actor", "") == "creature",
+		"LEVC: stworzenie z listy poziomowanej (%s)" % [spawned.get_meta("mw_base", "") if spawned else null])
 	# siatka ścieżek: 4 × 3 punkty + osobna para
 	var g = ai.graph("ext:0,0")
 	check(g.size() == 14, "14 punktów siatki (%d)" % g.size())

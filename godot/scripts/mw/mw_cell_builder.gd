@@ -75,9 +75,54 @@ func build_cell(key: String) -> Node3D:
 	stats.build_ms += (Time.get_ticks_usec() - t0) / 1000.0
 	return root
 
+## Punkt pojawiania się stworzenia (CreatureLevList w komórce, OpenMW: CreatureLevList::insertObjectRendering →
+## getLevelledItem po poziomie gracza): wylosowane stworzenie zastępuje bazę referencji (ten sam sid – stan gry,
+## AI i zapis odnoszą się do niego). Losowanie deterministyczne wg ziarna zapisu i sid (jak inwentarze).
+func _spawn_leveled(r: Dictionary) -> Dictionary:
+	var list: Dictionary = actors.record("leveledcreature", String(r.get("base", "")).to_lower())
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash("%d|%s|levc" % [int(state.seed) if state != null else 0, String(r.get("sid", ""))])
+	var level := int((state.player as Dictionary).get("level", 1)) if state != null else 1
+	var pick := _leveled_creature(list, rng, level, 0)
+	if pick.is_empty():
+		return {}
+	var out := r.duplicate()
+	out["base"] = pick
+	out["leveled_from"] = String(r.get("base", ""))
+	return out
+
+func _leveled_creature(list: Dictionary, rng: RandomNumberGenerator, level: int, depth: int) -> String:
+	if list.is_empty() or depth > 16 or rng.randi_range(0, 99) < int(list.get("chance_none", 0)):
+		return ""
+	var items: Array = list.get("items", [])
+	var highest := 0
+	for it in items:
+		var lv := int(it.get("level", 0))
+		if lv > highest and lv <= level:
+			highest = lv
+	var all_levels := (int(list.get("flags", 0)) & 1) != 0        # CreatureLevList::AllLevels
+	var cand := []
+	for it in items:
+		var lv := int(it.get("level", 0))
+		if level >= lv and (all_levels or lv == highest):
+			cand.append(String(it.get("id", "")).to_lower())
+	if cand.is_empty():
+		return ""
+	var pick: String = cand[rng.randi_range(0, cand.size() - 1)]
+	var nested: Dictionary = actors.record("leveledcreature", pick)
+	if not nested.is_empty():
+		return _leveled_creature(nested, rng, level, depth + 1)
+	return pick if String(db.get_object(pick).get("type", "")) == "CREA" else ""
+
 func build_ref(r: Dictionary) -> Node3D:
 	var base := db.get_object(r.get("base", ""))
 	var atype := String(base.get("type", ""))
+	if atype == "LEVC" and not editor_mode and actors != null and not r.get("disabled", false):
+		var sp := _spawn_leveled(r)
+		if not sp.is_empty():
+			r = sp
+			base = db.get_object(String(r.base))
+			atype = String(base.get("type", ""))
 	# NPC i stworzenia jako MWActor (etap 2: bez AI – stoją w miejscu; ruch i kontrolery AI w etapie 8)
 	var is_actor := (atype == "NPC_" or atype == "CREA") and not editor_mode
 	var n: Node3D = ActorScript.new() if is_actor else Node3D.new()
