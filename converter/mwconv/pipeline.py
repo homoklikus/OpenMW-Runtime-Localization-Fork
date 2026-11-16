@@ -354,6 +354,44 @@ def _flora_settings(opts):
     return flora.Settings(**{k: v for k, v in (opts.flora or {}).items() if k in flora.Settings.__dataclass_fields__})
 
 
+ACTOR_SKELETONS = {"male": "meshes/base_anim.nif", "female": "meshes/base_anim_female.nif",
+                   "beast": "meshes/base_animkna.nif"}
+ACTOR_ANIMS = {"base": "meshes/xbase_anim.kf", "female": "meshes/xbase_anim_female.kf",
+               "beast": "meshes/xbase_animkna.kf"}
+
+
+def _actor_models(world, keys, vfs) -> set:
+    """Modele NPC w wybranych komórkach (etap 2): szkielety, głowy, włosy, części ciała ras (BODY, typ skóra),
+    własne modele NPC. Animacje .kf dochodzą jako pliki sąsiednie (xname.kf)."""
+    npcs = world.records.get("NPC_", {})
+    bodies = world.records.get("BODY", {})
+    out, races = set(), set()
+
+    def add(model):
+        mk = vfs.resolve_mesh(model) if model else None
+        if mk:
+            out.add(mk)
+    for k in keys:
+        for mr in world.cells[k].refs.values():
+            n = npcs.get(mr.ref.base.lower())
+            if n is None:
+                continue
+            races.add((n.get("race") or "").lower())
+            for part in (n.get("head"), n.get("hair")):
+                bp = bodies.get((part or "").lower())
+                if bp:
+                    add(bp.get("model"))
+            add(n.get("model"))
+    if races:
+        for m in ACTOR_SKELETONS.values():
+            if vfs.exists(m):
+                out.add(m)
+        for bp in bodies.values():
+            if bp.get("mesh_type", 0) == 0 and (bp.get("race") or "").lower() in races:
+                add(bp.get("model"))
+    return out
+
+
 def _flora_models(cfg, vfs, opts) -> set:
     """Modele roślinności do konwersji (statyki wtyczek groundcover, modele Remirosa z meshes/grass)."""
     from . import flora
@@ -648,6 +686,7 @@ def _run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) 
         needed_models |= set(vfs.list("meshes/", ".nif")) | set(vfs.list("meshes/", ".kf"))
     flora_models = _flora_models(cfg, vfs, opts)
     needed_models |= flora_models
+    needed_models |= _actor_models(world, keys, vfs)
     for mk in list(needed_models):
         if mk.endswith(".nif"):
             kf = sibling_kf(vfs, mk)
@@ -724,7 +763,14 @@ def _run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) 
         objs[bid] = o
     write_json(wdir / "objects.json", objs)
     from . import records as recdec
-    stats["records"] = recdec.export(world.records, wdir, write_json)
+    from .world import model_glb_rel
+    for bp in world.records.get("BODY", {}).values():   # ścieżka modelu po konwersji (etap 2: składanie NPC)
+        mk = vfs.resolve_mesh(bp["model"]) if bp.get("model") else None
+        if mk:
+            bp["glb"] = model_glb_rel(mk)
+    actor = {"skeletons": {k: model_glb_rel(m) for k, m in ACTOR_SKELETONS.items() if vfs.exists(m)},
+             "anims": {k: kf_out_rel(m) for k, m in ACTOR_ANIMS.items() if vfs.exists(m)}}
+    stats["records"] = recdec.export(world.records, wdir, write_json, extra_index={"actor": actor})
     used_regions = {(world.cells[k].cell.region or "").lower() for k in keys} - {""}
     write_json(wdir / "regions.json", {r: world.regions[r] for r in sorted(used_regions) if r in world.regions})
     write_json(wdir / "index.json", {"format": "mwgodot-world", "version": 1, "cells": index})

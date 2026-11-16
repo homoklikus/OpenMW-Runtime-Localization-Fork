@@ -440,7 +440,7 @@ def merge(store: dict, rec, source: str) -> None:
     bucket[k] = o
 
 
-def export(store: dict, wdir, write_json) -> dict:
+def export(store: dict, wdir, write_json, extra_index: Optional[dict] = None) -> dict:
     """world/records/<plik>.json (id_lower → rekord) + index.json. Zwraca liczności."""
     counts = {}
     types = {}
@@ -453,6 +453,6 @@ def export(store: dict, wdir, write_json) -> dict:
     write_json(wdir / "records" / "index.json", {
         "format": "mwgodot-records", "version": 1, "types": types,
         "attributes": ATTRIBUTES, "skills": SKILLS, "specializations": SPECIALIZATIONS,
-        "non_finite_floats": len(bad)})
+        "non_finite_floats": len(bad), **(extra_index or {})})
     counts["non_finite_floats"] = len(bad)
     return counts

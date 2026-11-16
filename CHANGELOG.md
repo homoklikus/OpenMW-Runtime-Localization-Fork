@@ -25,6 +25,11 @@
 * Etap 1: konwerter eksportuje `world/records/` (NPC_, CREA, RACE, CLAS, FACT, BODY, BSGN, SKIL, broń, zbroje,
   ubrania, książki, przedmioty, światła, GMST, GLOB) ze scalaniem wg kolejności ładowania; MCP-openMW:
   `openmw_record_compare_start/status` – porównanie rekordów z silnikiem OpenMW (Lua) pole po polu.
+* Etap 2: NPC składani z części ciała jak w OpenMW (szkielet base_anim/female/kna → Skeleton3D, części rasy
+  BODY ze skinningiem przepinane na kości po nazwach, części sztywne na kościach mocowania z lustrem lewej strony,
+  głowa i włosy z rekordu NPC, zastępcze męskie części dla kobiet, pomijanie „1st”); animacje bezczynności NPC
+  (xbase_anim + żeńskie/zwierzęce z pierwszeństwem) i stworzeń; konwerter dodaje modele aktorów i ścieżki GLB
+  w rekordach BODY (`mw_actor_visual.gd`, test `test_actors.gd`).
 * Woda: falowanie i wzór we współrzędnych świata – bez szczelin na łączeniach komórek.
 * Gra `mw_flora.gd`: MultiMesh, bez kolizji i cieni, test alfa, normalne w górę; zasięg i gęstość w ustawieniach.
 * Launcher: zakładka Świat (odpowiednik world.cfg forka), opcje roślinności w zakładce Grafika.

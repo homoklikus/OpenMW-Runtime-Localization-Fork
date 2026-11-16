@@ -10,6 +10,7 @@ var with_lights := true
 var with_water := true
 var show_markers := false
 var state = null                # mw_game_state.gd – różnice stanu gry (gra; w CS 2.0 brak)
+var actors = null               # mw_actor_visual.gd – wygląd NPC i animacje stworzeń (etap 2)
 var flora = null                # mw_flora.gd – roślinność komórek zewnętrznych (gra; w CS 2.0 wyłączona)       # znaczniki edytora widoczne także poza CS 2.0 (diagnostyka)
 var stats := {"cells": 0, "refs": 0, "missing_model": 0, "no_model": 0, "markers": 0, "build_ms": 0.0}
 
@@ -22,7 +23,10 @@ const HIDDEN_MARKERS := ["templemarker", "divinemarker", "prisonmarker", "northm
 static func is_hidden_marker(base_id: String) -> bool:
 	return base_id.to_lower() in HIDDEN_MARKERS
 
+const ActorVisual := preload("res://scripts/mw/mw_actor_visual.gd")
+
 func _init(world_db: MWWorldDB, model_cache: MWModelCache) -> void:
+	actors = ActorVisual.new(world_db, model_cache)
 	db = world_db
 	models = model_cache
 
@@ -87,12 +91,22 @@ func build_ref(r: Dictionary) -> Node3D:
 	if base.is_empty():
 		n.set_meta("mw_missing_base", true)
 		return n
+	var btype := String(base.get("type", ""))
+	if btype == "NPC_" and actors != null and actors.available():
+		var am: Node3D = actors.build_npc(String(r.get("base", "")), String(r.get("sid", "")).hash())
+		if am:
+			n.add_child(am)
+			n.set_meta("mw_actor", "npc")
+			return n
 	var glb: String = base.get("glb", "")
 	if not glb.is_empty():
 		var m := models.instantiate(glb)
 		if m:
 			m.name = "Model"
 			n.add_child(m)
+			if btype == "CREA" and actors != null:
+				actors.animate_creature(m, String(r.get("sid", "")).hash())
+				n.set_meta("mw_actor", "creature")
 		else:
 			stats.missing_model += 1
 			n.add_child(_placeholder())

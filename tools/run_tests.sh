@@ -117,6 +117,13 @@ FLORA="$WORK/Flora"
    --flora hybrid --cell Synthville --out "$WORK/flora_out" | grep -E "Roślinność|Gotowe")
 run_gd test_flora.gd --data="$WORK/flora_out"
 
+step "6d. Aktorzy (NPC z części ciała, skinning, lustro lewej strony, animacje NPC i stworzeń)"
+(cd "$ROOT/converter" && $PY -c "from mwconv.synthetic_actor import write_actors; write_actors('$DATA')")
+(cd "$ROOT/converter" && $PY -m mwconv convert --data "$DATA" --archive "$DATA/synth.bsa" \
+   --content mwg_synthtown.esm --content mwg_synthtown_patch.esp --content mwg_actors.esp \
+   --cell Synthville --out "$WORK/actors_out" | grep -E "Gotowe")
+run_gd test_actors.gd --data="$WORK/actors_out"
+
 if ls "$ROOT/godot/bin/"libmw_native* >/dev/null 2>&1; then
   run_gd test_gdextension.gd
 else
