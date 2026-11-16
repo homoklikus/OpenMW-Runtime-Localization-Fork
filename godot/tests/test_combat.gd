@@ -78,8 +78,8 @@ func _run() -> void:
 	check(main.scripts.died.has(vic.sid), "OnDeath w tej klatce")
 	v = _ref(main, "synth_villager")
 	check(v.get_meta("mw_dead", false), "ciało leży")
-	check(main.activate(v) and main.item_window.visible and main.item_window.cont_sid == vic.sid, "przeszukanie ciała")
-	main.item_window.close()
+	check(main.activate(v) and main.menu_mode.visible and main.menu_mode.cont_sid == vic.sid, "przeszukanie ciała")
+	main.menu_mode.close()
 	check(not bool(cb.melee(me, vic, 0, 1.0, 0).get("success", false)), "martwego nie można trafić")
 	# łuk i strzały – lot pocisku do NPC
 	inv.add("player", {}, "synth_bow", 1)

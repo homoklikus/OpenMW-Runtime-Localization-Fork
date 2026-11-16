@@ -56,13 +56,21 @@ func _run() -> void:
 			and it.item_sound("misc_synth_spoon", true) == "Item Misc Up"
 			and it.item_sound("synth_sword", true) == "Item Weapon Longblade Up", "dźwięki przedmiotów wg klasy (OpenMW): %s" % [[it.item_sound("synth_helm", false), it.item_sound("misc_synth_spoon", true), it.item_sound("synth_sword", true)]])
 	# pojemnik: okno + przeniesienie
-	check(main.activate(chest) and main.item_window.visible and main.item_window.mode == "container", "aktywacja skrzyni otwiera okno")
-	check(main.item_window._right_ids.has("misc_synth_spoon") and main.item_window._left_ids.size() > 0, "okno: obie listy wypełnione")
-	main.item_window._move_from_right(main.item_window._right_ids.find("misc_synth_spoon"))
+	var mm = main.menu_mode
+	check(main.activate(chest) and mm.visible and mm.cont_sid == chest_sid and mm.windows.has("container") and mm.windows.has("inventory"),
+			"aktywacja skrzyni otwiera okno pojemnika i ekwipunku")
+	check(mm.item_ids.has("misc_synth_spoon") and mm.cont_ids.size() > 0, "okno: obie siatki wypełnione")
+	var gp: Control = mm.windows["container"].find_child("GridPanel", true, false)
+	check(gp._can_drop_data(Vector2.ZERO, {"mw_item": "misc_synth_spoon", "source": "inventory"}) and not gp._can_drop_data(Vector2.ZERO, {"mw_item": "x", "source": "container"}),
+			"pojemnik przyjmuje przedmioty z ekwipunku")
+	gp._drop_data(Vector2.ZERO, {"mw_item": "misc_synth_spoon", "source": "inventory"})
 	check(it.inventory.count_of(chest_sid, crec, "misc_synth_spoon") == in_chest0 + 1 and it.inventory.count_of("player", {}, "misc_synth_spoon") == 0,
 			"łyżka przeniesiona do skrzyni")
-	main.item_window.close()
-	check(not main.item_window.visible and not paused, "zamknięcie okna wznawia grę")
+	mm.activate_item("misc_synth_spoon", "container")
+	check(it.inventory.count_of("player", {}, "misc_synth_spoon") == in_chest0 + 1, "dwuklik w pojemniku – cały stos do gracza")
+	mm.put_item("misc_synth_spoon")
+	mm.close()
+	check(not mm.visible and not paused, "zamknięcie okna wznawia grę")
 	# zapis → zmiany → odczyt
 	var path := ProjectSettings.globalize_path("user://test_saves/interakcje.mwsave")
 	check(main.save_game(path) == "", "zapis")

@@ -34,6 +34,7 @@ const TradeScript := preload("res://scripts/mw/mw_trade.gd")
 const TradeWindowScript := preload("res://scripts/mw/mw_trade_window.gd")
 const CombatScript := preload("res://scripts/mw/mw_combat.gd")
 const EQ := preload("res://scripts/mw/mw_equipment.gd")
+const UI := preload("res://scripts/mw/mw_ui.gd")
 var events = Events.new()           # szyna zdarzeń (etap 0)
 var interaction = null                # MWInteraction (etap 3)
 var item_window = null                # okno pojemnika / ekwipunku
@@ -228,6 +229,11 @@ func _ready() -> void:
 	add_child(player)
 	if player.controller != null:
 		player.controller.allowed = control_allowed       # blokady sterowania ze skryptów (CharGen)
+	mw_hud = preload("res://scripts/mw/mw_hud.gd").new()
+	mw_hud.name = "MWHud"
+	mw_hud.main = self
+	add_child(mw_hud)
+	mw_hud.build()
 	_apply_settings()
 	var start_t := _start_transform()
 	player.global_position = start_t.origin
@@ -1301,6 +1307,15 @@ func _named_start(name: String) -> Variant:
 	return Transform3D(Basis(), centre)
 
 func _setup_hud() -> void:
+	# wygląd Morrowinda dla wszystkich okien gry (motyw okna głównego dziedziczą wszystkie kontrolki)
+	UI.setup(data_dir)
+	var th: Theme = UI.theme(clampf(get_viewport().get_visible_rect().size.y / 720.0, 1.0, 3.0))
+	var dt := ThemeDB.get_default_theme()       # domyślny motyw (dziedziczą go wszystkie kontrolki, także pod CanvasLayer)
+	dt.merge_with(th)
+	dt.default_font = th.default_font
+	dt.default_font_size = th.default_font_size
+	ThemeDB.fallback_font = th.default_font
+	ThemeDB.fallback_font_size = th.default_font_size
 	var cl := CanvasLayer.new()
 	hud = RichTextLabel.new()      # BBCode: formatowanie z tłumaczeń ([c] [b] [i]) i znacznik QA
 	hud.bbcode_enabled = true
@@ -1310,6 +1325,7 @@ func _setup_hud() -> void:
 	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.position = Vector2(12, 8)
 	hud.size = Vector2(1600, 120)
+	hud.visible = show_coords
 	cl.add_child(hud)
 	add_child(cl)
 
@@ -1351,6 +1367,8 @@ func _apply_capture() -> void:
 		envr.pick_weather()
 	if not arg("screenshot").is_empty() and hud:
 		hud.visible = false
+		if mw_hud != null:
+			mw_hud.set_hud_visible(false)
 
 func _capture_tick() -> void:
 	var shot := arg("screenshot")
@@ -1434,6 +1452,7 @@ func _process(_d: float) -> void:
 			h = "Rozmawiaj: " + dialogue.actor_name(dialogue.make_actor(r))
 		if not h.is_empty():
 			hint = "\n[lb]E] %s" % Loc.escape_bbcode(h)
+		_focus_hint = h if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or DisplayServer.get_name() == "headless" else ""
 	var stats_line := ""
 	var pst := player_stats()
 	if not pst.is_empty() and character != null:
@@ -1514,7 +1533,13 @@ func display_location() -> String:
 
 ## Współrzędne do testów (F3 – pokaż/ukryj, F4 – kopiuj do schowka i zapisz w logu).
 ## Pozycja w jednostkach Morrowinda (jak w Construction Set i konsoli gry); „--pos=x,y,z” uruchamia grę w tym miejscu.
-var show_coords := true
+var show_coords := false                 # pasek z informacjami (F3) – domyślnie ukryty, jak w Morrowindzie
+var _focus_hint := ""
+var mw_hud = null                        # etap 10: HUD jak w Morrowindzie (paski, broń, czar, minimapa)
+
+## Podpowiedź nad celem (HUD): co obsłuży klawisz aktywacji.
+func focus_text() -> String:
+	return _focus_hint
 
 func position_string() -> String:
 	if player == null:
@@ -1543,6 +1568,10 @@ func _unhandled_input(e: InputEvent) -> void:
 		_toast(("Wczytano grę" + ("" if w.is_empty() else ":\n" + "\n".join(w))) if not (w.size() == 1 and String(w[0]).begins_with("BŁĄD")) else String(w[0]))
 	elif e.is_action_pressed("toggle_coords"):
 		show_coords = not show_coords
+		if hud != null:
+			hud.visible = show_coords
+	elif e.is_action_pressed("toggle_hud") and mw_hud != null:
+		mw_hud.set_hud_visible(not mw_hud.hud_visible)     # F11 (OpenMW A_ToggleHUD)
 	elif e.is_action_pressed("copy_position") and player:
 		var line := "--pos=%s" % position_string()
 		if not interior.is_empty():
@@ -1604,7 +1633,7 @@ func activate(r: Node, force_default := false) -> bool:
 	if dialogue != null and dialogue.is_actor_node(r):
 		if combat != null and combat.is_dead(combat.fighter_of(r)):
 			var f: Dictionary = combat.fighter_of(r)           # martwy aktor – przeszukanie (jak pojemnik)
-			item_window.open_container(f.sid, f.rec, dialogue.actor_name(dialogue.make_actor(r)))
+			menu_mode.open_container(f.sid, f.rec, dialogue.actor_name(dialogue.make_actor(r)))
 			return true
 		open_dialogue(r)                  # ActionTalk (NPC, stworzenia); bez powitania okno się nie otwiera
 		return true
@@ -1639,7 +1668,7 @@ func activate(r: Node, force_default := false) -> bool:
 		"travel":
 			travel(res["dest"])
 		"open_container":
-			item_window.open_container(String(res["sid"]), interaction.container_record(String(res["base"])),
+			menu_mode.open_container(String(res["sid"]), interaction.container_record(String(res["base"])),
 					String(res.get("name", "")))
 		"take", "locked":
 			pass

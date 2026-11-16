@@ -17,7 +17,8 @@ const DEFAULTS := {
 	"magic_menu": KEY_M,                   # okno magii (w OpenMW część trybu ekwipunku)
 	"map_menu": KEY_N,                     # okno mapy (lokalna/świat; w OpenMW część trybu ekwipunku)
 	"sneak": KEY_CTRL,                     # skradanie (przytrzymaj)
-	"menu_mode": -MOUSE_BUTTON_RIGHT,      # tryb menu: statystyki, ekwipunek, magia, mapa (OpenMW A_Inventory)
+	"menu_mode": -MOUSE_BUTTON_RIGHT,
+	"toggle_hud": KEY_F11,                 # pokaż/ukryj HUD (OpenMW A_ToggleHUD)      # tryb menu: statystyki, ekwipunek, magia, mapa (OpenMW A_Inventory)
 }
 
 static func register_defaults() -> void:

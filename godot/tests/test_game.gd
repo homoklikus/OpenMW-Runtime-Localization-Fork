@@ -28,6 +28,7 @@ func _run() -> void:
 			"start w mieście = wyjście z budynku (%s)" % [st.origin if st != null else null])
 	check(main._named_start("Nieistniejące Miasto") == null, "nieznane miasto → brak nazwanego startu")
 	# współrzędne testowe w pasku (komórka + pozycja MW), F3 ukrywa
+	main.show_coords = true                  # pasek informacji (F3) – domyślnie ukryty
 	var ct: String = main.coords_text()
 	var ps: String = main.position_string()
 	var pos_back := MWCoords.mw_to_godot(Vector3(float(ps.get_slice(",", 0)), float(ps.get_slice(",", 1)), float(ps.get_slice(",", 2))))
@@ -314,8 +315,11 @@ func _test_actor(main) -> void:
 	main._apply_state()
 	check(got["unloaded"] == 4 and got["loaded"] == 4, "zdarzenia komórek (%s)" % got)
 	var any_ref: Node = main.loaded.values()[0].get_node("Refs").get_child(0)
+	var any_sid := String(any_ref.get_meta("mw_sid"))
 	main.activate(any_ref)
-	check(got["act"].size() == 1 and got["act"][0][0] == String(any_ref.get_meta("mw_sid")) and got["act"][0][2] == "player",
+	if main.menu_mode.visible:
+		main.menu_mode.close()
+	check(got["act"].size() == 1 and got["act"][0][0] == any_sid and got["act"][0][2] == "player",
 			"zdarzenie aktywacji ze stabilnym sid (%s)" % [got["act"]])
 	main.events.cell_loaded.disconnect(on_l)
 	main.events.cell_unloaded.disconnect(on_u)

@@ -97,9 +97,8 @@ func open() -> void:
 	_set_hud(false)
 	refresh()
 
-func _set_hud(on: bool) -> void:
-	if main != null and main.get("hud") != null and main.hud is CanvasItem:
-		(main.hud as CanvasItem).visible = on
+func _set_hud(_on: bool) -> void:
+	pass                                   # HUD (mw_hud.gd) chowa się sam, gdy tryb menu jest otwarty
 
 func close() -> void:
 	if not visible:
@@ -113,6 +112,8 @@ func close() -> void:
 		_root = null
 	windows = {}
 	_grid = null
+	_cont_grid = null
+	cont_sid = ""
 	_stat_left = null
 	_spell_list = null
 	_doll_vp = null
@@ -193,8 +194,7 @@ func _drag_window(e: InputEvent, w: Control) -> void:
 func _resize_window(e: InputEvent, w: Control) -> void:
 	if e is InputEventMouseMotion and (e.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
 		w.size = (w.size + e.relative).max(w.custom_minimum_size)
-		if w.name == "InventoryWindow":
-			_layout_grid.call_deferred()
+		_layout_grid.call_deferred()
 
 func refresh() -> void:
 	if not visible:
@@ -202,6 +202,7 @@ func refresh() -> void:
 	_refresh_stats()
 	_refresh_inventory()
 	_refresh_spells()
+	_refresh_container()
 
 func _unhandled_input(e: InputEvent) -> void:
 	if not visible:
@@ -385,6 +386,7 @@ func _build_inventory() -> void:
 	avatar.add_theme_stylebox_override("panel", UI.inner_box())
 	avatar.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	avatar.menu = self
+	avatar.target = "avatar"
 	left.add_child(avatar)
 	var svc := SubViewportContainer.new()
 	svc.stretch = true
@@ -424,19 +426,7 @@ func _build_inventory() -> void:
 		b.pressed.connect(set_category.bind(String(c[0])))
 		tabs.add_child(b)
 		_cat_buttons[c[0]] = b
-	var gp := PanelContainer.new()
-	gp.add_theme_stylebox_override("panel", UI.inner_box())
-	gp.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right.add_child(gp)
-	var sc := ScrollContainer.new()
-	sc.name = "Scroll"
-	sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	gp.add_child(sc)
-	_grid = Control.new()
-	_grid.name = "Grid"
-	_grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	sc.add_child(_grid)
-	sc.resized.connect(_layout_grid)
+	_grid = _make_grid(right, "inventory")
 
 func set_category(c: String) -> void:
 	category = c
@@ -460,14 +450,14 @@ func _enchanted(it: Dictionary) -> bool:
 	return not String(it.get("rec", {}).get("enchant", "")).is_empty()
 
 ## Kolejność jak SortFilterItemModel::Compare: założone najpierw, potem typ, nazwa, wartość, waga.
-func sorted_items() -> Array:
+func sorted_items(sid := "player", rec := {}) -> Array:
 	var inv = main.interaction.inventory
 	var out := []
-	for e in inv.contents("player", {}):
+	for e in inv.contents(sid, rec):
 		var it: Dictionary = inv.item(String(e.id))
 		if it.is_empty():
 			continue
-		var worn: bool = main.equipped_slot_of(String(e.id)) >= 0
+		var worn: bool = sid == "player" and main.equipped_slot_of(String(e.id)) >= 0
 		var name: String = main.interaction.item_name(String(it.kind), String(e.id), it.rec)
 		out.append({"id": String(e.id), "count": int(e.count), "kind": String(it.kind), "rec": it.rec, "worn": worn,
 			"name": name, "magic": _enchanted(it)})
@@ -489,19 +479,38 @@ func sorted_items() -> Array:
 		return String(a.id) < String(b.id))
 	return out
 
-func _refresh_inventory() -> void:
-	if _grid == null or main == null or main.get("interaction") == null:
-		return
-	_title("inventory", _t("sInventory", "Ekwipunek"))
-	for c in _grid.get_children():
+## Siatka ikon w przewijanym obszarze (ItemView): zwraca kontrolkę siatki; source – „inventory” | „container”.
+func _make_grid(parent: Control, source: String) -> Control:
+	var gp = _DollDrop.new()                      # obszar przyjmujący upuszczone przedmioty
+	gp.name = "GridPanel"
+	gp.menu = self
+	gp.target = source
+	gp.add_theme_stylebox_override("panel", UI.inner_box())
+	gp.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	parent.add_child(gp)
+	var sc := ScrollContainer.new()
+	sc.name = "Scroll"
+	sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.mouse_filter = Control.MOUSE_FILTER_PASS
+	gp.add_child(sc)
+	var grid := Control.new()
+	grid.name = "Grid"
+	grid.mouse_filter = Control.MOUSE_FILTER_PASS
+	grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	sc.add_child(grid)
+	sc.resized.connect(func(): _layout(grid))
+	return grid
+
+func _fill_grid(grid: Control, entries: Array, source: String) -> Array:
+	for c in grid.get_children():
 		c.queue_free()
-	item_ids = []
-	for e in sorted_items():
-		if not in_category(e.kind, e.magic, category):
-			continue
+	var ids := []
+	for e in entries:
 		var cell = _ItemCell.new()
 		cell.menu = self
 		cell.item_id = e.id
+		cell.source = source
+		cell.mouse_filter = Control.MOUSE_FILTER_PASS
 		cell.custom_minimum_size = Vector2(CELL, CELL) * scale_ui
 		cell.size = cell.custom_minimum_size
 		cell.tooltip_text = item_tooltip(e.id)
@@ -520,6 +529,7 @@ func _refresh_inventory() -> void:
 			wb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			cell.add_child(wb)
 		var ic := TextureRect.new()
+		ic.name = "Icon"
 		ic.texture = UI.icon(String(e.rec.get("icon", "")))
 		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -544,9 +554,20 @@ func _refresh_inventory() -> void:
 			cl.offset_right = -3 * scale_ui
 			cl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			cell.add_child(cl)
-		_grid.add_child(cell)
-		item_ids.append(e.id)
-	_layout_grid()
+		grid.add_child(cell)
+		ids.append(e.id)
+	_layout(grid)
+	return ids
+
+func _refresh_inventory() -> void:
+	if _grid == null or main == null or main.get("interaction") == null:
+		return
+	_title("inventory", _t("sInventory", "Ekwipunek"))
+	var entries := []
+	for e in sorted_items():
+		if in_category(e.kind, e.magic, category):
+			entries.append(e)
+	item_ids = _fill_grid(_grid, entries, "inventory")
 	# pancerz i obciążenie
 	var st: Dictionary = main.player_stats()
 	var w: float = main.player_weight()
@@ -558,20 +579,137 @@ func _refresh_inventory() -> void:
 	_armor_label.text = "%s: %d" % [_t("sArmor", "Pancerz"), roundi(player_armor_rating())]
 	_rebuild_doll()
 
-## Rozmieszczenie kolumnami (ItemView::layoutWidgets): wiersze = wysokość / 42, przewijanie w poziomie.
 func _layout_grid() -> void:
-	if _grid == null or not is_instance_valid(_grid):
+	_layout(_grid)
+	_layout(_cont_grid)
+
+## Rozmieszczenie kolumnami (ItemView::layoutWidgets): wiersze = wysokość / 42, przewijanie w poziomie.
+func _layout(grid: Control) -> void:
+	if grid == null or not is_instance_valid(grid):
 		return
-	var sc := _grid.get_parent() as Control
+	var sc := grid.get_parent() as Control
 	var cs := CELL * scale_ui
 	var rows := maxi(1, int(sc.size.y / cs))
 	var i := 0
-	for c in _grid.get_children():
+	for c in grid.get_children():
 		if c.is_queued_for_deletion():
 			continue
 		(c as Control).position = Vector2(int(i / rows) * cs, (i % rows) * cs)
 		i += 1
-	_grid.custom_minimum_size = Vector2(ceilf(float(i) / rows) * cs, rows * cs)
+	grid.custom_minimum_size = Vector2(ceilf(float(i) / rows) * cs, rows * cs)
+
+# --- pojemnik (ContainerWindow) --------------------------------------------------------------------------
+
+var cont_sid := ""
+var cont_rec := {}
+var cont_name := ""
+var _cont_grid: Control = null
+var cont_ids: Array = []          # testy
+
+## Pojemnik jak OpenMW: okno pojemnika (ułożenie [Windows] container) i ekwipunek gracza obok; przeciąganie między
+## oknami, dwuklik w pojemniku – weź stos, dwuklik w ekwipunku – włóż; „Weź wszystko”, „Zamknij”.
+func open_container(sid: String, rec: Dictionary, name: String) -> void:
+	if visible:
+		close()
+	cont_sid = sid
+	cont_rec = rec
+	cont_name = name
+	var vp := get_viewport().get_visible_rect().size
+	scale_ui = clampf(vp.y / 720.0, 1.0, 3.0)
+	UI.setup(String(main.data_dir) if main != null and main.get("data_dir") != null else "")
+	_root = _Backdrop.new()
+	_root.name = "MenuMode"
+	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_root.theme = UI.theme(scale_ui)
+	_root.menu = self
+	add_child(_root)
+	visible = true
+	windows["inventory"] = _window("inventory", _rect("inventory", vp))
+	_build_inventory()
+	windows["container"] = _window("container", Rect2(Vector2(0.49, 0.54) * vp, Vector2(0.39, 0.38) * vp))
+	var body := _body("container")
+	_cont_grid = _make_grid(body, "container")
+	var btns := HBoxContainer.new()
+	btns.alignment = BoxContainer.ALIGNMENT_END
+	body.add_child(btns)
+	var ta := Button.new()
+	ta.text = _t("sTakeAll", "Weź wszystko")
+	ta.pressed.connect(take_all)
+	btns.add_child(ta)
+	var cb := Button.new()
+	cb.text = _t("sClose", "Zamknij")
+	cb.pressed.connect(close)
+	btns.add_child(cb)
+	get_tree().paused = true
+	if DisplayServer.get_name() != "headless":
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_set_hud(false)
+	refresh()
+
+func _refresh_container() -> void:
+	if _cont_grid == null or not is_instance_valid(_cont_grid):
+		return
+	var inv = main.interaction.inventory
+	var items: Array = inv.contents(cont_sid, cont_rec)
+	var cap := float(cont_rec.get("capacity", 0.0))
+	var w: float = inv.total_weight(items)
+	_title("container", cont_name + ("  (%d/%d)" % [roundi(w), roundi(cap)] if cap > 0.0 else ""))
+	cont_ids = _fill_grid(_cont_grid, sorted_items(cont_sid, cont_rec), "container")
+
+func _count(sid: String, rec: Dictionary, id: String) -> int:
+	return int(main.interaction.inventory.count_of(sid, rec, id))
+
+## Z pojemnika do gracza (cały stos).
+func take_item(id: String) -> void:
+	var n := _count(cont_sid, cont_rec, id)
+	if n > 0 and main.interaction.move(cont_sid, cont_rec, "player", {}, id, n) > 0 and main.get("audio") != null:
+		main.audio.play(main.interaction.item_sound(id, true))
+	refresh()
+
+## Od gracza do pojemnika (cały stos; założone – zdejmowane). Pojemność: OpenMW nie pozwala przekroczyć
+## (sContentsMessage3).
+func put_item(id: String) -> void:
+	var n := _count("player", {}, id)
+	if n <= 0:
+		return
+	var cap := float(cont_rec.get("capacity", 0.0))
+	if cap > 0.0 and cont_rec.has("capacity"):
+		var inv = main.interaction.inventory
+		var it: Dictionary = inv.item(id)
+		var w: float = inv.total_weight(inv.contents(cont_sid, cont_rec)) + float(it.get("rec", {}).get("weight", 0.0)) * n
+		if w > cap + 0.001:
+			if main.has_method("_toast"):
+				main._toast(_t("sContentsMessage3", "Nie ma tu wystarczająco miejsca."))
+			return
+	if main.interaction.move("player", {}, cont_sid, cont_rec, id, n) > 0 and main.get("audio") != null:
+		main.audio.play(main.interaction.item_sound(id, false))
+	refresh()
+
+func take_all() -> void:
+	main.interaction.take_all(cont_sid, cont_rec)
+	if main.get("audio") != null:
+		main.audio.play("Item Misc Up")
+	close()
+
+## Upuszczenie przeciąganego przedmiotu na obszar okna.
+func dropped_on(target: String, data: Dictionary) -> void:
+	var id := String(data.get("mw_item", ""))
+	var src := String(data.get("source", "inventory"))
+	if target == "container" and src == "inventory":
+		put_item(id)
+	elif target in ["inventory", "avatar"] and src == "container":
+		take_item(id)
+	elif target == "avatar" and src == "inventory":
+		use_item(id)
+
+## Dwuklik: w trybie pojemnika – przełożenie, inaczej – użyj/załóż.
+func activate_item(id: String, source: String) -> void:
+	if source == "container":
+		take_item(id)
+	elif _cont_grid != null and is_instance_valid(_cont_grid):
+		put_item(id)
+	else:
+		use_item(id)
 
 ## Pancerz gracza (getArmorRating): suma pancerza założonych zbroi wg miejsc (waga miejsca) + bez zbroi.
 func player_armor_rating() -> float:
@@ -629,7 +767,9 @@ func use_item(id: String) -> void:
 	iw.visible = false
 	refresh()
 
-func drop_to_world(id: String) -> void:
+func drop_to_world(id: String, source := "inventory") -> void:
+	if source != "inventory":
+		return
 	var n: int = main.interaction.inventory.count_of("player", {}, id)
 	if n <= 0:
 		return

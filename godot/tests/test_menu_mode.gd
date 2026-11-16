@@ -36,7 +36,25 @@ func _run() -> void:
 	check(UI.color("normal").is_equal_approx(Color8(202, 165, 96)), "FontColor_color_normal")
 	check(UI.color("health").is_equal_approx(Color8(200, 60, 30)), "kolor zdrowia")
 	check(UI.theme(1.0).default_font != null and UI.theme(1.0).default_font_size == 16, "czcionka MysticCards 16")
+	# HUD jak OpenMW
+	var hud = main.mw_hud
+	check(hud != null and hud.root != null and hud.bars.size() == 3, "HUD: paski zdrowia, magii, kondycji")
+	await _frames(8)
+	var st0: Dictionary = main.player_stats()
+	check(is_equal_approx(hud.bars["health"].value, clampf(float(st0.get("health", 0)), 0.0, hud.bars["health"].max_value)), "HUD: wartość zdrowia")
+	check(hud.minimap != null and hud.minimap_tiles.get_child_count() > 0, "HUD: minimapa z segmentami mapy lokalnej")
+	check(hud.big_icon("s\\tx_s_fire.dds") == "s/b_tx_s_fire.dds", "HUD: wielka ikona efektu (b_)")
+	check(not main.hud.visible, "pasek informacji ukryty (F3)")
+	main.player.want_sneak = true
+	hud._process(0.0)
+	check(hud.sneak_box.visible, "HUD: ikona skradania")
+	main.player.want_sneak = false
 	var inv = main.interaction.inventory
+	inv.add("player", {}, "synth_dagger_fire", 1)
+	main.equip_item("synth_dagger_fire")
+	await _frames(2)
+	check(hud._last_weap.length() > 0 and hud.flash_label.text == hud._last_weap, "HUD: nazwa broni po zmianie")
+	main.unequip_slot(16)
 	inv.add("player", {}, "synth_cuirass", 1)
 	inv.add("player", {}, "synth_dagger_fire", 1)
 	inv.add("player", {}, "synth_potion", 3)

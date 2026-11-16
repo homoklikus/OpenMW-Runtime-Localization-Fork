@@ -25,6 +25,11 @@
 * Etap 1: konwerter eksportuje `world/records/` (NPC_, CREA, RACE, CLAS, FACT, BODY, BSGN, SKIL, broń, zbroje,
   ubrania, książki, przedmioty, światła, GMST, GLOB) ze scalaniem wg kolejności ładowania; MCP-openMW:
   `openmw_record_compare_start/status` – porównanie rekordów z silnikiem OpenMW (Lua) pole po polu.
+* Etap 10 (w toku) – HUD jak w Morrowindzie: paski zdrowia, magii i kondycji, pole broni (stan) i czaru (szansa,
+  ładunek), ikona skradania, minimapa z kompasem, ikony działających efektów, nazwa broni/czaru i miejsca po
+  zmianie, celownik i podpowiedź nad celem; F11 – ukryj HUD, F3 – pasek informacji (domyślnie ukryty). Pojemniki
+  jak w OpenMW: okno pojemnika obok ekwipunku, przeciąganie i dwuklik, „Weź wszystko”, limit pojemności.
+  Wszystkie okna gry w wyglądzie Morrowinda (motyw domyślny).
 * Etap 10 (w toku) – tryb menu jak w Morrowindzie: prawy przycisk myszy (także I, M, N) pokazuje naraz okna
   statystyk, ekwipunku, magii i mapy w położeniach OpenMW (przesuwanie, zmiana rozmiaru, układ w zapisie gry);
   wygląd z tekstur gry gracza (ramki, paski, tła ikon), kolory FontColor i czcionka MysticCards. Ekwipunek:
