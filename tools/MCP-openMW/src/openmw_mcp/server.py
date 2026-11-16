@@ -985,6 +985,36 @@ def openmw_mechanics_compare_start(records_dir: Optional[str] = None, profile: s
 
 
 @tool
+def openmw_ai_compare_start(start_cell: str, pos: list[float], crime_victim: str = "", crime_guard: str = "",
+                            duration: float = 30.0, profile: str = "official-ref", timeout: float = 300.0) -> dict:
+    """URUCHAMIA OpenMW w tle ze scenariuszem porównania zachowań AI (etap 8): gracz w punkcie `pos` (MW) komórki
+    `start_cell`; co 1 s pozycje aktorów i aktywny pakiet AI przez `duration` s; potem (gdy podano crime_victim i
+    crime_guard – recordId) napaść gracza na ofiarę przy strażniku: zauważona, grzywna, pościg, walka ofiary.
+    Wynik silnika: <run_dir>/ai_engine.json; strona OpenMWGodot: godot/tools/ai_compare.gd z --request=<run_dir>/
+    ai_request.json, porównanie: python -m openmw_mcp.aicmp compare."""
+    from . import aicmp, recordcmp
+    import subprocess as _sp
+    import sys as _sys
+    e = env()
+    req = {"cell": "", "start_cell": start_cell, "pos": [float(x) for x in pos], "settle": 3, "duration": duration, "step": 1}
+    if crime_victim and crime_guard:
+        req["crime"] = {"victim": crime_victim.lower(), "guard": crime_guard.lower(), "distance": 100, "guard_distance": 400}
+    run_dir = e.p("Raporty/mcp/ai") / time.strftime("%Y-%m-%d-%H%M%S")
+    run_dir.mkdir(parents=True, exist_ok=True)
+    plan = recordcmp.prepare(e, profile, run_dir, {}, [], [])
+    (run_dir / "ai_request.json").write_text(json.dumps(req, ensure_ascii=False, indent=1), encoding="utf-8")
+    (run_dir / "params.json").write_text(json.dumps({"plan": str(Path(plan["run_dir"]) / "plan.json"), "ai": req},
+                                                    ensure_ascii=False), encoding="utf-8")
+    code = ("import json,sys; from pathlib import Path; from openmw_mcp import aicmp; "
+            "r=Path(sys.argv[1]); p=json.loads((r/'params.json').read_text()); "
+            "aicmp.run_from_record_run(r, json.loads(Path(p['plan']).read_text()), p['ai'], float(sys.argv[2]))")
+    proc = _sp.Popen([_sys.executable, "-c", code, str(run_dir), str(timeout)],
+                     stdout=open(run_dir / "runner.log", "w"), stderr=_sp.STDOUT, start_new_session=True)
+    return {"run_dir": str(run_dir), "pid": proc.pid, "request": req,
+            "note": "silnik startuje w tle; wynik: openmw_record_compare_status(run_dir) (report.json, ai_engine.json)"}
+
+
+@tool
 def openmw_record_compare_status(run_dir: str) -> dict:
     """Postęp i wynik openmw_record_compare_start: liczby rekordów/pól na typ, niezgodne pola (do 60 przykładów),
     rekordy brakujące po którejś stronie."""

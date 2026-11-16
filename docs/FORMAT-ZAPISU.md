@@ -59,6 +59,13 @@ JSON skompresowany Zstandard (`FileAccess.open_compressed`). Kod: `godot/scripts
   // v4 (etap 7): stan aktorów zmieniony w grze (te same klucze magii co u gracza)
   "actors": {"morrowind.esm#5678": {"health": 20, "fatigue": 80, "magicka": 10, "dead": false, "knocked_down": false,
                                     "attacked": true, "condition": {"16": 250}, "active_spells": [], "magic_damage": {}}},
+  // etap 8 (bez zmiany wersji – nowe pola, starsze zapisy działają): w „actors” stan AI aktora
+  //   "ai": {"packages": [{"type": "wander", "distance": 512, "remaining": 5, "idle": […], "repeat": false},
+  //                       {"type": "pursue", "target": "player", "priority": 2}], "done": false, "last": 0,
+  //          "start": [x, y, z]},                     // stos pakietów (AiSequence), punkt startu wędrówki
+  //   "alarmed": true, "crime_id": 1                 // świadek przestępstwa / napadnięty przez gracza
+  // w „refs” pozycja aktora po ruchu (MW): "morrowind.esm#5678": {"mw": {"pos": [x, y, z], "rot": [0, 0, rz], "scale": 1}}
+  // w „player”: "bounty": 40, "stolen": {"misc_com_wood_spoon_01": {"ra'virr": 1}}, "last_exterior": [x, y, z]
   // v5 (etap 7): rekordy utworzone w grze (mikstury z alchemii, zaklęcia i przedmioty zaklęte)
   "created": {"potion": {"mwg_generated_1": {"name": "…", "weight": 0.75, "value": 58, "model": "m\\misc_potion_standard_01.nif",
                                              "effects": [{"effect": 75, "min": 20, "max": 20, "duration": 59, "range": 0}]}},
@@ -90,6 +97,10 @@ Zasady (plan, rewizja 2.0, §2.1–2.4):
 * Migracja v2 → v3: pusta sekcja `dialogue` (indeksy zadań z `journal` zostają; wpisy dziennika z tekstem
   powstają od tej wersji). Teksty wpisów są zapisywane po tłumaczeniu i podstawieniach (%PCName…), jak w OpenMW.
 * Migracja v3 → v4: pusta sekcja `actors`; v4 → v5: puste `created`, `created_next = 1`.
+* Etap 8: pozycje NPC są zapisywane przy opuszczeniu komórki, przejściu przez drzwi i zapisie gry (w `refs[sid].mw`),
+  stos pakietów AI w `actors[sid].ai` (tworzony z rekordu przy pierwszym użyciu, jak `AiSequence::fill`).
+  Pakiet `pursue` (pościg strażnika) jest zapisywany jak pozostałe; walka (`combat`) też – po odczycie trwa dalej.
+  `player.stolen` – skradzione przedmioty z właścicielem (konfiskata przy grzywnie/więzieniu), `player.bounty` – grzywna.
 * Kamień dusz z duszą to w inwentarzu id `<kamień>@<stworzenie>` (osobny stos, jak dusza w CellRef OpenMW).
 * Przedmioty i mikstury utworzone w grze mają id `mwg_generated_N`; rekord identyczny z istniejącym jest używany
   ponownie (jak `Alchemy::getRecord`/`Enchanting::getRecord`).

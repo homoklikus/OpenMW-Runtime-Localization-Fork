@@ -128,3 +128,15 @@ wejścia co OpenMWGodot: atrybuty, umiejętności, zbroje, przedmioty zaklęte, 
 Bez restartu serwera MCP: zapisz żądanie (`python -m openmw_mcp.mechcmp request <records> <plik>`) jako
 `Raporty/mcp/mechanika/pending/request.json` i wywołaj `openmw_record_compare_start` – przebieg wykona scenariusz
 mechaniki zamiast rekordów.
+
+## Porównanie zachowań AI (0.11.0, etap 8 planu)
+
+`openmw_ai_compare_start(start_cell, pos, crime_victim, crime_guard)` uruchamia silnik ze scenariuszem
+`lua/scripts/rlf_ai` (skrypt globalny + skrypt aktorów z `I.AI.getActivePackage`): gracz w punkcie `pos`, co 1 s
+pozycje aktorów i ich aktywny pakiet AI, potem napaść gracza na wskazanego NPC przy strażniku
+(`I.Crimes.commitCrime`). Strona OpenMWGodot: `godot/tools/ai_compare.gd --request=<run_dir>/ai_request.json`;
+porównanie: `python -m openmw_mcp.aicmp compare <silnik> <godot> <raport>`. Trasy wędrówki są losowe po obu
+stronach, więc porównywane jest zachowanie: typ pakietu i promień wędrówki (wymagana zgodność), pozostanie
+w promieniu, ruch/bezruch (informacyjnie) oraz reakcja na przestępstwo (zauważona, grzywna, pościg strażnika,
+walka ofiary). Bez restartu serwera MCP: żądanie jako `Raporty/mcp/ai/pending/request.json` +
+`openmw_record_compare_start`.

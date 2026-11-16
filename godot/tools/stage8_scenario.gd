@@ -100,6 +100,8 @@ func _run() -> void:
 	var by_type := {}
 	var fell := 0
 	var outside := 0
+	var mobile := 0
+	var mobile_moved := 0
 	for n in ai.actor_nodes():
 		var sid := String(n.get_meta("mw_sid", ""))
 		if not start.has(sid):
@@ -116,6 +118,10 @@ func _run() -> void:
 		by_type[t] = e
 		if start[sid].z - p.z > 300.0:
 			fell += 1
+		if t == "wander" and float(pk.get("distance", 0)) > 0.0:
+			mobile += 1
+			if d > 32.0:
+				mobile_moved += 1
 		if t == "wander":
 			var anchor = ai.ai_state(n).get("start")
 			var dist := float(pk.get("distance", 0))
@@ -123,9 +129,9 @@ func _run() -> void:
 				var a3 := Vector2(float(anchor[0]), float(anchor[1]))
 				if Vector2(p.x, p.y).distance_to(a3) > dist + 400.0:
 					outside += 1
-	var wander: Dictionary = by_type.get("wander", {"actors": 0, "moved": 0})
-	_step("ruch NPC wg pakietów (%.0f s)" % secs, fell == 0 and outside == 0 and (int(wander.actors) == 0 or int(wander.moved) > 0),
-		{"actors": actors.size(), "by_package": by_type, "fell": fell, "wander_outside_range": outside})
+	_step("ruch NPC wg pakietów (%.0f s)" % secs, fell == 0 and outside == 0 and (mobile == 0 or mobile_moved > 0),
+		{"actors": actors.size(), "by_package": by_type, "fell": fell, "wander_outside_range": outside,
+		"wander_distance_gt0": mobile, "wander_distance_gt0_moved": mobile_moved})
 	# powitanie
 	var greeter: Node3D = null
 	for n in ai.actor_nodes():
@@ -163,8 +169,15 @@ func _run() -> void:
 		main.interaction.take_ref(theft.snap)
 		cr.test_roll = -1
 		var alarm := int(dl.ai_setting(dl.make_actor(owner), "alarm"))
-		_step("kradzież na oczach właściciela", ((cr.bounty() > b0) == (alarm >= 100)) and (st.get("stolen", {}) as Dictionary).has(String(theft.snap.base).to_lower()),
-			{"item": theft.snap.base, "owner": _base(owner), "owner_alarm": alarm, "bounty": cr.bounty() - b0})
+		var reporters := []
+		for w in cr._neighbours(owner):
+			if cr._can_report(w, owner) and cr._alarm(w) >= 100:
+				reporters.append(_base(w))
+		var value: int = int(main.trade.item_value(String(theft.snap.base).to_lower()))
+		var expect: int = maxi(1, int(value * float(cr._gmst("fCrimeStealing", 0.5)))) if not reporters.is_empty() else 0
+		_step("kradzież na oczach właściciela", cr.bounty() - b0 == expect and (st.get("stolen", {}) as Dictionary).has(String(theft.snap.base).to_lower()),
+			{"item": theft.snap.base, "owner": _base(owner), "owner_alarm": alarm, "reporters_alarm_100": reporters,
+			"value": value, "bounty": cr.bounty() - b0, "expected": expect})
 		cr.pay_fine()
 		await _frames(5)
 	else:
@@ -219,10 +232,21 @@ func _run() -> void:
 		cb.test_roll = 0                   # trafienie pewne – sprawdzamy, że NPC podchodzi i uderza
 		var eng := await _until(func(): return ai.in_combat(fighter), 5.0)
 		var h0: int = cb.hits
-		var hit := await _until(func(): return cb.hits > h0, 20.0)
+		var hp0: float = cb.health(cb.player_fighter())
+		var trace := []
+		var hit := -1.0
+		for k in 20:
+			var tk := await _until(func(): return cb.hits > h0 or cb.health(cb.player_fighter()) < hp0 - 0.5, 1.0)
+			var rr: Dictionary = ai._rt(fighter)
+			trace.append({"d": snappedf(ai.mw_pos(fighter).distance_to(ai.mw_pos(main.player)), 1.0),
+				"act": String((rr.get("action", {}) as Dictionary).get("kind", "")), "los": ai._los(fighter, main.player),
+				"path": (rr.get("path", []) as Array).size()})
+			if tk >= 0.0:
+				hit = k + tk
+				break
 		ai.test_roll = -1
 		cb.test_roll = -1
-		_step("walka (Fight 100)", eng >= 0.0 and hit >= 0.0, {"npc": _base(fighter), "engage_s": eng, "first_hit_s": hit})
+		_step("walka (Fight 100)", eng >= 0.0 and hit >= 0.0, {"npc": _base(fighter), "engage_s": eng, "first_hit_s": hit, "trace": trace})
 		ai.stop_combat(fighter)
 		dl.set_ai_setting(dl.make_actor(fighter), "fight", 0)
 		await _frames(5)

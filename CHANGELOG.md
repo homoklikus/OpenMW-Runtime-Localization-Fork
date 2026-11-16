@@ -25,6 +25,13 @@
 * Etap 1: konwerter eksportuje `world/records/` (NPC_, CREA, RACE, CLAS, FACT, BODY, BSGN, SKIL, broń, zbroje,
   ubrania, książki, przedmioty, światła, GMST, GLOB) ze scalaniem wg kolejności ładowania; MCP-openMW:
   `openmw_record_compare_start/status` – porównanie rekordów z silnikiem OpenMW (Lua) pole po polu.
+* Etap 8: AI, nawigacja i reakcje świata – siatki ścieżek PGRD (eksport świata v8 – „Aktualizuj” w launcherze;
+  A* i składowe spójne jak OpenMW), pakiety AI z rekordów i skryptów (wander, travel, escort, follow, activate;
+  AiWander/AiTravel/AiEscort/AiFollow/AiActivate, GetAIPackageDone, GetCurrentAIPackage), powitania (Hello),
+  animacje chodu i biegu, wykrywanie gracza (skradanie – Ctrl, niewidzialność, kameleon), AI walki (broń, czary,
+  łuki, ucieczka), przestępstwa (kradzież, wtargnięcie, napaść, morderstwo), świadkowie wg Alarm, pościg i rozmowa
+  strażnika, grzywna i konfiskata, więzienie (znaczniki z `world/markers.json`), wytrychy i sondy (Security),
+  pułapki rzucają czar; pozycje i stan AI NPC w zapisie. Koniec „dryfu” NPC (kolizje modeli).
 * Etap 7: walka, magia i mechanika RPG – rozwój umiejętności i awans (T – odpoczynek, okno awansu), ruch wg
   statystyk, handel z targowaniem, zakup zaklęć, trening, podróże, walka wręcz i dystansowa (F – broń), pancerz,
   śmierć i przeszukiwanie ciał, zaklęcia i moce (R – przygotuj, M – okno magii), działające efekty, pociski czarów,

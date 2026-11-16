@@ -1,0 +1,2 @@
+GLOBAL: scripts/rlf_ai/global.lua
+NPC, CREATURE: scripts/rlf_ai/actor.lua
