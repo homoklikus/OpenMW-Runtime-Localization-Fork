@@ -79,6 +79,7 @@ class World:
     masters_by_file: dict = field(default_factory=dict)
     pathgrids: dict = field(default_factory=dict)     # (x, y) → (punkty [(x, y, z) świat], krawędzie [(i, j)])
     records: dict = field(default_factory=dict)       # typ → {id_lower: rekord} (etap 1: postacie, przedmioty, GMST…)
+    dialogue: object = None                           # etap 6: DialogueStore (DIAL + INFO w kolejności ładowania)
 
     def ltex_resolver(self, fname: str) -> dict:
         """Mapa INTV → tekstura widziana przez plik: własne LTEX, potem LTEX masterów (późniejszy wygrywa).
@@ -107,6 +108,8 @@ def content_fingerprint(paths: Iterable) -> list:
 def load_world(paths: Iterable, log: Callable[[str], None] = lambda s: None) -> World:
     paths = list(paths)
     world = World([])
+    from .dialogue import DialogueStore
+    world.dialogue = DialogueStore()
     names_lower = [Path(p).name.lower() for p in paths]
     for fi, path in enumerate(paths):
         f, records = open_esm_stream(path)  # rekordy strumieniowo – bez listy wszystkich rekordów
@@ -119,8 +122,10 @@ def load_world(paths: Iterable, log: Callable[[str], None] = lambda s: None) -> 
             if m.lower() not in names_lower[:fi]:
                 world.warnings.append(f"{f.name}: master {m} nie jest załadowany wcześniej")
         t0 = time.perf_counter()
+        world.dialogue.cur = None
         for rec in records:
             world.record_counts[rec.type] = world.record_counts.get(rec.type, 0) + 1
+            world.dialogue.feed(rec, f.name)
             if rec.type in recdec.DECODERS:
                 recdec.merge(world.records, rec, f.name)
             if rec.type in MODEL_TYPES:

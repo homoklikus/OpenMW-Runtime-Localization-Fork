@@ -115,3 +115,35 @@ def region(id_: str, name: str, weather: dict, color=(120, 160, 90)) -> bytes:
     w = bytes(int(weather.get(k, 0)) for k in WEATHERS)
     return record("REGN", [sub("NAME", zs(id_)), sub("FNAM", zs(name)), sub("WEAT", w),
                            sub("CNAM", bytes([*color, 0]))])
+
+
+def dial(name: str, typ: int, deleted: bool = False) -> bytes:
+    """DIAL (etap 6): 0 temat, 1 głos, 2 powitanie, 3 perswazja, 4 dziennik."""
+    subs = [sub("NAME", zs(name))]
+    subs.append(sub("DELE", b"\0\0\0\0") if deleted else sub("DATA", bytes([typ])))
+    return record("DIAL", subs)
+
+
+def info(iid: str, prev: str = "", nxt: str = "", text: str = "", typ: int = 0, disposition: int = 0,
+         rank: int = -1, gender: int = -1, pcrank: int = -1, actor: str = "", race: str = "", cls: str = "",
+         faction: str = "", cell: str = "", pcfaction: str = "", conditions: Iterable = (), result: str = "",
+         quest: str = "", deleted: bool = False) -> bytes:
+    """INFO; warunek: (reguła SCVR, wartość int|float), np. ("01000", 30) = funkcja 00 == 30."""
+    subs = [sub("INAM", zs(iid)), sub("PNAM", zs(prev)), sub("NNAM", zs(nxt))]
+    if deleted:
+        return record("INFO", subs + [sub("DELE", b"\0\0\0\0")])
+    subs.append(sub("DATA", struct.pack("<iibbbx", typ, disposition, rank, gender, pcrank)))
+    for tag, v in (("ONAM", actor), ("RNAM", race), ("CNAM", cls), ("FNAM", faction), ("ANAM", cell),
+                   ("DNAM", pcfaction)):
+        if v:
+            subs.append(sub(tag, zs(v)))
+    if text:
+        subs.append(sub("NAME", text.encode("cp1252")))
+    for rule, value in conditions:
+        subs.append(sub("SCVR", rule.encode("cp1252")))
+        subs.append(sub("FLTV", struct.pack("<f", value)) if isinstance(value, float) else sub("INTV", struct.pack("<i", value)))
+    if result:
+        subs.append(sub("BNAM", result.replace("\n", "\r\n").encode("cp1252")))
+    if quest:
+        subs.append(sub({"name": "QSTN", "finished": "QSTF", "restart": "QSTR"}[quest], b"\1"))
+    return record("INFO", subs)

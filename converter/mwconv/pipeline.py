@@ -63,7 +63,7 @@ def _converter_ok(prev_conv: str, converter: str, vfs, key: str) -> bool:
     chk = COMPAT_CONVERTERS.get(prev_conv)
     return converter == MODEL_CONVERTER and chk is not None and chk(vfs, key)
 TEXTURE_CONVERTER = "tex2png-0.1.0"
-WORLD_EXPORT_VERSION = 5          # 2: world/records/ (etap 1); 3: rekordy etapu 3, dźwięki (sound/); 4: SPEL (etap 4); 5: skrypty
+WORLD_EXPORT_VERSION = 6          # 2: world/records/ (etap 1); 3: rekordy etapu 3, dźwięki (sound/); 4: SPEL (etap 4); 5: skrypty; 6: dialogi (etap 6)
 
 _VFS: Optional[Vfs] = None
 _OUT: Optional[Path] = None
@@ -897,6 +897,10 @@ def _run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) 
              "anims": {k: kf_out_rel(m) for k, m in ACTOR_ANIMS.items() if vfs.exists(m)}}
     stats["records"] = recdec.export(world.records, wdir, write_json, extra_index={"actor": actor})
     stats["refindex"] = _ref_index(world, wdir, write_json)
+    from . import dialogue as dialmod
+    dres = world.dialogue.finish()
+    stats["dialogue"] = dialmod.export(dres, wdir, write_json)
+    stats["dialogue"].update(orphan_infos=world.dialogue.orphan_infos, result_compile_errors=world.dialogue.compile_errors)
     used_regions = {(world.cells[k].cell.region or "").lower() for k in keys} - {""}
     write_json(wdir / "regions.json", {r: world.regions[r] for r in sorted(used_regions) if r in world.regions})
     write_json(wdir / "index.json", {"format": "mwgodot-world", "version": 1, "cells": index})
