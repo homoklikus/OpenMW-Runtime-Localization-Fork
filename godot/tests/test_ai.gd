@@ -91,7 +91,10 @@ func _run() -> void:
 	main.player.global_position = w.global_position + Vector3(1500.0 / MWCoords.UNITS_PER_METER, 0, 0)
 	await _until(func(): return String(ai._rt(w).greet) == "none", 120)   # wcześniejsze powitanie (fGreetDistanceReset)
 	main.player.global_position = w.global_position + Vector3(100.0 / MWCoords.UNITS_PER_METER, 0, 0)
-	var greeted := await _until(func(): return String(ai._rt(w).greet) == "progress", 300)
+	var greeted := await _until(func():
+		if String(ai._rt(w).greet) != "progress":        # wędrowiec może iść dalej – gracz trzyma się obok
+			main.player.global_position = w.global_position + Vector3(100.0 / MWCoords.UNITS_PER_METER, 0, 0)
+		return String(ai._rt(w).greet) == "progress", 300)
 	check(greeted >= 0, "powitanie gracza (Hello 30 × iGreetDistanceMultiplier)")
 	await _frames(20)
 	var wp: Vector3 = ai.mw_pos(w)
