@@ -140,3 +140,10 @@ stronach, więc porównywane jest zachowanie: typ pakietu i promień wędrówki 
 w promieniu, ruch/bezruch (informacyjnie) oraz reakcja na przestępstwo (zauważona, grzywna, pościg strażnika,
 walka ofiary). Bez restartu serwera MCP: żądanie jako `Raporty/mcp/ai/pending/request.json` +
 `openmw_record_compare_start`.
+
+## Ujęcia we wnętrzach (0.12.0, etap 10 planu)
+
+Ujęcie (`Shot`) może mieć pole `"interior": "<nazwa komórki>"` – w kolejce ujęć (`Raporty/mcp/zrzuty/kolejka-ujec.json`).
+OpenMW teleportuje wtedy gracza do wnętrza (bez zmiany pogody), a OpenMWGodot dostaje `--cell=<nazwa>`; kamera
+i gracz w układzie współrzędnych tej komórki. Pierwsze użycie: kominek w urzędzie celnym w Seyda Neen
+(przebieg `Raporty/mcp/zrzuty/2026-11-16-203510-porownanie`).

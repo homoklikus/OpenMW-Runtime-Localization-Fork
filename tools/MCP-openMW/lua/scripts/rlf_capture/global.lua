@@ -120,6 +120,12 @@ local function setHour(hour)
 end
 
 local function startShot(shot)
+    if shot.interior then
+        -- etap 10: ujęcie we wnętrzu (bez pogody)
+        player:teleport(shot.interior, util.vector3(shot.player[1], shot.player[2], shot.player[3]), { onGround = true })
+        player:sendEvent('RlfCaptureCamera', shot)
+        return
+    end
     local cell = world.getExteriorCell(shot.cell[1], shot.cell[2])
     if shot.weather and cell and cell.region then
         local record = core.weather.records[shot.weather]

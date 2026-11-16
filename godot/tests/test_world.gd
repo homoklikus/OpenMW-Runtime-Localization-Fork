@@ -92,7 +92,7 @@ func _phase_build(db: MWWorldDB, models: MWModelCache) -> void:
 	var lights := world.find_children("Light", "OmniLight3D", true, false)
 	check(lights.size() == 1, "jedno światło zewnętrzne (lampa)")
 	if lights.size() == 1:
-		check(absf((lights[0] as OmniLight3D).omni_range - 512.0 / MWCoords.UNITS_PER_METER) < 1e-3, "promień światła 512 jedn.")
+		check(absf((lights[0] as OmniLight3D).omni_range - 2.0 * 512.0 / MWCoords.UNITS_PER_METER) < 1e-3, "promień światła 512 jedn. (wygaszanie do 2r jak OpenMW)")
 
 	# pozycja referencji chaty zmienionej przez plugin: (1400, 8600, h) MW
 	var hut: Node3D = null

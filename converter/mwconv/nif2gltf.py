@@ -5,7 +5,8 @@ Zasady (zgodne z tym, jak silnik gry interpretuje NIF-y):
   bloku trafiają do `extras` (`mw_name`, `mw_block`), bo Godot może zmieniać nazwy duplikatów;
 * współrzędne: Z-up/jednostki gry → Y-up/metry (coords.py) – przeliczane są wierzchołki, normalne,
   transformacje węzłów, macierze skinu i klatki kluczowe, a NIE dodawany jest węzeł-korzeń z obrotem;
-* transformacja bloku-korzenia jest zerowana (tak robi silnik), chyba że korzeń nazywa się „Bip01”;
+* transformacja korzenia NiNode (rekord 0) jest zerowana jak w silniku (node.cpp), chyba że nazywa się „Bip01”;
+  korzeń-kształt zachowuje transformację;
 * właściwości (materiał, tekstury, alfa, stencil, kolor wierzchołków) są dziedziczone w dół drzewa;
 * poddrzewo RootCollisionNode → węzły z `extras.mw_collision = true` (siatki bez materiału);
 * wszystko, czego nie dało się bezstratnie przenieść, ląduje w raporcie diagnostycznym.
@@ -82,14 +83,27 @@ class Report:
         return dict(self.__dict__)
 
 
-def _local_matrix_nif(b: Block, is_root: bool) -> np.ndarray:
-    # Jak OpenMW (nifloader.cpp, createNode): transformacja korzenia jest stosowana – także gdy korzeniem jest
-    # kształt (np. części ciała z modów: NiTriShape jako korzeń z obrotem 90°).
+# Typy wczytywane przez Nif::NiNode::read (NiNode i pochodne) – tylko one mają zerowany korzeń.
+NINODE_FAMILY = {"NiNode", "NiBillboardNode", "NiBSAnimationNode", "NiBSParticleNode", "RootCollisionNode",
+                 "AvoidNode", "NiSwitchNode", "NiLODNode", "NiFltAnimationNode", "NiSortAdjustNode",
+                 "NiCollisionSwitch"}
+
+
+def root_discarded(b: Optional[Block], bi: int) -> bool:
+    """Jak OpenMW (components/nif/node.cpp, NiNode::read): transformacja węzła NiNode o numerze rekordu 0 jest
+    odrzucana, chyba że nazywa się „Bip01”. Korzeń-kształt (np. NiTriShape w częściach ciała z modów) zachowuje
+    swoją transformację (nifloader.cpp: MatrixTransform)."""
+    return b is not None and bi == 0 and b.type in NINODE_FAMILY and b.get("name", "").lower() != "bip01"
+
+
+def _local_matrix_nif(b: Block, is_root: bool, bi: int = -1) -> np.ndarray:
+    if is_root and root_discarded(b, bi):
+        return np.eye(4)
     return coords.trs_matrix(b["translation"], b["rotation"], b["scale"])
 
 
 def root_is_identity(nif) -> bool:
-    """Czy transformacja korzenia jest jednostkowa (wtedy wynik jak w nif2gltf-0.1.0, które ją zerowało)."""
+    """Czy transformacja korzenia jest jednostkowa (wtedy wynik nie zależy od zasady zerowania)."""
     r = nif.block(nif.roots[0]) if nif.roots else None
     if r is None or r.get("translation") is None:
         return True
@@ -97,6 +111,13 @@ def root_is_identity(nif) -> bool:
         return bool(np.allclose(coords.trs_matrix(r["translation"], r["rotation"], r["scale"]), np.eye(4), atol=1e-6))
     except (KeyError, TypeError):
         return True
+
+
+def root_is_discarded(nif) -> bool:
+    """Czy silnik odrzuca transformację korzenia tego modelu (NiNode o numerze 0, nie Bip01)."""
+    if not nif.roots:
+        return False
+    return root_discarded(nif.block(nif.roots[0]), nif.roots[0])
 
 
 def _to_g4(m_nif: np.ndarray) -> np.ndarray:
@@ -176,7 +197,7 @@ class NifToGltf:
             self.rep.note("lossy", f"blok {bi} ma wielu rodziców – użyto pierwszego wystąpienia")
             return None
         t = b.type
-        local = _local_matrix_nif(b, is_root)
+        local = _local_matrix_nif(b, is_root, bi)
         world = parent_world @ local
         self.world_nif[bi] = world
 

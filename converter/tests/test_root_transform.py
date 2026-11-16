@@ -57,3 +57,52 @@ def test_root_shape_rotation_applied():
 def test_compat_only_for_identity_root():
     assert root_is_identity(parse(_leg(False), "a.nif"))
     assert not root_is_identity(parse(_leg(True), "b.nif"))
+
+
+ROT_Z180 = [[-1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, 1.0]]
+
+
+def _node_root(rotated: bool, name: str = "Fireplace") -> bytes:
+    """Korzeń NiNode (rekord 0) z obrotem 180° wokół Z i kształtem wysuniętym w +X (jak in_nord_fireplace_01)."""
+    nb = NifBuilder()
+    root = nb.add("NiNode", name=name, **({"rotation": ROT_Z180} if rotated else {}))
+    V, N, UV, T = box((40, 10, 10), (40, 0, 0))
+    sd = nb.add("NiTriShapeData", vertices=V, normals=N, uvs=[UV], triangles=T)
+    tri = nb.add("NiTriShape", name="Tri", data=sd)
+    nb.set(root, children=[tri])
+    nb.roots = [root]
+    return nb.to_bytes()
+
+
+def _x_center(glb: bytes) -> float:
+    n = struct.unpack("<I", glb[12:16])[0]
+    j = json.loads(glb[20:20 + n])
+    a = j["accessors"][j["meshes"][0]["primitives"][0]["attributes"]["POSITION"]]
+    cx = (a["min"][0] + a["max"][0]) / 2
+    for nd in j["nodes"]:
+        if nd.get("rotation"):
+            x, y, z, w = nd["rotation"]
+            if abs(abs(y) - 1) < 1e-6:          # 180° wokół Y Godota (= Z w MW) odwraca X
+                cx = -cx
+    return cx
+
+
+def test_ninode_root_transform_discarded():
+    from mwconv.nif2gltf import root_is_discarded
+    assert root_is_discarded(parse(_node_root(True), "f.nif"))
+    assert _x_center(_convert(_node_root(True))) > 0.3, "korzeń NiNode wyzerowany – kształt nadal w +X"
+    assert not root_is_discarded(parse(_node_root(True, "Bip01"), "b.nif"))
+    assert _x_center(_convert(_node_root(True, "Bip01"))) < -0.3, "Bip01 zachowuje obrót"
+    assert not root_is_discarded(parse(_leg(True), "leg.nif")), "korzeń-kształt nie jest zerowany"
+
+
+def test_compat_versions():
+    from mwconv import pipeline
+
+    class V:
+        def __init__(self, data): self.data = data
+        def read(self, _k): return self.data
+    pipeline._ROOT_CHECK.clear()
+    node_rot, leg_rot = V(_node_root(True)), V(_leg(True))
+    assert pipeline._compat_010(node_rot, "a") and not pipeline._compat_011(node_rot, "a")
+    assert pipeline._compat_011(leg_rot, "b") and not pipeline._compat_010(leg_rot, "b")

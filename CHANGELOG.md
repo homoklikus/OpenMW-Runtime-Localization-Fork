@@ -25,6 +25,12 @@
 * Etap 1: konwerter eksportuje `world/records/` (NPC_, CREA, RACE, CLAS, FACT, BODY, BSGN, SKIL, broń, zbroje,
   ubrania, książki, przedmioty, światła, GMST, GLOB) ze scalaniem wg kolejności ładowania; MCP-openMW:
   `openmw_record_compare_start/status` – porównanie rekordów z silnikiem OpenMW (Lua) pole po polu.
+* Etap 10 (w toku) – poprawki po porównaniu z OpenMW (kominek w urzędzie celnym w Seyda Neen): konwerter zeruje
+  transformację korzenia NiNode (rekord 0, poza „Bip01”) jak OpenMW (`components/nif/node.cpp`) – modele z obróconym
+  korzeniem (m.in. kominki) stały tyłem do pokoju; korzeń-kształt zachowuje obrót (nif2gltf-0.1.2, ponowna
+  konwersja tylko takich modeli – „Aktualizuj”). Światła jak OpenMW z wartościami Morrowind.ini: natężenie
+  r / (3·d) z wygaszaniem do 2r (wcześniej słabsze i ucięte na promieniu); światła ujemne pomijane jak przy
+  oświetleniu shaderami OpenMW (koniec czarnych plam). MCP-openMW 0.12.0: ujęcia porównawcze we wnętrzach.
 * Etap 10 (w toku) – mapa (klawisz N) jak w OpenMW: mapa lokalna – widok z góry segmentów po 8192 jedn.
   (komórka zewnętrzna; wnętrze obrócone wg NorthMarker), mgła wojny 32 × 32 na segment odkrywana wokół gracza
   (w zapisie), drzwi z nazwą celu, strzałka gracza; mapa świata – obraz z wysokości WNAM w kolorach palety

@@ -38,23 +38,36 @@ from .world import (cell_file_rel, cell_to_json, content_fingerprint, load_world
 
 # Wersje konwerterów zasobów – zmiana wymusza ponowną konwersję modeli/tekstur, więc są niezależne od wersji
 # pakietu. Eksport świata ma własną wersję (WORLD_EXPORT_VERSION): nowe dane świata bez ponownej konwersji zasobów.
-MODEL_CONVERTER = "nif2gltf-0.1.1"
+MODEL_CONVERTER = "nif2gltf-0.1.2"
 # Starsze wersje, których wynik jest identyczny dla danego modelu (bez ponownej konwersji całej instalacji):
-# 0.1.0 zerowało transformację korzenia – identyczne, gdy korzeń ma transformację jednostkową.
+# 0.1.0 zerowało transformację każdego korzenia (poza Bip01) – identyczne, gdy korzeń jest jednostkowy albo silnik
+# też go zeruje (NiNode o numerze 0); 0.1.1 stosowało transformację każdego korzenia – identyczne, gdy korzeń jest
+# jednostkowy albo silnik go nie zeruje (korzeń-kształt). 0.1.2: zerowanie jak OpenMW (node.cpp).
 _ROOT_CHECK: dict = {}
 
 
-def _model_compat(vfs, key: str) -> bool:
+def _root_info(vfs, key: str) -> tuple:
     if key not in _ROOT_CHECK:
-        from .nif2gltf import root_is_identity
+        from .nif2gltf import root_is_discarded, root_is_identity
         try:
-            _ROOT_CHECK[key] = root_is_identity(parse(vfs.read(key), key))
+            nif = parse(vfs.read(key), key)
+            _ROOT_CHECK[key] = (root_is_identity(nif), root_is_discarded(nif))
         except Exception:
-            _ROOT_CHECK[key] = False
+            _ROOT_CHECK[key] = (False, None)
     return _ROOT_CHECK[key]
 
 
-COMPAT_CONVERTERS = {"nif2gltf-0.1.0": _model_compat}
+def _compat_010(vfs, key: str) -> bool:
+    ident, disc = _root_info(vfs, key)
+    return ident or disc is True
+
+
+def _compat_011(vfs, key: str) -> bool:
+    ident, disc = _root_info(vfs, key)
+    return ident or disc is False
+
+
+COMPAT_CONVERTERS = {"nif2gltf-0.1.0": _compat_010, "nif2gltf-0.1.1": _compat_011}
 
 
 def _converter_ok(prev_conv: str, converter: str, vfs, key: str) -> bool:

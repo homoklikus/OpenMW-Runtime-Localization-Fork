@@ -34,6 +34,8 @@ def godot_args(shot: dict, a, settings: Path, out: Path) -> list[str]:
             f"--screenshot={out / ('shot-' + shot['id'] + '.png')}", f"--shot-frames={a.frames}", "--quit=1"]
     if a.base:
         args.insert(args.index("--") + 1, f"--base={a.base}")
+    if shot.get("interior"):
+        args.insert(args.index("--") + 1, f"--cell={shot['interior']}")    # etap 10: ujęcie we wnętrzu
     return args
 
 

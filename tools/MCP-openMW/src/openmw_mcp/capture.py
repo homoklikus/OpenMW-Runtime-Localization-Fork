@@ -49,6 +49,7 @@ class Shot:
     fov: Optional[float] = None
     actors: Optional[list] = None                # aktorzy zamrażani w kadrze: [{"id", "pos", "rotz"}] (etap 2d)
     dump_enabled: Optional[bool] = None          # etap 5: stan włączenia obiektów ze skryptami (RLF_ENABLED)
+    interior: Optional[str] = None               # etap 10: nazwa komórki wnętrza (kamera i gracz w jej układzie)
 
 
 def repeat_shots(shots: list[Shot], repeat: int = 1) -> list[Shot]:
@@ -87,7 +88,7 @@ def scenario_lua(shots: list[Shot], timing: dict) -> str:
         d = asdict(s)
         d.pop("note", None)
         d.pop("visibility", None)
-        for k in ("fov", "actors", "dump_enabled"):
+        for k in ("fov", "actors", "dump_enabled", "interior"):
             if d.get(k) is None:
                 d.pop(k, None)
         lines.append("        " + _lua_value(d) + ",")

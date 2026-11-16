@@ -183,18 +183,29 @@ func build_ref(r: Dictionary) -> Node3D:
 			n.add_child(_placeholder())
 	else:
 		stats.no_model += 1
-	if with_lights and base.has("light"):
+	# światła ujemne (np. „dark_128”) pomijane jak w OpenMW przy oświetleniu shaderami (lightmanager.cpp:
+	# „Ignore negative lights”) – w Godocie dawały czarne plamy, których OpenMW nie rysuje
+	if with_lights and base.has("light") and not bool((base["light"] as Dictionary).get("negative", false)):
 		var L: Dictionary = base["light"]
 		var ol := OmniLight3D.new()
 		ol.name = "Light"
 		var col: Array = L.get("color", [255, 255, 255])
-		ol.light_color = Color8(int(col[0]), int(col[1]), int(col[2]))
-		ol.omni_range = float(L.get("radius", 256)) / MWCoords.UNITS_PER_METER
-		ol.light_energy = 1.0
-		ol.light_negative = L.get("negative", false)
-		ol.shadow_enabled = false
+		configure_light(ol, float(L.get("radius", 256)), Color8(int(col[0]), int(col[1]), int(col[2])))
 		n.add_child(ol)
 	return n
+
+## Światło jak OpenMW (lightutil.cpp configureLight + lighting_util.glsl) z domyślnymi wartościami Morrowind.ini
+## (LightAttenuation: tylko liniowe, LinearValue 3, LinearMethod 1, LinearRadiusMult 1): natężenie
+## 1 / (3·d / r) = r / (3·d), wygaszanie od promienia r do 2r; promień co najmniej 16 jedn. W Godocie: zanik
+## 1/d (omni_attenuation 1) z energią r/3 [m] i zasięgiem 2r.
+static func configure_light(ol: OmniLight3D, radius_units: float, color: Color) -> void:
+	var r := maxf(radius_units, 16.0) / MWCoords.UNITS_PER_METER
+	ol.light_color = color
+	ol.omni_range = 2.0 * r
+	ol.omni_attenuation = 1.0
+	ol.light_energy = r / 3.0
+	ol.light_specular = 0.0
+	ol.shadow_enabled = false
 
 ## Kolizje modelu aktora (siatki bez szkieletu dostają StaticBody3D w MWModelCache) – usuwane: kapsuła aktora
 ## stała w nich i była wypychana (NPC „dryfowały”).

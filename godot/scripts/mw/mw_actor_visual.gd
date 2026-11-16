@@ -502,10 +502,7 @@ func _add_held_light(sk: Skeleton3D, rec: Dictionary) -> void:
 	var l := OmniLight3D.new()
 	l.name = "HeldLight"
 	var col: Array = rec.get("color", [255, 200, 120, 0])
-	l.light_color = Color8(int(col[0]), int(col[1]), int(col[2]))
-	l.omni_range = maxf(float(rec.get("radius", 128)) / MWCoords.UNITS_PER_METER, 0.5)
-	l.light_energy = 1.0
-	l.shadow_enabled = false
+	MWCellBuilder.configure_light(l, float(rec.get("radius", 128)), Color8(int(col[0]), int(col[1]), int(col[2])))
 	att.add_child(l)
 	stats["held_lights"] = int(stats.get("held_lights", 0)) + 1
 
