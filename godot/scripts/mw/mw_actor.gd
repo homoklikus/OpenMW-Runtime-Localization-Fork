@@ -17,6 +17,7 @@ var record_id := ""                # id rekordu NPC_/CREA (gracz: "player")
 var sid := ""                      # stabilny id referencji w świecie ("" dla gracza)
 var stats := {}                    # etap 4: atrybuty, umiejętności, zdrowie…
 var fly := false
+var collide := true                # kapsuła kolizji (stworzenia: etap 3 – kształt wg modelu)
 
 # intencje ustawiane przez kontroler w każdej klatce fizyki
 var move_input := Vector2.ZERO     # x: w prawo, y: do tyłu (jak Input.get_vector)
@@ -29,6 +30,8 @@ var controller: Node = null:
 		controller_changed.emit(c)
 
 func _ready() -> void:
+	if not collide:
+		return
 	var col := CollisionShape3D.new()
 	col.name = "Capsule"
 	var cap := CapsuleShape3D.new()

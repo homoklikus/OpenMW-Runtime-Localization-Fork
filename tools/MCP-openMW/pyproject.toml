@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openmw-mcp"
-version = "0.8.0"
+version = "0.9.0"
 description = "MCP-openMW: wspólny serwer MCP (analiza, emulacja i porównania wizualne) dla oficjalnego OpenMW 0.51.0 (Flatpak) i forka OpenMW RLF"
 requires-python = ">=3.10"
 dependencies = ["mcp>=1.2", "numpy>=1.24"]

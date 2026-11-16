@@ -23,6 +23,7 @@ const HIDDEN_MARKERS := ["templemarker", "divinemarker", "prisonmarker", "northm
 static func is_hidden_marker(base_id: String) -> bool:
 	return base_id.to_lower() in HIDDEN_MARKERS
 
+const ActorScript := preload("res://scripts/mw/mw_actor.gd")
 const ActorVisual := preload("res://scripts/mw/mw_actor_visual.gd")
 
 func _init(world_db: MWWorldDB, model_cache: MWModelCache) -> void:
@@ -70,7 +71,16 @@ func build_cell(key: String) -> Node3D:
 
 func build_ref(r: Dictionary) -> Node3D:
 	var base := db.get_object(r.get("base", ""))
-	var n := Node3D.new()
+	var atype := String(base.get("type", ""))
+	# NPC i stworzenia jako MWActor (etap 2: bez AI – stoją w miejscu; ruch i kontrolery AI w etapie 8)
+	var is_actor := (atype == "NPC_" or atype == "CREA") and not editor_mode
+	var n: Node3D = ActorScript.new() if is_actor else Node3D.new()
+	if is_actor:
+		n.kind = "npc" if atype == "NPC_" else "creature"
+		n.record_id = String(r.get("base", "")).to_lower()
+		n.sid = String(r.get("sid", ""))
+		n.collide = atype == "NPC_"
+		n.set_physics_process(false)
 	n.name = _safe_name(r.get("base", "ref") + "_" + String(r.get("sid", "")).get_slice("#", 1))
 	n.transform = MWCoords.ref_transform(r)
 	n.set_meta("mw_sid", r.get("sid", ""))

@@ -47,6 +47,9 @@ func _initialize() -> void:
 	check(m != null and f != null and c != null, "NPC (mężczyzna, kobieta) i stworzenie zbudowane")
 	if m == null or f == null:
 		return
+	check(m is CharacterBody3D and m.kind == "npc" and m.record_id == "synth_villager" and m.sid != "",
+			"NPC jako MWActor (rodzaj, rekord, sid)")
+	check(c is CharacterBody3D and c.kind == "creature" and not m.is_physics_processing(), "stworzenie jako MWActor, bez AI")
 	var sk := m.get_node_or_null("Model/Skeleton") as Skeleton3D
 	check(sk != null and sk.find_bone("Bip01") >= 0 and sk.find_bone("Head") >= 0 and sk.find_bone("Left Forearm") >= 0,
 			"szkielet: Skeleton3D z kośćmi Bip01 i węzłami mocowania")

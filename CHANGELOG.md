@@ -25,6 +25,9 @@
 * Etap 1: konwerter eksportuje `world/records/` (NPC_, CREA, RACE, CLAS, FACT, BODY, BSGN, SKIL, broń, zbroje,
   ubrania, książki, przedmioty, światła, GMST, GLOB) ze scalaniem wg kolejności ładowania; MCP-openMW:
   `openmw_record_compare_start/status` – porównanie rekordów z silnikiem OpenMW (Lua) pole po polu.
+* Etap 2 ukończony: NPC i stworzenia jako `MWActor` (bez AI); porównanie 13 NPC z Seyda Neen i Balmory z OpenMW –
+  wygląd i ekwipunek zgodne w 12 ujęciach (różnica: listy poziomowane strażnika cesarskiego – etap 3).
+  MCP-openMW 0.9.0: `openmw_capture_npcs`, zamrażanie aktorów w OpenMW, kolejka ujęć; zrzuty Godota bez vsync.
 * Etap 2c: NPC w ubraniach i zbrojach – automatyczne zakładanie ekwipunku jak w OpenMW (InventoryStore::autoEquip:
   broń wg umiejętności, zbroja wg pancerza skorygowanego umiejętnością i porównania z walką bez zbroi, ubrania wg
   wartości, zakazy dla ras zwierzęcych; umiejętności z autoobliczaniem) i priorytety części (NpcAnimation::updateParts:

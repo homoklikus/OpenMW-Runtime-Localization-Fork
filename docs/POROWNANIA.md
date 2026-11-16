@@ -17,3 +17,14 @@ Narzędzie: serwer MCP-openMW (`OpenMW RLF/MCP-openMW`) + profil **`openmwgodot`
 Zgodnie z planem (rewizja 2.0, §2.7 i §6): porównania wizualne są **referencyjne** – nie blokują rozwoju
 progami podobieństwa obrazu. Zgodność obowiązkową (dane, rozmieszczenie, ID, mechanika, skrypty, zapisy)
 sprawdzamy liczbowo (np. `openmw_remiros_compare`, porównania rekordów).
+
+## Ujęcia NPC (etap 2d, MCP-openMW 0.9.0)
+
+* `openmw_capture_npcs(cells=["-2,-9","-3,-2"], start=True)` – kamera przed każdym NPC (do 4 na komórkę albo
+  lista `npcs`), w odległości 230 jednostek, pole widzenia 55°. W OpenMW aktor jest na czas ujęcia **zamrażany**
+  (skrypt `actor.lua`: bez pakietów AI, bez ruchu, teleport na pozycję z danych) – jak w porcie, gdzie NPC stoją.
+  Pozy mogą się różnić (zamrożona klatka chodu albo pływania) – porównanie dotyczy wyglądu i ekwipunku.
+* Kolejka ujęć: plik `Raporty/mcp/zrzuty/kolejka-ujec.json` (`{"shots": [...]}`) zastępuje ujęcia następnego
+  `openmw_capture_start` – np. ujęcia wyliczone skryptem, bez restartu serwera MCP; po użyciu plik trafia do
+  katalogu przebiegu.
+* Zrzuty Godota są robione bez vsync: przy zablokowanym ekranie kompozytor dławi klatki okna z vsync.
