@@ -192,3 +192,14 @@ def test_stage3_records():
                         W.sub("DATA", bytes([200, 0, 255]))])
     assert R.decode(soun) == {"id": "Item Gold Up", "file": "Fx\\item\\gold.wav", "volume": 200, "min_range": 0,
                               "max_range": 255}
+
+
+def test_stage4_spell():
+    from mwconv.esm.header import iter_records
+    spel = W.record("SPEL", [W.sub("NAME", W.zs("fortify_luck_ab")), W.sub("FNAM", W.zs("Lady's Grace")),
+                             W.sub("SPDT", struct.pack("<iii", 1, 0, 2)),
+                             W.sub("ENAM", struct.pack("<hbbiiiii", 79, -1, 7, 0, 0, 0, 25, 25))])
+    o = R.decode(next(iter_records(spel)))
+    assert o["type_name"] == "ability" and o["pc_start"] and not o["autocalc"]
+    assert o["effects"] == [{"effect": 79, "skill": -1, "attribute": 7, "range": 0, "area": 0, "duration": 0,
+                             "min": 25, "max": 25}]

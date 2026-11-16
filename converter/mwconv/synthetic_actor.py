@@ -222,8 +222,8 @@ CHEST_INVENTORY = [(2, "misc_synth_spoon"), (3, "l_synth_loot"), (1, "l_synth_ne
 
 
 def _race() -> bytes:
-    bon = []
-    for i in range(7):
+    bon = [5, 10]                                    # długie ostrza +10
+    for i in range(6):
         bon += [-1, 0]
     attrs = [40, 40] * 8
     radt = struct.pack("<14i", *bon) + struct.pack("<16i", *attrs) + struct.pack("<4f", 1.0, 1.0, 1.0, 1.0) \
@@ -299,6 +299,32 @@ def _sound(sid, f) -> bytes:
     return W.record("SOUN", [W.sub("NAME", W.zs(sid)), W.sub("FNAM", W.zs(f)), W.sub("DATA", bytes([255, 0, 255]))])
 
 
+def _stage4_records() -> list:
+    """Postać gracza: rekord „player”, klasa, znak z zdolnością, umiejętności (specjalizacje)."""
+    cldt = struct.pack("<15i", 0, 5, 0, 16, 5, 8, 6, 9, 7, 10, 0, 11, 1, 1, 0)
+    cls = W.record("CLAS", [W.sub("NAME", W.zs("Synth Warrior")), W.sub("FNAM", W.zs("Wojownik testowy")),
+                            W.sub("CLDT", cldt)])
+    spell = W.record("SPEL", [W.sub("NAME", W.zs("synth_ability")), W.sub("FNAM", W.zs("Dar testowy")),
+                              W.sub("SPDT", struct.pack("<iii", 1, 0, 0)),
+                              W.sub("ENAM", struct.pack("<hbbiiiii", 79, -1, 7, 0, 0, 0, 25, 25)),
+                              W.sub("ENAM", struct.pack("<hbbiiiii", 84, -1, -1, 0, 0, 0, 10, 10))])
+    power = W.record("SPEL", [W.sub("NAME", W.zs("synth_power")), W.sub("FNAM", W.zs("Moc testowa")),
+                              W.sub("SPDT", struct.pack("<iii", 5, 0, 0)),
+                              W.sub("ENAM", struct.pack("<hbbiiiii", 79, -1, 0, 0, 0, 0, 50, 50))])   # moc – nie stała
+    sign = W.record("BSGN", [W.sub("NAME", W.zs("Synth Sign")), W.sub("FNAM", W.zs("Znak testowy")),
+                             W.sub("NPCS", b"synth_ability".ljust(32, b"\0")), W.sub("NPCS", b"synth_power".ljust(32, b"\0"))])
+    skills = [W.record("SKIL", [W.sub("INDX", struct.pack("<i", i)),
+                                W.sub("SKDT", struct.pack("<ii4f", attr, spec, 1, 1, 1, 1))])
+              for i, attr, spec in ((5, 0, 0), (16, 1, 1), (20, 4, 2))]
+    npdt = struct.pack("<h", 1) + bytes([30] * 8) + bytes([5] * 27) + b"\0" + struct.pack("<HHH", 10, 10, 10) \
+        + bytes([50, 0, 0]) + b"\0" + struct.pack("<i", 0)
+    player = W.record("NPC_", [W.sub("NAME", W.zs("player")), W.sub("FNAM", W.zs("Gracz")), W.sub("RNAM", W.zs(RACE)),
+                               W.sub("CNAM", W.zs("Synth Warrior")), W.sub("BNAM", W.zs("b_n_synth_m_head_01")),
+                               W.sub("KNAM", W.zs("b_n_synth_m_hair_01")), W.sub("NPDT", npdt),
+                               W.sub("FLAG", struct.pack("<i", 0x08))])
+    return [cls, spell, power, sign, player] + skills
+
+
 def _stage3_records() -> list:
     torch = W.record("LIGH", [W.sub("NAME", W.zs("synth_torch")), W.sub("MODL", W.zs("l\\l_synth_torch.nif")),
                               W.sub("FNAM", W.zs("Pochodnia")),
@@ -349,7 +375,7 @@ def write_actors(data_dir: Path) -> dict:
     recs = [_race()] + [_body(k, *v) for k, v in BODYPARTS.items()]
     recs += [_item_body(k, *v) for k, v in ITEM_BODYPARTS.items()]
     recs += [_armor(k, *v) for k, v in ARMORS.items()] + [_clothing(k, *v) for k, v in CLOTHES.items()] + [_weapon()]
-    recs += _stage3_records()
+    recs += _stage3_records() + _stage4_records()
     recs += [_npc("synth_villager", False), _npc("synth_villager_f", True), _creature(),
              _npc("synth_guard", False, GUARD_INVENTORY)]
     refs = []

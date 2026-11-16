@@ -25,7 +25,9 @@ FILES = {"NPC_": "npc", "CREA": "creature", "RACE": "race", "CLAS": "class", "FA
          "LIGH": "light", "GMST": "gmst", "GLOB": "global",
          # etap 3: pojemniki, listy poziomowane, pozostałe przedmioty, drzwi/aktywatory, dźwięki
          "CONT": "container", "LEVI": "leveleditem", "LEVC": "leveledcreature", "ALCH": "potion",
-         "INGR": "ingredient", "DOOR": "door", "ACTI": "activator", "SOUN": "sound"}
+         "INGR": "ingredient", "DOOR": "door", "ACTI": "activator", "SOUN": "sound",
+         # etap 4: czary (zdolności ras i znaków, moce, czary startowe)
+         "SPEL": "spell"}
 
 
 def _zs(b: bytes) -> str:
@@ -441,6 +443,23 @@ def decode_sound(rec, rid: str) -> dict:
     return o
 
 
+SPELL_TYPES = ["spell", "ability", "blight", "disease", "curse", "power"]
+
+
+def decode_spell(rec, rid: str) -> dict:
+    o = {"id": rid}
+    n = rec.zstr("FNAM")
+    if n:
+        o["name"] = n
+    d = rec.get("SPDT")
+    if d is not None and len(d) >= 12:
+        typ, cost, fl = struct.unpack_from("<iii", d, 0)
+        o.update(spell_type=typ, type_name=SPELL_TYPES[typ] if 0 <= typ < len(SPELL_TYPES) else str(typ), cost=cost,
+                 flags=fl, autocalc=bool(fl & 1), pc_start=bool(fl & 2), always_succeeds=bool(fl & 4))
+    o["effects"] = _effects(rec)
+    return o
+
+
 def decode_gmst(rec, rid: str) -> dict:
     o: dict = {"id": rid}
     if rec.get("STRV") is not None:
@@ -498,6 +517,7 @@ DECODERS: dict[str, Callable] = {
     "LIGH": decode_light, "GMST": decode_gmst, "GLOB": decode_global,
     "CONT": decode_container, "LEVI": _leveled("INAM"), "LEVC": _leveled("CNAM"), "ALCH": decode_potion,
     "INGR": decode_ingredient, "DOOR": decode_door, "ACTI": decode_activator, "SOUN": decode_sound,
+    "SPEL": decode_spell,
 }
 
 

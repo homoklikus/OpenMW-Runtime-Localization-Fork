@@ -21,10 +21,14 @@ const MWInput := preload("res://scripts/mw/mw_input.gd")
 const InteractionScript := preload("res://scripts/mw/mw_interaction.gd")
 const InventoryScript := preload("res://scripts/mw/mw_inventory.gd")
 const ItemWindowScript := preload("res://scripts/mw/mw_item_window.gd")
+const CharacterScript := preload("res://scripts/mw/mw_character.gd")
+const ChargenScript := preload("res://scripts/mw/mw_chargen_window.gd")
 var events = Events.new()           # szyna zdarzeń (etap 0)
 var interaction = null                # MWInteraction (etap 3)
 var item_window = null                # okno pojemnika / ekwipunku
 var audio = null                      # MWAudio (etap 3)
+var character = null                  # MWCharacter (etap 4) – statystyki w state.player["character"]
+var chargen = null                    # kreator postaci
 var state = GameStateScript.new()   # różnice stanu gry względem danych bazowych (zapis gry)
 var pause_menu: Control
 var loc  # Loc
@@ -82,6 +86,12 @@ func _ready() -> void:
 		print("MWGODOT_LOCALIZATION ", ",".join(loc.languages), " (dostępne: ", ",".join(loc.available), ")")
 	builder.with_water = bool(settings.get("water", true))
 	interaction.loc = loc
+	character = CharacterScript.new(builder.actors)
+	chargen = ChargenScript.new()
+	chargen.character = character
+	chargen.loc = loc
+	add_child(chargen)
+	chargen.created.connect(_on_character_created)
 	audio = preload("res://scripts/mw/mw_audio.gd").new()
 	audio.name = "Audio"
 	audio.setup(data, builder.actors)
@@ -127,6 +137,45 @@ func _ready() -> void:
 		envr.set_interior(db.get_cell(key))
 	else:
 		_update_streaming(true)
+	player.landed.connect(_on_player_landed)
+	# nowa gra: kreator postaci (gra z launchera, bez wczytywania zapisu); tryby zrzutu/testów – postać domyślna
+	if not (state.player.get("character", {}) as Dictionary).is_empty():
+		pass
+	elif launched_by_launcher and lp.is_empty() and arg("screenshot").is_empty() and arg("autotest-frames", "0") == "0" \
+			and bool(settings.get("character_creation", true)) and builder.actors.available():
+		chargen.open(default_choice())
+	else:
+		state.player["character"] = character.build(default_choice())
+
+# --- postać gracza (etap 4) ---------------------------------------------------------------------------------
+
+## Domyślny wybór z rekordu NPC „player” (Morrowind.esm): rasa, klasa, płeć, głowa, włosy.
+func default_choice() -> Dictionary:
+	var p: Dictionary = builder.actors.record("npc", "player")
+	return {"name": "", "race": p.get("race", ""), "class": p.get("class", ""), "female": p.get("female", false),
+		"head": p.get("head", ""), "hair": p.get("hair", ""), "birthsign": ""}
+
+func player_stats() -> Dictionary:
+	return state.player.get("character", {})
+
+func _on_character_created(st: Dictionary) -> void:
+	state.player["character"] = st
+	_toast("Utworzono postać: %s" % st.get("name", ""))
+
+## Obrażenia od upadku (OpenMW getFallDamage; w wodzie bez obrażeń). Śmierć i jej skutki – etap 7.
+func _on_player_landed(height: float) -> void:
+	var st := player_stats()
+	if st.is_empty() or player.swimming or player.fly:
+		return
+	var lost: float = character.apply_fall(st, height)
+	if lost > 0.0:
+		if audio != null:
+			audio.play("Health Damage")
+		if float(st.health) <= 0.0:
+			st["health"] = 0.0
+			_toast("Upadek: −%d zdrowia. Zdrowie spadło do zera (śmierć – etap 7)." % roundi(lost))
+		else:
+			_toast("Upadek: −%d zdrowia" % roundi(lost))
 
 static func _load_settings(path: String) -> Dictionary:
 	if path.is_empty() or not FileAccess.file_exists(path):
@@ -362,8 +411,15 @@ func _process(_d: float) -> void:
 		var h: String = interaction.hint(r) if r and interaction != null else ""
 		if not h.is_empty():
 			hint = "\n[lb]E] %s" % Loc.escape_bbcode(h)
+	var stats_line := ""
+	var pst := player_stats()
+	if not pst.is_empty() and character != null:
+		var dd: Dictionary = character.derived(pst)
+		stats_line = "\n%s  |  zdrowie %d/%d  |  magia %d/%d  |  kondycja %d/%d" % [Loc.escape_bbcode(String(pst.get("name", ""))),
+				roundi(float(pst.get("health", 0))), roundi(dd.health.modified), roundi(float(pst.get("magicka", 0))),
+				roundi(dd.magicka.modified), roundi(float(pst.get("fatigue", 0))), roundi(dd.fatigue.modified)]
 	var rname := display_location()
-	hud.text = "%s  |  dzień %d, %02d:%02d  |  %s%s%s" % [rname, envr.day + 1, int(envr.game_hour), int(fmod(envr.game_hour, 1.0) * 60), envr.weather, coords_text(), hint]
+	hud.text = "%s  |  dzień %d, %02d:%02d  |  %s%s%s" % [rname, envr.day + 1, int(envr.game_hour), int(fmod(envr.game_hour, 1.0) * 60), envr.weather, coords_text() + stats_line, hint]
 
 ## Widok z ostatniej sesji – zapisywany lokalnie (katalog zapisów profilu), launcher pokazuje go na ekranie głównym.
 func _notification(what: int) -> void:
@@ -636,6 +692,8 @@ func load_game(path: String) -> Array:
 	return warnings
 
 func _apply_state() -> void:
+	if character != null and (state.player.get("character", {}) as Dictionary).is_empty():
+		state.player["character"] = character.build(default_choice())     # zapis sprzed etapu 4
 	envr.day = int(state.time.get("day", 0))
 	envr.game_hour = float(state.time.get("hour", 9.0))
 	envr.apply()
