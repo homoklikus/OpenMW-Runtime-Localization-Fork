@@ -1440,6 +1440,11 @@ func _load(key: String) -> void:
 	if n:
 		add_child(n)
 		loaded[key] = n
+		if not arg("screenshot").is_empty():
+			# ujęcia porównawcze: aktorzy zamrożeni w pozycjach z danych – jak MCP zamraża aktorów w OpenMW
+			for a in n.get_node("Refs").get_children():
+				if a.has_meta("mw_actor"):
+					a.set_physics_process(false)
 		events.cell_loaded.emit(key)
 		_apply_dead_poses()
 

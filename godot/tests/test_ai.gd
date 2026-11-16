@@ -46,6 +46,13 @@ func _run() -> void:
 			spawned = n
 	check(spawned != null and String(spawned.get_meta("mw_base", "")) == "synth_creature" and spawned.get_meta("mw_actor", "") == "creature",
 		"LEVC: stworzenie z listy poziomowanej (%s)" % [spawned.get_meta("mw_base", "") if spawned else null])
+	# NPC znają poziom wody komórki (pływanie zamiast tonięcia)
+	var any_npc: Node3D = null
+	for n in ai.actor_nodes():
+		if n.get_meta("mw_actor", "") == "npc":
+			any_npc = n
+			break
+	check(any_npc != null and is_equal_approx(float(any_npc.water_level), 0.0), "NPC: poziom wody komórki (%s)" % [any_npc.water_level if any_npc else null])
 	# siatka ścieżek: 4 × 3 punkty + osobna para
 	var g = ai.graph("ext:0,0")
 	check(g.size() == 14, "14 punktów siatki (%d)" % g.size())

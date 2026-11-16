@@ -67,6 +67,11 @@ func build_cell(key: String) -> Node3D:
 			var dn := build_ref(r)
 			if dn:
 				refs_node.add_child(dn)
+	# poziom wody komórki dla aktorów (pływanie NPC i stworzeń jak gracza; bez tego toną i chodzą po dnie)
+	var wl := float(c.get("water_height_m", 0.0)) if c.get("has_water", false) else -INF
+	for n in refs_node.get_children():
+		if n.has_meta("mw_actor") and "water_level" in n:
+			n.water_level = wl
 	if flora != null and not editor_mode and not c.get("interior", false):
 		var fl: Node3D = flora.build_cell(key)
 		if fl:
