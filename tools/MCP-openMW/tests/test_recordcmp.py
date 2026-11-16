@@ -54,3 +54,9 @@ def test_request_and_compare(tmp_path):
     # jedyna niezgodność: thrustMax 16 vs 17 (ścieżki, wielkość liter, rozszerzenia ikon i skala zaklęcia OK)
     assert [(m["field"], m["ours"], m["openmw"]) for m in rep["mismatches"]] == [("thrustMaxDamage", 16, 17)]
     assert rep["missing_in_engine"] == ["Weapon:nie_ma"] and rep["types"]["GMST"]["mismatched_fields"] == 0
+    assert rep["by_field"] == {"Weapon.thrustMaxDamage": 1}
+
+
+def test_text_sum_and_empty_paths():
+    assert RC.text_sum("ab") == [2, (97 * 31 + 98)] and RC.text_sum("ż")[0] == 2
+    assert RC._eq("s", None, "meshes/") and RC._eq("s", None, "icons/") and not RC._eq("s", "x.nif", "meshes/")

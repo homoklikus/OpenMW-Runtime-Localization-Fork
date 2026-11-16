@@ -33,14 +33,32 @@ def _id(v):
 
 
 def _path(v):
-    """Ścieżka VFS bez katalogu głównego, rozszerzenia i wielkości liter (OpenMW: 'meshes/w/x.nif', ESM: 'w\\x.nif')."""
+    """Ścieżka VFS bez katalogu głównego, rozszerzenia i wielkości liter (OpenMW: 'meshes/w/x.nif', ESM: 'w\\x.nif').
+    Pusta ścieżka po stronie silnika to sam katalog główny ('meshes/', 'icons/') – traktowana jak brak."""
     if v in (None, ""):
         return None
     s = str(v).replace("\\", "/").lower().lstrip("/")
     for pre in ("meshes/", "icons/", "textures/", "bookart/"):
         if s.startswith(pre):
             s = s[len(pre):]
-    return s.rsplit(".", 1)[0]
+    s = s.rsplit(".", 1)[0]
+    return s or None
+
+
+def text_sum(s) -> Optional[list]:
+    """[długość w bajtach UTF-8, suma (s*31 + b) mod 2^32] – ta sama w Lua (global.lua); długich tekstów nie
+    przesyłamy przez log silnika, bo OpenMW dzieli długie linie."""
+    if s is None:
+        return None
+    b = str(s).encode("utf-8")
+    h = 0
+    for x in b:
+        h = (h * 31 + x) % 4294967296
+    return [len(b), h]
+
+
+# zmienne globalne ustawiane przez silnik/skrypty już przy starcie (nie dane ESM)
+RUNTIME_GLOBALS = {"random100", "chargenstate", "gamehour", "day", "month", "year", "dayspassed", "timescale"}
 
 
 def _skill(i):
@@ -74,7 +92,7 @@ SPEC = {
         ("enchantCapacity", _g("enchant_capacity"), "ench")]),
     "Book": ("book", COMMON_ITEM + [
         ("enchant", _g("enchant", _id), "id"), ("isScroll", _g("scroll"), "b"), ("skill", _g("skill", _skill), "id"),
-        ("enchantCapacity", _g("enchant_capacity"), "ench"), ("text", _g("text"), "s")]),
+        ("enchantCapacity", _g("enchant_capacity"), "ench"), ("textSum", lambda o: text_sum(o.get("text")), "j")]),
     "Miscellaneous": ("misc", COMMON_ITEM + [("isKey", _g("key"), "b")]),
     "Apparatus": ("apparatus", COMMON_ITEM + [("type", _g("apparatus_type"), "n"), ("quality", _g("quality"), "f")]),
     "Lockpick": ("lockpick", COMMON_ITEM + [("maxCondition", _g("uses"), "n"), ("quality", _g("quality"), "f")]),
@@ -146,7 +164,7 @@ def _eq(kind, ours, theirs) -> bool:
     if kind == "s":
         a = "" if ours is None else str(ours)
         b = "" if theirs is None else str(theirs)
-        return a == b or _path(a) == _path(b) and ("/" in a or "\\" in a or "." in a)
+        return a == b or _path(a) == _path(b)
     if kind == "set":
         return sorted(_id(x) for x in (ours or [])) == sorted(_id(x) for x in (theirs or []))
     if kind == "j":
@@ -184,7 +202,7 @@ def request_lua(ids: dict, gmst: list, globals_: list) -> str:
              f"    attributes = {_lua_list(ATTRS)},", f"    skills = {_lua_list(SKILLS)},", "    items = {"]
     for kind, lst in ids.items():
         fields = [f for f, _, _ in SPEC[kind][1] if f not in ("attrs", "skillBonus", "heightM", "heightF",
-                                                                "weightM", "weightF", "rankList")]
+                                                                "weightM", "weightF", "rankList", "textSum")]
         lines.append(f"        {{ kind = {capture._lua_value(kind)}, fields = {_lua_list(fields)}, ids = {_lua_list(lst)} }},")
     lines += ["    },", f"    gmst = {_lua_list(gmst)},", f"    globals = {_lua_list(globals_)},", "}", ""]
     return "\n".join(lines)
@@ -252,7 +270,8 @@ def parse_log(log: Path) -> dict:
 
 
 def compare(records_dir: Path, engine: dict, gmst: list, globals_: list) -> dict:
-    report = {"types": {}, "mismatches": [], "missing_in_engine": [], "missing_in_ours": []}
+    report = {"types": {}, "by_field": {}, "mismatches": [], "missing_in_engine": [], "missing_in_ours": [],
+              "skipped_runtime_globals": []}
     for (kind, rid), body in sorted(engine.items()):
         if kind in ("GMST", "GLOB"):
             continue
@@ -274,6 +293,8 @@ def compare(records_dir: Path, engine: dict, gmst: list, globals_: list) -> dict
             st["fields"] += 1
             if not _eq(how, mine, body.get(field)):
                 st["mismatched_fields"] += 1
+                bf = f"{kind}.{field}"
+                report["by_field"][bf] = report["by_field"].get(bf, 0) + 1
                 if len(report["mismatches"]) < 60:
                     report["mismatches"].append({"type": kind, "id": rid, "field": field, "ours": mine,
                                                  "openmw": body.get(field)})
@@ -285,11 +306,15 @@ def compare(records_dir: Path, engine: dict, gmst: list, globals_: list) -> dict
             o = ours.get(n.lower())
             if body is None or o is None:
                 continue
+            if typ == "GLOB" and n.lower() in RUNTIME_GLOBALS:
+                report["skipped_runtime_globals"].append(n)
+                continue
             st["records"] += 1
             st["fields"] += 1
             a, b = o.get("value"), body.get("value")
             ok = (math.isclose(float(a), float(b), rel_tol=1e-5, abs_tol=1e-4)
-                  if isinstance(a, (int, float)) and isinstance(b, (int, float)) else a == b)
+                  if isinstance(a, (int, float)) and isinstance(b, (int, float))
+                  else (a in ("", None) and b in ("", None)) or a == b)
             if not ok:
                 st["mismatched_fields"] += 1
                 if len(report["mismatches"]) < 60:

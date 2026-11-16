@@ -60,7 +60,9 @@ def faction():
     subs = [W.sub("NAME", W.zs("Fighters Guild")), W.sub("FNAM", W.zs("Fighters Guild"))]
     subs += [W.sub("RNAM", z32(f"Rank{r}")) for r in range(10)]
     subs += [W.sub("FADT", struct.pack("<60i", *v)), W.sub("ANAM", W.zs("Thieves Guild")),
-             W.sub("INTV", struct.pack("<i", -2))]
+             W.sub("INTV", struct.pack("<i", -2)), W.sub("ANAM", W.zs("thieves guild")),
+             W.sub("INTV", struct.pack("<i", -1)), W.sub("ANAM", W.zs("Ashlanders")), W.sub("INTV", struct.pack("<i", -1)),
+             W.sub("ANAM", W.zs("Ashlanders")), W.sub("INTV", struct.pack("<i", -3))]
     return W.record("FACT", subs)
 
 
@@ -125,7 +127,7 @@ def test_records_decode_merge_export(tmp_path):
     assert cl["minor_skills"] == [10, 11, 12, 13, 14] and cl["major_skills"] == [20, 21, 22, 23, 24] and cl["playable"]
     f = r["FACT"]["fighters guild"]
     assert f["ranks"][9] == "Rank9" and f["rank_requirements"][2]["reputation"] == 20 and f["skills"] == [1, 2, 3, 4, 5, 6]
-    assert f["reactions"] == {"Thieves Guild": -2}
+    assert f["reactions"] == {"Thieves Guild": -2, "Ashlanders": -3}   # powtórzona frakcja: najniższa (jak OpenMW)
     wpn = r["WEAP"]["iron longsword"]
     assert wpn["weight"] == 13.0 and wpn["value"] == 45 and wpn["source"] == "patch.esp" and wpn["overridden"] == ["base.esm"]
     assert "bk_test" not in r.get("BOOK", {})

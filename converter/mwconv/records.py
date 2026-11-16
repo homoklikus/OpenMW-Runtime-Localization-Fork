@@ -199,7 +199,10 @@ def decode_faction(rec, rid: str) -> dict:
         if s.name == "ANAM":
             pending = _zs(s.data)
         elif s.name == "INTV" and pending is not None and len(s.data) >= 4:
-            reactions[pending] = struct.unpack_from("<i", s.data, 0)[0]
+            v = struct.unpack_from("<i", s.data, 0)[0]
+            key = next((k for k in reactions if k.lower() == pending.lower()), pending)
+            # frakcja wymieniona kilka razy: najniższa reakcja (jak OpenMW, loadfact.cpp)
+            reactions[key] = min(v, reactions[key]) if key in reactions else v
             pending = None
     if reactions:
         o["reactions"] = reactions

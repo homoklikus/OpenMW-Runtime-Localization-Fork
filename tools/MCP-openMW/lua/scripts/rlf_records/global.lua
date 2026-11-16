@@ -50,8 +50,17 @@ local function get(rec, f)
     return nil
 end
 
+local function textSum(s)
+    if s == nil then return nil end
+    local h = 0
+    for i = 1, #s do h = (h * 31 + s:byte(i)) % 4294967296 end
+    return { #s, h }
+end
+
 local function special(kind, rec, t)
-    if kind == 'Race' then
+    if kind == 'Book' then
+        t.textSum = textSum(get(rec, 'text'))
+    elseif kind == 'Race' then
         t.attrs = {}
         for _, a in ipairs(R.attributes) do
             local ok, v = pcall(function() return rec.attributes[a] end)
@@ -90,7 +99,7 @@ local function dump()
                 print('RLF_REC ' .. req.kind .. ' ' .. enc(id) .. ' null')
             else
                 local t = {}
-                for _, f in ipairs(req.fields) do t[f] = get(rec, f) end
+                for _, f in ipairs(req.fields) do if f ~= 'text' then t[f] = get(rec, f) end end  -- tekst: tylko suma (długie linie log dzieli)
                 special(req.kind, rec, t)
                 print('RLF_REC ' .. req.kind .. ' ' .. enc(id) .. ' ' .. enc(t))
             end
