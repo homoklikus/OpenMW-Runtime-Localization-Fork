@@ -90,6 +90,13 @@ func _run() -> void:
 	check(near(float(cb.attributes(vic)[0]), s0 + 10.0), "NPC: siła +10")
 	mg.tick(vic, 6.0)
 	check(near(float(cb.attributes(vic)[0]), s0), "po wygaśnięciu siła wraca")
+	# zmiana maksimum kondycji zachowuje stosunek (setAttribute): pełna kondycja zostaje pełna
+	var fm0: float = main.character.derived(st).fatigue.modified
+	st.fatigue = fm0
+	mg.inflict(me, {}, {"id": "agi", "name": "agi", "kind": "potion"}, [{"effect": 79, "attribute": 3, "min": 20, "max": 20, "duration": 1}])
+	check(near(float(st.fatigue), fm0 + 20.0), "kondycja rośnie z maksimum (%s)" % st.fatigue)
+	mg.tick(me, 2.0)
+	check(near(float(st.fatigue), fm0), "po wygaśnięciu – z powrotem do maksimum (%s)" % st.fatigue)
 	# moc raz na dobę
 	r = mg.cast_spell(me, "synth_power", {}, 0)
 	check(bool(r.success), "moc – użycie")

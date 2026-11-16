@@ -44,7 +44,7 @@ end
 
 local function out(kind, id, t) print('RLF_MECH ' .. kind .. ' ' .. enc(id) .. ' ' .. enc(t)) end
 
-local steps, waitFrames, waitTime, created, finished = {}, 0, 0, false, false
+local steps, waitFrames, waitTime, created, finished, built = {}, 0, 0, false, false, false
 local clock = 0
 local function step(f) steps[#steps + 1] = f end
 local function frames(n) waitFrames = n end
@@ -72,7 +72,9 @@ local function dyn()
     local t = {}
     for _, n in ipairs({ 'health', 'magicka', 'fatigue' }) do
         local s = Actor.stats.dynamic[n](self)
-        t[n] = { s.base, s.current, s.modified }
+        local mod = s.base
+        pcall(function() mod = s.base + s.modifier end)
+        t[n] = { s.base, s.current, mod }
     end
     return t
 end
@@ -223,7 +225,7 @@ return {
         onUpdate = function(dt)
             clock = clock + dt
             if finished then return end
-            if #steps == 0 and not created and clock > 0 then build() end
+            if not built then built = true; build() end
             if waitFrames > 0 then waitFrames = waitFrames - 1 return end
             if waitTime > 0 then waitTime = waitTime - dt return end
             local f = steps[1]

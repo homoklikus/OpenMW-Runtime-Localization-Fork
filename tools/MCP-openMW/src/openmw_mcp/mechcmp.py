@@ -213,7 +213,7 @@ def normalize(e: dict) -> dict:
         d["after_base"] = [int(x[0]) for x in d["after"]]
     if isinstance(d.get("dynamic"), dict):
         dd = d["dynamic"]
-        d["dyn_max"] = [float(dd[n][2]) for n in ("health", "magicka", "fatigue") if n in dd]
+        d["dyn_max"] = [float(dd[n][2] if len(dd[n]) > 2 else dd[n][0]) for n in ("health", "magicka", "fatigue") if n in dd]
         d["dyn_cur"] = [float(dd[n][1]) for n in ("health", "magicka", "fatigue") if n in dd]
     if isinstance(d.get("items"), list):
         d["items"] = [x[1] for x in d["items"]]

@@ -522,6 +522,7 @@ func inflict(target: Dictionary, caster: Dictionary, source: Dictionary, list: A
 	active(target).append(entry)
 	_tick_entry(target, entry, 0.0)
 	_cleanup(target)
+	sync_dynamic(target)
 	return res
 
 ## Jedno przejście applyMagicEffect dla efektu (dt = 0 – nałożenie przy rzuceniu).
@@ -766,6 +767,19 @@ func tick(f: Dictionary, dt: float) -> void:
 		_tick_entry(f, sp, dt)
 	_tick_constant(f, dt)
 	_cleanup(f)
+	sync_dynamic(f)
+
+## Zmiana maksimum magii/kondycji (atrybuty, wzmocnienie maks. magii, ekwipunek) zachowuje stosunek wartości
+## bieżącej do maksymalnej – CreatureStats::setAttribute / recalculateMagicka.
+func sync_dynamic(f: Dictionary) -> void:
+	var h := holder(f)
+	var cb = _combat()
+	for k in [["magicka", "_max_magicka"], ["fatigue", "_max_fatigue"]]:
+		var mx: float = max_magicka(f) if k[0] == "magicka" else float(cb.max_fatigue(f))
+		var old := float(h.get(k[1], -1.0))
+		if old > 0.0 and absf(mx - old) > 0.0001 and h.has(k[0]):
+			h[k[0]] = float(h[k[0]]) * mx / old
+		h[k[1]] = mx
 
 const CONSTANT_TICK := [14, 15, 16, 23, 24, 25, 27, 75, 76, 77]
 
