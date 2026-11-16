@@ -492,6 +492,27 @@ def _expand_leveled(world, ids) -> set:
     return out
 
 
+def _leveled_creatures(world, keys) -> set:
+    """Stworzenia możliwe do wylosowania z punktów pojawiania się (LEVC) w wybranych komórkach (etap 8)."""
+    levc = world.records.get("LEVC", {})
+    out, todo, seen = set(), [], set()
+    for k in keys:
+        for mr in world.cells[k].refs.values():
+            b = mr.ref.base.lower()
+            if b in levc:
+                todo.append(b)
+    while todo:
+        i = todo.pop()
+        if i in seen:
+            continue
+        seen.add(i)
+        if i in levc:
+            todo += [(x.get("id") or "").lower() for x in levc[i].get("items", [])]
+        elif i:
+            out.add(i)
+    return out
+
+
 def _actor_models(world, keys, vfs) -> set:
     """Modele NPC w wybranych komórkach (etap 2): szkielety, głowy, włosy, części ciała ras (BODY, typ skóra),
     własne modele NPC. Animacje .kf dochodzą jako pliki sąsiednie (xname.kf)."""
@@ -828,6 +849,12 @@ def _run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) 
                     needed_models.add(mk)
                 else:
                     missing_models.add(o["model"])
+    spawn_creatures = _leveled_creatures(world, keys)
+    for cid in sorted(spawn_creatures):
+        o = world.objects.get(cid)
+        mk = vfs.resolve_mesh(o["model"]) if o and o.get("model") else None
+        if mk:
+            needed_models.add(mk)
     if opts.all_models:
         needed_models |= set(vfs.list("meshes/", ".nif")) | set(vfs.list("meshes/", ".kf"))
     flora_models = _flora_models(cfg, vfs, opts)
@@ -892,7 +919,7 @@ def _run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) 
                       "interior": mc.cell.interior, "grid": j["grid"], "sources": mc.sources})
     for g, tj in terrain_json.items():
         write_json(wdir / f"terrain/{g[0]}_{g[1]}.json", tj, compact=True)
-    used_bases = {mr.ref.base.lower() for k in keys for mr in world.cells[k].refs.values()}
+    used_bases = {mr.ref.base.lower() for k in keys for mr in world.cells[k].refs.values()} | spawn_creatures
     objs = {}
     for bid in sorted(used_bases):
         o = world.objects.get(bid)
