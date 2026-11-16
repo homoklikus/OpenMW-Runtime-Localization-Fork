@@ -408,6 +408,19 @@ def _actor_models(world, keys, vfs) -> set:
                 if bp:
                     add(bp.get("model"))
             add(n.get("model"))
+            # ekwipunek (etap 2c): części ciała ubrań i zbroi (obie płcie) + model przedmiotu (tarcza bez części)
+            for e in n.get("inventory", []):
+                iid = (e.get("item") or "").lower()
+                for kind in ("ARMO", "CLOT"):
+                    it = world.records.get(kind, {}).get(iid)
+                    if it is None:
+                        continue
+                    add(it.get("model"))
+                    for ref in it.get("parts", []):
+                        for g in ("male", "female"):
+                            bp = bodies.get((ref.get(g) or "").lower())
+                            if bp:
+                                add(bp.get("model"))
     if races:
         for m in ACTOR_SKELETONS.values():
             if vfs.exists(m):

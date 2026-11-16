@@ -25,6 +25,11 @@
 * Etap 1: konwerter eksportuje `world/records/` (NPC_, CREA, RACE, CLAS, FACT, BODY, BSGN, SKIL, broń, zbroje,
   ubrania, książki, przedmioty, światła, GMST, GLOB) ze scalaniem wg kolejności ładowania; MCP-openMW:
   `openmw_record_compare_start/status` – porównanie rekordów z silnikiem OpenMW (Lua) pole po polu.
+* Etap 2c: NPC w ubraniach i zbrojach – automatyczne zakładanie ekwipunku jak w OpenMW (InventoryStore::autoEquip:
+  broń wg umiejętności, zbroja wg pancerza skorygowanego umiejętnością i porównania z walką bez zbroi, ubrania wg
+  wartości, zakazy dla ras zwierzęcych; umiejętności z autoobliczaniem) i priorytety części (NpcAnimation::updateParts:
+  zbroja > ubranie > ciało, szata i spódnica zasłaniają nogi, hełm zdejmuje włosy, tarcza w lewej ręce; broń
+  schowana). Na razie bez list poziomowanych w inwentarzu i pochodni nocą (`mw_equipment.gd`).
 * Konwerter (nif2gltf-0.1.1): transformacja korzenia NIF stosowana jak w OpenMW (wcześniej zerowana – części
   ciała z modów z obróconym korzeniem, np. uda Dark Elfa, leżały poziomo). Pamięć podręczna 0.1.0 pozostaje
   ważna dla modeli z korzeniem jednostkowym, więc „Aktualizuj” konwertuje ponownie tylko modele, których to dotyczy.

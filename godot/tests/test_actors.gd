@@ -76,6 +76,26 @@ func _initialize() -> void:
 	check(fchest.size() == 1 and fchest[0].mesh.get_aabb().size.x > 0.45, "kobieta: żeński tułów")
 	check(fn.filter(func(n): return n is MeshInstance3D and String(n.name) == "Tri Left Hand 0").size() == 1,
 			"kobieta: męskie dłonie jako zastępcze")
+	# etap 2c: ekwipunek (autoEquip + priorytety części jak w OpenMW)
+	var g := _actor("npc", "synth_guard")
+	check(g != null, "strażnik zbudowany")
+	if g:
+		var gn := []
+		_all(g, gn)
+		var meshes := gn.filter(func(n): return n is MeshInstance3D).map(func(n): return String(n.name))
+		check("Tri A_Synth_Helm" in meshes and not "Tri B_N_Synth_M_Hair_01" in meshes, "hełm zamiast włosów: %s" % [meshes])
+		check("Tri B_N_Synth_M_Head_01" in meshes, "głowa pod otwartym hełmem")
+		check("Tri A_Synth_Cuirass" in meshes and not "Tri Chest" in meshes, "napierśnik zastępuje tułów")
+		check(not "Tri C_Synth_Shirt_Fine" in meshes and not "Tri C_Synth_Shirt_Cheap" in meshes,
+				"koszula pod napierśnikiem (zbroja ma wyższy priorytet)")
+		check(not "Tri A_Synth_Greaves" in meshes, "nagolenniki gorsze niż brak zbroi – niezałożone")
+		check("Tri A_Synth_Shield" in meshes, "tarcza (model przedmiotu) w lewej ręce")
+		check(not "Tri W_Synth_Sword" in meshes, "broń schowana (bez pochwy w szkielecie – niewidoczna)")
+		var shield_att := gn.filter(func(n): return n is BoneAttachment3D and n.bone_name == "Shield Bone")
+		check(shield_att.size() == 1, "tarcza na kości Shield Bone")
+		var eq: Dictionary = builder.actors.equipment.auto_equip(builder.actors.record("npc", "synth_guard"))
+		check(eq.has(8) and eq[8].id == "synth_shirt_fine", "najcenniejsza koszula w slocie (%s)" % [eq.get(8, {}).get("id", "")])
+		check(eq.has(16) and eq[16].id == "synth_sword", "miecz w prawej ręce (slot)")
 	var ap := m.get_node("Model/MWAnimations") as AnimationPlayer
 	check(ap.is_playing() and ap.current_animation == "idle", "NPC: bezczynność w pętli (%s)" % ap.current_animation)
 	var cap := c.get_node("Model").find_children("MWAnimations", "AnimationPlayer", true, false)

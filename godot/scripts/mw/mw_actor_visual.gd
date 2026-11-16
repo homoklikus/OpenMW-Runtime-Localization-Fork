@@ -25,7 +25,15 @@ var _records := {}          # plik → słownik rekordów
 var _index = null
 var _libs := {}             # klucz animacji → AnimationLibrary (wspólna dla aktorów o tej samej budowie)
 var _race_parts := {}       # (rasa, kobieta) → {PRT: rekord BODY}
-var stats := {"npcs": 0, "creatures": 0, "parts": 0, "skinned": 0, "rigid": 0, "missing_parts": 0}
+var stats := {"npcs": 0, "creatures": 0, "parts": 0, "skinned": 0, "rigid": 0, "missing_parts": 0, "equipped": 0}
+var equipment = null        # MWEquipment (etap 2c)
+
+const Equipment := preload("res://scripts/mw/mw_equipment.gd")
+# NpcAnimation::updateParts: kolejność slotów i priorytet bazowy (szata 11, spódnica 3, reszta 0)
+const SLOT_LIST := [[11, 11], [10, 3], [0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [7, 0], [5, 0], [6, 0], [8, 0], [9, 0],
+	[17, 0], [16, 0]]
+const ROBE_RESERVED := [4, 5, 21, 22, 13, 14, 19, 20, 11, 12, 3]   # krocze, spódnica, nogi, ramiona, kolana, przedramiona, tułów
+const SKIRT_RESERVED := [4, 21, 22]
 
 func _init(world_db, model_cache) -> void:
 	db = world_db
@@ -214,8 +222,7 @@ func _part_glb(bp: Dictionary) -> String:
 		g = "meshes/" + String(bp["model"]).replace("\\", "/").to_lower().get_basename() + ".glb"
 	return g
 
-func _attach_part(sk: Skeleton3D, prt: int, bp: Dictionary) -> void:
-	var glb := _part_glb(bp)
+func _attach_part(sk: Skeleton3D, prt: int, glb: String) -> void:
 	var inst: Node3D = models.instantiate(glb) if not glb.is_empty() else null
 	if inst == null:
 		stats.missing_parts += 1
@@ -335,16 +342,12 @@ func build_npc(npc_id: String, seed: int = 0) -> Node3D:
 	var sk := build_skeleton(flatten_skeleton(src))
 	src.free()
 	root.add_child(sk)
-	# części: rasa (szyja…ogon) + głowa i włosy z NPC
-	var parts := race_parts(String(npc.get("race", "")), female).duplicate()
-	for pair in [[0, "head"], [1, "hair"]]:
-		var bp := record("bodypart", String(npc.get(pair[1], "")))
-		if not bp.is_empty():
-			parts[pair[0]] = bp
+	# części: ekwipunek (priorytety), głowa i włosy z NPC, rasa (szyja…ogon) tam, gdzie nic nie zajęło miejsca
+	var parts := npc_parts(npc, female)
 	var keys := parts.keys()
 	keys.sort()
 	for prt in keys:
-		_attach_part(sk, int(prt), parts[prt])
+		_attach_part(sk, int(prt), String(parts[prt]))
 	# animacje: baza + (żeńskie | zwierzęce) z pierwszeństwem
 	var docs := [_anim_doc(String(anims.get("base", "")))]
 	if kind != "male" and anims.has(kind):
@@ -358,6 +361,85 @@ func build_npc(npc_id: String, seed: int = 0) -> Node3D:
 	root.set_meta("mw_actor", "npc")
 	stats.npcs += 1
 	return root
+
+## Część ciała przedmiotu (PartReference): dla kobiety część żeńska, gdy podana i istnieje; inaczej męska.
+func _item_part(ref: Dictionary, female: bool) -> Dictionary:
+	if female and not String(ref.get("female", "")).is_empty():
+		var bp := record("bodypart", String(ref["female"]))
+		if not bp.is_empty():
+			return bp
+	if not String(ref.get("male", "")).is_empty():
+		return record("bodypart", String(ref["male"]))
+	return {}
+
+static func _model_glb(model: String) -> String:
+	return "" if model.is_empty() else "meshes/" + model.replace("\\", "/").to_lower().get_basename() + ".glb"
+
+## PRT → GLB do założenia (NpcAnimation::updateParts, 3. osoba, broń schowana).
+func npc_parts(npc: Dictionary, female: bool) -> Dictionary:
+	if equipment == null:
+		equipment = Equipment.new(self)
+	var slots: Dictionary = equipment.auto_equip(npc)
+	var prio := {}
+	var chosen := {}
+	var add := func(prt: int, p: int, glb: String) -> bool:
+		if p <= int(prio.get(prt, 0)):
+			return false
+		prio[prt] = p
+		chosen[prt] = glb
+		return true
+	var reserve := func(prt: int, p: int) -> void:
+		if p > int(prio.get(prt, 0)):
+			prio[prt] = p
+			chosen.erase(prt)
+	for sl in SLOT_LIST:
+		var slot: int = sl[0]
+		if not slots.has(slot):
+			continue
+		var it: Dictionary = slots[slot]
+		if slot == 0:                                   # hełm zdejmuje włosy
+			prio.erase(1)
+			chosen.erase(1)
+		var p := 0
+		if it.kind == "clothing" or it.kind == "armor":
+			p = ((int(sl[1]) + 1) << 1) + (1 if it.kind == "armor" else 0)
+			stats.equipped += 1
+			for ref in it.rec.get("parts", []):
+				var bp := _item_part(ref, female)
+				var prt := int(ref.get("part", -1))
+				if not bp.is_empty() and not _part_glb(bp).is_empty():
+					add.call(prt, p, _part_glb(bp))
+				else:
+					reserve.call(prt, p)
+		if slot == 11:
+			for prt in ROBE_RESERVED:
+				reserve.call(prt, p)
+		elif slot == 10:
+			for prt in SKIRT_RESERVED:
+				reserve.call(prt, p)
+	if int(prio.get(0, 0)) < 1:
+		var head := record("bodypart", String(npc.get("head", "")))
+		if not head.is_empty():
+			add.call(0, 1, _part_glb(head))
+	if int(prio.get(1, 0)) < 1 and int(prio.get(0, 0)) <= 1:
+		var hair := record("bodypart", String(npc.get("hair", "")))
+		if not hair.is_empty():
+			add.call(1, 1, _part_glb(hair))
+	# tarcza w lewej ręce (showCarriedLeft): bez części ciała – model przedmiotu
+	if slots.has(17) and slots[17].kind == "armor" and int(prio.get(10, 0)) < 1:
+		var shield_glb := ""
+		for ref in slots[17].rec.get("parts", []):
+			if int(ref.get("part", -1)) == 10:
+				shield_glb = _part_glb(_item_part(ref, female))
+		if shield_glb.is_empty():
+			shield_glb = _model_glb(String(slots[17].rec.get("model", "")))
+		if not shield_glb.is_empty():
+			add.call(10, 1, shield_glb)
+	var body := race_parts(String(npc.get("race", "")), female)
+	for prt in range(2, 27):
+		if int(prio.get(prt, 0)) < 1 and body.has(prt):
+			add.call(prt, 1, _part_glb(body[prt]))
+	return chosen
 
 ## Stworzenie: model z biblioteką animacji z xname.kf (dołączoną przez MWModelCache) – bezczynność w pętli.
 func animate_creature(model: Node, seed: int = 0) -> bool:

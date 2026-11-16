@@ -40,6 +40,7 @@ BONES = [
     ("Left Forearm", "Bip01 L Forearm", (0, 0, 0)),
     ("Bip01 L Hand", "Bip01 L Forearm", (25, 0, 0)),
     ("Left Hand", "Bip01 L Hand", (0, 0, 0)),
+    ("Shield Bone", "Bip01 L Hand", (5, 0, 0)),
     ("Bip01 R Clavicle", "Bip01 Spine", (-8, 0, 35)),
     ("Bip01 R UpperArm", "Bip01 R Clavicle", (-10, 0, 0)),
     ("Right Upper Arm", "Bip01 R UpperArm", (0, 0, 0)),
@@ -162,6 +163,14 @@ MODELS = {
     "meshes/b/b_n_synth_m_forearm.nif": lambda: make_rigid("B_N_Synth_M_Forearm", (25, 8, 8), (12.5, 0, 0)),
     "meshes/b/b_n_synth_m_head_01.nif": lambda: make_rigid("B_N_Synth_M_Head_01", (18, 18, 22), (0, 0, 11)),
     "meshes/b/b_n_synth_m_hair_01.nif": lambda: make_rigid("B_N_Synth_M_Hair_01", (20, 20, 6), (0, 0, 24)),
+    # ekwipunek (etap 2c)
+    "meshes/a/a_synth_helm.nif": lambda: make_rigid("A_Synth_Helm", (26, 26, 14), (0, 0, 22)),
+    "meshes/a/a_synth_cuirass.nif": lambda: make_rigid("A_Synth_Cuirass", (46, 30, 50), (0, 0, 0)),
+    "meshes/a/a_synth_shield.nif": lambda: make_rigid("A_Synth_Shield", (4, 50, 60), (0, 0, 0)),
+    "meshes/a/a_synth_greaves.nif": lambda: make_rigid("A_Synth_Greaves", (20, 20, 40), (0, 0, -20)),
+    "meshes/c/c_synth_shirt_cheap.nif": lambda: make_rigid("C_Synth_Shirt_Cheap", (44, 28, 46), (0, 0, 0)),
+    "meshes/c/c_synth_shirt_fine.nif": lambda: make_rigid("C_Synth_Shirt_Fine", (44, 28, 46), (0, 0, 0)),
+    "meshes/w/w_synth_sword.nif": lambda: make_rigid("W_Synth_Sword", (4, 4, 90), (0, 0, 45)),
 }
 
 RACE = "Synth Elf"
@@ -175,6 +184,29 @@ BODYPARTS = {
     "b_n_synth_m_hand.1st": (5, "b\\b_n_synth_m_forearm.nif", False),   # 1. osoba – w 3. osobie pomijana
     "b_n_synth_f_chest": (3, "b\\b_n_synth_f_chest.nif", True),
 }
+# części ciała przedmiotów: id → (MP_*, model, typ 1 ubranie / 2 zbroja)
+ITEM_BODYPARTS = {
+    "a_synth_helm": (1, "a\\a_synth_helm.nif", 2),
+    "a_synth_cuirass": (3, "a\\a_synth_cuirass.nif", 2),
+    "a_synth_greaves": (12, "a\\a_synth_greaves.nif", 2),
+    "c_synth_shirt_cheap": (3, "c\\c_synth_shirt_cheap.nif", 1),
+    "c_synth_shirt_fine": (3, "c\\c_synth_shirt_fine.nif", 1),
+}
+# zbroje: id → (typ, waga, wartość, wytrzymałość, pancerz, model, [(PRT, część męska)])
+ARMORS = {
+    "synth_helm": (0, 3.0, 50, 100, 10, "a\\a_synth_helm.nif", [(1, "a_synth_helm")]),
+    "synth_cuirass": (1, 18.0, 80, 200, 12, "a\\a_synth_cuirass.nif", [(3, "a_synth_cuirass")]),
+    "synth_shield": (8, 6.0, 40, 100, 8, "a\\a_synth_shield.nif", []),                 # bez części: model przedmiotu
+    "synth_greaves_weak": (4, 5.0, 5, 100, 0, "a\\a_synth_greaves.nif", [(21, "a_synth_greaves")]),  # gorsze niż bez zbroi
+}
+# ubrania: id → (typ, wartość, model, [(PRT, część męska)])
+CLOTHES = {
+    "synth_shirt_cheap": (2, 2, "c\\c_synth_shirt_cheap.nif", [(3, "c_synth_shirt_cheap")]),
+    "synth_shirt_fine": (2, 30, "c\\c_synth_shirt_fine.nif", [(3, "c_synth_shirt_fine")]),
+    "synth_shirt_rag": (2, 1, "c\\c_synth_shirt_cheap.nif", [(3, "c_synth_shirt_cheap")]),
+}
+GUARD_INVENTORY = ["synth_shirt_cheap", "synth_shirt_fine", "synth_shirt_rag", "synth_greaves_weak", "synth_sword",
+                   "synth_helm", "synth_cuirass", "synth_shield"]
 
 
 def _race() -> bytes:
@@ -192,12 +224,43 @@ def _body(bid, part, model, female) -> bytes:
                              W.sub("BYDT", bytes([part, 0, 1 if female else 0, 0]))])
 
 
-def _npc(nid, female) -> bytes:
+def _npc(nid, female, inventory=()) -> bytes:
     npdt = struct.pack("<h", 3) + bytes([50, 0, 0]) + b"\0\0\0" + struct.pack("<i", 10)
-    return W.record("NPC_", [W.sub("NAME", W.zs(nid)), W.sub("FNAM", W.zs("Syntetyczna" if female else "Syntetyczny")),
-                             W.sub("RNAM", W.zs(RACE)), W.sub("CNAM", W.zs("Commoner")),
-                             W.sub("BNAM", W.zs("b_n_synth_m_head_01")), W.sub("KNAM", W.zs("b_n_synth_m_hair_01")),
-                             W.sub("NPDT", npdt), W.sub("FLAG", struct.pack("<i", (0x01 if female else 0) | 0x08 | 0x10))])
+    subs = [W.sub("NAME", W.zs(nid)), W.sub("FNAM", W.zs("Syntetyczna" if female else "Syntetyczny")),
+            W.sub("RNAM", W.zs(RACE)), W.sub("CNAM", W.zs("Commoner")),
+            W.sub("BNAM", W.zs("b_n_synth_m_head_01")), W.sub("KNAM", W.zs("b_n_synth_m_hair_01")),
+            W.sub("NPDT", npdt), W.sub("FLAG", struct.pack("<i", (0x01 if female else 0) | 0x08 | 0x10))]
+    for it in inventory:
+        subs.append(W.sub("NPCO", struct.pack("<i", 1) + it.encode("latin-1").ljust(32, b"\0")))
+    return W.record("NPC_", subs)
+
+
+def _item_body(bid, part, model, typ) -> bytes:
+    return W.record("BODY", [W.sub("NAME", W.zs(bid)), W.sub("MODL", W.zs(model)), W.sub("FNAM", W.zs("")),
+                             W.sub("BYDT", bytes([part, 0, 0, typ]))])
+
+
+def _parts_subs(parts) -> list:
+    out = []
+    for prt, male in parts:
+        out += [W.sub("INDX", bytes([prt])), W.sub("BNAM", W.zs(male))]
+    return out
+
+
+def _armor(aid, typ, w, val, hp, ar, model, parts) -> bytes:
+    return W.record("ARMO", [W.sub("NAME", W.zs(aid)), W.sub("MODL", W.zs(model)), W.sub("FNAM", W.zs(aid)),
+                             W.sub("AODT", struct.pack("<ifiiii", typ, w, val, hp, 50, ar))] + _parts_subs(parts))
+
+
+def _clothing(cid, typ, val, model, parts) -> bytes:
+    return W.record("CLOT", [W.sub("NAME", W.zs(cid)), W.sub("MODL", W.zs(model)), W.sub("FNAM", W.zs(cid)),
+                             W.sub("CTDT", struct.pack("<ifHH", typ, 1.0, val, 10))] + _parts_subs(parts))
+
+
+def _weapon() -> bytes:
+    wpdt = struct.pack("<fiHHffH", 10.0, 40, 1, 300, 1.0, 1.0, 10) + bytes([2, 8, 2, 9, 1, 4]) + struct.pack("<i", 0)
+    return W.record("WEAP", [W.sub("NAME", W.zs("synth_sword")), W.sub("MODL", W.zs("w\\w_synth_sword.nif")),
+                             W.sub("FNAM", W.zs("Miecz")), W.sub("WPDT", wpdt)])
 
 
 def _creature() -> bytes:
@@ -211,6 +274,7 @@ ACTOR_REFS = {  # refnum: (rekord, x, y, obrót z w stopniach)
     9001: ("synth_villager", 2200.0, 2400.0, 30.0),
     9002: ("synth_villager_f", 2500.0, 2400.0, -20.0),
     9003: ("synth_creature", 2800.0, 2200.0, 0.0),
+    9004: ("synth_guard", 2350.0, 2700.0, 0.0),
 }
 
 
@@ -222,7 +286,10 @@ def write_actors(data_dir: Path) -> dict:
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(fn())
     recs = [_race()] + [_body(k, *v) for k, v in BODYPARTS.items()]
-    recs += [_npc("synth_villager", False), _npc("synth_villager_f", True), _creature()]
+    recs += [_item_body(k, *v) for k, v in ITEM_BODYPARTS.items()]
+    recs += [_armor(k, *v) for k, v in ARMORS.items()] + [_clothing(k, *v) for k, v in CLOTHES.items()] + [_weapon()]
+    recs += [_npc("synth_villager", False), _npc("synth_villager_f", True), _creature(),
+             _npc("synth_guard", False, GUARD_INVENTORY)]
     refs = []
     for rn, (base, x, y, rz) in ACTOR_REFS.items():
         refs.append(W.ref_subs(rn, base, (x, y, height_at(x, y)), (0, 0, math.radians(rz))))
