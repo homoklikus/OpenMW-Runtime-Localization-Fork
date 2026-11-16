@@ -38,12 +38,13 @@ const T_NUMERIC := ["global", "local", "notlocal", "pchealth", "pcmagicka", "pcf
 const T_BOOLEAN := ["samesex", "samerace", "samefaction", "pccommondisease", "pcblightdisease", "pccorprus",
 	"pcexpelled", "pcvampire", "talkedtopc", "alarmed", "detected", "attacked", "shouldattack", "werewolf"]
 const T_INVERTED := ["notid", "notfaction", "notclass", "notrace", "notcell"]
-const WEATHERS := ["clear", "cloudy", "foggy", "overcast", "rain", "thunderstorm", "ashstorm", "blight", "snow",
+const WEATHERS := ["clear", "cloudy", "foggy", "overcast", "rain", "thunder", "ash", "blight", "snow",
 	"blizzard"]
 const FX_CORPRUS := 132
 const FX_VAMPIRISM := 133
 const PERSUASION := ["admire", "intimidate", "taunt", "bribe10", "bribe100", "bribe1000"]
 
+signal voice_said(sid: String, topic: String, info_id: String)   # etap 10: kwestia głosowa (testy)
 var records            # record(file, id), _all(file)
 var state              # MWGameState
 var main               # main.gd
@@ -830,6 +831,35 @@ func start(node: Node) -> bool:
 		return true
 	actor = {}
 	return false
+
+## DialogueManager::say: kwestia z dialogu głosowego („hello”, „idle”, „attack”, „hit”, „flee”, „thief”,
+## „intruder”) – nie, gdy aktor już mówi, NPC pływa albo jest powalony; pierwsza pasująca odpowiedź (filtr jak
+## w rozmowie, bez fallbacku): napis, głos (SNAM) i skrypt wyniku. true – znaleziono odpowiedź.
+func say_voice(node: Node, topic: String) -> bool:
+	if node == null or not is_instance_valid(node) or main.audio == null:
+		return false
+	_load()
+	var a := make_actor(node)
+	if a.rec.is_empty() or main.audio.say_active(a.sid):
+		return false
+	if a.npc and bool(node.get("swimming")):
+		return false
+	if main.combat != null and bool(main.combat._actor_state({"sid": a.sid}).get("knocked_down", false)):
+		return false                    # nieprzytomny nie mówi
+	update_globals()
+	var r := search(topic, a, false)
+	if r.is_empty():
+		return false
+	var info: Dictionary = r[1]
+	var text := info_text(String(r[0]), info, a)
+	var secs: float = main.audio.say(a.sid, String(info.get("sound", "")), node as Node3D,
+			float(node.get("height")) * 0.9 if node.get("height") != null else 1.6)
+	voice_said.emit(a.sid, topic, String(info.get("id", "")))
+	if not text.is_empty() and main.has_method("subtitle"):
+		main.subtitle(actor_name(a) + ": " + text, secs if secs > 0.0 else 1.0 + 0.06 * text.length())
+	if not (info.get("result_body", []) as Array).is_empty():
+		main.scripts.run_dialogue(info.get("result_body", []), a)
+	return true
 
 func _respond(title: String, text: String) -> void:
 	history.append({"kind": "response", "title": title, "text": text})

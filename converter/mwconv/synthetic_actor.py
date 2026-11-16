@@ -683,6 +683,26 @@ def _stage9_records() -> list:
     return recs
 
 
+# etap 10: głosy, muzyka, dźwięki otoczenia regionu (pliki WAV tworzone w write_actors)
+STAGE10_FILES = {"Sound/Vo/synth/hello.wav": 0.6, "Sound/Vo/synth.wav": 0.8, "Sound/Fx/envrn/synth_wind.wav": 0.3,
+                 "Music/Explore/synth_explore_a.wav": 0.5, "Music/Explore/synth_explore_b.wav": 0.5,
+                 "Music/Battle/synth_battle.wav": 0.5}
+
+
+def _stage10_records() -> list:
+    """Etap 10: kwestia głosowa „Hello” wędrowca z plikiem Vo, dźwięk otoczenia regionu (szansa 100), muzyka."""
+    from .synthetic_world import REGION_WEATHER
+    return [W.record("SOUN", [W.sub("NAME", W.zs("Synth Wind")), W.sub("FNAM", W.zs("Fx\\envrn\\synth_wind.wav")),
+                              W.sub("DATA", bytes([200, 0, 0]))]),
+            W.region("Synthetic Region", "Kraina Syntetyczna", REGION_WEATHER, sounds=[("Synth Wind", 100)]),
+            _script_rec("synth_music", """Begin synth_music
+StreamMusic "Battle\\synth_battle.wav"
+StopScript synth_music
+End"""),
+            W.dial("Hello", 1),
+            W.info("hello_walker", "", "", "Witaj, wedrowcze.", actor="synth_walker", sound="Vo\\synth\\hello.wav")]
+
+
 def _stage8_records() -> list:
     """Przestępstwa i Security: wytrych, sonda, znacznik więzienia, GMST."""
     pick = W.record("LOCK", [W.sub("NAME", W.zs("synth_lockpick")), W.sub("FNAM", W.zs("Wytrych testowy")),
@@ -779,6 +799,8 @@ def write_actors(data_dir: Path) -> dict:
     for f in set(SOUNDS.values()):
         if "nie_ma" not in f:
             _wav(data_dir / "Sound" / f.replace("\\", "/"))
+    for rel, secs in STAGE10_FILES.items():
+        _wav(data_dir / rel, 330.0, secs)
     recs = [_race()] + [_body(k, *v) for k, v in BODYPARTS.items()]
     recs += [_item_body(k, *v) for k, v in ITEM_BODYPARTS.items()]
     recs += [_armor(k, *v) for k, v in ARMORS.items()] + [_clothing(k, *v) for k, v in CLOTHES.items()] + [_weapon()]
@@ -789,7 +811,7 @@ def write_actors(data_dir: Path) -> dict:
              _npc("synth_traveler", True, ai=[_aidt(), _ai_travel(3000.0, 2800.0, height_at(3000, 2800))]),
              _npc("synth_watchman", False, ai=[_aidt(fight=30, alarm=100)], cls="Guard")]
     recs += _stage8_records()
-    recs += _stage9_records()
+    recs += _stage9_records() + _stage10_records()
     recs += _stage6_records() + _stage7_records() + _stage7d_records()
     refs = []
     for rn, (base, x, y, rz) in ACTOR_REFS.items():

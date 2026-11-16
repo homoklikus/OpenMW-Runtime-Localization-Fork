@@ -746,6 +746,9 @@ func _call(ref, fname: String, args: Array, c: Ctx):
 			game.script_sound(snd, t10 if fname.contains("3d") else {}, t10,
 					_num(args, 1, c, 1.0) if vp else 1.0, _num(args, 2, c, 1.0) if vp else 1.0, fname.begins_with("playloop"))
 			return null
+		"streammusic":
+			game.stream_music(_str(args, 0))
+			return null
 		"stopsound":
 			game.stop_sound(_target(ref, c), _str(args, 0))
 			return null

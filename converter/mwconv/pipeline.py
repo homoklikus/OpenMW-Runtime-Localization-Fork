@@ -63,7 +63,7 @@ def _converter_ok(prev_conv: str, converter: str, vfs, key: str) -> bool:
     chk = COMPAT_CONVERTERS.get(prev_conv)
     return converter == MODEL_CONVERTER and chk is not None and chk(vfs, key)
 TEXTURE_CONVERTER = "tex2png-0.1.0"
-WORLD_EXPORT_VERSION = 9          # 9: stworzenia z punktów LEVC i znaczniki (etap 8); 8: siatki ścieżek PGRD w komórkach (etap 8); 2: world/records/ (etap 1); 3: rekordy etapu 3, dźwięki (sound/); 4: SPEL (etap 4); 5: skrypty; 6: dialogi (etap 6); 7: MGEF, ENCH (etap 7)
+WORLD_EXPORT_VERSION = 10         # 10: głosy (sound/vo), muzyka (music/), szanse dźwięków regionów (etap 10); 9: stworzenia z punktów LEVC i znaczniki (etap 8); 8: siatki ścieżek PGRD w komórkach (etap 8); 2: world/records/ (etap 1); 3: rekordy etapu 3, dźwięki (sound/); 4: SPEL (etap 4); 5: skrypty; 6: dialogi (etap 6); 7: MGEF, ENCH (etap 7)
 
 _VFS: Optional[Vfs] = None
 _OUT: Optional[Path] = None
@@ -448,32 +448,47 @@ def _ref_index(world, wdir, write_json) -> dict:
     return {"objects": len(idx), "markers": {m: len(v) for m, v in markers.items()}}
 
 
+def _copy_vfs(vfs, k: str, out: Path) -> str:
+    """Kopia pliku z VFS do <out>/<k> (zapis atomowy); „unchanged”, gdy rozmiar i czas modyfikacji się zgadzają."""
+    info = vfs.info(k)
+    if info is None:
+        return "missing"
+    dst = out / k
+    if dst.is_file() and dst.stat().st_size == info.size and abs(dst.stat().st_mtime - info.mtime) < 1e-3:
+        return "unchanged"
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    tmp = dst.with_name(dst.name + ".tmp")
+    tmp.write_bytes(vfs.read(k))
+    os.utime(tmp, (info.mtime, info.mtime))
+    tmp.replace(dst)
+    return "copied"
+
+
 def _sounds(world, vfs, out: Path, log) -> dict:
     """Etap 3: pliki dźwięków efektów (rekordy SOUN, katalog Sound/) → <out>/sound/… bez zmian formatu (WAV/MP3
-    wczytuje gra). Kopiowane tylko zmienione (rozmiar + czas modyfikacji); głosy dialogów (Sound/Vo) – etap 6."""
-    done, skipped, missing = 0, 0, []
+    wczytuje gra). Etap 10: także głosy (Sound/Vo – kwestie dialogów i Say) oraz muzyka (Music/Explore, Battle,
+    Special). Kopiowane tylko zmienione (rozmiar + czas modyfikacji) – pliki zostają lokalnie w katalogu wyników."""
+    res = {"copied": 0, "unchanged": 0, "missing": 0}
+    missing = []
     for s in world.records.get("SOUN", {}).values():
         f = s.get("file")
         if not f:
             continue
-        k = norm("sound/" + f)
-        info = vfs.info(k)
-        if info is None:
+        r = _copy_vfs(vfs, norm("sound/" + f), out)
+        res[r] += 1
+        if r == "missing":
             missing.append(f)
-            continue
-        dst = out / k
-        if dst.is_file() and dst.stat().st_size == info.size and abs(dst.stat().st_mtime - info.mtime) < 1e-3:
-            skipped += 1
-            continue
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        tmp = dst.with_name(dst.name + ".tmp")
-        tmp.write_bytes(vfs.read(k))
-        os.utime(tmp, (info.mtime, info.mtime))
-        tmp.replace(dst)
-        done += 1
-    if done or missing:
-        log(f"Dźwięki: skopiowano {done}, bez zmian {skipped}, brak plików {len(missing)}")
-    return {"copied": done, "unchanged": skipped, "missing": len(missing), "missing_sample": sorted(missing)[:10]}
+    extra = {}
+    for prefix, name in (("sound/vo/", "voices"), ("music/", "music")):
+        c = {"copied": 0, "unchanged": 0}
+        for k in vfs.list(prefix):
+            if k.endswith((".mp3", ".wav")):
+                c[_copy_vfs(vfs, k, out)] += 1
+        extra[name] = c
+    if res["copied"] or missing or extra["voices"]["copied"] or extra["music"]["copied"]:
+        log(f"Dźwięki: skopiowano {res['copied']}, bez zmian {res['unchanged']}, brak plików {len(missing)}; "
+            f"głosy: {sum(extra['voices'].values())}, muzyka: {sum(extra['music'].values())}")
+    return {**res, "missing_sample": sorted(missing)[:10], **extra}
 
 
 def _expand_leveled(world, ids) -> set:

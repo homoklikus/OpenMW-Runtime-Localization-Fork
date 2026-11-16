@@ -66,13 +66,16 @@ def colors_for(grid) -> np.ndarray:
     return c
 
 
+REGION_WEATHER = {"clear": 50, "cloudy": 30, "foggy": 10, "rain": 10}
+
+
 def write_world(data_dir: Path) -> dict:
     data_dir = Path(data_dir)
     write_assets(data_dir)
     from .synthetic_hard import write_hard
     write_hard(data_dir)
     recs = []
-    recs.append(W.region("Synthetic Region", "Kraina Syntetyczna", {"clear": 50, "cloudy": 30, "foggy": 10, "rain": 10}))
+    recs.append(W.region("Synthetic Region", "Kraina Syntetyczna", REGION_WEATHER))
     recs.append(W.ltex("synth_grass", 0, "tx_synth_grass.tga"))
     recs.append(W.ltex("synth_dirt", 1, "tx_synth_dirt.tga"))
     recs.append(W.ltex("synth_stone", 2, "tx_synth_stone.tga"))

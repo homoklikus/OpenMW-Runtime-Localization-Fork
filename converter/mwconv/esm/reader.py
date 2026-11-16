@@ -273,7 +273,9 @@ def parse_region(rec: Record) -> Optional[dict]:
     c = rec.get("CNAM")
     if c and len(c) >= 3:
         o["map_color"] = [c[0], c[1], c[2]]
-    snd = [_zs(s.data[:32]) for s in rec.subs if s.name == "SNAM"]
+    # SNAM: 32 bajty id dźwięku + 1 bajt szansy (ESM::Region::SoundRef) – dźwięki otoczenia regionu (etap 10)
+    snd = [{"id": _zs(s.data[:32]), "chance": int(s.data[32]) if len(s.data) > 32 else 0}
+           for s in rec.subs if s.name == "SNAM"]
     if snd:
         o["sounds"] = snd
     return o

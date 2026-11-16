@@ -247,6 +247,7 @@ func update_actor(n: CharacterBody3D, dt: float) -> void:
 	var pk: Array = st.packages
 	var p: Dictionary = pk[0] if not pk.is_empty() else {}
 	_update_greeting(n, r, p, dt, react)
+	_idle_voice(n, dt)
 	if p.is_empty():
 		st.last = -1
 		_stop(n)
@@ -310,6 +311,8 @@ func _update_greeting(n: CharacterBody3D, r: Dictionary, p: Dictionary, dt: floa
 		if int(r.greet_timer) >= 2:
 			r.greet = "progress"
 			r.greet_timer = 0
+			if main.dialogue != null and not main.dialogue.say_voice(n, "hello"):
+				r.greet = "done"             # bez kwestii „Hello” – bez odwracania się (updateGreetingState)
 	elif r.greet == "progress":
 		r.greet_timer = int(r.greet_timer) + 1
 		if int(r.greet_timer) > int(float(_gmst("iGreetDuration", 4)) / REACTION):
@@ -319,6 +322,24 @@ func _update_greeting(n: CharacterBody3D, r: Dictionary, p: Dictionary, dt: floa
 		r.greet = "none"
 		r.greet_timer = 0
 
+
+## playIdleDialogue: kwestia „Idle” – gdy Hello > 0, poza walką/eskortą/podążaniem, bliżej niż 3000 jedn.,
+## nie pływa; szansa los × 10000 < fVoiceIdleOdds × (czas klatki × 6) i linia wzroku z graczem.
+func _idle_voice(n: CharacterBody3D, dt: float) -> void:
+	if main.dialogue == null or main.audio == null or main.player == null or n.swimming:
+		return
+	var a: Dictionary = main.dialogue.make_actor(n)
+	if a.rec.is_empty() or main.audio.say_active(a.sid):
+		return
+	if float((a.rec.get("ai", {}) as Dictionary).get("hello", 0)) <= 0.0:
+		return
+	for p in ai_state(n).packages:
+		if String(p.get("type", "")) in ["combat", "follow", "escort"]:
+			return
+	if mw_pos(n).distance_to(mw_pos(main.player)) >= 3000.0:
+		return
+	if rng.randf() * 10000.0 < float(_gmst("fVoiceIdleOdds", 0.0)) * dt * 6.0 and _los(main.player, n):
+		main.dialogue.say_voice(n, "idle")
 
 func _los(a: Node3D, b: Node3D) -> bool:
 	var from := a.global_position + Vector3(0, 1.5, 0)
@@ -720,6 +741,8 @@ func start_combat(n: Node, target: Node) -> void:
 	_rt(n).flee = false
 	if main.has_method("on_combat_started"):
 		main.on_combat_started(n, target)
+	if main.dialogue != null:
+		main.dialogue.say_voice(n, "attack")    # startCombat: shout, gdy jeszcze nie walczył
 
 func stop_combat(n: Node) -> void:
 	var st := ai_state(n)
@@ -847,7 +870,10 @@ func _combat(n: CharacterBody3D, r: Dictionary, p: Dictionary, dt: float, react:
 	r.cooldown = float(r.get("cooldown", 0.0)) - dt
 	if react and (not r.has("action") or (r.action as Dictionary).is_empty() or float(r.cooldown) <= 0.0 and not bool(r.get("attacking", false))):
 		r.action = _choose_action(n, target)
-		r.flee = r.action.kind == "flee"
+		var fleeing: bool = r.action.kind == "flee"
+		if fleeing and not bool(r.get("flee", false)) and main.dialogue != null:
+			main.dialogue.say_voice(n, "flee")
+		r.flee = fleeing
 	if bool(r.get("flee", false)):
 		var away: Vector3 = here + (here - there).normalized() * 512.0
 		path_to(n, away, dt, 32.0, true)
@@ -868,6 +894,8 @@ func _combat(n: CharacterBody3D, r: Dictionary, p: Dictionary, dt: float, react:
 		return false
 	match String(act.get("kind", "melee")):
 		"spell":
+			if bool(act.get("ranged", false)) and rng.randi() % 100 < int(_gmst("iVoiceAttackOdds", 10)) and main.dialogue != null:
+				main.dialogue.say_voice(n, "attack")     # canShout tylko dla czarów na cel
 			var touch: Dictionary = tf if not bool(act.get("ranged", false)) else {}
 			var res: Dictionary = main.magic.cast_spell(f, String(act.spell), touch)
 			if bool(res.get("success", false)) and not (res.get("bolt", []) as Array).is_empty() and main.has_method("launch_bolt_from"):
@@ -881,6 +909,8 @@ func _combat(n: CharacterBody3D, r: Dictionary, p: Dictionary, dt: float, react:
 			# siła: stworzenia bez broni – min(1, 0,1 + los) (prepareHit), z bronią – czas trzymania ataku (los 0..1)
 			var strength := minf(1.0, 0.1 + rng.randf()) if w.is_empty() else rng.randf()
 			cb.melee(f, tf, rng.randi() % 3, strength)
+			if rng.randi() % 100 < int(_gmst("iVoiceAttackOdds", 10)) and main.dialogue != null:
+				main.dialogue.say_voice(n, "attack")     # prowokujący okrzyk przy ataku (canShout)
 			# odstęp: animacja ataku (readyToStartAttack) + fCombatDelayCreature/NPC + 0,01 × los(0..99), maks. +0,9
 			var spd := float(w.rec.get("speed", 1.0)) if not w.is_empty() else 1.0
 			var anim := 1.0

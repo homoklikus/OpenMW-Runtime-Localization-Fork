@@ -25,6 +25,16 @@
 * Etap 1: konwerter eksportuje `world/records/` (NPC_, CREA, RACE, CLAS, FACT, BODY, BSGN, SKIL, broń, zbroje,
   ubrania, książki, przedmioty, światła, GMST, GLOB) ze scalaniem wg kolejności ładowania; MCP-openMW:
   `openmw_record_compare_start/status` – porównanie rekordów z silnikiem OpenMW (Lua) pole po polu.
+* Etap 10 (w toku) – dźwięk świata: głosy NPC z plików Vo jak OpenMW (`DialogueManager::say`: powitanie Hello,
+  Idle wg fVoiceIdleOdds, Attack przy rozpoczęciu walki i atakach wg iVoiceAttackOdds, Hit wg iVoiceHitOdds
+  i przy śmierci, Flee, Thief, Intruder; jedna kwestia naraz, głos z głowy aktora, napisy), Say ze skryptu
+  odtwarza nagranie i SayDone czeka na jego koniec; muzyka jak skrypt `music.lua` (playlisty Explore i Battle,
+  losowa kolejność, bitwa gdy ktoś w pobliżu walczy, przejścia z wyciszeniem, StreamMusic ze skryptu, muzyka
+  śmierci); dźwięki otoczenia regionu (szanse z REGN, co 1–5 s), pętle pogody (deszcz, burza, burza popiołu,
+  zaraza, zamieć) i dźwięk pod wodą; głośności jak domyślne OpenMW (muzyka 0,5, głosy 0,8, kroki 0,2).
+  Konwerter: głosy (Sound/Vo) i muzyka (Music/) kopiowane do katalogu wyników – eksport świata v10
+  („Aktualizuj” w launcherze). Poprawka: nazwy pogody burzy i burzy popiołu w ChangeWeather, GetCurrentWeather
+  i warunku dialogów Weather były niezgodne z pogodą gry.
 * Etap 9: pełna rozgrywka początku gry – nowa gra jak w Morrowindzie: statek więzienny i tworzenie postaci
   przez skrypty CharGen (imię, rasa, klasa, znak, przegląd w kolejnych menu wywoływanych przez NPC; blokady
   sterowania, walki, magii i okien, odblokowywane po kolei; kwestie Say z napisami i SayDone; urząd celny,

@@ -482,6 +482,10 @@ func on_hit(vic: Dictionary, att: Dictionary, damages: Dictionary, successful: b
 		set_health(vic, health(vic) - hd)
 		if main.audio != null:
 			main.audio.play("Health Damage", vic.node.global_position if vic.node != null and vic.kind != "player" else null)
+		# Npc::onHit: kwestia „Hit” z szansą iVoiceHitOdds, gdy zadał ją ktoś (nie gracz-ofiara)
+		if vic.kind == "npc" and not att.is_empty() and vic.get("node") != null and main.dialogue != null \
+				and roll100() < int(_gmst("iVoiceHitOdds", 30)) and health(vic) > 0.0:
+			main.dialogue.say_voice(vic.node, "hit")
 	if fd >= 0.001:
 		set_fatigue(vic, fatigue(vic) - fd)
 	_stagger(vic, raw, hd + fd > 0.001)

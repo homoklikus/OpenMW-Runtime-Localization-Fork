@@ -38,6 +38,7 @@ var events = Events.new()           # szyna zdarzeń (etap 0)
 var interaction = null                # MWInteraction (etap 3)
 var item_window = null                # okno pojemnika / ekwipunku
 var audio = null                      # MWAudio (etap 3)
+var music = null                      # MWMusic (etap 10)
 var character = null                  # MWCharacter (etap 4) – statystyki w state.player["character"]
 var chargen = null                    # kreator postaci
 var scripts = null                    # MWScripts (etap 5)
@@ -159,6 +160,11 @@ func _ready() -> void:
 	audio.setup(data, builder.actors)
 	audio.enabled = arg("screenshot").is_empty() and bool(settings.get("sound", true))
 	add_child(audio)
+	music = preload("res://scripts/mw/mw_music.gd").new()
+	music.name = "Music"
+	music.setup(data)
+	music.enabled = audio.enabled and bool(settings.get("music", true))
+	add_child(music)
 	item_window = ItemWindowScript.new()
 	item_window.interaction = interaction
 	item_window.main = self
@@ -763,6 +769,8 @@ func on_actor_died(f: Dictionary, _att: Dictionary) -> void:
 	if f.kind == "player":
 		_player_died()
 		return
+	if dialogue != null and f.get("node") != null and f.kind == "npc":
+		dialogue.say_voice(f.node, "hit")    # ostatnie słowa (Actors::killDeadActors)
 	if magic != null:
 		magic.soul_trap(f)                 # Pułapka dusz: dusza stworzenia do kamienia gracza
 	if crime != null and not _att.is_empty() and _att.get("kind", "") == "player" and f.get("node") != null:
@@ -997,6 +1005,8 @@ var death_screen: CanvasLayer = null
 
 func _player_died() -> void:
 	player_stats()["health"] = 0.0
+	if music != null and (death_screen == null or not is_instance_valid(death_screen)):
+		music.player_died()
 	if death_screen != null and is_instance_valid(death_screen):
 		return
 	death_screen = CanvasLayer.new()
@@ -1232,7 +1242,8 @@ func _process(_d: float) -> void:
 	_perf_mark("")
 	_update_torches(_d)
 	_update_water_level()
-	_perf_mark("torches+water")
+	_update_sound_world(_d)
+	_perf_mark("torches+water+sound")
 	if not get_tree().paused:
 		_update_player_rpg(_d)
 		_update_combat(_d)
@@ -1609,6 +1620,26 @@ func _load(key: String) -> void:
 		_apply_dead_poses()
 
 ## Poziom wody dla gracza (pływanie): komórka zewnętrzna albo wnętrze z wodą (water_height_m z konwertera).
+## Etap 10: muzyka (walka, gdy któryś aktor w zasięgu walczy), dźwięki otoczenia regionu, pętle pogody,
+## dźwięk pod wodą (głowa gracza pod powierzchnią).
+func _update_sound_world(delta: float) -> void:
+	if audio == null or player == null or get_tree().paused:
+		return
+	var fighting := false
+	if ai != null:
+		for n in ai.actor_nodes():
+			if ai.in_combat(n) and combat.health(combat.fighter_of(n)) > 0.0:
+				fighting = true
+				break
+	var dead: bool = combat != null and combat.is_dead(combat.player_fighter())
+	if music != null:
+		music.tick(delta, fighting, dead)
+	var exterior: bool = interior.is_empty() or bool(db.get_cell("int:" + interior.to_lower()).get("behave_like_exterior", false))
+	audio.region_tick(delta, envr.regions.get(current_region.to_lower(), {}) if envr != null else {}, exterior)
+	var cam := player.get_node_or_null("Camera3D") as Node3D
+	var head_y: float = cam.global_position.y if cam != null else player.global_position.y + 1.6
+	audio.ambient_tick(envr.weather if envr != null else "", exterior, head_y < float(player.water_level))
+
 func _update_water_level() -> void:
 	if player == null or db == null:
 		return

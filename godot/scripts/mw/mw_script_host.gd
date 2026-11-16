@@ -348,7 +348,7 @@ func show_rest_menu() -> void:
 	if main.rest_window != null and not main.rest_window.visible:
 		main.rest_window.open()
 
-const WEATHER_NAMES := ["clear", "cloudy", "foggy", "overcast", "rain", "thunderstorm", "ashstorm", "blight", "snow", "blizzard"]
+const WEATHER_NAMES := ["clear", "cloudy", "foggy", "overcast", "rain", "thunder", "ash", "blight", "snow", "blizzard"]
 
 ## ChangeWeather region typ – natychmiast, gdy gracz jest w tym regionie (WeatherManager::changeWeather).
 func change_weather(region: String, idx: int) -> void:
@@ -377,20 +377,34 @@ func player_standing_on(t: Dictionary) -> bool:
 
 var _say_until := {}         # sid → czas gry (MWScripts.clock) końca kwestii
 
-## Say: napis jak w OpenMW przy włączonych napisach (nagrania głosów – etap 10); czas kwestii z długości tekstu.
-func say(t: Dictionary, _file: String, text: String) -> void:
+## Say: głos z pliku (sound/vo…) z głowy aktora i napis jak w OpenMW przy włączonych napisach; SayDone, gdy
+## nagranie się skończy (sayActive). Bez pliku – czas kwestii z długości tekstu.
+func say(t: Dictionary, file: String, text: String) -> void:
 	var key := String(t.get("sid", ""))
-	var secs := 1.0 + 0.06 * text.length()
+	var n := _node(t)
+	var secs := -1.0
+	if main.audio != null:
+		secs = main.audio.say(key if not key.is_empty() else "player", file, n if n != main.player else null,
+				float(n.get("height")) * 0.9 if n != null and n.get("height") != null else 1.6)
+	if secs < 0.0:
+		secs = 1.0 + 0.06 * text.length()
 	_say_until[key] = float(main.scripts.clock) + secs
 	if not text.is_empty():
 		var who := ""
-		var n := _node(t)
 		if n != null and main.dialogue != null and main.dialogue.is_actor_node(n):
 			who = main.dialogue.actor_name(main.dialogue.make_actor(n)) + ": "
 		main.subtitle(who + text, secs)
 
 func say_done(t: Dictionary) -> bool:
-	return float(main.scripts.clock) >= float(_say_until.get(String(t.get("sid", "")), 0.0))
+	var key := String(t.get("sid", ""))
+	if main.audio != null and main.audio.say_active(key if not key.is_empty() else "player"):
+		return false
+	return float(main.scripts.clock) >= float(_say_until.get(key, 0.0))
+
+## StreamMusic (MusicType::MWScript).
+func stream_music(file: String) -> void:
+	if main.music != null:
+		main.music.stream_script(file)
 
 ## Przedmioty ze skryptem w ekwipunku gracza: [[id, skrypt, liczba]].
 func player_scripted_items() -> Array:

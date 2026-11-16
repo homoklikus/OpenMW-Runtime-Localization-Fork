@@ -149,6 +149,8 @@ func commit(victim, type: String, faction := "", arg := 0, victim_aware := false
 			continue
 		if (n == victim and victim_aware) or (type == MURDER and n != victim) \
 				or (main.ai._los(main.player, n) and main.ai.awareness(main.player, n, _roll())):
+			if type in [THEFT, PICKPOCKET] and main.dialogue != null:
+				main.dialogue.say_voice(n, "thief")     # narzeka na kradzież, nawet jeśli nic nie zrobi
 			seen = true
 	if seen:
 		report(victim, type, faction, arg)
@@ -197,6 +199,8 @@ func report(victim, type: String, faction := "", arg := 0) -> bool:
 	for n in neighbours:
 		if _can_report(n, victim) and _alarm(n) >= 100:
 			reported = true
+			if type == TRESPASS and main.dialogue != null:
+				main.dialogue.say_voice(n, "intruder")
 	for n in neighbours:
 		if not _can_report(n, victim):
 			continue

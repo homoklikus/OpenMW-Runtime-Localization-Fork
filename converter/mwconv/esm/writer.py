@@ -118,11 +118,14 @@ def land(grid, heights: np.ndarray, vtex: np.ndarray | None = None, colors: np.n
     return record("LAND", s)
 
 
-def region(id_: str, name: str, weather: dict, color=(120, 160, 90)) -> bytes:
+def region(id_: str, name: str, weather: dict, color=(120, 160, 90), sounds: Iterable = ()) -> bytes:
+    """REGN; sounds: (id dźwięku, szansa 0–100) – SNAM 32 bajty + 1 bajt szansy."""
     from .reader import WEATHERS
     w = bytes(int(weather.get(k, 0)) for k in WEATHERS)
-    return record("REGN", [sub("NAME", zs(id_)), sub("FNAM", zs(name)), sub("WEAT", w),
-                           sub("CNAM", bytes([*color, 0]))])
+    subs = [sub("NAME", zs(id_)), sub("FNAM", zs(name)), sub("WEAT", w), sub("CNAM", bytes([*color, 0]))]
+    for sid, chance in sounds:
+        subs.append(sub("SNAM", sid.encode("cp1252")[:31].ljust(32, b"\0") + bytes([chance])))
+    return record("REGN", subs)
 
 
 def dial(name: str, typ: int, deleted: bool = False) -> bytes:
@@ -135,7 +138,7 @@ def dial(name: str, typ: int, deleted: bool = False) -> bytes:
 def info(iid: str, prev: str = "", nxt: str = "", text: str = "", typ: int = 0, disposition: int = 0,
          rank: int = -1, gender: int = -1, pcrank: int = -1, actor: str = "", race: str = "", cls: str = "",
          faction: str = "", cell: str = "", pcfaction: str = "", conditions: Iterable = (), result: str = "",
-         quest: str = "", deleted: bool = False) -> bytes:
+         quest: str = "", deleted: bool = False, sound: str = "") -> bytes:
     """INFO; warunek: (reguła SCVR, wartość int|float), np. ("01000", 30) = funkcja 00 == 30."""
     subs = [sub("INAM", zs(iid)), sub("PNAM", zs(prev)), sub("NNAM", zs(nxt))]
     if deleted:
@@ -150,6 +153,8 @@ def info(iid: str, prev: str = "", nxt: str = "", text: str = "", typ: int = 0, 
     for rule, value in conditions:
         subs.append(sub("SCVR", rule.encode("cp1252")))
         subs.append(sub("FLTV", struct.pack("<f", value)) if isinstance(value, float) else sub("INTV", struct.pack("<i", value)))
+    if sound:
+        subs.append(sub("SNAM", zs(sound)))
     if result:
         subs.append(sub("BNAM", result.replace("\n", "\r\n").encode("cp1252")))
     if quest:
