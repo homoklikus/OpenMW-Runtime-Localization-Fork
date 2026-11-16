@@ -48,9 +48,7 @@ def _path(v):
 def text_sum(s) -> Optional[list]:
     """[długość w bajtach UTF-8, suma (s*31 + b) mod 2^32] – ta sama w Lua (global.lua); długich tekstów nie
     przesyłamy przez log silnika, bo OpenMW dzieli długie linie."""
-    if s is None:
-        return None
-    b = str(s).encode("utf-8")
+    b = ("" if s is None else str(s)).encode("utf-8")      # brak TEXT = pusty tekst (jak silnik)
     h = 0
     for x in b:
         h = (h * 31 + x) % 4294967296

@@ -58,5 +58,5 @@ def test_request_and_compare(tmp_path):
 
 
 def test_text_sum_and_empty_paths():
-    assert RC.text_sum("ab") == [2, (97 * 31 + 98)] and RC.text_sum("ż")[0] == 2
+    assert RC.text_sum("ab") == [2, (97 * 31 + 98)] and RC.text_sum("ż")[0] == 2 and RC.text_sum(None) == [0, 0]
     assert RC._eq("s", None, "meshes/") and RC._eq("s", None, "icons/") and not RC._eq("s", "x.nif", "meshes/")
