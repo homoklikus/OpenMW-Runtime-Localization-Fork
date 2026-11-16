@@ -96,6 +96,8 @@ func _run() -> void:
 	main.player.rotation.y = PI / 2.0
 	(main.player.get_node("Camera3D") as Camera3D).rotation.x = -0.25
 	await physics_frame
+	g.set_physics_process(false)          # NPC bez AI potrafi się zsunąć po zboczu (fizyka aktorów – etap 8)
+	main.player.global_position = g.global_position + Vector3(2.0, 0.0, 0.0)
 	main._attack_hold = main.ATTACK_WINDUP_SECONDS
 	var shot: Dictionary = main.player_attack()
 	check(bool(shot.get("shot", false)) and inv.count_of("player", {}, "synth_arrow") == 4, "strzał zużywa strzałę")

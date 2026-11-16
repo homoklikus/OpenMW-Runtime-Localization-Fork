@@ -1,11 +1,11 @@
-# Format zapisu gry OpenMWGodot — v3 (etap 6; v2 – etap 3; v1 – etap 0)
+# Format zapisu gry OpenMWGodot — v5 (etap 7; v3 – etap 6; v2 – etap 3; v1 – etap 0)
 
 Plik `*.mwsave` (domyślnie w katalogu zapisów profilu, `--saves`; szybki zapis: `quicksave.mwsave`),
 JSON skompresowany Zstandard (`FileAccess.open_compressed`). Kod: `godot/scripts/mw/mw_game_state.gd`.
 
 ```json
 {
-  "format": "mwgodot-save", "version": 3,
+  "format": "mwgodot-save", "version": 5,
   "header": {"profile": "default", "character": "", "game": "OpenMWGodot", "created": "…",
              "world_format": 1,
              "content": [{"name": "Morrowind.esm", "sha256": "…"}, …],   // kolejność ładowania
@@ -24,7 +24,18 @@ JSON skompresowany Zstandard (`FileAccess.open_compressed`). Kod: `godot/scripts
                             // etap 6: frakcje gracza (członkostwo, ranga, wydalenie), reputacja we frakcjach,
                             // reputacja i grzywna gracza
                             "factions": {"blades": {"rank": 0, "expelled": false}},
-                            "faction_reputation": {"blades": 1}, "reputation": 0, "bounty": 0}},
+                            "faction_reputation": {"blades": 1}, "reputation": 0, "bounty": 0,
+                            // etap 7: rozwój, awans, ekwipunek, magia
+                            "health_base": 52, "skill_progress": [27 × 0..1], "level_progress": 3,
+                            "skill_increases": [8 liczb], "spec_increases": [3 liczby],
+                            "equipment": {"16": {"id": "iron dagger", "health": -1}},   // miejsce → przedmiot (-1 = pełny stan)
+                            "active_spells": [{"id": "fleabite", "name": "…", "kind": "spell", "caster": "player",
+                                               "effects": [{"effect": 14, "skill": -1, "attribute": -1, "min": 1, "max": 1,
+                                                            "duration": 3, "time_left": 1.5, "magnitude": 1, "applied": true}]}],
+                            "magic_damage": {"attributes": [8], "skills": [27]},          // ubytki (Damage/Drain)
+                            "item_charge": {"ring_x": 47.5}, "powers_used": {"moc": 123.0},  // godzina gry
+                            "selected_magic": {"kind": "spell", "id": "fleabite"}},
+             "mark": {"interior": "", "pos": "x,y,z"}},
   "dyn_next": 3,
   // v2 (etap 3):
   "inventories": {"player": [{"id": "gold_001", "count": 50}],
@@ -44,7 +55,16 @@ JSON skompresowany Zstandard (`FileAccess.open_compressed`). Kod: `godot/scripts
                "topics": {"orders": [{"info": "<id>", "text": "…", "actor": "Caius Cosades"}]},  // dziennik tematów
                "npcs": {"morrowind.esm#5678": {"disposition": 60, "talked": true, "fight": 30}},  // postawa, AI
                "reactions": {"blades": {"camonna tong": -5}},                     // zmienione reakcje frakcji
-               "deaths": {}, "map_markers": ["Balmora"]}
+               "deaths": {}, "map_markers": ["Balmora"]},
+  // v4 (etap 7): stan aktorów zmieniony w grze (te same klucze magii co u gracza)
+  "actors": {"morrowind.esm#5678": {"health": 20, "fatigue": 80, "magicka": 10, "dead": false, "knocked_down": false,
+                                    "attacked": true, "condition": {"16": 250}, "active_spells": [], "magic_damage": {}}},
+  // v5 (etap 7): rekordy utworzone w grze (mikstury z alchemii, zaklęcia i przedmioty zaklęte)
+  "created": {"potion": {"mwg_generated_1": {"name": "…", "weight": 0.75, "value": 58, "model": "m\\misc_potion_standard_01.nif",
+                                             "effects": [{"effect": 75, "min": 20, "max": 20, "duration": 59, "range": 0}]}},
+              "enchantment": {"mwg_generated_2": {"type": 2, "cost": 2, "charge": 5, "effects": […]}},
+              "clothing": {"mwg_generated_3": {"name": "…", "enchant": "mwg_generated_2", "source_object": "…", …}}},
+  "created_next": 4
 }
 ```
 
@@ -69,8 +89,13 @@ Zasady (plan, rewizja 2.0, §2.1–2.4):
 * Migracja v1 → v2: nowe sekcje puste, `player.level = 1` (stan świata bez zmian).
 * Migracja v2 → v3: pusta sekcja `dialogue` (indeksy zadań z `journal` zostają; wpisy dziennika z tekstem
   powstają od tej wersji). Teksty wpisów są zapisywane po tłumaczeniu i podstawieniach (%PCName…), jak w OpenMW.
+* Migracja v3 → v4: pusta sekcja `actors`; v4 → v5: puste `created`, `created_next = 1`.
+* Kamień dusz z duszą to w inwentarzu id `<kamień>@<stworzenie>` (osobny stos, jak dusza w CellRef OpenMW).
+* Przedmioty i mikstury utworzone w grze mają id `mwg_generated_N`; rekord identyczny z istniejącym jest używany
+  ponownie (jak `Alchemy::getRecord`/`Enchanting::getRecord`).
 * Każdy kolejny etap dopisuje własną sekcję (np. ekwipunek, zmienne skryptów, dziennik) – zmiana znaczenia
   istniejącego pola wymaga nowej wersji i migracji.
 
 Klawisze: **F5** szybki zapis, **F9** szybki odczyt, **Esc** menu pauzy, **E** aktywacja (drzwi, przedmioty,
-pojemniki, rozmowa z NPC), **I** ekwipunek, **J** dziennik.
+pojemniki, rozmowa z NPC), **I** ekwipunek, **J** dziennik, **T** odpoczynek, **F** broń, **R** magia, **M** okno magii,
+lewy przycisk – atak/rzucenie.
