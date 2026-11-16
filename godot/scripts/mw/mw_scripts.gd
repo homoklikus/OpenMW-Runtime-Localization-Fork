@@ -795,6 +795,9 @@ func _call(ref, fname: String, args: Array, c: Ctx):
 		"enableinventorymenu", "enablemagicmenu", "enablemapmenu", "enablestatsmenu", "enablerest", "enablelevelupmenu":
 			game.enable_menu(fname.substr(6).replace("menu", ""))
 			return null
+		"disablerest":
+			game.disable_menu("rest")
+			return null
 		"showrestmenu":
 			game.show_rest_menu()
 			return null

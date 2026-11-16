@@ -878,10 +878,18 @@ func _combat(n: CharacterBody3D, r: Dictionary, p: Dictionary, dt: float, react:
 				main.npc_shoot(n, target, f)
 			r.cooldown = 1.5 + rng.randf()
 		_:
-			var strength := 0.5 + rng.randf() * 0.5
+			# siła: stworzenia bez broni – min(1, 0,1 + los) (prepareHit), z bronią – czas trzymania ataku (los 0..1)
+			var strength := minf(1.0, 0.1 + rng.randf()) if w.is_empty() else rng.randf()
 			cb.melee(f, tf, rng.randi() % 3, strength)
+			# odstęp: animacja ataku (readyToStartAttack) + fCombatDelayCreature/NPC + 0,01 × los(0..99), maks. +0,9
 			var spd := float(w.rec.get("speed", 1.0)) if not w.is_empty() else 1.0
-			r.cooldown = (1.0 / maxf(0.25, spd)) * 0.8 + rng.randf() * 0.6
+			var anim := 1.0
+			var ap := _player_of(n)
+			if f.get("kind", "") == "creature" and ap != null and ap.has_animation("attack1"):
+				anim = clampf(ap.get_animation("attack1").length, 0.3, 3.0)
+			anim /= maxf(0.25, spd)
+			var delay := float(_gmst("fCombatDelayCreature" if f.get("kind", "") == "creature" else "fCombatDelayNPC", 0.1))
+			r.cooldown = anim + minf(delay + 0.01 * float(rng.randi() % 100), delay + 0.9)
 	r.action = {}
 	return false
 

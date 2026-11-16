@@ -221,7 +221,7 @@ func _ready() -> void:
 
 # --- nowa gra ze skryptami CharGen (etap 9) -------------------------------------------------------------------
 
-const CHARGEN_MENUS := ["inventory", "magic", "map", "stats", "rest"]
+const CHARGEN_MENUS := ["inventory", "magic", "map", "stats"]      # odpoczynek dozwolony (DisableRest go blokuje)
 
 ## Nowa gra jak w Morrowindzie (World::startNewGame bez pomijania): gdy są skrypty CharGen i tryb nie jest
 ## „szybki” (ustawienie chargen_mode, argument --newgame=morrowind|quick).
@@ -1499,6 +1499,30 @@ func travel(dest: Dictionary) -> void:
 	player.global_position = t.origin
 	player.rotation.y = t.basis.get_euler().y
 	player.velocity = Vector3.ZERO
+	_place_on_ground_frames = 2              # World::adjustPosition: postawienie na podłożu po wczytaniu kolizji
+	player.set_physics_process(false)
+	player._fall_start = NAN
+
+var _place_on_ground_frames := 0
+
+## Po teleporcie (drzwi, podróż, skrypt): gracz stawiany na podłożu pod celem (promień z wysokości), bez obrażeń
+## od upadku – jak World::adjustPosition w OpenMW (cel drzwi bywa w schodach albo tuż pod/nad podłogą).
+func _physics_process(_delta: float) -> void:
+	if _place_on_ground_frames <= 0 or player == null:
+		return
+	_place_on_ground_frames -= 1
+	if _place_on_ground_frames > 0:
+		return
+	var space := player.get_world_3d().direct_space_state
+	var from: Vector3 = player.global_position + Vector3(0, 0.6, 0)   # nie wyżej – sufit, nadproże
+	var q := PhysicsRayQueryParameters3D.create(from, player.global_position - Vector3(0, 6.0, 0))
+	q.exclude = [player.get_rid()]
+	var hit := space.intersect_ray(q)
+	if not hit.is_empty() and not player.swimming:
+		player.global_position.y = float(hit.position.y) + 0.02
+	player.velocity = Vector3.ZERO
+	player._fall_start = NAN
+	player.set_physics_process(true)
 
 func _update_streaming(_force: bool) -> void:
 	var g := MWCoords.cell_of(player.global_position)

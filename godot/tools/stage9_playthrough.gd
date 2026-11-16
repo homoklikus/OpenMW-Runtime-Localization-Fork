@@ -100,6 +100,12 @@ func _door_to(dest: String) -> Node3D:
 				return n
 	return null
 
+func _any_hostile() -> bool:
+	for n in main.ai.actor_nodes():
+		if main.ai.in_combat(n) and not main.combat.is_dead(main.combat.fighter_of(n)):
+			return true
+	return false
+
 func _alive(base: String) -> Array:
 	var out := []
 	for n in main.ai.actor_nodes():
@@ -126,9 +132,14 @@ func _fight(target: Node3D) -> void:
 		cam.rotation.x = -0.35
 	main._attack_hold = 1.0
 	var r: Dictionary = main.player_attack()
+	var pf: Dictionary = main.combat.player_fighter()
 	_ev("attack", {"target": target.get_meta("mw_base", ""), "hit": bool(r.get("hit", r.get("success", false))), "damage": snappedf(float(r.get("damage", 0.0)), 0.1),
-		"player_health": snappedf(main.combat.health(main.combat.player_fighter()), 0.1)})
-	for i in 40:
+		"chance": snappedf(float(r.get("chance", -1)), 0.1), "fatigue": snappedf(main.combat.fatigue(pf), 0.1), "skill": main.combat.weapon_skill(main.combat.weapon(pf)),
+		"player_health": snappedf(main.combat.health(pf), 0.1), "target_health": snappedf(main.combat.health(main.combat.fighter_of(target)), 0.1)})
+	# kolejny cios po czasie animacji ataku (≈ 1 s / szybkość broni + 0,2 s), w czasie gry
+	var w: Dictionary = main.combat.weapon(main.combat.player_fighter())
+	var game_s := 1.0 / maxf(0.5, float(w.get("rec", {}).get("speed", 1.0))) + 0.2
+	for i in maxi(4, int(game_s * 60.0 / Engine.time_scale)):
 		await process_frame
 
 func _run() -> void:
@@ -200,7 +211,18 @@ func _run() -> void:
 		if goal_i < goals.size() and calm_t > 2.0:
 			var g: Array = goals[goal_i]
 			var here: String = (main.interior if not main.interior.is_empty() else "ext").to_lower()
+			if main.combat.is_dead(main.combat.player_fighter()):
+				_ev("player_dead", {"cell": here})
+				break
 			if here.begins_with(String(g[0]).to_lower()) and String(g[1]) == "kill":
+				var pf0: Dictionary = main.combat.player_fighter()
+				if main.combat.health(pf0) < 0.7 * main.combat.max_health(pf0) and not _any_hostile():
+					var hours := 0
+					while hours < 12 and main.combat.health(pf0) < main.combat.max_health(pf0):
+						main.character.rest_hour(main.player_stats(), true)     # odpoczynek (T) przed walką
+						main.envr.advance(1.0)
+						hours += 1
+					_ev("rest", {"hours": hours, "health": snappedf(main.combat.health(pf0), 0.1)})
 				var victims := _alive(String(g[2]))
 				if victims.is_empty():
 					_ev("goal", {"goal": goal_i, "action": "kill", "id": g[2], "done": true})

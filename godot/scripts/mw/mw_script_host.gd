@@ -325,6 +325,11 @@ func enable_menu(kind: String) -> void:
 	m[kind] = true
 	main.state.player["menus"] = m
 
+func disable_menu(kind: String) -> void:
+	var m: Dictionary = main.state.player.get("menus", {})
+	m[kind] = false
+	main.state.player["menus"] = m
+
 func show_rest_menu() -> void:
 	if main.rest_window != null and not main.rest_window.visible:
 		main.rest_window.open()
