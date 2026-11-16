@@ -1,0 +1,222 @@
+extends RefCounted
+## Most między maszyną skryptów (mw_scripts.gd) a grą (main.gd): wyszukiwanie referencji we wczytanych komórkach,
+## pozycje i obroty w jednostkach/stopniach Morrowinda, komunikaty, dźwięki, statystyki, umieszczanie obiektów.
+
+var main
+var _scripted := []          # referencje ze skryptem lokalnym we wczytanych komórkach
+var _by_base := {}           # id obiektu → pierwsza referencja we wczytanych komórkach
+var dirty := true
+
+func _init(game_main) -> void:
+	main = game_main
+
+var player:
+	get: return main.player
+var envr:
+	get: return main.envr
+var interaction:
+	get: return main.interaction
+
+func _rebuild() -> void:
+	_scripted.clear()
+	_by_base.clear()
+	for key in main.loaded:
+		var refs: Node = main.loaded[key].get_node_or_null("Refs")
+		if refs == null:
+			continue
+		for n in refs.get_children():
+			var b := String(n.get_meta("mw_base", "")).to_lower()
+			if not _by_base.has(b):
+				_by_base[b] = n
+			if not String(main.db.get_object(b).get("script", "")).is_empty():
+				_scripted.append(n)
+	dirty = false
+
+func scripted_refs() -> Array:
+	if dirty:
+		_rebuild()
+	return _scripted
+
+func find_ref_by_base(id: String) -> Node:
+	if dirty:
+		_rebuild()
+	var n = _by_base.get(id.to_lower())
+	return n if n != null and is_instance_valid(n) else null
+
+func menu_mode() -> bool:
+	for w in [main.item_window, main.chargen, main.pause_menu, main.msgbox]:
+		if w != null and is_instance_valid(w) and w.visible:
+			return true
+	return false
+
+func script_message_box(text: String, buttons: Array) -> void:
+	main.show_message_box(text, buttons)
+
+func activate_default(node: Node) -> void:
+	main.activate(node, true)
+
+# --- pozycje ---------------------------------------------------------------------------------------------
+
+func _node(t: Dictionary) -> Node3D:
+	var n = t.get("node")
+	return n if n != null and is_instance_valid(n) else null
+
+func _mw_pos(t: Dictionary) -> Variant:
+	var n := _node(t)
+	if n == null:
+		return null
+	return MWCoords.godot_to_mw(n.global_position)
+
+func _mw_rot(t: Dictionary) -> Vector3:
+	var n := _node(t)
+	if n == null:
+		return Vector3.ZERO
+	if n == main.player:
+		return Vector3(0, 0, -n.rotation.y)
+	var sid := String(n.get_meta("mw_sid", ""))
+	var ov: Dictionary = main.state.refs.get(sid, {})
+	if ov.has("mw"):
+		var r0: Array = ov.mw.rot
+		return Vector3(r0[0], r0[1], r0[2])
+	var r: Dictionary = main.base_ref(sid)
+	if not r.is_empty():
+		return Vector3(r.mw.rot[0], r.mw.rot[1], r.mw.rot[2])
+	return Vector3.ZERO
+
+func script_get_transform(t: Dictionary, fname: String, axis: int) -> float:
+	if fname.begins_with("getstarting"):
+		var n0 := _node(t)
+		if n0 != null and n0.has_meta("mw_sid"):
+			var r: Dictionary = main.base_ref(String(n0.get_meta("mw_sid")))
+			if not r.is_empty():
+				return float(r.mw.pos[axis]) if fname == "getstartingpos" else rad_to_deg(float(r.mw.rot[axis]))
+	if fname.ends_with("pos"):
+		var p = _mw_pos(t)
+		return float(p[axis]) if p != null else 0.0
+	return rad_to_deg(_mw_rot(t)[axis])
+
+func _move(t: Dictionary, pos: Vector3, rot_z_deg: float, cell := "") -> void:
+	var n := _node(t)
+	if String(t.get("sid", "")) == "player" or n == main.player:
+		if not cell.is_empty():
+			main.travel_to_cell(cell, pos, rot_z_deg)
+			return
+		main.player.global_position = MWCoords.mw_to_godot(pos)
+		if not is_nan(rot_z_deg):
+			main.player.rotation.y = -deg_to_rad(rot_z_deg)
+		main.player.velocity = Vector3.ZERO
+		return
+	var sid := String(t.get("sid", ""))
+	if sid.is_empty():
+		return
+	var rot := _mw_rot(t)
+	if not is_nan(rot_z_deg):
+		rot.z = deg_to_rad(rot_z_deg)
+	main.state.set_ref_mw(sid, pos, rot)
+
+func script_set_transform(t: Dictionary, fname: String, args: Array, c, vm) -> void:
+	if t.is_empty():
+		return
+	var p = _mw_pos(t)
+	var pos: Vector3 = p if p != null else Vector3.ZERO
+	match fname:
+		"setpos":
+			var ax := int(vm.AXES.get(vm._str(args, 0).to_lower(), 0))
+			pos[ax] = vm._num(args, 1, c)
+			_move(t, pos, NAN)
+		"setangle":
+			var ax2 := int(vm.AXES.get(vm._str(args, 0).to_lower(), 2))
+			if ax2 == 2:
+				_move(t, pos, vm._num(args, 1, c))
+			else:
+				vm._unsupported("setangle x/y")
+		"position":
+			_move(t, Vector3(vm._num(args, 0, c), vm._num(args, 1, c), vm._num(args, 2, c)), vm._num(args, 3, c))
+		"positioncell":
+			_move(t, Vector3(vm._num(args, 0, c), vm._num(args, 1, c), vm._num(args, 2, c)), vm._num(args, 3, c),
+					vm._str(args, 4))
+		"setatstart":
+			var n := _node(t)
+			if n != null and n.has_meta("mw_sid"):
+				var r: Dictionary = main.base_ref(String(n.get_meta("mw_sid")))
+				if not r.is_empty():
+					main.state.set_ref_mw(String(n.get_meta("mw_sid")), Vector3(r.mw.pos[0], r.mw.pos[1], r.mw.pos[2]),
+							Vector3(r.mw.rot[0], r.mw.rot[1], r.mw.rot[2]))
+
+func script_distance(a: Dictionary, b: Dictionary) -> float:
+	var pa = _mw_pos(a)
+	var pb = _mw_pos(b)
+	if pa == null or pb == null:
+		return 1e9          # nieobecny obiekt – „daleko”
+	return (pa as Vector3).distance_to(pb)
+
+func player_cell_name() -> String:
+	if not main.interior.is_empty():
+		return main.interior
+	var c: Dictionary = main.db.get_cell(main.db.exterior_key(MWCoords.cell_of(main.player.global_position)))
+	var n := String(c.get("name", ""))
+	return n if not n.is_empty() else String(c.get("region", ""))
+
+func script_sound(id: String, t: Dictionary) -> void:
+	if main.audio == null:
+		return
+	var n := _node(t)
+	main.audio.play(id, n.global_position if n != null and n != main.player else null)
+
+# --- statystyki ------------------------------------------------------------------------------------------
+
+func character_stat_names() -> Array:
+	return main.builder.actors.records_index().get("attributes", []).map(func(s): return String(s).to_lower()) \
+			+ main.builder.actors.records_index().get("skills", []).map(func(s): return String(s).to_lower())
+
+func script_stat(t: Dictionary, fname: String) -> float:
+	var name := fname.substr(3)
+	if String(t.get("sid", "")) == "player" or t.is_empty():
+		var st: Dictionary = main.player_stats()
+		if st.is_empty():
+			return 0.0
+		var d: Dictionary = main.character.derived(st)
+		match name:
+			"level": return float(st.get("level", 1))
+			"health": return float(st.get("health", 0))
+			"magicka": return float(st.get("magicka", 0))
+			"fatigue": return float(st.get("fatigue", 0))
+		var attrs: Array = main.builder.actors.records_index().get("attributes", []).map(func(s): return String(s).to_lower())
+		var skills: Array = main.builder.actors.records_index().get("skills", []).map(func(s): return String(s).to_lower())
+		if name in attrs:
+			return float(d.attributes[attrs.find(name)])
+		if name in skills:
+			return float(d.skills[skills.find(name)])
+		return 0.0
+	var rec: Dictionary = main.builder.actors.record("npc", String(t.get("base", "")))
+	if rec.is_empty():
+		return 0.0
+	match name:
+		"level": return float(rec.get("level", 1))
+		"health": return float(rec.get("health", 0))
+	return 0.0
+
+# --- umieszczanie obiektów -------------------------------------------------------------------------------
+
+func script_place(fname: String, id: String, count: int, t: Dictionary, args: Array, c, vm) -> void:
+	var key: String = ("int:" + String(main.interior).to_lower()) if not String(main.interior).is_empty() \
+			else String(main.db.exterior_key(MWCoords.cell_of(main.player.global_position)))
+	var pos: Vector3 = MWCoords.godot_to_mw(main.player.global_position)
+	var rot_z: float = -float(main.player.rotation.y)
+	match fname:
+		"placeatpc", "placeatme":
+			if fname == "placeatme":
+				var p = _mw_pos(t)
+				if p != null:
+					pos = p
+			var dist: float = vm._num(args, 2, c, 0.0)
+			var dir: int = int(vm._num(args, 3, c, 0.0))             # 0 przód, 1 tył, 2 lewo, 3 prawo
+			var ang: float = rot_z + [0.0, PI, -PI / 2.0, PI / 2.0][clampi(dir, 0, 3)]
+			pos += Vector3(sin(ang), cos(ang), 0.0) * dist
+		"placeitem":
+			pos = Vector3(vm._num(args, 1, c), vm._num(args, 2, c), vm._num(args, 3, c))
+			rot_z = deg_to_rad(vm._num(args, 4, c))
+			count = 1
+	for i in maxi(1, count):
+		main.state.add_dynamic(id, key, pos, Vector3(0, 0, rot_z), 1)
+	dirty = true

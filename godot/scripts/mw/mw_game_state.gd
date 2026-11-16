@@ -14,6 +14,8 @@ extends RefCounted
 ##   dynamic  (v2) sid "dyn#N" → {"base", "cell" (klucz komórki), "mw": {"pos","rot","scale"}, "count"} – przedmioty
 ##            położone w świecie w trakcie gry
 ##   seed     (v2) ziarno losowania list poziomowanych tej rozgrywki
+##   scripts  (v2, etap 5) skrypty globalne działające, zmienne lokalne skryptów i obiektów
+##   journal  (v2, etap 5) indeksy zadań (GetJournalIndex/Journal)
 ##   extra    sekcje zapisu, których ta wersja nie zna – zachowywane przy ponownym zapisie
 ## Zapis nie zależy od scen ani węzłów Godota. Wpisy dla wtyczek, których brakuje, NIE są usuwane.
 
@@ -22,7 +24,7 @@ signal ref_changed(sid: String)
 const FORMAT := "mwgodot-save"
 const VERSION := 2
 const KNOWN := ["format", "version", "header", "refs", "globals", "time", "player", "dyn_next", "inventories",
-	"dynamic", "seed"]
+	"dynamic", "seed", "scripts", "journal"]
 
 var refs := {}
 var globals := {}
@@ -32,6 +34,8 @@ var dyn_next := 1
 var inventories := {}
 var dynamic := {}
 var seed := 0
+var scripts := {}                 # etap 5: {"running": [id skryptów globalnych], "locals": {sid|"global:id": {zmienna: wartość}}, "started"}
+var journal := {}                 # etap 5/6: id zadania → indeks
 var extra := {}
 
 signal inventory_changed(sid: String)
@@ -166,7 +170,7 @@ func to_dict(header: Dictionary) -> Dictionary:
 	var d := extra.duplicate(true)
 	d.merge({"format": FORMAT, "version": VERSION, "header": header, "refs": refs, "globals": globals,
 			"time": time, "player": player, "dyn_next": dyn_next, "inventories": inventories, "dynamic": dynamic,
-			"seed": seed}, true)
+			"seed": seed, "scripts": scripts, "journal": journal}, true)
 	return d
 
 ## Wczytuje słownik zapisu (po migracji). Zwraca listę ostrzeżeń (pusta = zgodny).
@@ -182,6 +186,10 @@ func from_dict(d: Dictionary) -> Array:
 		inventories[k] = (inventories[k] as Array).map(func(it): return {"id": String(it["id"]), "count": int(it["count"])})
 	dynamic = (d.get("dynamic", {}) as Dictionary).duplicate(true)
 	seed = int(d.get("seed", 0))
+	scripts = (d.get("scripts", {}) as Dictionary).duplicate(true)
+	journal = {}
+	for q in (d.get("journal", {}) as Dictionary):
+		journal[q] = int(d["journal"][q])
 	extra = {}
 	for k in d:
 		if not k in KNOWN:

@@ -23,12 +23,17 @@ const InventoryScript := preload("res://scripts/mw/mw_inventory.gd")
 const ItemWindowScript := preload("res://scripts/mw/mw_item_window.gd")
 const CharacterScript := preload("res://scripts/mw/mw_character.gd")
 const ChargenScript := preload("res://scripts/mw/mw_chargen_window.gd")
+const ScriptsVM := preload("res://scripts/mw/mw_scripts.gd")
+const ScriptHost := preload("res://scripts/mw/mw_script_host.gd")
 var events = Events.new()           # szyna zdarzeń (etap 0)
 var interaction = null                # MWInteraction (etap 3)
 var item_window = null                # okno pojemnika / ekwipunku
 var audio = null                      # MWAudio (etap 3)
 var character = null                  # MWCharacter (etap 4) – statystyki w state.player["character"]
 var chargen = null                    # kreator postaci
+var scripts = null                    # MWScripts (etap 5)
+var script_host = null
+var msgbox = null                     # okno MessageBox z przyciskami
 var state = GameStateScript.new()   # różnice stanu gry względem danych bazowych (zapis gry)
 var pause_menu: Control
 var loc  # Loc
@@ -92,6 +97,8 @@ func _ready() -> void:
 	chargen.loc = loc
 	add_child(chargen)
 	chargen.created.connect(_on_character_created)
+	script_host = ScriptHost.new(self)
+	scripts = ScriptsVM.new(builder.actors, state, script_host, db)
 	audio = preload("res://scripts/mw/mw_audio.gd").new()
 	audio.name = "Audio"
 	audio.setup(data, builder.actors)
@@ -138,6 +145,8 @@ func _ready() -> void:
 	else:
 		_update_streaming(true)
 	player.landed.connect(_on_player_landed)
+	if lp.is_empty() and scripts != null:
+		scripts.start_new_game()          # skrypty startowe nowej gry („main”, SSCR)
 	# nowa gra: kreator postaci (gra z launchera, bez wczytywania zapisu); tryby zrzutu/testów – postać domyślna
 	if not (state.player.get("character", {}) as Dictionary).is_empty():
 		pass
@@ -380,6 +389,8 @@ func _process(_d: float) -> void:
 			audio.footsteps(player, moved, player.is_on_floor(), player.swimming)
 	_update_torches(_d)
 	_update_water_level()
+	if scripts != null and player != null and not get_tree().paused and arg("scripts", "1") != "0":
+		scripts.tick(_d, script_host.scripted_refs())
 	_capture_tick()
 	var autotest := int(arg("autotest-frames", "0"))
 	if autotest > 0 and _frames == autotest:
@@ -490,8 +501,13 @@ func _unhandled_input(e: InputEvent) -> void:
 					activate(r)
 
 ## Aktywacja referencji (etap 3): drzwi (zamki, pułapki, podróż), przedmioty (podnoszenie), pojemniki (okno).
-func activate(r: Node) -> bool:
+func activate(r: Node, force_default := false) -> bool:
 	events.activated.emit(String(r.get_meta("mw_sid", "")), String(r.get_meta("mw_base", "")), "player")
+	# skrypt z OnActivate przejmuje aktywację (domyślna akcja tylko po „Activate” w skrypcie) – jak w Morrowindzie
+	var scr := String(db.get_object(String(r.get_meta("mw_base", ""))).get("script", ""))
+	if not force_default and scripts != null and not scr.is_empty() and scripts.uses(scr, "onactivate"):
+		scripts.activated[String(r.get_meta("mw_sid", ""))] = true
+		return true
 	var at: Vector3 = (r as Node3D).global_position
 	var res: Dictionary = interaction.activate(r)
 	if not String(res.get("message", "")).is_empty():
@@ -526,6 +542,8 @@ func drop_item(id: String, count: int) -> String:
 	return sid
 
 func travel(dest: Dictionary) -> void:
+	if scripts != null:
+		scripts.cell_changed = true
 	for key in loaded.keys():
 		events.cell_unloaded.emit(key)
 		loaded[key].queue_free()
@@ -562,6 +580,8 @@ func _update_streaming(_force: bool) -> void:
 			loaded.erase(key)
 
 func _load(key: String) -> void:
+	if script_host != null:
+		script_host.dirty = true
 	if builder.actors != null:
 		builder.actors.torches = use_torches(key)
 	var n := builder.build_cell(key)
@@ -725,6 +745,8 @@ func _apply_state() -> void:
 
 ## Zmiana referencji w GameState → przebudowa tylko jej węzła w wczytanych komórkach.
 func _on_ref_changed(sid: String) -> void:
+	if script_host != null:
+		script_host.dirty = true
 	for key in loaded:
 		var refs_node: Node = loaded[key].get_node_or_null("Refs")
 		if refs_node == null:
@@ -739,8 +761,65 @@ func _on_ref_changed(sid: String) -> void:
 						n.free()
 						return
 
+## Referencja z danych bazowych (wczytane komórki) – pozycja startowa dla skryptów.
+func base_ref(sid: String) -> Dictionary:
+	for key in loaded:
+		for r in db.get_cell(key).get("refs", []):
+			if String(r.get("sid", "")) == sid:
+				return r
+	return {}
+
+## PositionCell: przejście do wnętrza (albo świata zewnętrznego) i ustawienie gracza.
+func travel_to_cell(cell: String, mw_pos: Vector3, rot_z_deg: float) -> void:
+	var key := "int:" + cell.to_lower()
+	var t := Transform3D(Basis(Vector3.UP, -deg_to_rad(rot_z_deg)), MWCoords.mw_to_godot(mw_pos))
+	if db.find_cell(key).is_empty():
+		travel({"cell_key": "", "cell_name": "", "transform": t})
+	else:
+		travel({"cell_key": key, "cell_name": cell, "transform": t})
+
+## MessageBox ze skryptu: bez przycisków – komunikat; z przyciskami – okno (tryb menu), wybór → GetButtonPressed.
+func show_message_box(text: String, buttons: Array) -> void:
+	if buttons.is_empty():
+		_toast(text, 4.0)
+		return
+	if msgbox != null and is_instance_valid(msgbox):
+		msgbox.queue_free()
+	var cl := CanvasLayer.new()
+	cl.layer = 30
+	cl.process_mode = Node.PROCESS_MODE_ALWAYS
+	var panel := PanelContainer.new()
+	var box := VBoxContainer.new()
+	panel.add_child(box)
+	var l := Label.new()
+	l.text = text
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD
+	l.custom_minimum_size = Vector2(520, 0)
+	box.add_child(l)
+	for i in buttons.size():
+		var b := Button.new()
+		b.text = String(buttons[i])
+		var idx := i
+		b.pressed.connect(func():
+			scripts.button_pressed = idx
+			cl.visible = false
+			cl.queue_free()
+			get_tree().paused = false
+			if DisplayServer.get_name() != "headless":
+				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED)
+		box.add_child(b)
+	cl.add_child(panel)
+	add_child(cl)
+	panel.position = (get_viewport().get_visible_rect().size - panel.get_combined_minimum_size()) / 2.0
+	msgbox = cl
+	get_tree().paused = true
+	if DisplayServer.get_name() != "headless":
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
 ## Przedmiot położony/podniesiony w świecie (dyn#N) → dodanie albo usunięcie węzła we wczytanej komórce.
 func _on_dynamic_changed(sid: String) -> void:
+	if script_host != null:
+		script_host.dirty = true
 	for key in loaded:
 		var refs_node: Node = loaded[key].get_node_or_null("Refs")
 		if refs_node == null:

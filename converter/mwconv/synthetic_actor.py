@@ -175,6 +175,9 @@ MODELS = {
     "meshes/l/l_synth_torch.nif": lambda: make_rigid("L_Synth_Torch", (4, 4, 40), (0, 0, 20)),
     "meshes/o/synth_chest.nif": lambda: make_rigid("Synth_Chest", (60, 40, 40), (0, 0, 20)),
     "meshes/m/misc_synth_spoon.nif": lambda: make_rigid("Misc_Synth_Spoon", (4, 16, 2), (0, 0, 1)),
+    # etap 5: obiekty ze skryptami
+    "meshes/x/synth_banner.nif": lambda: make_rigid("Synth_Banner", (10, 60, 120), (0, 0, 60)),
+    "meshes/x/synth_lever.nif": lambda: make_rigid("Synth_Lever", (10, 10, 60), (0, 0, 30)),
 }
 
 RACE = "Synth Elf"
@@ -325,6 +328,63 @@ def _stage4_records() -> list:
     return [cls, spell, power, sign, player] + skills
 
 
+SCRIPTS = {
+    # jak skrypty Raven Rock (Colony_*): obiekt wyłączony, dopóki zmienna globalna nie osiągnie etapu
+    "synth_colony": """Begin synth_colony
+if ( SynthState >= 3 )
+    if ( GetDisabled == 1 )
+        Enable
+    endif
+elseif ( GetDisabled == 0 )
+    Disable
+endif
+End""",
+    "synth_lever": """Begin synth_lever
+short uses
+if ( OnActivate == 1 )
+    set uses to uses + 1
+    set SynthState to 3
+    MessageBox "Dzwignia przestawiona %.0f raz" uses
+    Journal synth_q 20
+endif
+End""",
+    "synth_start": """Begin synth_start
+short ran
+float timer
+if ( ran == 0 )
+    set ran to 1
+    player->AddItem misc_synth_spoon 2
+    Journal synth_q 10
+    SynthUnknownFunction 5
+endif
+set timer to timer + GetSecondsPassed
+if ( timer > 1000 )
+    StopScript synth_start
+endif
+End""",
+    "main": """Begin Main
+set SynthTicks to SynthTicks + 1
+End""",
+}
+
+
+def _script_rec(name, src) -> bytes:
+    schd = name.encode().ljust(32, b"\0") + struct.pack("<5i", 1, 0, 1, 0, 0)
+    return W.record("SCPT", [W.sub("SCHD", schd), W.sub("SCTX", src.replace("\n", "\r\n").encode("cp1252"))])
+
+
+def _stage5_records() -> list:
+    recs = [_script_rec(k, v) for k, v in SCRIPTS.items()]
+    for gid, typ in (("SynthState", b"s"), ("SynthTicks", b"l")):
+        recs.append(W.record("GLOB", [W.sub("NAME", W.zs(gid)), W.sub("FNAM", typ), W.sub("FLTV", struct.pack("<f", 0.0))]))
+    recs.append(W.record("SSCR", [W.sub("DATA", b"123456"), W.sub("NAME", W.zs("synth_start"))]))
+    for aid, model, scr in (("synth_banner", "x\\synth_banner.nif", "synth_colony"),
+                            ("synth_lever", "x\\synth_lever.nif", "synth_lever")):
+        recs.append(W.record("ACTI", [W.sub("NAME", W.zs(aid)), W.sub("MODL", W.zs(model)), W.sub("FNAM", W.zs(aid)),
+                                      W.sub("SCRI", W.zs(scr))]))
+    return recs
+
+
 def _stage3_records() -> list:
     torch = W.record("LIGH", [W.sub("NAME", W.zs("synth_torch")), W.sub("MODL", W.zs("l\\l_synth_torch.nif")),
                               W.sub("FNAM", W.zs("Pochodnia")),
@@ -359,6 +419,8 @@ ACTOR_REFS = {  # refnum: (rekord, x, y, obrót z w stopniach)
     9004: ("synth_guard", 2350.0, 2700.0, 0.0),
     9005: ("synth_chest", 2000.0, 2600.0, 0.0),
     9006: ("misc_synth_spoon", 2050.0, 2500.0, 0.0),
+    9007: ("synth_banner", 1900.0, 2300.0, 0.0),
+    9008: ("synth_lever", 1950.0, 2250.0, 0.0),
 }
 
 
@@ -375,7 +437,7 @@ def write_actors(data_dir: Path) -> dict:
     recs = [_race()] + [_body(k, *v) for k, v in BODYPARTS.items()]
     recs += [_item_body(k, *v) for k, v in ITEM_BODYPARTS.items()]
     recs += [_armor(k, *v) for k, v in ARMORS.items()] + [_clothing(k, *v) for k, v in CLOTHES.items()] + [_weapon()]
-    recs += _stage3_records() + _stage4_records()
+    recs += _stage3_records() + _stage4_records() + _stage5_records()
     recs += [_npc("synth_villager", False), _npc("synth_villager_f", True), _creature(),
              _npc("synth_guard", False, GUARD_INVENTORY)]
     refs = []

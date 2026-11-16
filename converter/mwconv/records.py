@@ -27,7 +27,9 @@ FILES = {"NPC_": "npc", "CREA": "creature", "RACE": "race", "CLAS": "class", "FA
          "CONT": "container", "LEVI": "leveleditem", "LEVC": "leveledcreature", "ALCH": "potion",
          "INGR": "ingredient", "DOOR": "door", "ACTI": "activator", "SOUN": "sound",
          # etap 4: czary (zdolności ras i znaków, moce, czary startowe)
-         "SPEL": "spell"}
+         "SPEL": "spell",
+         # etap 5: skrypty (drzewo składni z kompilatora mwscript) i skrypty startowe
+         "SCPT": "script", "SSCR": "startscript"}
 
 
 def _zs(b: bytes) -> str:
@@ -460,6 +462,22 @@ def decode_spell(rec, rid: str) -> dict:
     return o
 
 
+def decode_script(rec, rid: str) -> dict:
+    from .mwscript import compile_script
+    src = (rec.get("SCTX") or b"").decode("cp1252", "replace")
+    c = compile_script(src, rid)
+    o = {"id": rid, "locals": c["locals"], "body": c["body"], "functions": c["functions"]}
+    if c["errors"]:
+        o["errors"] = c["errors"]
+    if c["warnings"]:
+        o["warnings"] = c["warnings"]
+    return o
+
+
+def decode_startscript(rec, rid: str) -> dict:
+    return {"id": rid, "script": rid}
+
+
 def decode_gmst(rec, rid: str) -> dict:
     o: dict = {"id": rid}
     if rec.get("STRV") is not None:
@@ -517,11 +535,14 @@ DECODERS: dict[str, Callable] = {
     "LIGH": decode_light, "GMST": decode_gmst, "GLOB": decode_global,
     "CONT": decode_container, "LEVI": _leveled("INAM"), "LEVC": _leveled("CNAM"), "ALCH": decode_potion,
     "INGR": decode_ingredient, "DOOR": decode_door, "ACTI": decode_activator, "SOUN": decode_sound,
-    "SPEL": decode_spell,
+    "SPEL": decode_spell, "SCPT": decode_script, "SSCR": decode_startscript,
 }
 
 
 def record_id(rec) -> Optional[str]:
+    if rec.type == "SCPT":
+        d = rec.get("SCHD")
+        return _zs(d[:32]) if d else None
     if rec.type == "SKIL":
         d = rec.get("INDX")
         if d is None or len(d) < 4:

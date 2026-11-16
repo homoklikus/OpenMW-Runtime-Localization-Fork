@@ -237,6 +237,9 @@ def parse_object(rec: Record) -> Optional[dict]:
     fn = rec.zstr("FNAM")
     if fn:
         o["name"] = fn
+    sc = rec.zstr("SCRI")
+    if sc:
+        o["script"] = sc                       # skrypt lokalny (etap 5)
     if rec.type == "LIGH":
         d = rec.get("LHDT")
         if d and len(d) >= 24:

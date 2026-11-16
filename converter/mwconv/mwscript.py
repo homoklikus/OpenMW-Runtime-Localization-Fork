@@ -63,7 +63,7 @@ _TOKEN = re.compile(r'''
       (?P<str>"[^"]*"?)
     | (?P<arrow>->)
     | (?P<dot>\.[A-Za-z_][\w']*)
-    | (?P<op>==|!=|<=|>=|<>|<|>|=|\+|-|\*|/|\(|\)|,)
+    | (?P<op>==|!=|<=|>=|<>|<|>|=|\+|-|\*|/|\(|\)|\[|\]|,)
     | (?P<num>(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?(?![\w]))
     | (?P<id>[A-Za-z_][\w'.\-]*|\d+[A-Za-z_][\w'.\-]*)
     | (?P<other>\S)
@@ -89,6 +89,8 @@ def tokenize(line: str) -> list[Tok]:
         if k is None:
             continue
         t = m.group(k)
+        if k == "op" and t in "[]":
+            t = "(" if t == "[" else ")"     # nawiasy kwadratowe jak okrągłe (spotykane w skryptach)
         if k == "dot":
             k = "id"                       # ."zmienna" po tekście: "obiekt".zmienna
         if k == "str":
@@ -276,6 +278,7 @@ def compile_script(src: str, name: str = "") -> dict:
     """Źródło skryptu → {"name", "locals": {nazwa: typ}, "body": [...], "errors": [...], "functions": [...]}."""
     locals_: dict = {}
     errors: list = []
+    warnings: list = []
     used: set = set()
     root: list = []
     stack: list = [("root", root)]          # (rodzaj, lista instrukcji | węzeł)
@@ -332,17 +335,20 @@ def compile_script(src: str, name: str = "") -> dict:
             if kw == "elseif":
                 p.next()
                 if stack[-1][0] != "if":
-                    raise ParseError("elseif bez if")
+                    warnings.append(f"{sname or name}:{ln}: elseif bez if – pominięte")
+                    continue
                 stack[-1][1][1].append([parse_expr(p), []])
                 continue
             if kw == "else":
                 if stack[-1][0] != "if":
-                    raise ParseError("else bez if")
+                    warnings.append(f"{sname or name}:{ln}: else bez if – pominięte")
+                    continue
                 stack[-1] = ("ifelse", stack[-1][1])
                 continue
             if kw == "endif":
                 if stack[-1][0] not in ("if", "ifelse"):
-                    raise ParseError("endif bez if")
+                    warnings.append(f"{sname or name}:{ln}: nadmiarowe endif – pominięte")
+                    continue
                 stack.pop()
                 continue
             if kw == "while":
@@ -369,13 +375,15 @@ def compile_script(src: str, name: str = "") -> dict:
                 cur.append(_stmt_call(p, t0.text.lower(), f.text.lower()))
             elif t0.kind == "id":
                 cur.append(_stmt_call(p, None, t0.text.lower()))
+            elif _is(t0, "op", "("):
+                warnings.append(f"{sname or name}:{ln}: samo wyrażenie bez instrukcji – pominięte")
             else:
                 raise ParseError(f"nieznana instrukcja {t0.text!r}")
         except ParseError as e:
             errors.append(f"{sname or name}:{ln}: {e} | {raw.strip()[:80]}")
     if len(stack) > 1:
         errors.append(f"{sname or name}: niezamknięte bloki ({len(stack) - 1})")
-    return {"name": sname or name, "locals": locals_, "body": root, "errors": errors,
+    return {"name": sname or name, "locals": locals_, "body": root, "errors": errors, "warnings": warnings,
             "functions": sorted(used)}
 
 

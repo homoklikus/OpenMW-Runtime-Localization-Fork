@@ -63,7 +63,7 @@ def _converter_ok(prev_conv: str, converter: str, vfs, key: str) -> bool:
     chk = COMPAT_CONVERTERS.get(prev_conv)
     return converter == MODEL_CONVERTER and chk is not None and chk(vfs, key)
 TEXTURE_CONVERTER = "tex2png-0.1.0"
-WORLD_EXPORT_VERSION = 4          # 2: world/records/ (etap 1); 3: rekordy etapu 3, dźwięki (sound/); 4: SPEL (etap 4)
+WORLD_EXPORT_VERSION = 5          # 2: world/records/ (etap 1); 3: rekordy etapu 3, dźwięki (sound/); 4: SPEL (etap 4); 5: skrypty
 
 _VFS: Optional[Vfs] = None
 _OUT: Optional[Path] = None
@@ -384,6 +384,47 @@ ACTOR_SKELETONS = {"male": "meshes/base_anim.nif", "female": "meshes/base_anim_f
                    "beast": "meshes/base_animkna.nif"}
 ACTOR_ANIMS = {"base": "meshes/xbase_anim.kf", "female": "meshes/xbase_anim_female.kf",
                "beast": "meshes/xbase_animkna.kf"}
+
+
+def _script_objects(world) -> set:
+    """Identyfikatory obiektów, do których skrypty odwołują się po nazwie (obiekt->F, "obiekt".zmienna, argumenty
+    tekstowe funkcji działających na obiektach) – wyszukiwane potem w całym świecie (jak World::searchPtr)."""
+    out = set()
+
+    def walk(n):
+        if isinstance(n, list):
+            if n and n[0] == "call" and len(n) == 4:
+                if isinstance(n[1], str):
+                    out.add(n[1].lower())
+            if n and n[0] in ("member", "ref") and isinstance(n[1], str):
+                out.add(n[1].lower())
+            if n and n[0] == "str" and len(n) == 2 and isinstance(n[1], str) and len(n[1]) < 40:
+                out.add(n[1].lower())
+            for x in n:
+                walk(x)
+    for sc in world.records.get("SCPT", {}).values():
+        walk(sc.get("body", []))
+    return out
+
+
+def _ref_index(world, wdir, write_json) -> dict:
+    """world/refindex.json: id obiektu → {"sid", "cell"} pierwszej referencji w świecie (OpenMW: World::searchPtr –
+    najpierw aktywne komórki, potem pozostałe), dla NPC, stworzeń, obiektów ze skryptami i obiektów nazwanych
+    w skryptach. Pozwala skryptom (Enable/Disable, AddItem, zmienne obiektów) działać na niewczytanych komórkach."""
+    wanted = _script_objects(world)
+    for typ in ("NPC_", "CREA"):
+        wanted |= set(world.records.get(typ, {}).keys())
+    for bid, o in world.objects.items():
+        if o.get("script"):
+            wanted.add(bid)
+    idx = {}
+    for k in sorted(world.cells):
+        for mr in world.cells[k].refs.values():
+            b = mr.ref.base.lower()
+            if b in wanted and b not in idx:
+                idx[b] = {"sid": mr.sid, "cell": k}
+    write_json(wdir / "refindex.json", idx)
+    return {"objects": len(idx)}
 
 
 def _sounds(world, vfs, out: Path, log) -> dict:
@@ -854,6 +895,7 @@ def _run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) 
     actor = {"skeletons": {k: model_glb_rel(m) for k, m in ACTOR_SKELETONS.items() if vfs.exists(m)},
              "anims": {k: kf_out_rel(m) for k, m in ACTOR_ANIMS.items() if vfs.exists(m)}}
     stats["records"] = recdec.export(world.records, wdir, write_json, extra_index={"actor": actor})
+    stats["refindex"] = _ref_index(world, wdir, write_json)
     used_regions = {(world.cells[k].cell.region or "").lower() for k in keys} - {""}
     write_json(wdir / "regions.json", {r: world.regions[r] for r in sorted(used_regions) if r in world.regions})
     write_json(wdir / "index.json", {"format": "mwgodot-world", "version": 1, "cells": index})
