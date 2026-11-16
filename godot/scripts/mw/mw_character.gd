@@ -7,7 +7,9 @@ extends RefCounted
 ## Statystyki w GameState.player["character"]:
 ##   {"name","race","female","class","birthsign","head","hair","level",
 ##    "attributes": [8 wartości bazowych], "skills": [27 wartości bazowych], "spells": [id czarów],
-##    "health","magicka","fatigue": wartości bieżące}
+##    "health","magicka","fatigue": wartości bieżące,
+##    etap 7: "health_base" (zdrowie maksymalne po awansach), "skill_progress": [27 × 0..1], "level_progress",
+##    "skill_increases": [8 – punkty atrybutów z podniesionych umiejętności], "spec_increases": [3]}
 ## Kolejność atrybutów i umiejętności jak w ESM (records/index.json).
 
 const ATTR_STRENGTH := 0
@@ -163,7 +165,8 @@ func derived(st: Dictionary) -> Dictionary:
 		am.append(maxf(0.0, float(a[i]) + float(fx.get("%d:%d" % [FX_FORTIFY_ATTRIBUTE, i], 0.0))))
 	for i in 27:
 		sm.append(maxf(0.0, float(s[i]) + float(fx.get("%d:%d" % [FX_FORTIFY_SKILL, i], 0.0))))
-	var hb := floorf(0.5 * (float(a[ATTR_STRENGTH]) + float(a[ATTR_ENDURANCE])))
+	# zdrowie bazowe: przy tworzeniu ⌊(siła + wytrzymałość)/2⌋ (updateHealth), potem rośnie przy awansie
+	var hb := float(st["health_base"]) if st.has("health_base") else floorf(0.5 * (float(a[ATTR_STRENGTH]) + float(a[ATTR_ENDURANCE])))
 	var factor := _gmst("fpcbasemagickamult", 1.0) + float(fx.get(str(FX_FORTIFY_MAX_MAGICKA), 0.0)) * 0.1
 	var mb: float = factor * float(am[ATTR_INTELLIGENCE])
 	var fb: float = maxf(0.0, float(am[ATTR_STRENGTH]) + float(am[ATTR_WILLPOWER]) + float(am[ATTR_AGILITY]) + float(am[ATTR_ENDURANCE]))
@@ -200,3 +203,242 @@ func apply_fall(st: Dictionary, height: float) -> float:
 	var real := lost * (1.0 - 0.25 * fatigue_term(st, d))
 	st["health"] = float(st.get("health", d.health.modified)) - real
 	return real
+
+
+# --- rozwój umiejętności i awans (etap 7; OpenMW: files/data-mw/scripts/omw/playerskillhandlers.lua,
+# NpcStats::levelUp, LevelupDialog, Actors::restoreDynamicStats) -----------------------------------------------
+
+const SKILL_USE := {"armor_hit": 0, "block": 0, "spellcast": 0, "weapon_hit": 0, "alchemy_create": 0,
+	"alchemy_use": 1, "enchant_recharge": 0, "enchant_use": 1, "enchant_create": 2, "enchant_strike": 3,
+	"acrobatics_jump": 0, "acrobatics_fall": 1, "mercantile_success": 0, "mercantile_bribe": 1,
+	"security_trap": 0, "security_lock": 1, "sneak_avoid": 0, "sneak_pickpocket": 1, "speechcraft_success": 0,
+	"speechcraft_fail": 1, "armorer_repair": 0, "athletics_run": 0, "athletics_swim": 1}
+
+func _class_of(st: Dictionary) -> Dictionary:
+	return records.record("class", String(st.get("class", "")))
+
+static func _has(arr: Array, i: int) -> bool:
+	return i in arr or float(i) in arr
+
+func _ensure_progress(st: Dictionary) -> void:
+	if not st.get("skill_progress") is Array or (st.skill_progress as Array).size() != 27:
+		var z := []
+		z.resize(27)
+		z.fill(0.0)
+		st["skill_progress"] = z
+	if not st.get("skill_increases") is Array or (st.skill_increases as Array).size() != 8:
+		st["skill_increases"] = [0, 0, 0, 0, 0, 0, 0, 0]
+	if not st.get("spec_increases") is Array or (st.spec_increases as Array).size() != 3:
+		st["spec_increases"] = [0, 0, 0]
+	if not st.has("level_progress"):
+		st["level_progress"] = 0
+	if not st.has("health_base"):
+		var a: Array = st.get("attributes", [])
+		st["health_base"] = floorf(0.5 * (float(a[ATTR_STRENGTH]) + float(a[ATTR_ENDURANCE]))) if a.size() >= 8 else 0.0
+
+## getSkillProgressRequirement: (wartość bazowa + 1) × współczynnik (główna/drugorzędna/inna) × specjalizacja.
+func skill_requirement(st: Dictionary, i: int) -> float:
+	var cls := _class_of(st)
+	var f := _gmst("fmiscskillbonus", 1.25)
+	if _has(cls.get("major_skills", []), i):
+		f = _gmst("fmajorskillbonus", 0.75)
+	elif _has(cls.get("minor_skills", []), i):
+		f = _gmst("fminorskillbonus", 1.0)
+	var sk: Dictionary = records.record("skill", String(skill_names()[i]) if i < skill_names().size() else "")
+	if not sk.is_empty() and not cls.is_empty() and int(sk.get("specialization", -1)) == int(cls.get("specialization", -2)):
+		f *= _gmst("fspecialskillbonus", 0.8)
+	return (float(st.skills[i]) + 1.0) * f
+
+## skillUsed: postęp += przyrost z rekordu SKIL (use_values[typ]) × skala / wymaganie; ≥ 1 → umiejętność +1.
+## Zwraca komunikaty (podniesienie umiejętności, gotowość do awansu).
+func use_skill(st: Dictionary, i: int, use_type: int, scale := 1.0) -> Array:
+	if st.is_empty() or i < 0 or i >= 27:
+		return []
+	_ensure_progress(st)
+	var sk: Dictionary = records.record("skill", String(skill_names()[i]) if i < skill_names().size() else "")
+	var uv: Array = sk.get("use_values", [])
+	if use_type < 0 or use_type > 3 or use_type >= uv.size():
+		return []
+	var gain := float(uv[use_type]) * scale
+	var base := float(st.skills[i])
+	if (base >= 100.0 and gain > 0.0) or (base <= 0.0 and gain < 0.0):
+		return []
+	st.skill_progress[i] = float(st.skill_progress[i]) + gain / skill_requirement(st, i)
+	if float(st.skill_progress[i]) >= 1.0:
+		return skill_level_up(st, i, "usage")
+	return []
+
+## skillLevelUp (domyślna obsługa Morrowinda): +1 (więzienie: −1 poza skradaniem i bezpieczeństwem),
+## postęp awansu (iLevelUpMajorMult/MinorMult), punkty atrybutu umiejętności i specjalizacji.
+func skill_level_up(st: Dictionary, i: int, source := "usage") -> Array:
+	_ensure_progress(st)
+	var names := skill_names()
+	var sid := String(names[i]) if i < names.size() else ""
+	var sk: Dictionary = records.record("skill", sid)
+	var cls := _class_of(st)
+	var inc := 1
+	var lvl := 0
+	var attr_inc := int(_gmst("ilevelupmiscmultattriubte", 1))
+	if _has(cls.get("minor_skills", []), i):
+		lvl = int(_gmst("ilevelupminormult", 1))
+		attr_inc = int(_gmst("ilevelupminormultattribute", 1))
+	elif _has(cls.get("major_skills", []), i):
+		lvl = int(_gmst("ilevelupmajormult", 1))
+		attr_inc = int(_gmst("ilevelupmajormultattribute", 1))
+	var jail := source == "jail" and not sid in ["security", "sneak"]
+	if jail:
+		inc = -1
+	var base := float(st.skills[i])
+	if (base >= 100.0 and inc > 0) or (base <= 0.0 and inc < 0):
+		return []
+	st.skills[i] = base + inc
+	var msgs := []
+	if not jail:
+		st.level_progress = int(st.level_progress) + lvl
+		var ai := int(sk.get("attribute", -1))
+		if ai >= 0 and ai < 8:
+			st.skill_increases[ai] = int(st.skill_increases[ai]) + attr_inc
+		var sp := int(sk.get("specialization", -1))
+		if sp >= 0 and sp < 3:
+			st.spec_increases[sp] = int(st.spec_increases[sp]) + int(_gmst("ilevelupspecialization", 1))
+	if source != "jail":
+		msgs.append({"kind": "skill", "skill": i, "level": int(st.skills[i])})
+		if int(st.level_progress) >= int(_gmst("iLevelUpTotal".to_lower(), 10)):
+			msgs.append({"kind": "levelup_ready"})
+		if source == "usage":
+			st.skill_progress[i] = 0.0
+	return msgs
+
+func can_level_up(st: Dictionary) -> bool:
+	_ensure_progress(st)
+	return int(st.level_progress) >= int(_gmst("ilevelupTotal".to_lower(), 10))
+
+## getLevelupAttributeMultiplier: iLevelUp01Mult…iLevelUp10Mult wg punktów atrybutu (0 → ×1).
+func levelup_multiplier(st: Dictionary, attr: int) -> int:
+	_ensure_progress(st)
+	var n := clampi(int(st.skill_increases[attr]), 0, 10)
+	if n == 0:
+		return 1
+	var g: Dictionary = records.record("gmst", "ilevelup%02dmult" % n)
+	return int(g.get("value", 1)) if not g.is_empty() else 1
+
+## Liczba atrybutów do wyboru (3, mniej gdy atrybuty mają już 100).
+func levelup_coins(st: Dictionary) -> int:
+	var n := 0
+	for i in 8:
+		if float(st.attributes[i]) < 100.0:
+			n += 1
+	return mini(3, n)
+
+## LevelupDialog::onOkButtonClicked + NpcStats::levelUp: wybrane atrybuty += mnożnik (do 100), postęp −
+## iLevelUpTotal, zdrowie bazowe i bieżące + wytrzymałość × fLevelUpHealthEndMult, poziom +1.
+func level_up(st: Dictionary, chosen: Array) -> bool:
+	_ensure_progress(st)
+	if chosen.size() != levelup_coins(st):
+		return false
+	for a in chosen:
+		var ai := int(a)
+		st.attributes[ai] = minf(100.0, float(st.attributes[ai]) + levelup_multiplier(st, ai))
+	st.level_progress = maxi(0, int(st.level_progress) - int(_gmst("ilevelupTotal".to_lower(), 10)))
+	st.skill_increases = [0, 0, 0, 0, 0, 0, 0, 0]
+	var gain := float(st.attributes[ATTR_ENDURANCE]) * _gmst("flevelupHealthEndMult".to_lower(), 0.1)
+	st.health_base = float(st.health_base) + gain
+	st.health = maxf(1.0, float(st.get("health", 0.0)) + gain)
+	st.level = int(st.get("level", 1)) + 1
+	return true
+
+## restoreDynamicStats (godzina odpoczynku/czekania): sen – zdrowie 0,1 × wytrzymałość, magia fRestMagicMult ×
+## inteligencja; zawsze kondycja (fFatigueReturnBase + fFatigueReturnMult × (1 − obciążenie)) × fEndFatigueMult ×
+## wytrzymałość × 3600. Wartości nie przekraczają maksimum.
+func rest_hour(st: Dictionary, sleep: bool, encumbrance := 0.0) -> void:
+	var d := derived(st)
+	if sleep:
+		st.health = minf(float(d.health.modified), float(st.get("health", 0.0)) + 0.1 * float(d.attributes[ATTR_ENDURANCE]))
+		st.magicka = minf(float(d.magicka.modified), float(st.get("magicka", 0.0)) + _gmst("frestmagicmult", 0.15) * float(d.attributes[ATTR_INTELLIGENCE]))
+	var fat := float(st.get("fatigue", 0.0))
+	if fat >= float(d.fatigue.base):
+		return
+	var x := (_gmst("ffatiguereturnbase", 2.5) + _gmst("ffatiguereturnmult", 0.02) * (1.0 - minf(1.0, encumbrance))) \
+		* (_gmst("fendfatiguemult", 0.04) * float(d.attributes[ATTR_ENDURANCE]))
+	st.fatigue = minf(float(d.fatigue.modified), fat + 3600.0 * x)
+
+## Odnawianie kondycji w czasie gry (Actors::calculateRestoration): (fFatigueReturnBase + fFatigueReturnMult ×
+## wytrzymałość) × czas (sekundy).
+func restore_fatigue(st: Dictionary, seconds: float) -> void:
+	var d := derived(st)
+	var fat := float(st.get("fatigue", 0.0))
+	if fat >= float(d.fatigue.base):
+		return
+	var x := _gmst("ffatiguereturnbase", 2.5) + _gmst("ffatiguereturnmult", 0.02) * float(d.attributes[ATTR_ENDURANCE])
+	st.fatigue = minf(float(d.fatigue.modified), fat + seconds * x)
+
+# --- ruch (Npc::getWalkSpeed/getRunSpeed/getJump, getSwimSpeedImpl, character.cpp – zmęczenie) -------------
+
+const SK_ATHLETICS := 8
+const FX_SWIFT_SWIM := 1
+
+func capacity(st: Dictionary) -> float:
+	return float(derived(st).attributes[ATTR_STRENGTH]) * _gmst("fencumbrancestrmult", 5.0)
+
+func normalized_encumbrance(st: Dictionary, weight: float) -> float:
+	if weight == 0.0:
+		return 0.0
+	var c := capacity(st)
+	return weight / c if c > 0.0 else INF
+
+## Prędkości w jednostkach MW/s i prędkość skoku (pionowa, jednostki/s).
+func movement(st: Dictionary, weight := 0.0, running := false) -> Dictionary:
+	var d := derived(st)
+	var enc := normalized_encumbrance(st, weight)
+	var walk := _gmst("fminwalkspeed", 100.0) + 0.01 * float(d.attributes[ATTR_SPEED]) \
+		* (_gmst("fmaxwalkspeed", 200.0) - _gmst("fminwalkspeed", 100.0))
+	walk = maxf(0.0, walk * (1.0 - _gmst("fencumberedmoveeffect", 0.3) * enc))
+	var athl := float(d.skills[SK_ATHLETICS])
+	var run := walk * (0.01 * athl * _gmst("fathleticsrunbonus", 1.0) + _gmst("fbaserunmultiplier", 1.75))
+	var fx := constant_effects(st)
+	var swim_base := run if running else walk
+	var swim := swim_base * (1.0 + 0.01 * float(fx.get(str(FX_SWIFT_SWIM), 0.0))) \
+		* (_gmst("fswimrunbase", 0.5) + 0.01 * athl * _gmst("fswimrunathleticsmult", 0.1))
+	var jump := 0.0
+	if enc <= 1.0:
+		var et := _gmst("fjumpencumbrancebase", 0.0) + _gmst("fjumpencumbrancemultiplier", 1.0) * (1.0 - enc)
+		var a := float(d.skills[SK_ACROBATICS])
+		var b := 0.0
+		if a > 50.0:
+			b = a - 50.0
+			a = 50.0
+		var x := _gmst("fjumpacrobaticsbase", 128.0) + pow(a / 15.0, _gmst("fjumpacromultiplier", 4.0))
+		x += 3.0 * b * _gmst("fjumpacromultiplier", 4.0)
+		x += float(d.get("jump", 0.0)) * 64.0
+		x *= et
+		if running:
+			x *= _gmst("fjumprunmultiplier", 1.0)
+		x *= fatigue_term(st, d)
+		x -= -GRAVITY_UNITS
+		x /= 3.0
+		jump = x
+	var air := minf(1.0, _gmst("fjumpmovebase", 0.5) + _gmst("fjumpmovemult", 0.5) * float(d.skills[SK_ACROBATICS]) / 100.0)
+	return {"walk": walk, "run": run, "swim": swim, "jump": jump, "air_factor": air, "encumbrance": enc,
+		"overburdened": enc > 1.0}
+
+const GRAVITY_UNITS := 9.8 * 64.0          # Constants::GravityUnits (jardy jako metry – jak w Morrowindzie)
+const MAX_FALL_SPEED := 4005.5
+
+## Utrata kondycji za ruch w ciągu dt (character.cpp): bieg, pływanie (chód/bieg), skradanie; przy przeciążeniu – 0.
+func movement_fatigue(st: Dictionary, weight: float, dt: float, running: bool, swimming: bool, sneaking := false) -> float:
+	if weight > capacity(st):
+		return 0.0
+	var enc := normalized_encumbrance(st, weight)
+	var loss := 0.0
+	if sneaking:
+		loss = _gmst("ffatiguesneakbase", 1.5) + enc * _gmst("ffatiguesneakmult", 1.5)
+	elif swimming:
+		loss = (_gmst("ffatigueswimrunbase", 7.0) + enc * _gmst("ffatigueswimrunmult", 7.0)) if running \
+			else (_gmst("ffatigueswimwalkbase", 2.5) + enc * _gmst("ffatigueswimwalkmult", 2.5))
+	elif running:
+		loss = _gmst("ffatiguerunbase", 5.0) + enc * _gmst("ffatiguerunmult", 2.0)
+	return loss * dt
+
+func jump_fatigue(st: Dictionary, weight: float) -> float:
+	var enc := minf(1.0, normalized_encumbrance(st, weight))
+	return _gmst("ffatiguejumpbase", 5.0) + enc * _gmst("ffatiguejumpmult", 5.0)

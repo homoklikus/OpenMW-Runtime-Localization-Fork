@@ -14,8 +14,16 @@ func _unhandled_input(e: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			return
 	if e.is_action_pressed("menu") and main:
+		if main.get("rest_window") != null and main.rest_window.visible and not main.rest_window.levelup.visible:
+			main.rest_window.close()
+			get_viewport().set_input_as_handled()
+			return
 		if main.get("journal_window") != null and main.journal_window.visible:
 			main.journal_window.close()
+			get_viewport().set_input_as_handled()
+			return
+		if main.get("trade_window") != null and main.trade_window.visible:
+			main.trade_window.close()
 			get_viewport().set_input_as_handled()
 			return
 		if main.get("dialogue_window") != null and main.dialogue_window.visible:

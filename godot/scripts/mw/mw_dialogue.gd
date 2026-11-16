@@ -1087,7 +1087,7 @@ func persuade(kind: String, roll := -1) -> Dictionary:
 	current_disp += temp
 	set_base_disposition(actor, current_disp)
 	permanent_change += perm
-	_partial("speechcraft_progress", 0)          # postęp umiejętności – etap 7
+	main.skill_used(SK_SPEECHCRAFT, "speechcraft_success" if bool(r.success) else "speechcraft_fail")
 	if bool(r.success):
 		var amount: int = int({"bribe10": 10, "bribe100": 100, "bribe1000": 1000}.get(kind, 0))
 		if amount > 0:

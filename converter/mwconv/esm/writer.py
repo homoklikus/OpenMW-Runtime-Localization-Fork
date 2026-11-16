@@ -61,6 +61,8 @@ def ref_subs(frmr: int, base: str, pos, rot=(0, 0, 0), scale: float = 1.0, delet
     if abs(scale - 1.0) > 1e-6:
         s.append(sub("XSCL", struct.pack("<f", scale)))
     if extra:
+        if "owner" in extra:
+            s.append(sub("ANAM", zs(extra["owner"])))
         if "door_dest" in extra:
             d = extra["door_dest"]
             s.append(sub("DODT", struct.pack("<6f", *d["pos"], *d["rot"])))

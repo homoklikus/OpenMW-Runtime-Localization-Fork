@@ -28,6 +28,10 @@ const ScriptHost := preload("res://scripts/mw/mw_script_host.gd")
 const DialogueScript := preload("res://scripts/mw/mw_dialogue.gd")
 const DialogueWindowScript := preload("res://scripts/mw/mw_dialogue_window.gd")
 const JournalWindowScript := preload("res://scripts/mw/mw_journal_window.gd")
+const RestWindowScript := preload("res://scripts/mw/mw_rest_window.gd")
+const MagicScript := preload("res://scripts/mw/mw_magic.gd")
+const TradeScript := preload("res://scripts/mw/mw_trade.gd")
+const TradeWindowScript := preload("res://scripts/mw/mw_trade_window.gd")
 var events = Events.new()           # szyna zdarzeń (etap 0)
 var interaction = null                # MWInteraction (etap 3)
 var item_window = null                # okno pojemnika / ekwipunku
@@ -40,6 +44,10 @@ var msgbox = null                     # okno MessageBox z przyciskami
 var dialogue = null                   # MWDialogue (etap 6)
 var dialogue_window = null
 var journal_window = null
+var rest_window = null                # etap 7: odpoczynek i awans
+var magic = null                      # etap 7: wzory magii (koszty, efekty)
+var trade = null                      # etap 7: handel i usługi
+var trade_window = null
 var state = GameStateScript.new()   # różnice stanu gry względem danych bazowych (zapis gry)
 var pause_menu: Control
 var loc  # Loc
@@ -80,6 +88,7 @@ func _ready() -> void:
 	builder.state = state
 	state.ref_changed.connect(_on_ref_changed)
 	state.dynamic_changed.connect(_on_dynamic_changed)
+	state.inventory_changed.connect(_on_inventory_changed)
 	# etap 3: ziarno list poziomowanych tej rozgrywki (tryb zrzutu/testów: stałe), inwentarze, interakcje
 	state.seed = int(arg("seed", "0" if not arg("screenshot").is_empty() else str(randi())))
 	builder.actors.inventory = InventoryScript.new(builder.actors, state)
@@ -110,6 +119,16 @@ func _ready() -> void:
 	dialogue_window.dialogue = dialogue
 	dialogue_window.main = self
 	add_child(dialogue_window)
+	magic = MagicScript.new(builder.actors)
+	trade = TradeScript.new(self)
+	trade_window = TradeWindowScript.new()
+	trade_window.main = self
+	trade_window.trade = trade
+	add_child(trade_window)
+	rest_window = RestWindowScript.new()
+	rest_window.main = self
+	rest_window.character = character
+	add_child(rest_window)
 	journal_window = JournalWindowScript.new()
 	journal_window.dialogue = dialogue
 	journal_window.main = self
@@ -160,6 +179,7 @@ func _ready() -> void:
 	else:
 		_update_streaming(true)
 	player.landed.connect(_on_player_landed)
+	player.jumped.connect(_on_player_jumped)
 	if lp.is_empty() and scripts != null:
 		scripts.start_new_game()          # skrypty startowe nowej gry („main”, SSCR)
 	# nowa gra: kreator postaci (gra z launchera, bez wczytywania zapisu); tryby zrzutu/testów – postać domyślna
@@ -191,7 +211,11 @@ func _on_player_landed(height: float) -> void:
 	var st := player_stats()
 	if st.is_empty() or player.swimming or player.fly:
 		return
+	var dd: Dictionary = character.derived(st)
+	var lost0: float = character.fall_damage(st, dd, height)
 	var lost: float = character.apply_fall(st, height)
+	if lost0 > 0.0 and lost0 <= float(dd.skills[character.SK_ACROBATICS]) * character.fatigue_term(st, dd):
+		skill_used(character.SK_ACROBATICS, "acrobatics_fall")      # bez powalenia – postęp akrobatyki
 	if lost > 0.0:
 		if audio != null:
 			audio.play("Health Damage")
@@ -200,6 +224,85 @@ func _on_player_landed(height: float) -> void:
 			_toast("Upadek: −%d zdrowia. Zdrowie spadło do zera (śmierć – etap 7)." % roundi(lost))
 		else:
 			_toast("Upadek: −%d zdrowia" % roundi(lost))
+
+# --- etap 7: rozwój umiejętności, ruch wg statystyk, kondycja ----------------------------------------------
+
+var _weight_cache := -1.0
+
+func _on_inventory_changed(sid: String) -> void:
+	if sid == "player":
+		_weight_cache = -1.0
+var _run_secs := 0.0
+var _swim_secs := 0.0
+
+## Waga ekwipunku gracza (obciążenie); odświeżana po zmianie inwentarza.
+func player_weight() -> float:
+	if _weight_cache < 0.0 and interaction != null:
+		var inv = interaction.inventory
+		_weight_cache = float(inv.total_weight(inv.contents("player", {})))
+	return maxf(_weight_cache, 0.0)
+
+## Użycie umiejętności gracza (skillUsageSucceeded): komunikaty o wzroście i gotowości do awansu.
+func skill_used(skill: int, use: String, scale := 1.0) -> void:
+	var st := player_stats()
+	if st.is_empty() or character == null:
+		return
+	for m in character.use_skill(st, skill, int(character.SKILL_USE.get(use, 0)), scale):
+		_skill_message(m)
+
+func _skill_message(m: Dictionary) -> void:
+	if m.kind == "skill":
+		var names: Array = builder.actors.records_index().get("skills", [])
+		var sid := String(names[int(m.skill)]) if int(m.skill) < names.size() else ""
+		var sname := sid
+		var gm := "sSkill" + sid.capitalize().replace(" ", "")
+		if dialogue != null:
+			sname = dialogue.gmst_text(gm, sid)
+		var tmpl: String = dialogue.gmst_text("sNotifyMessage39", "Twoja umiejętność %s wzrosła do %d.") if dialogue != null else "%s: %d"
+		_toast(tmpl.replace("%s", sname).replace("%d", str(int(m.level))) if tmpl.contains("%s") else "%s: %d" % [sname, int(m.level)])
+		if audio != null:
+			audio.play("skillraise")
+	elif m.kind == "levelup_ready":
+		_toast(dialogue.gmst_text("sLevelUpMsg", "Powinieneś odpocząć i przemyśleć to, czego się nauczyłeś.") if dialogue != null else "Awans po odpoczynku.")
+
+func _on_player_jumped() -> void:
+	var st := player_stats()
+	if st.is_empty():
+		return
+	st["fatigue"] = float(st.get("fatigue", 0.0)) - character.jump_fatigue(st, player_weight())
+	skill_used(character.SK_ACROBATICS, "acrobatics_jump")
+
+## Co klatkę: prędkości i skok wg statystyk (OpenMW getWalkSpeed/getRunSpeed/getJump), utrata kondycji za
+## bieg/pływanie, odnowa kondycji, postęp atletyki za każdą sekundę biegu/pływania.
+func _update_player_rpg(dt: float) -> void:
+	var st := player_stats()
+	if st.is_empty() or player == null or player.fly:
+		return
+	var w := player_weight()
+	var mv: Dictionary = character.movement(st, w, player.want_run)
+	var upm := MWCoords.UNITS_PER_METER
+	player.walk_speed = float(mv.walk) / upm
+	player.run_speed = float(mv.run) / upm
+	player.swim_speed = float(mv.swim) / upm
+	player.jump_velocity = float(mv.jump) / upm
+	player.air_factor = float(mv.air_factor)
+	var moving: bool = player.move_input.length() > 0.01
+	if moving:
+		var fat := float(st.get("fatigue", 0.0))
+		var loss: float = character.movement_fatigue(st, w, dt, player.want_run, player.swimming)
+		if loss > 0.0:
+			st["fatigue"] = fat - loss if fat < 0.0 else maxf(0.0, fat - loss)
+		if player.swimming:
+			_swim_secs += dt
+			while _swim_secs > 1.0:
+				skill_used(character.SK_ATHLETICS, "athletics_swim")
+				_swim_secs -= 1.0
+		elif player.want_run:
+			_run_secs += dt
+			while _run_secs > 1.0:
+				skill_used(character.SK_ATHLETICS, "athletics_run")
+				_run_secs -= 1.0
+	character.restore_fatigue(st, dt)
 
 static func _load_settings(path: String) -> Dictionary:
 	if path.is_empty() or not FileAccess.file_exists(path):
@@ -404,6 +507,8 @@ func _process(_d: float) -> void:
 			audio.footsteps(player, moved, player.is_on_floor(), player.swimming)
 	_update_torches(_d)
 	_update_water_level()
+	if not get_tree().paused:
+		_update_player_rpg(_d)
 	if scripts != null and player != null and not get_tree().paused and arg("scripts", "1") != "0":
 		scripts.tick(_d, script_host.scripted_refs())
 	_capture_tick()
@@ -508,6 +613,10 @@ func _unhandled_input(e: InputEvent) -> void:
 		DisplayServer.clipboard_set(line)
 		print("MWGODOT_POS ", line)
 		_toast("Skopiowano do schowka: " + line)
+	if e.is_action_pressed("rest") and player and rest_window != null and not rest_window.visible:
+		rest_window.open()
+		get_viewport().set_input_as_handled()
+		return
 	if e.is_action_pressed("inventory") and player and item_window != null and not item_window.visible:
 		item_window.open_inventory()
 		get_viewport().set_input_as_handled()

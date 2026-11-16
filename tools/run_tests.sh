@@ -127,6 +127,8 @@ run_gd test_interaction.gd --data="$WORK/actors_out" --project="$WORK/project_in
 run_gd test_character.gd --data="$WORK/actors_out" --project="$WORK/project_character" --pos=2300,2400,900 --scripts=0
 run_gd test_scripts.gd --data="$WORK/actors_out" --project="$WORK/project_scripts" --pos=2000,2300,900
 run_gd test_dialogue.gd --data="$WORK/actors_out" --project="$WORK/project_dialogue" --pos=2300,2400,900
+run_gd test_progress.gd --data="$WORK/actors_out" --project="$WORK/project_progress" --pos=2300,2400,900 --scripts=0
+run_gd test_trade.gd --data="$WORK/actors_out" --project="$WORK/project_trade" --pos=2300,2400,900 --scripts=0
 
 if ls "$ROOT/godot/bin/"libmw_native* >/dev/null 2>&1; then
   run_gd test_gdextension.gd

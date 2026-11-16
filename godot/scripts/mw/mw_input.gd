@@ -10,6 +10,7 @@ const DEFAULTS := {
 	"copy_position": KEY_F4,
 	"inventory": KEY_I,
 	"journal": KEY_J,
+	"rest": KEY_T,
 }
 
 static func register_defaults() -> void:

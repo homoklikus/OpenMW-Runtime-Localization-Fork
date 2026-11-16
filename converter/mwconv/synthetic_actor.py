@@ -456,6 +456,66 @@ def _stage6_records() -> list:
     ]
 
 
+# etap 7: ustawienia rozwoju postaci (wartości jak w Morrowind.esm – testy nie zależą od domyślnych w kodzie)
+GMST_STAGE7 = {"fMajorSkillBonus": 0.75, "fMinorSkillBonus": 1.0, "fMiscSkillBonus": 1.25, "fSpecialSkillBonus": 0.8,
+               "iLevelUpTotal": 10, "iLevelUpMajorMult": 1, "iLevelUpMinorMult": 1, "iLevelupMajorMultAttribute": 1,
+               "iLevelupMinorMultAttribute": 1, "iLevelupMiscMultAttriubte": 1, "iLevelupSpecialization": 1,
+               "iLevelUp01Mult": 2, "iLevelUp02Mult": 2, "iLevelUp03Mult": 2, "iLevelUp04Mult": 2, "iLevelUp05Mult": 3,
+               "fLevelUpHealthEndMult": 0.1, "fRestMagicMult": 0.15, "fMinWalkSpeed": 100.0, "fMaxWalkSpeed": 200.0,
+               "fAthleticsRunBonus": 1.0, "fBaseRunMultiplier": 1.75, "fEncumbranceStrMult": 5.0,
+               "fEncumberedMoveEffect": 0.3, "fJumpAcrobaticsBase": 128.0, "fJumpAcroMultiplier": 4.0,
+               "fJumpEncumbranceBase": 0.5, "fJumpEncumbranceMultiplier": 0.5, "fJumpRunMultiplier": 1.0,
+               "fFatigueRunBase": 5.0, "fFatigueRunMult": 2.0, "fFatigueJumpBase": 5.0, "fFatigueJumpMult": 5.0,
+               "fFatigueReturnBase": 2.5, "fFatigueReturnMult": 0.02, "fEndFatigueMult": 0.04,
+               "fFatigueBase": 1.25, "fFatigueMult": 0.5}
+
+
+def _gmst(name, v) -> bytes:
+    sub = W.sub("FLTV", struct.pack("<f", v)) if isinstance(v, float) else W.sub("INTV", struct.pack("<i", v))
+    return W.record("GMST", [W.sub("NAME", W.zs(name)), sub])
+
+
+GMST_TRADE = {"fDispositionMod": 1.0, "fBargainOfferBase": 50.0, "fBargainOfferMulti": -4.0,
+              "iBarterSuccessDisposition": 1, "iBarterFailDisposition": -1, "fBarterGoldResetDelay": 24.0,
+              "fSpellValueMult": 10.0, "fEffectCostMult": 0.5, "iTrainingMod": 10, "fTravelMult": 4000.0,
+              "fTravelTimeMult": 16000.0, "fMagesGuildTravel": 30}
+TRADER_INVENTORY = [(5, "misc_synth_spoon"), (1, "synth_sword"), (50, "gold_001")]
+TRADER_SPELLS = ["synth_bolt", "synth_ability"]
+
+
+def _trader() -> bytes:
+    """Kupiec: handel wszystkim, zaklęcia, trening (AIDT), podróż do miejsca w Synthville, 500 sztuk złota."""
+    npdt = struct.pack("<h", 5) + bytes([50, 0, 0]) + b"\0\0\0" + struct.pack("<i", 500)
+    services = 0x2000 | 0x7FF | 0x800 | 0x4000
+    aidt = struct.pack("<HBBB", 30, 0, 0, 0) + b"\0\0\0" + struct.pack("<i", services)
+    subs = [W.sub("NAME", W.zs("synth_trader")), W.sub("FNAM", W.zs("Kupiec testowy")), W.sub("RNAM", W.zs(RACE)),
+            W.sub("CNAM", W.zs("Synth Warrior")), W.sub("BNAM", W.zs("b_n_synth_m_head_01")),
+            W.sub("KNAM", W.zs("b_n_synth_m_hair_01")), W.sub("NPDT", npdt),
+            W.sub("FLAG", struct.pack("<i", 0x08))]          # bez flagi autoobliczania usług – usługi z AIDT
+    subs += [W.sub("NPCO", struct.pack("<i", n) + iid.encode().ljust(32, b"\0")) for n, iid in TRADER_INVENTORY]
+    subs += [W.sub("NPCS", s.encode().ljust(32, b"\0")) for s in TRADER_SPELLS]
+    subs.append(W.sub("AIDT", aidt))
+    subs.append(W.sub("DODT", struct.pack("<6f", 3000.0, 3000.0, 900.0, 0.0, 0.0, 1.5)))
+    return W.record("NPC_", subs)
+
+
+def _stage7_records() -> list:
+    athletics = W.record("SKIL", [W.sub("INDX", struct.pack("<i", 8)),
+                                  W.sub("SKDT", struct.pack("<ii4f", 4, 2, 1.0, 0.5, 0.0, 0.0))])
+    merc = W.record("SKIL", [W.sub("INDX", struct.pack("<i", 24)),
+                             W.sub("SKDT", struct.pack("<ii4f", 6, 2, 1.0, 0.0, 0.0, 0.0))])
+    # MGEF 14 (obrażenia od ognia: zniszczenie, koszt 5) i zaklęcie z autoobliczanym kosztem
+    fire = W.record("MGEF", [W.sub("INDX", struct.pack("<i", 14)),
+                             W.sub("MEDT", struct.pack("<ifiiiifff", 2, 5.0, 0, 255, 0, 0, 1.0, 1.0, 1.0))])
+    bolt = W.record("SPEL", [W.sub("NAME", W.zs("synth_bolt")), W.sub("FNAM", W.zs("Ognisty pocisk")),
+                             W.sub("SPDT", struct.pack("<iii", 0, 999, 1)),
+                             W.sub("ENAM", struct.pack("<hbbiiiii", 14, -1, -1, 2, 0, 1, 10, 20))])
+    refusal = [W.dial("Service Refusal", 0),
+               W.info("sr1", "", "", "Nie handluje z takimi jak ty.", actor="synth_trader", disposition=20),
+               W.dial("Greeting 5", 2), W.info("gt", "", "", "Czego potrzebujesz?", actor="synth_trader")]
+    return [athletics, merc, fire, bolt, _trader()] + refusal + [_gmst(k, v) for k, v in {**GMST_STAGE7, **GMST_TRADE}.items()]
+
+
 def _stage3_records() -> list:
     torch = W.record("LIGH", [W.sub("NAME", W.zs("synth_torch")), W.sub("MODL", W.zs("l\\l_synth_torch.nif")),
                               W.sub("FNAM", W.zs("Pochodnia")),
@@ -492,7 +552,10 @@ ACTOR_REFS = {  # refnum: (rekord, x, y, obrót z w stopniach)
     9006: ("misc_synth_spoon", 2050.0, 2500.0, 0.0),
     9007: ("synth_banner", 1900.0, 2300.0, 0.0),
     9008: ("synth_lever", 1950.0, 2250.0, 0.0),
+    9009: ("synth_trader", 2400.0, 2200.0, 0.0),
+    9010: ("synth_chest", 2450.0, 2150.0, 0.0),        # skrzynia kupca (właściciel synth_trader)
 }
+REF_EXTRA = {9010: {"owner": "synth_trader"}}
 
 
 def write_actors(data_dir: Path) -> dict:
@@ -511,10 +574,10 @@ def write_actors(data_dir: Path) -> dict:
     recs += _stage3_records() + _stage4_records() + _stage5_records()
     recs += [_npc("synth_villager", False, script="synth_talker"), _npc("synth_villager_f", True), _creature(),
              _npc("synth_guard", False, GUARD_INVENTORY, faction="Synth Guild", rank=1)]
-    recs += _stage6_records()
+    recs += _stage6_records() + _stage7_records()
     refs = []
     for rn, (base, x, y, rz) in ACTOR_REFS.items():
-        refs.append(W.ref_subs(rn, base, (x, y, height_at(x, y)), (0, 0, math.radians(rz))))
+        refs.append(W.ref_subs(rn, base, (x, y, height_at(x, y)), (0, 0, math.radians(rz)), extra=REF_EXTRA.get(rn)))
     recs.append(W.cell("Synthville", (0, 0), False, refs, region="Synthetic Region"))
     esp = data_dir / "mwg_actors.esp"
     esp.write_bytes(W.header([("mwg_synthtown.esm", 0)], len(recs), desc="synthetic actors", is_master=False)

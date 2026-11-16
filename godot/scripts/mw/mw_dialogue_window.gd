@@ -125,9 +125,17 @@ func refresh() -> void:
 	var av: Array = dialogue.available_topics()
 	topics.clear()
 	_topic_ids = []
+	var special := 0
 	if dialogue.actor.get("npc", false):
 		topics.add_item(_t("sPersuasion", "Perswazja"))
 		_topic_ids.append("#persuasion")
+		special += 1
+	if main != null and main.get("trade") != null:
+		for e in main.trade.service_entries(dialogue.actor):
+			topics.add_item(String(e[1]))
+			_topic_ids.append("#svc:" + String(e[0]))
+			special += 1
+	if special > 0:
 		topics.add_item("")
 		topics.set_item_selectable(topics.item_count - 1, false)
 		topics.set_item_disabled(topics.item_count - 1, true)
@@ -205,6 +213,9 @@ func _on_topic(i: int) -> void:
 	if id == "#persuasion":
 		if not dialogue.in_choice and not dialogue.goodbye_flag:
 			_open_persuasion()
+	elif id.begins_with("#svc:"):
+		if not dialogue.in_choice and not dialogue.goodbye_flag:
+			main.trade_window.open(id.substr(5))
 	elif id != "":
 		select_topic(id)
 
@@ -247,6 +258,8 @@ func close(force := false) -> bool:
 		return false
 	dialogue.end()
 	visible = false
+	if main != null and main.get("trade_window") != null:
+		main.trade_window.close()
 	persuasion.visible = false
 	get_tree().paused = false
 	if DisplayServer.get_name() != "headless":

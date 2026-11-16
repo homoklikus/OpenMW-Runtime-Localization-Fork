@@ -29,7 +29,9 @@ FILES = {"NPC_": "npc", "CREA": "creature", "RACE": "race", "CLAS": "class", "FA
          # etap 4: czary (zdolności ras i znaków, moce, czary startowe)
          "SPEL": "spell",
          # etap 5: skrypty (drzewo składni z kompilatora mwscript) i skrypty startowe
-         "SCPT": "script", "SSCR": "startscript"}
+         "SCPT": "script", "SSCR": "startscript",
+         # etap 7: efekty magiczne i zaklęcia przedmiotów
+         "MGEF": "magiceffect", "ENCH": "enchantment"}
 
 
 def _zs(b: bytes) -> str:
@@ -478,6 +480,41 @@ def decode_startscript(rec, rid: str) -> dict:
     return {"id": rid, "script": rid}
 
 
+def decode_mgef(rec, rid: str) -> dict:
+    """MGEF jak ESM::MagicEffect::load: id = indeks efektu; flagi stałe z tabeli OpenMW (format TES3)."""
+    from .mgef import EFFECT_NAMES, HARDCODED_FLAGS, MODIFIABLE, FLAG_NAMES, SCHOOL_SKILLS
+    idx = int(rid)
+    o: dict = {"id": rid, "index": idx, "name": EFFECT_NAMES[idx] if 0 <= idx < len(EFFECT_NAMES) else rid}
+    d = rec.get("MEDT")
+    if d is not None and len(d) >= 36:
+        school, cost, fl, r, g, b, sx, speed, cap = struct.unpack_from("<ifiiiifff", d, 0)
+        fl &= MODIFIABLE
+        if 0 <= idx < len(HARDCODED_FLAGS):
+            fl |= HARDCODED_FLAGS[idx]
+        o.update(school=school, school_skill=SCHOOL_SKILLS[school] if 0 <= school < 6 else -1, base_cost=cost,
+                 flags=fl, color=[r, g, b], size_x=sx, speed=speed, size_cap=cap)
+        for bit, nm in FLAG_NAMES.items():
+            o[nm] = bool(fl & bit)
+    for tag, key in (("ITEX", "icon"), ("PTEX", "particle"), ("BSND", "bolt_sound"), ("CSND", "cast_sound"),
+                     ("HSND", "hit_sound"), ("ASND", "area_sound"), ("CVFX", "cast_vfx"), ("BVFX", "bolt_vfx"),
+                     ("HVFX", "hit_vfx"), ("AVFX", "area_vfx"), ("DESC", "description")):
+        v = rec.zstr(tag)
+        if v:
+            o[key] = v
+    return o
+
+
+def decode_enchantment(rec, rid: str) -> dict:
+    o: dict = {"id": rid}
+    d = rec.get("ENDT")
+    if d is not None and len(d) >= 16:
+        typ, cost, charge, fl = struct.unpack_from("<iiii", d, 0)
+        o.update(type=typ, type_name=["cast_once", "when_strikes", "when_used", "constant"][typ] if 0 <= typ < 4 else str(typ),
+                 cost=cost, charge=charge, autocalc=bool(fl & 1), flags=fl)
+    o["effects"] = _effects(rec)
+    return o
+
+
 def decode_gmst(rec, rid: str) -> dict:
     o: dict = {"id": rid}
     if rec.get("STRV") is not None:
@@ -536,10 +573,17 @@ DECODERS: dict[str, Callable] = {
     "CONT": decode_container, "LEVI": _leveled("INAM"), "LEVC": _leveled("CNAM"), "ALCH": decode_potion,
     "INGR": decode_ingredient, "DOOR": decode_door, "ACTI": decode_activator, "SOUN": decode_sound,
     "SPEL": decode_spell, "SCPT": decode_script, "SSCR": decode_startscript,
+    "MGEF": decode_mgef, "ENCH": decode_enchantment,
 }
 
 
 def record_id(rec) -> Optional[str]:
+    if rec.type == "MGEF":
+        d = rec.get("INDX")
+        if d is None or len(d) < 4:
+            return None
+        i = struct.unpack_from("<i", d, 0)[0]
+        return str(i) if 0 <= i < 143 else None
     if rec.type == "SCPT":
         d = rec.get("SCHD")
         return _zs(d[:32]) if d else None

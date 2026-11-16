@@ -9,11 +9,19 @@ extends CharacterBody3D
 signal controller_changed(controller: Node)
 ## Lądowanie po upadku: wysokość w jednostkach MW (obrażenia od upadku – etap 4, gdy aktor ma statystyki).
 signal landed(fall_height_mw: float)
+## Początek skoku (etap 7: kondycja i akrobatyka jak OpenMW PhysicsSystem – handleJump).
+signal jumped
 
 @export var walk_speed := 3.2      # m/s (ok. 230 jedn./s – prędkość chodu w grze to ~100–200 jedn./s)
 @export var run_speed := 6.5
 @export var fly_speed := 25.0
 @export var jump_velocity := 4.5
+## Grawitacja i największa prędkość spadania jak w Morrowindzie (Constants::GravityUnits = 9,8 × 64 jedn./s²,
+## MaxFallSpeed 4005,5 jedn./s) – w metrach Godota.
+var gravity := 9.8 * 64.0 / MWCoords.UNITS_PER_METER
+var max_fall_speed := 4005.5 / MWCoords.UNITS_PER_METER
+## Sterowanie w powietrzu (fJumpMoveBase + fJumpMoveMult × akrobatyka) – ustawia gra wg statystyk.
+var air_factor := 1.0
 var kind := "npc"                  # player | npc | creature
 var record_id := ""                # id rekordu NPC_/CREA (gracz: "player")
 var sid := ""                      # stabilny id referencji w świecie ("" dla gracza)
@@ -85,12 +93,16 @@ func step(delta: float) -> void:
 		return
 	var speed := run_speed if want_run else walk_speed
 	var wish := (transform.basis * Vector3(move_input.x, 0, move_input.y)).normalized() * speed
+	if not is_on_floor():
+		wish *= air_factor
 	velocity.x = wish.x
 	velocity.z = wish.z
 	if not is_on_floor():
-		velocity.y -= 9.81 * delta
-	elif want_jump:
-		velocity.y = jump_velocity
+		velocity.y = maxf(velocity.y - gravity * delta, -max_fall_speed)
+	elif want_jump and jump_velocity > 0.0:
+		# skok w ruchu: wektor (kierunek, 1) × wysokość × 0,707 (character.cpp) – pionowo 0,707 prędkości skoku
+		velocity.y = jump_velocity * (0.707 if move_input.length() > 0.01 else 1.0)
+		jumped.emit()
 	want_jump = false
 	var was_floor := is_on_floor()
 	move_and_slide()
