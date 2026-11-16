@@ -37,3 +37,10 @@ def test_compare_agree_and_differ():
     rep2 = aicmp.compare(eng, ours)
     assert not rep2["summary"]["ok"] and rep2["checks"]["wander_distance"] == {"agree": 1, "of": 2}
     json.dumps(rep2)
+
+
+def test_leveled_spawn_not_missing():
+    eng = [_actor("e1", "slaughterfish_small", [-8750, -81465, -182], [[-8750, -81465, -182]], {"type": "Wander", "distance": 1000})]
+    ours = [{"kind": "meta", "id": "cells", "data": {"grids": [[-2, -10]], "spawn_points": [[-8750, -81460]]}}]
+    rep = aicmp.compare(eng, ours)
+    assert rep["actors"]["missing_in_ours"] == [] and rep["actors"]["leveled_spawn_differs"]["openmw_only"] == ["slaughterfish_small"]

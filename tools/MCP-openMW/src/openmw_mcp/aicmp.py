@@ -160,9 +160,30 @@ def match(engine: list, ours: list) -> tuple[list, list, list]:
     return pairs, miss, extra
 
 
+def _spawn_points(ours: list) -> list:
+    m = next((e["data"] for e in ours if e["kind"] == "meta"), None)
+    return [tuple(p) for p in (m or {}).get("spawn_points", [])]
+
+
+def _split_leveled(engine: list, ours: list, names: list, side: list) -> tuple[list, list]:
+    """Aktorzy bez pary stojący przy punkcie LEVC: losowanie listy poziomowanej (inne po obu stronach)."""
+    pts = _spawn_points(ours)
+    acts = [summarize(e) for e in side if e["kind"] == "actor"]
+    lev, rest = [], []
+    for n in names:
+        a = next((x for x in acts if x["recordId"] == n and any(math.dist(x["start"][:2], p) < MATCH_DIST for p in pts)), None)
+        (lev if a is not None else rest).append(n)
+        if a is not None:
+            acts.remove(a)
+    return lev, rest
+
+
 def compare(engine: list, ours: list) -> dict:
     pairs, miss, extra = match(engine, ours)
-    rep = {"actors": {"matched": len(pairs), "missing_in_ours": miss, "extra_in_ours": extra},
+    lev_miss, miss = _split_leveled(engine, ours, miss, engine)
+    lev_extra, extra = _split_leveled(engine, ours, extra, ours)
+    rep = {"actors": {"matched": len(pairs), "missing_in_ours": miss, "extra_in_ours": extra,
+                      "leveled_spawn_differs": {"openmw_only": lev_miss, "ours_only": lev_extra}},
            "checks": {}, "actors_detail": [], "crime": {}}
     chk = {"package_type": [0, 0], "wander_distance": [0, 0], "moved": [0, 0], "in_range_openmw": [0, 0],
            "in_range_ours": [0, 0]}

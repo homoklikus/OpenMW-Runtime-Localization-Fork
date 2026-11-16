@@ -72,7 +72,14 @@ func _run() -> void:
 		if k.begins_with("ext:"):
 			var xy := k.substr(4).split(",")
 			grids.append([int(xy[0]), int(xy[1])])
-	_out("meta", "cells", {"grids": grids, "interior": main.interior})
+	var spawns := []                       # punkty LEVC – wynik losowania listy różni się między silnikami
+	for key in main.loaded:
+		for r in main.db.get_cell(String(key)).get("refs", []):
+			if String(main.db.get_object(String(r.get("base", ""))).get("type", "")) == "LEVC":
+				var mw: Dictionary = r.get("mw", {})
+				var pp: Array = mw.get("pos", [0, 0, 0])
+				spawns.append([roundi(float(pp[0])), roundi(float(pp[1]))])
+	_out("meta", "cells", {"grids": grids, "interior": main.interior, "spawn_points": spawns})
 	await _seconds(float(req.get("settle", 3)))
 	var step := float(req.get("step", 1))
 	var n_samples := int(float(req.get("duration", 30)) / step) + 1
