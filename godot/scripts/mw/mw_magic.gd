@@ -316,7 +316,7 @@ const MAP_ONLY := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 28, 29, 30, 31, 32, 33,
 	46, 47, 48, 58, 64, 65, 66, 67, 68, 79, 83, 84, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 117, 136]
 # efekty zależne od AI, przywołań, teleportacji po znacznikach itp. – etap 8 (w mapie efektów, bez działania)
 const LATER := {
-	126: "ExtraSpell (brak w danych gry; rozbieranie NPC – brak)", 132: "Korpus: pogarszanie (brak)"}
+}
 const SPELL_SPELL := 0
 const SPELL_ABILITY := 1
 const SPELL_POWER := 5
@@ -1075,6 +1075,10 @@ func _actor_effect(f: Dictionary, entry: Dictionary, e: Dictionary, amount: floa
 		FX_CHARM:
 			if f.kind != "npc":
 				e["invalid"] = true
+		126:
+			# ExtraSpell: tylko aktorzy z ekwipunkiem (NPC); gracz – bez zmian (rozbieranie – MWCombat.equipment)
+			if f.kind == "creature" and (int(f.rec.get("flags", 0)) & 4) == 0:   # hasInventoryStore (broń i tarcza)
+				e["invalid"] = true
 		102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 134, 137, 138, 139, 140, 141, 142:
 			e["actor"] = summon_creature(id, f)
 		_:
@@ -1234,6 +1238,63 @@ func stunted_magicka_remaining(f: Dictionary) -> float:
 				any = true
 				rem = maxf(rem, float(x.time_left))
 	return rem if any else -1.0
+
+## World::listDetectedReferences: obiekty aktywnych komórek w promieniu wielkość × 22 j. (feetToGameUnits) od gracza:
+## „creature” – żywe stworzenia (wilkołak: NPC), „key” – klucze, „enchantment” – przedmioty zaklęte; pojemniki
+## i aktorzy z takim przedmiotem w inwentarzu też (AddDetectedReferenceVisitor). → węzły.
+const DETECT_EFFECT := {"creature": 64, "enchantment": 65, "key": 66}
+
+func detected_references(kind: String) -> Array:
+	var out := []
+	if main == null or main.player == null or not DETECT_EFFECT.has(kind):
+		return out
+	var dist := magnitude_of(_combat().player_fighter(), int(DETECT_EFFECT[kind]))
+	if dist <= 0.0:
+		return out
+	dist *= ceilf(64.0 / 3.0)
+	var pp := MWCoords.godot_to_mw(main.player.global_position)
+	var werewolf := bool(main.player_stats().get("werewolf", false))
+	var inv = main.interaction.inventory if main.interaction != null else null
+	for key in main.loaded:
+		var refs: Node = main.loaded[key].get_node_or_null("Refs")
+		if refs == null:
+			continue
+		for n in refs.get_children():
+			if not n.has_meta("mw_base") or not (n is Node3D) or not (n as Node3D).visible:
+				continue
+			if MWCoords.godot_to_mw((n as Node3D).global_position).distance_squared_to(pp) > dist * dist:
+				continue
+			var base := String(n.get_meta("mw_base")).to_lower()
+			var sid := String(n.get_meta("mw_sid", ""))
+			var actor_kind := String(n.get_meta("mw_actor", ""))
+			if kind == "creature":
+				if actor_kind == ("npc" if werewolf else "creature") and not _combat().is_dead(_combat().fighter_of(n)):
+					out.append(n)
+				continue
+			if inv == null:
+				continue
+			if _detect_item(inv.item(base), kind):
+				out.append(n)
+				continue
+			var crec: Dictionary = {}
+			if actor_kind != "":
+				crec = _combat().fighter_of(n).get("rec", {})
+			elif not records.record("container", base).is_empty():
+				crec = records.record("container", base)
+			else:
+				continue
+			for e in inv.contents(sid, crec):
+				if _detect_item(inv.item(String(e.id)), kind):
+					out.append(n)
+					break
+	return out
+
+func _detect_item(it: Dictionary, kind: String) -> bool:
+	if it.is_empty():
+		return false
+	if kind == "key":
+		return String(it.kind) == "misc" and bool(it.rec.get("key", false))
+	return not String(it.rec.get("enchant", "")).is_empty()
 
 ## World::breakInvisibility: usuwa Niewidzialność (atak, rzucanie, użycie przedmiotu, wypicie, alchemia…).
 func break_invisibility(f: Dictionary) -> void:

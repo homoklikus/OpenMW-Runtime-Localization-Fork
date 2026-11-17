@@ -1,0 +1,50 @@
+{
+ "name": "fx_potions",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -12288 -69632 160 0"
+ ],
+ "commands": [
+  "player->Equip \"p_swift_swim_e\"",
+  "player->Equip \"p_heroism_s\"",
+  "player->Equip \"p_fire_shield_e\"",
+  "player->Equip \"p_burden_e\"",
+  "player->Equip \"p_feather_e\"",
+  "player->Equip \"p_jump_e\"",
+  "player->Equip \"p_chameleon_e\"",
+  "player->Equip \"p_light_e\"",
+  "player->Equip \"p_night-eye_e\"",
+  "player->Equip \"p_telekinesis_s\"",
+  "player->Equip \"p_detect_creatures_s\"",
+  "player->Equip \"p_detect_enchantment_s\"",
+  "player->Equip \"p_detect_key_s\"",
+  "player->Equip \"p_spell_absorption_e\"",
+  "player->Equip \"p_reflection_e\"",
+  "player->Equip \"p_fortify_health_e\"",
+  "player->Equip \"p_fortify_magicka_e\"",
+  "player->Equip \"p_fortify_fatigue_e\"",
+  "player->Equip \"p_fire_resistance_e\"",
+  "player->Equip \"p_frost_resistance_e\"",
+  "player->Equip \"p_shock_resistance_e\"",
+  "player->Equip \"p_magicka_resistance_e\"",
+  "player->Equip \"p_disease_resistance_e\"",
+  "player->Equip \"p_poison_resistance_e\"",
+  "player->Equip \"p_fortify_attack_e\"",
+  "player->Equip \"potion_t_bug_musk_01\"",
+  "player->Equip \"p_dwemer_lubricant00\"",
+  "player->Equip \"p_frost_shield_e\"",
+  "player->Equip \"p_lightning shield_e\"",
+  "player->Equip \"p_silence_b\""
+ ],
+ "seconds": 3
+}

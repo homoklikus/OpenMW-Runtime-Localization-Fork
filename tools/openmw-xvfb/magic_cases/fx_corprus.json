@@ -20,8 +20,22 @@
  "after": [
   [
    20,
-   "set GameHour to GameHour + 25"
+   "set DaysPassed to DaysPassed + 2"
   ]
  ],
- "seconds": 5
+ "seconds": 5,
+ "vars": [
+  [
+   "short",
+   "r_dp"
+  ],
+  [
+   "float",
+   "r_gh"
+  ]
+ ],
+ "every": [
+  "set r_dp to DaysPassed",
+  "set r_gh to GameHour"
+ ]
 }

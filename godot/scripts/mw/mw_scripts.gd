@@ -272,16 +272,56 @@ func _var_type(script_id: String, name: String) -> String:
 func _global_rec(name: String) -> Dictionary:
 	return records.record("global", name)
 
+## Zmienne czasu (DateTimeManager): GameHour – bieżąca godzina świata, DaysPassed – licznik dni (znacznik czasu
+## TimeStamp); Day/Month/Year – kalendarz (zmieniany o północy i przez GameHour ≥ 24 – setHour → setDay).
+const DAYS_PER_MONTH := [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
+func _days_passed_base() -> float:
+	return float(_global_rec("dayspassed").get("value", 1.0))
+
 func get_global(name: String) -> float:
 	var k := name.to_lower()
+	if game != null and game.get("envr") != null:
+		if k == "gamehour":
+			return float(game.envr.game_hour)
+		if k == "dayspassed" and not _global_rec(k).is_empty():
+			return float(game.envr.day) + _days_passed_base()
 	if state.globals.has(k):
 		return float(state.globals[k])
 	return float(_global_rec(k).get("value", 0.0))
 
 func set_global(name: String, v: float) -> void:
 	var k := name.to_lower()
+	if game != null and game.get("envr") != null:
+		if k == "gamehour":
+			# DateTimeManager::setHour: ujemna → 0; pełne doby przesuwają kalendarz (nie DaysPassed)
+			var h := maxf(0.0, v)
+			var days := int(floorf(h / 24.0))
+			game.envr.game_hour = h - 24.0 * days
+			if days > 0:
+				calendar_add_days(days)
+			game.envr.apply()
+			return
+		if k == "dayspassed" and not _global_rec(k).is_empty():
+			game.envr.day = int(v - _days_passed_base())
+			return
 	var t := String(_global_rec(k).get("type", "f"))
 	state.globals[k] = float(int(v)) if t in ["s", "l", "short", "long"] else v
+
+## DateTimeManager::setDay: dzień kalendarza z przejściem miesięcy i lat.
+func calendar_add_days(n: int) -> void:
+	var day := int(get_global("day")) + n
+	var month := int(get_global("month"))
+	var year := int(get_global("year"))
+	while day > int(DAYS_PER_MONTH[clampi(month, 0, 11)]):
+		day -= int(DAYS_PER_MONTH[clampi(month, 0, 11)])
+		month += 1
+		if month > 11:
+			month = 0
+			year += 1
+	set_global("day", day)
+	set_global("month", month)
+	set_global("year", year)
 
 func _read_var(name: String, c: Ctx):
 	var k := name.to_lower()

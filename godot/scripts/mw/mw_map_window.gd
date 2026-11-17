@@ -21,7 +21,8 @@ var _world_info := {}
 var _zoom := 1.0
 var _scroll: ScrollContainer = null
 var _world_rect: TextureRect = null
-var door_markers: Array = []             # testy: [[nazwa celu, pozycja na mapie]]
+var door_markers: Array = []
+var detect_markers: Array = []           # testy: [[rodzaj wykrycia, pozycja na mapie]]             # testy: [[nazwa celu, pozycja na mapie]]
 var place_markers: Array = []            # testy: [[nazwa, x, y]]
 var player_marker_pos := Vector2.ZERO    # testy
 var _refresh_t := 0.0
@@ -180,6 +181,20 @@ func _build_local() -> void:
 			m.position = mp - m.size / 2.0
 			m.tooltip_text = name
 			_view.add_child(m)
+	# MapWindow::updateMagicMarkers: Wykrywanie zwierząt / zaklęć / kluczy (World::listDetectedReferences)
+	detect_markers = []
+	if main.magic != null:
+		for kind in ["creature", "enchantment", "key"]:
+			for n in main.magic.detected_references(kind):
+				var ml: Dictionary = lmap.locate((n as Node3D).global_position)
+				var mp2: Vector2 = center + (Vector2(ml.f) - pf) * T
+				detect_markers.append([kind, mp2])
+				var dm := ColorRect.new()
+				dm.color = {"creature": Color(0.9, 0.6, 0.2), "enchantment": Color(0.4, 0.5, 1.0), "key": Color(1.0, 0.9, 0.3)}[kind]
+				dm.size = Vector2(5, 5) * scale_ui
+				dm.position = mp2 - dm.size / 2.0
+				dm.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				_view.add_child(dm)
 	_player_arrow(center, main.player)
 	player_marker_pos = center
 

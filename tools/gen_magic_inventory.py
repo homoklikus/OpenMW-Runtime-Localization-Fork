@@ -75,6 +75,16 @@ s([27,45,72,73],I,Z,"trucizna, paraliż i ich leczenie","fx_cures: 0 różnic")
 s([132],C,C,"choroba jako trwały czar: Wyssanie/Wzmocnienie atrybutów przy dodaniu (jak OpenMW); pogarszanie co 24 h","fx_corprus: atrybuty zgodne; pogarszanie po SetGameHour nie zadziałało w żadnym silniku (nie potwierdzone)")
 s([135],B,Z,"zdrowie na zewnątrz × widoczność słońca","fx_sun: ~5/s w obu (Wampir: obrażenia od słońca)")
 s([133],C,C,"dialogi, zdolność z Obrażeniami od słońca i Słabością na ogień; reakcje NPC/sen – brak","fx_sun: mapa zgodna")
+
+# --- etap 3 (2026-11-17 noc): mikstury, choroby, Wykrywanie, ExtraSpell, czas świata ---
+s([76,77],I,Z,"przywracanie magii/kondycji","fx_potions_restore: pełne przywrócenie w obu")
+s([19],I,Z,"wyssanie magii","fx_potions_restore (rzut odporności)")
+s([69,70],I,Z,"usuwanie chorób i zarazy z listy czarów (także NPC), cofnięcie Wyssania","fx_disease_cure: GetSpell/GetCommonDisease/GetBlightDisease 0, atrybuty wracają")
+s([101],B,Z,"Flee + wielkość dla nieumarłych (Creature::Undead)","fx_turnundead: ucieczka przywołanego szkieletu zgodna")
+s([132],C,Z,"choroba jako trwały czar: Wyssanie/Wzmocnienie przy dodaniu, pogarszanie co 24 h znacznika czasu (DaysPassed)","fx_corprus: atrybuty po 2 dniach zgodne (dwa pogorszenia)")
+s([64,65,66],B,I,"znaczniki na mapie lokalnej (listDetectedReferences: promień wielkość × 22 j., pojemniki i aktorzy z przedmiotem)","mapa efektów zgodna (fx_potions); znaczniki – bez porównania obrazu")
+s([126],B,I,"NPC zdejmuje wszystko poza bronią, amunicją, spodniami i pochodnią; po wygaśnięciu autoEquip","brak czaru z tym efektem w danych gry – bez porównania")
+s([17],I,Z,"ubytki atrybutów, przywracanie po wygaśnięciu i wyleczeniu","fx_corprus, fx_disease_cure: wartości stałe zgodne (bez rzutu odporności)")
 rows=["| # | Efekt | Przed etapem | Po etapie | Działanie | Test / porównanie z OpenMW |","|---|---|---|---|---|---|"]
 from collections import Counter
 cb,ca=Counter(),Counter()

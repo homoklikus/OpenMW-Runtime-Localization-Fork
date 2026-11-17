@@ -1,0 +1,47 @@
+{
+ "name": "fx_disease",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -12288 -69632 160 0"
+ ],
+ "commands": [
+  "player->AddSpell ataxia",
+  "player->AddSpell \"brown rot\"",
+  "player->AddSpell \"black-heart blight\""
+ ],
+ "every": [
+  "set r_a to player->GetSpell ataxia",
+  "set r_b to player->GetSpell \"black-heart blight\"",
+  "set r_c to player->GetCommonDisease",
+  "set r_d to player->GetBlightDisease"
+ ],
+ "vars": [
+  [
+   "short",
+   "r_a"
+  ],
+  [
+   "short",
+   "r_b"
+  ],
+  [
+   "short",
+   "r_c"
+  ],
+  [
+   "short",
+   "r_d"
+  ]
+ ],
+ "seconds": 2
+}

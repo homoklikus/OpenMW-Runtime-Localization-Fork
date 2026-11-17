@@ -166,6 +166,9 @@ func advance(hours: float) -> void:
 	while game_hour >= 24.0:
 		game_hour -= 24.0
 		day += 1
+		# DateTimeManager::advanceTime: nowy dzień – DaysPassed (day) i kalendarz (Day/Month/Year)
+		if main != null and main.get("scripts") != null:
+			main.scripts.calendar_add_days(1)
 	if wm.advance_hours(hours):
 		pick_weather()
 	apply()

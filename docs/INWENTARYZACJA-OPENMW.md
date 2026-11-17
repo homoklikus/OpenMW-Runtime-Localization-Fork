@@ -531,14 +531,16 @@ _remove_effect → removeMagicEffect, _should_remove → shouldRemoveEffect), sk
 (apply_movement co klatkę), walka w `mw_combat.gd`, AI w `mw_ai.gd`/`mw_dialogue.gd`.
 
 **Stan przed etapem:** 0 zweryfikowanych porównaniem, 79 zaimplementowanych (testy syntetyczne), 14 częściowo,
-50 brakujących. **Po etapie:** 60 zweryfikowanych porównaniem z OpenMW (25 przypadków porównawczych), 68
-zaimplementowanych zgodnie z kodem OpenMW, 14 częściowo zgodnych, 1 brakujący (ExtraSpell – nieużywany w danych gry).
+50 brakujących. **Po etapie:** 68 zweryfikowanych porównaniem z OpenMW (30 przypadków porównawczych), 67
+zaimplementowanych zgodnie z kodem OpenMW, 8 częściowo zgodnych, 0 brakujących.
 
 Dodatkowo w tej części: trwałe czary (choroby, zaraza, klątwy) nakładają efekty jednorazowe na pule (Wyssanie i
 Uszkodzenie atrybutów/umiejętności) i Korpus pogarsza się co 24 h; wielkości zdolności losowane raz i zapisywane;
 podstawa kondycji/magii przeliczana po zmianie atrybutów (CreatureStats::setAttribute / recalculateMagicka – także
 stworzenia i NPC bez autoobliczania); przedmioty przywołane zakładane jak ActionEquip (bez zdejmowania broni
-dwuręcznej), także NPC; zmiana postawy za przestępstwa (reportCrime).
+dwuręcznej), także NPC; zmiana postawy za przestępstwa (reportCrime). Część 3: znaczniki Wykrywania na mapie
+lokalnej, ExtraSpell, zmienne czasu świata zsynchronizowane z czasem gry (GameHour, DaysPassed, Day/Month/Year –
+DateTimeManager; wcześniej zmienne skryptów nie zmieniały czasu i nie rosły o północy), mikstury przez Equip.
 
 Porównania: `tools/openmw-xvfb/magic_run.sh tools/openmw-xvfb/magic_cases/*.json` – czary nakładane w obu
 silnikach jak `ActiveSpells:add` (Lua po stronie OpenMW), migawka pełnej mapy efektów („fx”), statystyk, AI,
@@ -563,9 +565,9 @@ ekwipunku i położeń (próbki w czasie).
 | 14 | FireDamage | Zaimplementowane | Zaimplementowane | obrażenia zdrowia co sekundę, śmierć, odporności/słabości | test_magic |
 | 15 | ShockDamage | Zaimplementowane | Zaimplementowane | obrażenia zdrowia co sekundę, śmierć, odporności/słabości | test_magic |
 | 16 | FrostDamage | Zaimplementowane | Zaimplementowane | obrażenia zdrowia co sekundę, śmierć, odporności/słabości | test_magic |
-| 17 | DrainAttribute | Zaimplementowane | Częściowo zgodne | ubytki atrybutów/umiejętności, przywracanie po wygaśnięciu (Drain) | fx_player_damage/fx_npc_stats: wartości zgodne do rzutu odporności (losowe) |
+| 17 | DrainAttribute | Zaimplementowane | Zweryfikowane | ubytki atrybutów, przywracanie po wygaśnięciu i wyleczeniu | fx_corprus, fx_disease_cure: wartości stałe zgodne (bez rzutu odporności) |
 | 18 | DrainHealth | Zaimplementowane | Zweryfikowane | wyssanie zdrowia/kondycji | fx_npc_dynamic (różnica 0,6 zdrowia – czas próbki) |
-| 19 | DrainMagicka | Zaimplementowane | Zaimplementowane | zdrowie/magia/kondycja, Drain poniżej zera | test_magic |
+| 19 | DrainMagicka | Zaimplementowane | Zweryfikowane | wyssanie magii | fx_potions_restore (rzut odporności) |
 | 20 | DrainFatigue | Zaimplementowane | Zweryfikowane | wyssanie zdrowia/kondycji | fx_npc_dynamic (różnica 0,6 zdrowia – czas próbki) |
 | 21 | DrainSkill | Zaimplementowane | Częściowo zgodne | ubytki atrybutów/umiejętności, przywracanie po wygaśnięciu (Drain) | fx_player_damage/fx_npc_stats: wartości zgodne do rzutu odporności (losowe) |
 | 22 | DamageAttribute | Zaimplementowane | Częściowo zgodne | ubytki atrybutów/umiejętności, przywracanie po wygaśnięciu (Drain) | fx_player_damage/fx_npc_stats: wartości zgodne do rzutu odporności (losowe) |
@@ -610,20 +612,20 @@ ekwipunku i położeń (próbki w czasie).
 | 61 | Recall | Częściowo zgodne | Zweryfikowane | Znak z obrotem, Przywołanie, DisableTeleporting, zapis | fx_markrecall: 0 różnic |
 | 62 | DivineIntervention | Brakujące | Zweryfikowane | teleportToClosestMarker (siatka komórek, wnętrza przez drzwi) | fx_divine → Pelagiad, fx_almsivi → Vivec (x, y zgodne) |
 | 63 | AlmsiviIntervention | Brakujące | Zweryfikowane | teleportToClosestMarker (siatka komórek, wnętrza przez drzwi) | fx_divine → Pelagiad, fx_almsivi → Vivec (x, y zgodne) |
-| 64 | DetectAnimal | Brakujące | Częściowo zgodne | wielkość w mapie efektów; znaczniki na mapie – brak (zależność: mapa świata/lokalna) | mapa zgodna (fx_player_map) |
-| 65 | DetectEnchantment | Brakujące | Częściowo zgodne | wielkość w mapie efektów; znaczniki na mapie – brak (zależność: mapa świata/lokalna) | mapa zgodna (fx_player_map) |
-| 66 | DetectKey | Brakujące | Częściowo zgodne | wielkość w mapie efektów; znaczniki na mapie – brak (zależność: mapa świata/lokalna) | mapa zgodna (fx_player_map) |
+| 64 | DetectAnimal | Brakujące | Zaimplementowane | znaczniki na mapie lokalnej (listDetectedReferences: promień wielkość × 22 j., pojemniki i aktorzy z przedmiotem) | mapa efektów zgodna (fx_potions); znaczniki – bez porównania obrazu |
+| 65 | DetectEnchantment | Brakujące | Zaimplementowane | znaczniki na mapie lokalnej (listDetectedReferences: promień wielkość × 22 j., pojemniki i aktorzy z przedmiotem) | mapa efektów zgodna (fx_potions); znaczniki – bez porównania obrazu |
+| 66 | DetectKey | Brakujące | Zaimplementowane | znaczniki na mapie lokalnej (listDetectedReferences: promień wielkość × 22 j., pojemniki i aktorzy z przedmiotem) | mapa efektów zgodna (fx_potions); znaczniki – bez porównania obrazu |
 | 67 | SpellAbsorption | Częściowo zgodne | Zaimplementowane | dla każdego efektu osobno: rzut dla każdego aktywnego efektu, absorbSpell (+koszt) | rzuty losowe – porównanie rozkładu brak |
 | 68 | Reflect | Częściowo zgodne | Zaimplementowane | dla każdego efektu osobno: rzut dla każdego aktywnego efektu, absorbSpell (+koszt) | rzuty losowe – porównanie rozkładu brak |
-| 69 | CureCommonDisease | Zaimplementowane | Zaimplementowane | usuwanie chorób/trucizn/paraliżu/klątw (także NPC) | test_magic |
-| 70 | CureBlightDisease | Zaimplementowane | Zaimplementowane | usuwanie chorób/trucizn/paraliżu/klątw (także NPC) | test_magic |
+| 69 | CureCommonDisease | Zaimplementowane | Zweryfikowane | usuwanie chorób i zarazy z listy czarów (także NPC), cofnięcie Wyssania | fx_disease_cure: GetSpell/GetCommonDisease/GetBlightDisease 0, atrybuty wracają |
+| 70 | CureBlightDisease | Zaimplementowane | Zweryfikowane | usuwanie chorób i zarazy z listy czarów (także NPC), cofnięcie Wyssania | fx_disease_cure: GetSpell/GetCommonDisease/GetBlightDisease 0, atrybuty wracają |
 | 71 | CureCorprusDisease | Brakujące | Zaimplementowane | usuwa efekt Korpus | bez porównania |
 | 72 | CurePoison | Zaimplementowane | Zweryfikowane | trucizna, paraliż i ich leczenie | fx_cures: 0 różnic |
 | 73 | CureParalyzation | Zaimplementowane | Zweryfikowane | trucizna, paraliż i ich leczenie | fx_cures: 0 różnic |
 | 74 | RestoreAttribute | Zaimplementowane | Zweryfikowane | przywracanie | fx_player_map (Restore Health), fx_player_damage (Restore Attribute) |
 | 75 | RestoreHealth | Zaimplementowane | Zweryfikowane | przywracanie | fx_player_map (Restore Health), fx_player_damage (Restore Attribute) |
-| 76 | RestoreMagicka | Zaimplementowane | Zaimplementowane | przywracanie | test_magic |
-| 77 | RestoreFatigue | Zaimplementowane | Zaimplementowane | przywracanie | test_magic |
+| 76 | RestoreMagicka | Zaimplementowane | Zweryfikowane | przywracanie magii/kondycji | fx_potions_restore: pełne przywrócenie w obu |
+| 77 | RestoreFatigue | Zaimplementowane | Zweryfikowane | przywracanie magii/kondycji | fx_potions_restore: pełne przywrócenie w obu |
 | 78 | RestoreSkill | Zaimplementowane | Zaimplementowane | przywracanie | test_magic |
 | 79 | FortifyAttribute | Zaimplementowane | Zweryfikowane | wzmocnienia (czasowe zdrowie/magia/kondycja – tylko bieżąca, w mapie efektów) | fx_player_map, fx_npc_stats |
 | 80 | FortifyHealth | Zaimplementowane | Zweryfikowane | wzmocnienia (czasowe zdrowie/magia/kondycja – tylko bieżąca, w mapie efektów) | fx_player_map, fx_npc_stats |
@@ -647,7 +649,7 @@ ekwipunku i położeń (próbki w czasie).
 | 98 | ResistNormalWeapons | Zaimplementowane | Zaimplementowane | odporności (getEffectResistance – zawsze, także bez rzucającego) | wielkość w mapie zgodna (fx_player_map) |
 | 99 | ResistParalysis | Zaimplementowane | Zaimplementowane | odporności (getEffectResistance – zawsze, także bez rzucającego) | wielkość w mapie zgodna (fx_player_map) |
 | 100 | RemoveCurse | Zaimplementowane | Zaimplementowane | usuwanie chorób/trucizn/paraliżu/klątw (także NPC) | test_magic |
-| 101 | TurnUndead | Brakujące | Częściowo zgodne | Flee + wielkość dla nieumarłych | OpenMW zostawia wielkość nieprawidłowego efektu w mapie (różnica mapy) |
+| 101 | TurnUndead | Brakujące | Zweryfikowane | Flee + wielkość dla nieumarłych (Creature::Undead) | fx_turnundead: ucieczka przywołanego szkieletu zgodna |
 | 102 | SummonScamp | Brakujące | Zweryfikowane | pełny aktor (statystyki, ekwipunek, AI follow, pomoc w walce, koniec, śmierć, przez drzwi z graczem, zapis) | fx_summon (0 różnic), fx_summon_end (znika po 10 s) |
 | 103 | SummonClannfear | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
 | 104 | SummonDaedroth | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
@@ -672,13 +674,13 @@ ekwipunku i położeń (próbki w czasie).
 | 123 | BoundBattleAxe | Zaimplementowane | Zweryfikowane | przedmiot przywołany: ActionEquip bez zdejmowania broni dwuręcznej/tarczy | fx_bound_weapons: 0 różnic |
 | 124 | BoundSpear | Zaimplementowane | Zweryfikowane | przedmiot przywołany: ActionEquip bez zdejmowania broni dwuręcznej/tarczy | fx_bound_weapons: 0 różnic |
 | 125 | BoundLongbow | Zaimplementowane | Zweryfikowane | przedmiot przywołany: ActionEquip bez zdejmowania broni dwuręcznej/tarczy | fx_bound_weapons: 0 różnic |
-| 126 | ExtraSpell | Brakujące | Brakujące | nieużywany w danych gry; rozbieranie NPC – brak |  |
+| 126 | ExtraSpell | Brakujące | Zaimplementowane | NPC zdejmuje wszystko poza bronią, amunicją, spodniami i pochodnią; po wygaśnięciu autoEquip | brak czaru z tym efektem w danych gry – bez porównania |
 | 127 | BoundCuirass | Zaimplementowane | Zweryfikowane | przedmiot w ekwipunku na czas efektu | fx_bound: ekwipunek zgodny |
 | 128 | BoundHelm | Zaimplementowane | Zweryfikowane | przedmiot w ekwipunku na czas efektu | fx_bound: ekwipunek zgodny |
 | 129 | BoundBoots | Zaimplementowane | Zweryfikowane | przedmiot w ekwipunku na czas efektu | fx_bound: ekwipunek zgodny |
 | 130 | BoundShield | Zaimplementowane | Zweryfikowane | przedmiot przywołany: ActionEquip bez zdejmowania broni dwuręcznej/tarczy | fx_bound_weapons: 0 różnic |
 | 131 | BoundGloves | Zaimplementowane | Zweryfikowane | przedmiot w ekwipunku na czas efektu | fx_bound: ekwipunek zgodny |
-| 132 | Corprus | Częściowo zgodne | Częściowo zgodne | choroba jako trwały czar: Wyssanie/Wzmocnienie atrybutów przy dodaniu (jak OpenMW); pogarszanie co 24 h | fx_corprus: atrybuty zgodne; pogarszanie po SetGameHour nie zadziałało w żadnym silniku (nie potwierdzone) |
+| 132 | Corprus | Częściowo zgodne | Zweryfikowane | choroba jako trwały czar: Wyssanie/Wzmocnienie przy dodaniu, pogarszanie co 24 h znacznika czasu (DaysPassed) | fx_corprus: atrybuty po 2 dniach zgodne (dwa pogorszenia) |
 | 133 | Vampirism | Częściowo zgodne | Częściowo zgodne | dialogi, zdolność z Obrażeniami od słońca i Słabością na ogień; reakcje NPC/sen – brak | fx_sun: mapa zgodna |
 | 134 | SummonCenturionSphere | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
 | 135 | SunDamage | Brakujące | Zweryfikowane | zdrowie na zewnątrz × widoczność słońca | fx_sun: ~5/s w obu (Wampir: obrażenia od słońca) |
@@ -700,8 +702,8 @@ ekwipunku i położeń (próbki w czasie).
   uzupełnieniu reportCrime o zmiany postawy (trwałe i modyfikator przestępstwa do spłaty) oraz getFightDispositionBias.
 - **Przywołania:** OpenMW AI rzuca czary wzmacniające (np. Daedroth – Bariera) – w Godocie brak (etap AI walki);
   ekwipunek z list poziomowanych i wielkości zdolności (np. regeneracja) są losowane w obu silnikach.
-- **Pogarszanie Korpusu:** zaimplementowane co 24 h gry; `set GameHour to GameHour + 25` nie wywołało pogorszenia
-  w żadnym silniku – brak potwierdzenia porównaniem.
+- **Pogarszanie Korpusu** liczy się od znacznika czasu (DaysPassed), nie od kalendarza: `set GameHour to GameHour + 25`
+  przesuwa tylko kalendarz (DateTimeManager::setHour) – w obu silnikach bez pogorszenia; `DaysPassed + 2` – dwa.
 - **Powolne opadanie:** w Xvfb OpenMW działa z 2–5 kl./s i większym krokiem fizyki – prędkość graniczna różni
   się od wzoru przy 60 Hz; brak obrażeń od upadku zgodny.
 - **SetPos/Position gracza w OpenMW stawia go na podłożu**, gdy nie lewituje (Godot nie) – różnica MWScript,
@@ -710,8 +712,8 @@ ekwipunku i położeń (próbki w czasie).
   – sprawdzone 3 razy; przypadek opadania zbudowany bez tego.
 - Stan startowy gracza OpenMW (--skip-menu) ma nieprzeliczone magię/kondycję (przeliczane przy zmianie
   atrybutu) – różnice „(zmiana)” magii/kondycji w fx_player_map/fx_bound/fx_player_damage.
-- **Zależności:** Wykrywanie (znaczniki na mapie), Korpus (pogarszanie co dobę i trwałe czary jako ActiveSpells),
-  Wampiryzm (reakcje NPC, sen), ExtraSpell (rozbieranie NPC), przenoszenie stałych referencji NPC między komórkami
+- **Zależności:** Wampiryzm (reakcje NPC, sen, wygląd), znaczniki Wykrywania jako proste kwadraty (bez ikon
+  detect_*_icon), przenoszenie stałych referencji NPC między komórkami
   (towarzysze przez drzwi – działa dla przywołań i obiektów dynamicznych), AiCast (Cast/ExplodeSpell NPC działa
   natychmiast, bez animacji), światło/widzenie w ciemności bez porównania obrazu, Boska/Almsivi do komórek spoza
   konwersji (x, y zgodne; teren i nazwa komórki – zależność od konwersji).
@@ -744,6 +746,7 @@ ekwipunku i położeń (próbki w czasie).
 | AiPackage::openDoors – NPC otwiera drzwi na drodze (poza AiWander), z kluczem; evadeObstacles: najpierw drzwi | Zaimplementowane | brak sceny testowej z NPC przechodzącym przez drzwi na prawdziwych danych |
 | AiWander (bezczynność, punkty w promieniu, spacer) | Zaimplementowane | sonda Seyda Neen 60 s: 13/15 aktorów w ruchu, wszyscy w promieniu wędrówki, nikt nie spadł pod teren |
 | Aresztowanie przez strażnika, grzywna, więzienie | Nieprzetestowane | do sondy | 
+| Czas świata a zmienne skryptów (GameHour, DaysPassed, Day/Month/Year – DateTimeManager) | Zweryfikowane | fx_corprus, fx_sun: GameHour i DaysPassed jak OpenMW; kalendarz o północy |
 | Zmiana postawy świadków i ofiary za przestępstwo (reportCrime: trwała / modyfikator do spłaty, getFightDispositionBias) | Zweryfikowane | napaść czarem: fx_npc_ai (grzywna 40, postawa −10 jak OpenMW) |
 | Wilkołactwo (Bloodmoon) | Częściowo zgodne | od etapu MWScript: statystyki z GMST, szata, świadkowie i grzywna, brak rozmów/ekwipunku/snu, agresja NPC – porównane z OpenMW; brak modelu, nakładki ekranu i pazurów (punkt 4a) |
 | Choroby, wampiryzm | Częściowo zgodne | leczenie chorób NPC, Obrażenia od słońca; Korpus bez pogarszania (punkt 5) |

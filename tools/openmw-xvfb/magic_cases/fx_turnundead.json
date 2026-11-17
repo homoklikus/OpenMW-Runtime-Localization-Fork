@@ -1,0 +1,36 @@
+{
+ "name": "fx_turnundead",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player",
+  "skeleton_summon"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track",
+  ".actors.player"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -12288 -69632 160 0"
+ ],
+ "spells": [
+  [
+   3,
+   "player",
+   "bone guard",
+   ""
+  ],
+  [
+   0,
+   "skeleton_summon",
+   "blessed touch",
+   "player",
+   1.5
+  ]
+ ],
+ "seconds": 3,
+ "disable_creatures": true
+}

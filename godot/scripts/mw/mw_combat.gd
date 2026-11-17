@@ -227,8 +227,18 @@ func equipment(f: Dictionary) -> Dictionary:
 					slots[int(sk)] = {"id": oid, "kind": oit.kind, "rec": oit.rec}
 				break
 	var cond: Dictionary = _actor_state(f).get("condition", {})
+	# ExtraSpell (applyActorMagicEffect): NPC zdejmuje wszystko poza bronią, amunicją, spodniami i nie-pancerzem
+	# w lewej ręce (pochodnia); po wygaśnięciu – autoEquip
+	var extra := false
+	for sp in (_actor_state(f).get("active_spells", []) as Array):
+		for x in sp.get("effects", []):
+			if int(x.get("effect", -1)) == 126 and bool(x.get("applied", false)) and not bool(x.get("invalid", false)):
+				extra = true
 	for s in slots:
 		var e2: Dictionary = slots[s]
+		if extra and not int(s) in [EQ.SLOT_CARRIED_RIGHT, EQ.SLOT_AMMUNITION, EQ.SLOT_PANTS] \
+				and not (int(s) == EQ.SLOT_CARRIED_LEFT and String(e2.kind) != "armor"):
+			continue
 		out[int(s)] = {"id": e2.id, "kind": e2.kind, "rec": e2.rec, "health": float(cond.get(str(s), -1.0))}
 	return out
 

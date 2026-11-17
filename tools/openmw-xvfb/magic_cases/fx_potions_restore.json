@@ -1,0 +1,37 @@
+{
+ "name": "fx_potions_restore",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -12288 -69632 160 0"
+ ],
+ "commands": [
+  "player->Equip \"p_drain_magicka_q\"",
+  "player->ModCurrentFatigue -150",
+  "player->ModCurrentHealth -20"
+ ],
+ "after": [
+  [
+   10,
+   "player->Equip \"p_restore_magicka_e\""
+  ],
+  [
+   10,
+   "player->Equip \"p_restore_fatigue_e\""
+  ],
+  [
+   10,
+   "player->Equip \"p_restore_health_e\""
+  ]
+ ],
+ "seconds": 8
+}

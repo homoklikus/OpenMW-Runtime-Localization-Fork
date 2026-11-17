@@ -18,5 +18,14 @@
  "commands": [
   "player->AddSpell \"vampire sun damage\""
  ],
- "seconds": 4
+ "seconds": 4,
+ "every": [
+  "set r_gh to GameHour"
+ ],
+ "vars": [
+  [
+   "float",
+   "r_gh"
+  ]
+ ]
 }
