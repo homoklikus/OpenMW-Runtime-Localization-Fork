@@ -199,8 +199,16 @@ func set_base_disposition(a: Dictionary, v: int) -> void:
 func reputation_of(a: Dictionary) -> int:
 	return int(_ds().npcs.get(a.sid, {}).get("reputation", a.rec.get("reputation", 0)))
 
-func ai_setting(a: Dictionary, name: String) -> int:
-	return int(_ds().npcs.get(a.sid, {}).get(name, (a.rec.get("ai", {}) as Dictionary).get(name, 0)))
+## Ustawienie AI: podstawa (rekord / Set*/Mod* ze skryptów) + modyfikator efektów magii (Uspokojenie, Szał,
+## Demoralizacja, Otucha, Odpędzenie nieumarłych – modifyAiSetting). capped: jak Stat::getModified() (≥ 0);
+## GetFight itd. – bez obcięcia (getModified(false)); with_mod = false – sama podstawa (ModFight).
+func ai_setting(a: Dictionary, name: String, with_mod := true, capped := true) -> int:
+	var base := int(_ds().npcs.get(a.sid, {}).get(name, (a.rec.get("ai", {}) as Dictionary).get(name, 0)))
+	if not with_mod:
+		return base
+	var st = main.state.actors.get(String(a.sid), {}) if main.state.get("actors") is Dictionary else {}
+	var v := base + int((st.get("ai_mod", {}) as Dictionary).get(name, 0)) if st is Dictionary else base
+	return maxi(0, v) if capped else v
 
 func set_ai_setting(a: Dictionary, name: String, v: int) -> void:
 	_npc_state(a)[name] = clampi(v, 0, 100)
@@ -259,9 +267,21 @@ func derived_disposition(a: Dictionary, clamp := true) -> int:
 		x += float(_gmst("fDispDiseaseMod", -10.0))
 	if bool(st.get("weapon_drawn", false)):
 		x += float(_gmst("fDispWeaponDrawn", -5.0))
+	x += charm_of(a)                         # getDerivedDisposition: + Urok (Charm)
 	if clamp:
 		return clampi(int(x), 0, 100)
 	return int(x)
+
+## Wielkość efektu Urok na NPC (mapa efektów aktora).
+func charm_of(a: Dictionary) -> float:
+	if main.magic == null or main.combat == null:
+		return 0.0
+	var n = a.get("node")
+	var f: Dictionary = main.combat.fighter_of(n) if n != null else {"kind": "npc", "sid": String(a.sid),
+		"base": String(a.get("base", "")), "rec": a.rec, "node": null}
+	if f.is_empty() or not (main.state.get("actors") is Dictionary and main.state.actors.has(String(f.sid))):
+		return 0.0                       # bez stanu aktora – bez działających czarów (zdolności nie dają Uroku)
+	return main.magic.magnitude_of(f, main.magic.FX_CHARM)
 
 static func _sorted_keys(d: Dictionary) -> Array:
 	var k := d.keys()

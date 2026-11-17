@@ -48,6 +48,9 @@ EFFECTS = {"resistmagicka": ("resistmagicka", "weaknesstomagicka", None),
            "paralysis": ("paralyze", None, None), "invisible": ("invisibility", None, None),
            "attackbonus": ("fortifyattack", None, None), "defendbonus": ("sanctuary", None, None)}
 
+# identyfikatory efektów OpenMW (ESM::MagicEffect, kolejność indeksów 0–142) – klucze pełnej mapy efektów „fx”
+EFFECT_IDS = {n.lower(): i for i, n in enumerate(['WaterBreathing', 'SwiftSwim', 'WaterWalking', 'Shield', 'FireShield', 'LightningShield', 'FrostShield', 'Burden', 'Feather', 'Jump', 'Levitate', 'SlowFall', 'Lock', 'Open', 'FireDamage', 'ShockDamage', 'FrostDamage', 'DrainAttribute', 'DrainHealth', 'DrainMagicka', 'DrainFatigue', 'DrainSkill', 'DamageAttribute', 'DamageHealth', 'DamageMagicka', 'DamageFatigue', 'DamageSkill', 'Poison', 'WeaknessToFire', 'WeaknessToFrost', 'WeaknessToShock', 'WeaknessToMagicka', 'WeaknessToCommonDisease', 'WeaknessToBlightDisease', 'WeaknessToCorprusDisease', 'WeaknessToPoison', 'WeaknessToNormalWeapons', 'DisintegrateWeapon', 'DisintegrateArmor', 'Invisibility', 'Chameleon', 'Light', 'Sanctuary', 'NightEye', 'Charm', 'Paralyze', 'Silence', 'Blind', 'Sound', 'CalmHumanoid', 'CalmCreature', 'FrenzyHumanoid', 'FrenzyCreature', 'DemoralizeHumanoid', 'DemoralizeCreature', 'RallyHumanoid', 'RallyCreature', 'Dispel', 'Soultrap', 'Telekinesis', 'Mark', 'Recall', 'DivineIntervention', 'AlmsiviIntervention', 'DetectAnimal', 'DetectEnchantment', 'DetectKey', 'SpellAbsorption', 'Reflect', 'CureCommonDisease', 'CureBlightDisease', 'CureCorprusDisease', 'CurePoison', 'CureParalyzation', 'RestoreAttribute', 'RestoreHealth', 'RestoreMagicka', 'RestoreFatigue', 'RestoreSkill', 'FortifyAttribute', 'FortifyHealth', 'FortifyMagicka', 'FortifyFatigue', 'FortifySkill', 'FortifyMaximumMagicka', 'AbsorbAttribute', 'AbsorbHealth', 'AbsorbMagicka', 'AbsorbFatigue', 'AbsorbSkill', 'ResistFire', 'ResistFrost', 'ResistShock', 'ResistMagicka', 'ResistCommonDisease', 'ResistBlightDisease', 'ResistCorprusDisease', 'ResistPoison', 'ResistNormalWeapons', 'ResistParalysis', 'RemoveCurse', 'TurnUndead', 'SummonScamp', 'SummonClannfear', 'SummonDaedroth', 'SummonDremora', 'SummonAncestralGhost', 'SummonSkeletalMinion', 'SummonBonewalker', 'SummonGreaterBonewalker', 'SummonBonelord', 'SummonWingedTwilight', 'SummonHunger', 'SummonGoldenSaint', 'SummonFlameAtronach', 'SummonFrostAtronach', 'SummonStormAtronach', 'FortifyAttack', 'CommandCreature', 'CommandHumanoid', 'BoundDagger', 'BoundLongsword', 'BoundMace', 'BoundBattleAxe', 'BoundSpear', 'BoundLongbow', 'ExtraSpell', 'BoundCuirass', 'BoundHelm', 'BoundBoots', 'BoundShield', 'BoundGloves', 'Corprus', 'Vampirism', 'SummonCenturionSphere', 'SunDamage', 'StuntedMagicka', 'SummonFabricant', 'SummonWolf', 'SummonBear', 'SummonBonewolf', 'SummonCreature04', 'SummonCreature05'])}
+
 LUA = r'''
 local world = require('openmw.world')
 local types = require('openmw.types')
@@ -56,6 +59,10 @@ local CFG = __CFG__
 local ATTRS = __ATTRS__
 local SKILLS = __SKILLS__
 local EFFECTS = __EFFECTS__
+local EFFECT_IDS = __EFFECT_IDS__
+local t_after = -1
+local samples_done = {}
+local track = {}
 local frame = 0
 local done = false
 
@@ -125,6 +132,20 @@ local function actor(o)
     local v = effect(ae, ids[1]) - effect(ae, ids[2]) + effect(ae, ids[3])
     s.effects[name] = math.floor(v)
   end
+  -- pełna mapa efektów (MagicEffects): "indeks" albo "indeks:atrybut/umiejętność" → wielkość (bez zerowych)
+  s.fx = {}
+  local AIDX, SIDX = {}, {}
+  for i, n in ipairs(ATTRS) do AIDX[n] = i - 1 end
+  for i, n in ipairs(SKILLS) do SIDX[n] = i - 1 end
+  for _, e in pairs(ae) do
+    local idx = EFFECT_IDS[string.lower(e.id)]
+    if idx and e.magnitude and math.floor(e.magnitude) ~= 0 then
+      local key = tostring(idx)
+      if e.affectedAttribute then key = key .. ':' .. tostring(AIDX[string.lower(e.affectedAttribute)])
+      elseif e.affectedSkill then key = key .. ':' .. tostring(SIDX[string.lower(e.affectedSkill)]) end
+      s.fx[key] = (s.fx[key] or 0) + math.floor(e.magnitude)
+    end
+  end
   local okq, eq = pcall(function() return A.getEquipment(o) end)
   s.equipment = {}
   if okq and eq then
@@ -186,6 +207,7 @@ local function snapshot()
   out.player.teleporting = types.Player.isTeleportingEnabled(player)
   out.player.cell = player.cell.name
   out.player.water = player.cell.waterLevel
+  out.track = track
   return out
 end
 
@@ -193,7 +215,69 @@ return {
   engineHandlers = {
     onUpdate = function(dt)
       frame = frame + 1
-      if frame == CFG.frames and not done then
+      -- czary nakładane bezpośrednio (ActiveSpells:add – jak applyMagicEffects): [przesunięcie, cel, czar, rzucający]
+      for _, sp in ipairs(CFG.spells or {}) do
+        if frame == CFG.delay + sp[1] then
+          local o = find(sp[2])
+          local rec = core.magic.spells.records[sp[3]]
+          if o and rec then
+            local idx = {}
+            for i = 1, #rec.effects do idx[i] = i - 1 end
+            local c = (sp[4] and sp[4] ~= '') and find(sp[4]) or nil
+            types.Actor.activeSpells(o):add({id = rec.id, effects = idx, caster = c})
+          end
+        end
+      end
+      -- usunięcie czaru (ActiveSpells:remove) w klatce: [przesunięcie, cel, czar]
+      for _, rm in ipairs(CFG.remove or {}) do
+        if frame == CFG.delay + rm[1] then
+          local o = find(rm[2])
+          if o then
+            local list = {}
+            for _, a in pairs(types.Actor.activeSpells(o)) do
+              if a.id == rm[3] then list[#list + 1] = a.activeSpellId end
+            end
+            for _, aid in ipairs(list) do types.Actor.activeSpells(o):remove(aid) end
+          end
+        end
+      end
+      -- przeniesienie bez stawiania na podłożu (Lua teleport, onGround = false): [przesunięcie, id, x, y, z]
+      for _, tp in ipairs(CFG.teleport or {}) do
+        if frame == CFG.delay + tp[1] then
+          local o = find(tp[2])
+          if o then
+            local util = require('openmw.util')
+            o:teleport(o.cell, util.vector3(tp[3], tp[4], tp[5]), {onGround = false})
+          end
+        end
+      end
+      -- wyłączenie stworzeń (np. ryb atakujących w wodzie) – izolacja testu od AI
+      if CFG.disable_creatures and frame == CFG.delay then
+        for _, a in ipairs(world.activeActors) do
+          if types.Creature.objectIsInstance(a) then a.enabled = false end
+        end
+      end
+      if frame == CFG.delay then t_after = 0 elseif t_after >= 0 then t_after = t_after + dt end
+      -- próbki położenia w czasie (sekundy od chwili poleceń): track[id] = [[t, x, y, z], …]
+      for i, t in ipairs(CFG.samples or {}) do
+        if t_after >= t and not samples_done[i] then
+          samples_done[i] = true
+          for _, id in ipairs(CFG.track or {}) do
+            local o = find(id)
+            if o then
+              track[id] = track[id] or {}
+              track[id][#track[id] + 1] = {t, o.position.x, o.position.y, o.position.z}
+            end
+          end
+        end
+      end
+      if CFG.debug and t_after >= 0 and frame % 5 == 0 then
+        local pl = world.players[1]
+        print(string.format('MWDBG t=%.2f z=%.1f hp=%.1f', t_after, pl.position.z, types.Actor.stats.dynamic.health(pl).current))
+      end
+      local due
+      if CFG.seconds and CFG.seconds > 0 then due = t_after >= CFG.seconds else due = frame == CFG.frames end
+      if due and not done then
         done = true
         local ok, res = pcall(snapshot)
         if ok then
@@ -259,6 +343,8 @@ def baseline(case: dict) -> dict:
     b = dict(case)
     b["name"] = case.get("name", "case") + "_base"
     b["commands"] = []
+    b["spells"] = []
+    b["remove"] = []
     return b
 
 
@@ -273,9 +359,13 @@ def run_openmw(case: dict, omw_dir: Path, cfg_src: Path, work: Path, display: in
     cfg = {"actors": case.get("actors", []), "objects": case.get("objects", []), "items": case.get("items", []),
            "globals": case.get("globals", []), "locals": case.get("locals", []),
            "vars": [n for _, n in case.get("vars", [])], "npc_items": case.get("npc_items", []),
-           "frames": int(case.get("delay", DELAY)) + int(case.get("frames", 10))}
+           "frames": int(case.get("delay", DELAY)) + int(case.get("frames", 10)),
+           "delay": int(case.get("delay", DELAY)), "spells": case.get("spells", []), "remove": case.get("remove", []), "debug": bool(case.get("debug", False)), "teleport": case.get("teleport", []),
+           "disable_creatures": bool(case.get("disable_creatures", False)),
+           "seconds": float(case.get("seconds", 0)), "samples": case.get("samples", []), "track": case.get("track", [])}
     lua = (LUA.replace("__CFG__", lua_table(cfg)).replace("__ATTRS__", lua_table(ATTRS))
-           .replace("__SKILLS__", lua_table(SKILLS)).replace("__EFFECTS__", lua_table({k: list(v) for k, v in EFFECTS.items()})))
+           .replace("__SKILLS__", lua_table(SKILLS)).replace("__EFFECTS__", lua_table({k: list(v) for k, v in EFFECTS.items()}))
+           .replace("__EFFECT_IDS__", lua_table(EFFECT_IDS)))
     (probe / "scripts" / "mwprobe" / "global.lua").write_text(lua, encoding="utf-8")
     (probe / "mwprobe.omwscripts").write_text("GLOBAL: scripts/mwprobe/global.lua\n", encoding="utf-8")
     (probe / "mwprobe.esp").write_bytes(probe_esp(case))

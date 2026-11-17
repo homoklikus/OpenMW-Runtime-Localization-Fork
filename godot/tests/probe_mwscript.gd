@@ -55,6 +55,18 @@ func _actor(id: String) -> Dictionary:
 	s["effects"] = {}
 	for e in EFFECTS:
 		s.effects[e] = S.effect_value(f, e)
+	# pełna mapa efektów (jak Lua pairs(activeEffects)): klucze bez argumentu tylko dla efektów bez argumentu
+	s["fx"] = {}
+	var fx: Dictionary = main.magic.effects(f)
+	for k in fx:
+		var ks := String(k)
+		if ks.begins_with("_"):
+			continue
+		if not ks.contains(":") and (int(ks) in main.character.ARG_ATTRIBUTE_EFFECTS or int(ks) in main.character.ARG_SKILL_EFFECTS):
+			continue
+		var v := floori(float(fx[k]))
+		if v != 0:
+			s.fx[ks] = v
 	s["equipment"] = {}
 	var eqd: Dictionary = main.combat.equipment(f)
 	for sl in eqd:
@@ -104,7 +116,32 @@ func _snapshot(case: Dictionary) -> Dictionary:
 	out.player["teleporting"] = bool(main.state.player.get("teleport_enabled", true))
 	out.player["cell"] = vm.game.player_cell_name()
 	out.player["water"] = _q("player", "getwaterlevel")
+	out["track"] = _track
 	return out
+
+var _track := {}
+
+## Czar nakładany bezpośrednio (para do Lua ActiveSpells:add): wszystkie efekty rekordu na cel.
+func _apply_spell(sp: Array) -> void:
+	var t: Dictionary = vm._fighter(vm._target(String(sp[1]), _ctx()))
+	var rec: Dictionary = main.builder.actors.record("spell", String(sp[2]).to_lower())
+	if t.is_empty() or rec.is_empty():
+		printerr("PROBE: brak celu/czaru ", sp)
+		return
+	var c: Dictionary = {}
+	if sp.size() > 3 and String(sp[3]) != "":
+		c = vm._fighter(vm._target(String(sp[3]), _ctx()))
+	main.magic.inflict(t, c, {"id": String(sp[2]).to_lower(), "name": String(rec.get("name", "")), "kind": "spell"},
+		rec.get("effects", []), rec)
+
+func _sample(case: Dictionary, t: float) -> void:
+	for id in case.get("track", []):
+		if vm.resolve(String(id)).is_empty():
+			continue
+		var o := _object(String(id))
+		if not _track.has(id):
+			_track[id] = []
+		_track[id].append([t, o.pos[0], o.pos[1], o.pos[2]])
 
 func _run() -> void:
 	var case = JSON.parse_string(FileAccess.get_file_as_string(_arg("case")))
@@ -120,8 +157,48 @@ func _run() -> void:
 	# skrypt globalny sondy (jak mwprobe.esp po stronie OpenMW): polecenia w klatce „delay” od startu skryptu
 	vm._scripts["mwprobe_run"] = case.get("script", {})
 	vm.start("mwprobe_run")
-	for i in int(case.get("delay", 30)) + int(case.get("frames", 10)):
+	var delay := int(case.get("delay", 30))
+	var secs := float(case.get("seconds", 0.0))
+	var samples: Array = case.get("samples", [])
+	var done := {}
+	var t_after := -1.0
+	var frame := 0
+	while true:
+		frame += 1
+		for sp in case.get("spells", []):
+			if frame == delay + int(sp[0]):
+				_apply_spell(sp)
+		if bool(case.get("disable_creatures", false)) and frame == delay:
+			for an in main.ai.actor_nodes():
+				if String(an.get_meta("mw_actor", "")) == "creature":
+					main.state.set_enabled(String(an.get_meta("mw_sid", "")), false)
+		for tp in case.get("teleport", []):
+			if frame == delay + int(tp[0]):
+				var tn = vm._target(String(tp[1]), _ctx()).get("node")
+				if tn != null:
+					tn.global_position = MWCoords.mw_to_godot(Vector3(float(tp[2]), float(tp[3]), float(tp[4])))
+					tn.velocity = Vector3.ZERO
+					tn.set("_fall_start", NAN)
+		for rm in case.get("remove", []):
+			if frame == delay + int(rm[0]):
+				var tf: Dictionary = vm._fighter(vm._target(String(rm[1]), _ctx()))
+				if not tf.is_empty():
+					for a in main.magic.active(tf):
+						if String(a.get("id", "")) == String(rm[2]).to_lower():
+							for x in a.effects:
+								x.time_left = 0.0
+					main.magic.tick(tf, 0.0)
 		await process_frame
+		if frame == delay:
+			t_after = 0.0
+		elif t_after >= 0.0:
+			t_after += main.get_process_delta_time()
+		for i in samples.size():
+			if t_after >= float(samples[i]) and not done.has(i):
+				done[i] = true
+				_sample(case, float(samples[i]))
+		if (secs > 0.0 and t_after >= secs) or (secs <= 0.0 and frame >= delay + int(case.get("frames", 10))):
+			break
 	var snap := _snapshot(case)
 	var f := FileAccess.open(_arg("out"), FileAccess.WRITE)
 	f.store_string(JSON.stringify(snap, " ", true))

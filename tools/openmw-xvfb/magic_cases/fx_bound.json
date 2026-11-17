@@ -1,0 +1,50 @@
+{
+ "name": "fx_bound",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -12288 -69632 160 0"
+ ],
+ "spells": [
+  [
+   3,
+   "player",
+   "bound dagger",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "bound cuirass",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "bound gauntlets",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "bound helm",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "bound boots",
+   "player"
+  ]
+ ],
+ "seconds": 2
+}

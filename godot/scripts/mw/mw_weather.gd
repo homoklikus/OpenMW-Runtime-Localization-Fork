@@ -187,6 +187,27 @@ func underwater_fog(hour: float) -> float:
 	return tod([num("Water_UnderwaterSunriseFog", 3.0), num("Water_UnderwaterDayFog", 2.5),
 		num("Water_UnderwaterSunsetFog", 3.0), num("Water_UnderwaterNightFog", 4.0)], hour, "Fog")
 
+## WeatherManager::getSunPercentage: 0 nocą, narastanie w czasie wschodu, 1 w dzień, spadek w czasie zachodu.
+func sun_percentage(hour: float) -> float:
+	var t := times()
+	if hour <= float(t.night_end) or hour >= float(t.night_start):
+		return 0.0
+	if hour <= float(t.day_start):
+		return (hour - float(t.night_end)) / maxf(float(t.sunrise_duration), 0.001)
+	if hour > float(t.day_end):
+		return 1.0 - (hour - float(t.day_end)) / maxf(num("Weather_Sunset_Duration", 2.0), 0.001)
+	return 1.0
+
+## WeatherManager::getSunVisibility: Glare_View pogody (w przejściu do pogody z mniejszym zachmurzeniem – mieszane).
+func glare_view() -> float:
+	var g := num("Weather_%s_Glare_View" % INI[current], 0.0)
+	if next_w >= 0:
+		var cmax := num("Weather_%s_Clouds_Maximum_Percent" % INI[next_w], 1.0)
+		if transition < cmax and cmax > 0.0:
+			var t2 := transition / cmax
+			return (1.0 - t2) * g + t2 * num("Weather_%s_Glare_View" % INI[next_w], 0.0)
+	return g
+
 ## Widoczność słońca dla odblasków (setSunColour: Glare_View × glareFade – szczyt w połowie dnia, 0 nocą).
 func sun_visibility(glare: float, hour: float) -> float:
 	var t := times()

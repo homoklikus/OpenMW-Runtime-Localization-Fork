@@ -1,0 +1,38 @@
+{
+ "name": "fx_drown",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects.player.rotz",
+  ".track"
+ ],
+ "tol": {
+  "pos": 40,
+  "track": 40,
+  "dynamic": 2.0
+ },
+ "setup": [
+  "player->Position -12288 -69632 160 0"
+ ],
+ "seconds": 24,
+ "track": [
+  "player"
+ ],
+ "samples": [
+  5
+ ],
+ "teleport": [
+  [
+   5,
+   "player",
+   -16000,
+   -73600,
+   -180
+  ]
+ ],
+ "disable_creatures": true
+}

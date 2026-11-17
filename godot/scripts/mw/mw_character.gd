@@ -308,9 +308,9 @@ func derived(st: Dictionary) -> Dictionary:
 	var fb: float = dyn_base_override(st, "fatigue", [am[ATTR_STRENGTH], am[ATTR_WILLPOWER], am[ATTR_AGILITY], am[ATTR_ENDURANCE]],
 		maxf(0.0, float(am[ATTR_STRENGTH]) + float(am[ATTR_WILLPOWER]) + float(am[ATTR_AGILITY]) + float(am[ATTR_ENDURANCE])))
 	return {"attributes": am, "skills": sm,
-		"health": {"base": hb, "modified": hb + float(fx.get(str(FX_FORTIFY_HEALTH), 0.0))},
-		"magicka": {"base": mb, "modified": mb + float(fx.get(str(FX_FORTIFY_MAGICKA), 0.0))},
-		"fatigue": {"base": fb, "modified": fb + float(fx.get(str(FX_FORTIFY_FATIGUE), 0.0))},
+		"health": {"base": hb, "modified": hb + float(fx.get(str(FX_FORTIFY_HEALTH), 0.0)) - float(fx.get("_tmp80", 0.0))},
+		"magicka": {"base": mb, "modified": mb + float(fx.get(str(FX_FORTIFY_MAGICKA), 0.0)) - float(fx.get("_tmp81", 0.0))},
+		"fatigue": {"base": fb, "modified": fb + float(fx.get(str(FX_FORTIFY_FATIGUE), 0.0)) - float(fx.get("_tmp82", 0.0))},
 		"jump": float(fx.get(str(FX_JUMP), 0.0)),
 		"dyn_keys": {"magicka": [am[ATTR_INTELLIGENCE], factor],
 			"fatigue": [am[ATTR_STRENGTH], am[ATTR_WILLPOWER], am[ATTR_AGILITY], am[ATTR_ENDURANCE]]}}
@@ -506,7 +506,18 @@ func rest_hour(st: Dictionary, sleep: bool, encumbrance := 0.0) -> void:
 	var d := derived(st)
 	if sleep:
 		st.health = minf(float(d.health.modified), float(st.get("health", 0.0)) + 0.1 * float(d.attributes[ATTR_ENDURANCE]))
-		st.magicka = minf(float(d.magicka.modified), float(st.get("magicka", 0.0)) + _gmst("frestmagicmult", 0.15) * float(d.attributes[ATTR_INTELLIGENCE]))
+		# Actors::restoreDynamicStats: Osłabiona magia – bez odnowy magii (stałe źródło) albo tylko za część
+		# godziny po wygaśnięciu (pozostały czas × skala czasu / 3600)
+		var hours := 1.0
+		if magic != null and magic.main != null:
+			var rem: float = magic.stunted_magicka_remaining(magic._combat().player_fighter())
+			if rem == -1.0:
+				hours = 0.0
+			elif rem > 0.0:
+				var ts: float = float(magic.main.envr.TIMESCALE) if magic.main.envr != null else 30.0
+				hours = maxf(0.0, 1.0 - rem * (ts if ts != 0.0 else 1.0) / 3600.0)
+		if hours > 0.0:
+			st.magicka = minf(float(d.magicka.modified), float(st.get("magicka", 0.0)) + _gmst("frestmagicmult", 0.15) * float(d.attributes[ATTR_INTELLIGENCE]) * hours)
 	var fat := float(st.get("fatigue", 0.0))
 	if fat >= float(d.fatigue.base):
 		return

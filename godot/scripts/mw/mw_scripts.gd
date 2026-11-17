@@ -512,6 +512,11 @@ func _magic_function(fname: String, t: Dictionary, args: Array, c: Ctx):
 			var sp2: Dictionary = records.record("spell", spid2)
 			if sp2.is_empty():
 				return null
+			if f.get("kind", "") == "player":
+				# OpCast/OpExplodeSpell dla gracza: tylko wybór czaru (Player::setSelectedSpell)
+				if game.main.has_method("select_magic"):
+					game.main.select_magic("spell", spid2)
+				return null
 			var tgt := f
 			if fname == "cast":
 				tgt = _fighter(_target(_str(args, 1), c))
@@ -767,14 +772,14 @@ func _call(ref, fname: String, args: Array, c: Ctx):
 			return _faction_call(fname, ref, args, c)
 		"getfight", "gethello", "getflee", "getalarm":
 			var wa := _who(ref, c)
-			return float(_dlg().ai_setting(wa, fname.substr(3))) if not wa.is_empty() else 0.0
+			return float(_dlg().ai_setting(wa, fname.substr(3), true, false)) if not wa.is_empty() else 0.0
 		"setfight", "sethello", "setflee", "setalarm", "modfight", "modhello", "modflee", "modalarm":
 			var wm := _who(ref, c)
 			if not wm.is_empty():
 				var key := fname.substr(3)
 				var nv := int(_num(args, 0, c))
 				if fname.begins_with("mod"):
-					nv += _dlg().ai_setting(wm, key)
+					nv += _dlg().ai_setting(wm, key, false)
 				_dlg().set_ai_setting(wm, key, nv)
 			return null
 		"setpccrimelevel", "modpccrimelevel":
@@ -1413,6 +1418,14 @@ func _equip(t: Dictionary, item: String):
 			"ingredient": m.magic.eat(f, pick)
 			_: m.equip_item(pick)
 		return null
+	# NPC: Class::use(item)->execute – mikstura wypita, składnik zjedzony (ActionApply)
+	match String(it.get("kind", "")):
+		"potion":
+			m.magic.drink(f, pick)
+			return null
+		"ingredient":
+			m.magic.eat(f, pick)
+			return null
 	var slots: Array = m.item_slots(pick) if m.has_method("item_slots") else []
 	if slots.is_empty():
 		return null

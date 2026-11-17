@@ -1,0 +1,50 @@
+{
+ "name": "fx_player_damage",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -12288 -69632 160 0"
+ ],
+ "spells": [
+  [
+   3,
+   "player",
+   "suicide_test",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "strength leech",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "ogrul's_lucky_again",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "weakness to fire",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "weakness to poison",
+   "player"
+  ]
+ ],
+ "seconds": 2
+}

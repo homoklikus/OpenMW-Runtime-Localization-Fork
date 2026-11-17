@@ -1,0 +1,57 @@
+{
+ "name": "fx_npc_ai",
+ "cell": "Seyda Neen",
+ "actors": [
+  "fargoth"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [],
+ "spells": [
+  [
+   3,
+   "fargoth",
+   "calm humanoid",
+   "player"
+  ],
+  [
+   3,
+   "fargoth",
+   "demoralize humanoid",
+   "player"
+  ],
+  [
+   3,
+   "fargoth",
+   "charming touch",
+   "player"
+  ],
+  [
+   3,
+   "fargoth",
+   "frenzy beast",
+   "player"
+  ],
+  [
+   3,
+   "fargoth",
+   "blessed touch",
+   "player"
+  ]
+ ],
+ "every": [
+  "set r_d to fargoth->GetDisposition"
+ ],
+ "vars": [
+  [
+   "short",
+   "r_d"
+  ]
+ ],
+ "seconds": 2
+}

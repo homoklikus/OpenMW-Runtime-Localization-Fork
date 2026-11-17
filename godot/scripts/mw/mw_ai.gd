@@ -153,7 +153,22 @@ func speeds(n: Node) -> Vector2:
 	var mn := float(_gmst("fMinWalkSpeedCreature" if creature else "fMinWalkSpeed", 5.0 if creature else 100.0))
 	var mx := float(_gmst("fMaxWalkSpeedCreature" if creature else "fMaxWalkSpeed", 300.0 if creature else 200.0))
 	var walk := mn + 0.01 * spd * (mx - mn)
-	var run := walk * (0.01 * float(main.combat.skill(f, 8)) * float(_gmst("fAthleticsRunBonus", 1.0)) + float(_gmst("fBaseRunMultiplier", 1.75)))
+	# Npc::getWalkSpeed: × (1 − fEncumberedMoveEffect × obciążenie) (Ciężar/Lekkość w obciążeniu); przeciążony
+	# (> 1) stoi – Npc/Creature::getSpeed; stworzenie: bieg = chód
+	var enc: float = main.magic.normalized_encumbrance(f) if main.magic != null else 0.0
+	if not creature:
+		walk = maxf(0.0, walk * (1.0 - float(_gmst("fEncumberedMoveEffect", 0.3)) * enc))
+	var run := walk if creature else walk * (0.01 * float(main.combat.skill(f, 8)) * float(_gmst("fAthleticsRunBonus", 1.0)) + float(_gmst("fBaseRunMultiplier", 1.75)))
+	if enc > 1.0:
+		return Vector2.ZERO
+	# getSwimSpeedImpl: (bieg albo chód) × (1 + 0,01 × Szybkie pływanie) × (fSwimRunBase + 0,01 × atletyka ×
+	# fSwimRunAthleticsMult) – prędkość pływania aktora (m/s)
+	if "swim_speed" in n and main.magic != null:
+		var swift: float = main.magic.magnitude_of(f, main.magic.FX_SWIFT_SWIM)
+		var athl: float = float(main.combat.skill(f, 8))
+		var base: float = run if bool(n.get("want_run")) else walk
+		n.swim_speed = base * (1.0 + 0.01 * swift) * (float(_gmst("fSwimRunBase", 0.5)) + 0.01 * athl
+			* float(_gmst("fSwimRunAthleticsMult", 0.1))) / UNITS
 	return Vector2(walk, run)
 
 func _stop(n: CharacterBody3D) -> void:
@@ -1184,8 +1199,9 @@ func fight_term(n: Node3D, target: Node3D) -> float:
 func _engage(n: CharacterBody3D) -> void:
 	if in_combat(n) or main.player == null or main.combat.is_dead(main.combat.player_fighter()):
 		return
-	var calm := 49 if String(n.get_meta("mw_actor", "")) == "npc" else 50
-	if main.magic != null and main.magic.magnitude_of(main.combat.fighter_of(n), calm) > 0.0:
+	# Uspokojenie działa przez modyfikator walki (modifyAiSetting – fight_term); towarzysze gracza (AiFollow /
+	# AiEscort, w tym przywołane stworzenia) z wysoką walką nie atakują gracza (Actors::engageCombat)
+	if sides_with_player(n):
 		return
 	if mw_pos(n).distance_to(mw_pos(main.player)) > MAX_TRAVEL:
 		return

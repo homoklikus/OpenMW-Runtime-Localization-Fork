@@ -1,0 +1,39 @@
+{
+ "name": "fx_breathe",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects.player.rotz",
+  ".track"
+ ],
+ "tol": {
+  "pos": 40,
+  "dynamic": 2.0
+ },
+ "setup": [
+  "player->Position -12288 -69632 160 0"
+ ],
+ "spells": [
+  [
+   3,
+   "player",
+   "argonian breathing",
+   ""
+  ]
+ ],
+ "seconds": 24,
+ "teleport": [
+  [
+   5,
+   "player",
+   -16000,
+   -73600,
+   -180
+  ]
+ ],
+ "disable_creatures": true
+}

@@ -1,0 +1,28 @@
+{
+ "name": "fx_summon_end",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player",
+  "skeleton_summon"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track",
+  ".actors.player"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -12288 -69632 160 0"
+ ],
+ "spells": [
+  [
+   3,
+   "player",
+   "bone guard",
+   ""
+  ]
+ ],
+ "seconds": 13
+}

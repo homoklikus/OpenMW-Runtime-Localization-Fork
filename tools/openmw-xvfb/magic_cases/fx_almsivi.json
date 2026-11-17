@@ -1,0 +1,29 @@
+{
+ "name": "fx_almsivi",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects.player.rotz",
+  ".track",
+  ".actors"
+ ],
+ "tol": {
+  "pos[2]": 100000
+ },
+ "setup": [
+  "player->Position -12288 -69632 160 0"
+ ],
+ "spells": [
+  [
+   3,
+   "player",
+   "almsivi intervention",
+   ""
+  ]
+ ],
+ "seconds": 2
+}

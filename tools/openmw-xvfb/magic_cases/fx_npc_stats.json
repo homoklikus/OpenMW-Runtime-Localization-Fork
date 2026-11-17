@@ -1,0 +1,72 @@
+{
+ "name": "fx_npc_stats",
+ "cell": "Seyda Neen",
+ "actors": [
+  "fargoth"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [],
+ "spells": [
+  [
+   3,
+   "fargoth",
+   "charisma",
+   ""
+  ],
+  [
+   3,
+   "fargoth",
+   "daedric health",
+   ""
+  ],
+  [
+   3,
+   "fargoth",
+   "sanctuary",
+   ""
+  ],
+  [
+   3,
+   "fargoth",
+   "fire shield",
+   ""
+  ],
+  [
+   3,
+   "fargoth",
+   "feather",
+   ""
+  ],
+  [
+   3,
+   "fargoth",
+   "burden",
+   ""
+  ],
+  [
+   3,
+   "fargoth",
+   "strength leech",
+   ""
+  ],
+  [
+   3,
+   "fargoth",
+   "great resist fire",
+   ""
+  ],
+  [
+   3,
+   "fargoth",
+   "jump",
+   ""
+  ]
+ ],
+ "seconds": 2
+}

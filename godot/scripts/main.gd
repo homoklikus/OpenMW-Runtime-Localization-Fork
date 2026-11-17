@@ -722,6 +722,8 @@ func player_attack(roll := -1) -> Dictionary:
 ## Strzał: łuk/kusza zużywa amunicję z miejsca amunicji, broń rzucana – siebie; pocisk leci prosto z grawitacją
 ## 0,1 × (ProjectileManager), prędkość fProjectileMin…MaxSpeed (rzucana: fThrownWeaponMin…MaxSpeed) × siła.
 func _shoot(att: Dictionary, w: Dictionary, wt: int, strength: float) -> Dictionary:
+	if magic != null:
+		magic.break_invisibility(att)             # CharacterController: zwolnienie ataku
 	var ammo := w
 	if wt != 11:
 		var a: Dictionary = combat.equipment(att).get(EQ.SLOT_AMMUNITION, {})
@@ -864,6 +866,8 @@ func launch_bolt_from(n: Node3D, target: Node3D, caster: Dictionary, list: Array
 
 ## Strzał NPC z łuku/kuszy/broni rzucanej do celu (bez celowania z wyprzedzeniem; poprawka na grawitację 0,1 ×).
 func npc_shoot(n: Node3D, target: Node3D, att: Dictionary) -> void:
+	if magic != null:
+		magic.break_invisibility(att)
 	var w: Dictionary = combat.weapon(att)
 	if w.is_empty():
 		return
@@ -906,6 +910,8 @@ func on_actor_died(f: Dictionary, _att: Dictionary) -> void:
 		player_stats()["werewolf_kills"] = int(player_stats().get("werewolf_kills", 0)) + 1
 	var a: Dictionary = combat._actor_state(f)
 	a["dead"] = true
+	if magic != null:
+		magic.clear_on_death(f)            # ActiveSpells::clear: przywołania znikają, efekty cofnięte
 	a["health"] = 0.0
 	var ds: Dictionary = dialogue._ds()
 	ds.deaths[f.base] = int(ds.deaths.get(f.base, 0)) + 1
@@ -948,6 +954,8 @@ func _update_magic(dt: float) -> void:
 	magic.tick(combat.player_fighter(), dt)
 	if player != null:
 		player.move_flags = player_stats().get("move_flags", {})
+		magic.apply_movement(combat.player_fighter(), player)
+		magic.update_drowning(combat.player_fighter(), player, dt)
 	for key in loaded:
 		var refs: Node = loaded[key].get_node_or_null("Refs")
 		if refs == null:
@@ -956,8 +964,11 @@ func _update_magic(dt: float) -> void:
 			if not n.has_meta("mw_actor"):
 				continue
 			var a = state.actors.get(String(n.get_meta("mw_sid", "")))
-			if a is Dictionary and not (a.get("active_spells", []) as Array).is_empty():
-				magic.tick(combat.fighter_of(n), dt)
+			var fa: Dictionary = combat.fighter_of(n)
+			if (a is Dictionary and not (a.get("active_spells", []) as Array).is_empty()) or magic.has_constant_tick(fa):
+				magic.tick(fa, dt)
+			magic.apply_movement(fa, n)
+			magic.update_drowning(fa, n, dt)
 			if a is Dictionary and a.has("fatigue") and not bool(a.get("dead", false)):
 				_restore_actor_fatigue(combat.fighter_of(n), a, dt)
 			if a is Dictionary and not bool(a.get("dead", false)):
@@ -1032,7 +1043,7 @@ func recall_to_mark() -> void:
 	if p.size() != 3:
 		return
 	var pos := Vector3(float(p[0]), float(p[1]), float(p[2]))
-	travel_to_cell(String(m.get("interior", "")), pos, rad_to_deg(-player.rotation.y))
+	travel_to_cell(String(m.get("interior", "")), pos, float(m.get("rot", rad_to_deg(-player.rotation.y))))
 
 ## Wybrana magia: {"kind": "spell"|"item", "id"}.
 func selected_magic() -> Dictionary:
@@ -1540,7 +1551,7 @@ func _process(_d: float) -> void:
 			if ch is Camera3D:
 				cam = ch
 	if cam:
-		var r := MWTravel.pick(cam)
+		var r := activation_pick(cam)
 		# podpowiedź tylko dla tego, co klawisz E faktycznie obsługuje (drzwi, przedmioty, pojemniki)
 		var h: String = interaction.hint(r) if r and interaction != null else ""
 		if h.is_empty() and r and dialogue != null and dialogue.is_actor_node(r) and dialogue.available():
@@ -1713,9 +1724,67 @@ func _unhandled_input(e: InputEvent) -> void:
 	if e.is_action_pressed("activate") and player and control_allowed("controls"):
 		for ch in player.get_children():
 			if ch is Camera3D:
-				var r := MWTravel.pick(ch)
+				var r := activation_pick(ch)
 				if r:
 					activate(r)
+
+## Obiekt w zasięgu aktywacji (World::getFacedObject): iMaxActivateDist + Telekineza (wielkość w stopach ×
+## 21,33 j.); poza zwykłym zasięgiem tylko obiekty pozwalające na telekinezę (nie aktorzy, nie otwarte drzwi
+## teleportujące bez pułapki – Class::allowTelekinesis).
+func activation_pick(cam: Camera3D) -> Node3D:
+	var upm := MWCoords.UNITS_PER_METER
+	var base := float(combat._gmst("iMaxActivateDist", 192)) / upm
+	var tk: float = magic.magnitude_of(combat.player_fighter(), magic.FX_TELEKINESIS) if magic != null else 0.0
+	var hit := MWTravel.pick_hit(cam, base + tk * (64.0 / 3.0) / upm)
+	var r = hit.node
+	if r == null or tk <= 0.0 or float(hit.dist) <= base:
+		return r
+	if r.has_meta("mw_actor") or dialogue != null and dialogue.is_actor_node(r):
+		return null
+	if not MWTravel.door_destination(r).is_empty() and interaction != null and interaction.lock_level(r) <= 0 \
+			and interaction.trap(r).is_empty():
+		return null
+	return r
+
+## ActionTeleport::getFollowers (drzwi): aktorzy z AiFollow/AiEscort za graczem, nie dalej niż 800 j., nie
+## walczący z graczem. Przenoszone są referencje dynamiczne (przywołane stworzenia, PlaceAt…); stałe referencje
+## komórek nie zmieniają dziś komórki (brak mechanizmu przenoszenia referencji między komórkami).
+func _door_followers() -> Array:
+	var out := []
+	if ai == null or player == null:
+		return out
+	var pp := MWCoords.godot_to_mw(player.global_position)
+	for n in ai.actor_nodes():
+		var sid := String(n.get_meta("mw_sid", ""))
+		if not state.dynamic.has(sid) or combat.is_dead(combat.fighter_of(n)):
+			continue
+		var follows := false
+		var fights := false
+		for pk in ai.ai_state(n).packages:
+			var ty := String(pk.get("type", ""))
+			if ty in ["follow", "escort"] and String(pk.get("target", "")).to_lower() == "player":
+				follows = true
+			if ty == "combat" and String(pk.get("target", "player")) == "player":
+				fights = true
+		if follows and not fights and MWCoords.godot_to_mw(n.global_position).distance_to(pp) <= 800.0:
+			out.append(sid)
+	return out
+
+func _move_followers(sids: Array, dest: Dictionary) -> void:
+	if sids.is_empty():
+		return
+	var t: Transform3D = dest["transform"]
+	var key := String(dest.get("cell_key", ""))
+	if key.is_empty():
+		key = String(db.exterior_key(MWCoords.cell_of(t.origin)))
+	var pos := MWCoords.godot_to_mw(t.origin)
+	for sid in sids:
+		var d: Dictionary = state.dynamic.get(sid, {})
+		if d.is_empty():
+			continue
+		d["cell"] = key
+		d.mw["pos"] = [pos.x, pos.y, pos.z]
+		state.dynamic_changed.emit(sid)
 
 ## Aktywacja referencji (etap 3): drzwi (zamki, pułapki, podróż), przedmioty (podnoszenie), pojemniki (okno).
 func activate(r: Node, force_default := false) -> bool:
@@ -1770,7 +1839,9 @@ func activate(r: Node, force_default := false) -> bool:
 		audio.play(String(res["sound"]), null if res.get("action") == "take" else at)
 	match String(res.get("action", "")):
 		"travel":
+			var fol := _door_followers()
 			travel(res["dest"])
+			_move_followers(fol, res["dest"])
 		"open_container":
 			menu_mode.open_container(String(res["sid"]), interaction.container_record(String(res["base"])),
 					String(res.get("name", "")))
@@ -1911,6 +1982,11 @@ func _physics_process(_delta: float) -> void:
 	player.velocity = Vector3.ZERO
 	player._fall_start = NAN
 	player.set_physics_process(true)
+	# ActionTeleport: Chodzenie po wodzie usuwane, gdy w miejscu celu nie dałoby się go rzucić (za głęboko)
+	_update_water_level()
+	if magic != null and magic.magnitude_of(combat.player_fighter(), magic.FX_WATER_WALKING) > 0.0 \
+			and not magic.water_walking_castable(combat.player_fighter()):
+		magic._purge_effect(combat.player_fighter(), magic.FX_WATER_WALKING)
 
 func _update_streaming(_force: bool) -> void:
 	var g := MWCoords.cell_of(player.global_position)

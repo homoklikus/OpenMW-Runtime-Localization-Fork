@@ -54,6 +54,9 @@ func _run() -> void:
 	await _frames(2)
 	check(ai.awareness(main.player, v, 99), "widoczny gracz – zauważony (rzut 99)")
 	main.magic.inflict(cb.player_fighter(), {}, {"id": "inv", "name": "inv", "kind": "potion"}, [{"effect": 39, "min": 1, "max": 1, "duration": 60}])
+	# OpenMW applyMagicEffect: Niewidzialność działa od pierwszej klatki po nałożeniu (nie przy dt = 0)
+	check(main.magic.magnitude_of(cb.player_fighter(), 39) == 0.0 or main.builder.actors.record("magiceffect", "39").is_empty(), "niewidzialność nie działa w chwili nałożenia (dt = 0)")
+	await _frames(1)
 	check(main.magic.magnitude_of(cb.player_fighter(), 39) > 0.0 or main.builder.actors.record("magiceffect", "39").is_empty(), "niewidzialność (albo brak MGEF 39 w danych)")
 	if main.magic.magnitude_of(cb.player_fighter(), 39) > 0.0:
 		check(not ai.awareness(main.player, v, 0), "niewidzialny – niezauważony przy rzucie 0")

@@ -80,6 +80,21 @@ void sky() {
 	COLOR = col;
 }"
 
+## Widzenie w ciemności gracza (Player::update → RenderingManager::setNightEyeFactor: min(1, wielkość/100);
+## updateAmbient: światło otoczenia + 0,7 × współczynnik).
+var night_eye := 0.0:
+	set(v):
+		if not is_equal_approx(v, night_eye):
+			night_eye = v
+			if env != null:
+				if interior:
+					set_interior(_interior_cell)
+				else:
+					apply()
+
+func _night_eye_add() -> Color:
+	return Color(0.7, 0.7, 0.7, 0.0) * night_eye if night_eye > 0.0 else Color(0, 0, 0, 0)
+
 func _ready() -> void:
 	world_env = WorldEnvironment.new()
 	env = Environment.new()
@@ -195,7 +210,7 @@ func apply() -> void:
 	sun.light_color = r.sun
 	sun.light_energy = 1.0
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = r.ambient
+	env.ambient_light_color = r.ambient + _night_eye_add()
 	env.ambient_light_energy = 1.0
 	env.background_mode = Environment.BG_SKY
 	env.fog_light_color = r.fog
@@ -317,7 +332,7 @@ func set_interior(cell: Dictionary) -> void:
 		env.background_mode = Environment.BG_COLOR
 		env.background_color = Color8(fog[0], fog[1], fog[2])
 		env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-		env.ambient_light_color = Color8(amb[0], amb[1], amb[2])
+		env.ambient_light_color = Color8(amb[0], amb[1], amb[2]) + _night_eye_add()
 		env.ambient_light_energy = 1.0
 		env.fog_light_color = env.background_color
 		var dens := clampf(float(a.get("fog_density", 0.0)), 0.0, 1.0)

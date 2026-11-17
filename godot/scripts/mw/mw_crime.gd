@@ -369,25 +369,95 @@ func _markers() -> Dictionary:
 		markers = d if d is Dictionary else {}
 	return markers
 
-## Najbliższy znacznik (getClosestMarker): odległość od pozycji gracza na zewnątrz (we wnętrzu – ostatnia pozycja
-## zewnętrzna) do znacznika albo – dla znacznika we wnętrzu – do drzwi prowadzących do tego wnętrza.
+## Najbliższy znacznik (World::getClosestMarker): na zewnątrz – siatka komórek wokół pozycji gracza
+## (getClosestMarkerFromExteriorPosition); we wnętrzu – przeszukanie wnętrz przez drzwi (każde przejście = 1):
+## znacznik w odwiedzanym wnętrzu, a po drzwiach prowadzących na zewnątrz – siatka wokół celu tych drzwi.
+## Wnętrza spoza przekonwertowanych komórek: przybliżenie pozycją wejścia do wnętrza (pole „exterior”).
 func closest_marker(kind: String) -> Dictionary:
 	var lst: Array = _markers().get(kind, [])
-	var pp: Vector3 = main.ai.mw_pos(main.player)
-	if not main.interior.is_empty():
-		var le = main.state.player.get("last_exterior")
-		pp = Vector3(float(le[0]), float(le[1]), float(le[2])) if le is Array and le.size() >= 3 else Vector3.ZERO
-	var best: Dictionary = {}
-	var bd := INF
+	if main.interior.is_empty():
+		return marker_grid(lst, main.ai.mw_pos(main.player))
+	var checked := {}
+	var nxt: Array = [String(main.interior).to_lower()]
+	while not nxt.is_empty():
+		var cur: Array = nxt
+		nxt = []
+		for cname in cur:
+			checked[cname] = true
+			for m in lst:
+				if not String(m.cell).begins_with("ext:") and String(m.name).to_lower() == cname:
+					return m
+			var c: Dictionary = main.db.get_cell("int:" + String(cname))
+			if c.is_empty():
+				var le = main.state.player.get("last_exterior")
+				if cname == String(main.interior).to_lower() and le is Array and le.size() >= 3:
+					return marker_grid(lst, Vector3(float(le[0]), float(le[1]), float(le[2])))
+				continue
+			for r in c.get("refs", []):
+				var ex: Dictionary = r.get("extra", {})
+				if not ex.has("door_dest"):
+					continue
+				var dc := String(ex.get("door_dest_cell", "")).to_lower()
+				if dc.is_empty():
+					var o: Array = (ex.door_dest as Dictionary).get("godot", {}).get("origin", [0, 0, 0])
+					return marker_grid(lst, MWCoords.godot_to_mw(Vector3(float(o[0]), float(o[1]), float(o[2]))))
+				if not checked.has(dc) and not dc in cur and not dc in nxt:
+					nxt.append(dc)
+	return {}
+
+## getClosestMarkerFromExteriorPosition: znaczniki zewnętrzne na brzegu najmniejszego kwadratu komórek wokół
+## pozycji; remis – pierwszy na drodze SW → SE → NE → NW → SW.
+static func marker_grid(lst: Array, pos: Vector3) -> Dictionary:
+	var cs := 8192.0
+	var px := floori(pos.x / cs)
+	var py := floori(pos.y / cs)
+	var valid := []
+	var min_grid := 1 << 30
 	for m in lst:
-		var ref: Array = m.get("exterior", m.pos) if not String(m.cell).begins_with("ext:") else m.pos
-		var d := Vector3(float(ref[0]), float(ref[1]), float(ref[2])).distance_to(pp)
-		if not String(m.cell).begins_with("ext:") and not m.has("exterior"):
-			d = 1e12
-		if d < bd:
-			bd = d
-			best = m
+		if not String(m.cell).begins_with("ext:"):
+			continue
+		var dx := floori(float(m.pos[0]) / cs) - px
+		var dy := floori(float(m.pos[1]) / cs) - py
+		var g := maxi(absi(dx), absi(dy)) * 2
+		if g == 0:
+			return m
+		if g <= min_grid:
+			if g < min_grid:
+				valid.clear()
+				min_grid = g
+			valid.append([m, (g >> 1) + dx, (g >> 1) + dy])
+	if valid.is_empty():
+		return {}
+	if valid.size() == 1:
+		return valid[0][0]
+	var best: Dictionary = {}
+	var earliest := 1 << 30
+	for v in valid:
+		var col: int = v[1]
+		var row: int = v[2]
+		var d := 0
+		if row == 0:
+			d = col
+		elif col == min_grid:
+			d = min_grid + row
+		elif row == min_grid:
+			d = min_grid * 3 - col
+		else:
+			d = min_grid * 4 - row
+		if d < earliest:
+			earliest = d
+			best = v[0]
 	return best
+
+## World::teleportToClosestMarker (ActionTeleport bez towarzyszy): → false, gdy brak znacznika.
+func teleport_to_marker(kind: String) -> bool:
+	var m := closest_marker(kind)
+	if m.is_empty():
+		return false
+	var pos := Vector3(float(m.pos[0]), float(m.pos[1]), float(m.pos[2]))
+	var cell := String(m.name) if not String(m.cell).begins_with("ext:") else ""
+	main.travel_to_cell(cell, pos, rad_to_deg(float(m.rot[2])))
+	return true
 
 ## GoToJail: dni = max(1, grzywna / iDaysinPrisonMod), grzywna 0, przedmioty zabrane, przeniesienie do znacznika
 ## więzienia, upływ czasu (odpoczynek), odsiadka (jailTimeServed: losowe umiejętności −1, Security/Sneak +1).

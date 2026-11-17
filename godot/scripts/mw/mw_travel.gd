@@ -31,11 +31,15 @@ static func door_destination(ref: Node) -> Dictionary:
 
 ## Promień „aktywacji” z kamery – zwraca referencję MW w zasięgu (domyślnie 3 m, jak w grze ~ 192 jedn.).
 static func pick(camera: Camera3D, max_dist := 3.0) -> Node3D:
+	return pick_hit(camera, max_dist).get("node")
+
+## Jak pick, z odległością do punktu trafienia ({"node", "dist"}; brak trafienia – node = null).
+static func pick_hit(camera: Camera3D, max_dist := 3.0) -> Dictionary:
 	var space := camera.get_world_3d().direct_space_state
 	var from := camera.global_position
 	var to := from - camera.global_transform.basis.z * max_dist
 	var q := PhysicsRayQueryParameters3D.create(from, to)
 	var hit := space.intersect_ray(q)
 	if hit.is_empty():
-		return null
-	return ref_of(hit.collider)
+		return {"node": null, "dist": INF}
+	return {"node": ref_of(hit.collider), "dist": from.distance_to(hit.position)}

@@ -95,6 +95,12 @@ func spell_cost(sp: Dictionary) -> int:
 
 # --- stałe efektów (ESM::MagicEffect) --------------------------------------------------------------------
 
+const FX_WATER_BREATHING := 0
+const FX_SWIFT_SWIM := 1
+const FX_WATER_WALKING := 2
+const FX_JUMP := 9
+const FX_LEVITATE := 10
+const FX_SLOW_FALL := 11
 const FX_FIRE_SHIELD := 4
 const FX_LIGHTNING_SHIELD := 5
 const FX_FROST_SHIELD := 6
@@ -126,6 +132,31 @@ const FX_DISPEL := 57
 const FX_SOULTRAP := 58
 const FX_MARK := 60
 const FX_RECALL := 61
+const FX_DIVINE := 62
+const FX_ALMSIVI := 63
+const FX_INVISIBILITY := 39
+const FX_TELEKINESIS := 59
+const FX_LIGHT := 41
+const FX_NIGHT_EYE := 43
+const FX_SUN_DAMAGE := 135
+const FX_STUNTED_MAGICKA := 136
+const FX_CORPRUS := 132
+const FX_CURE_CORPRUS := 71
+const FX_CHARM := 44
+const FX_TURN_UNDEAD := 101
+const FX_COMMAND_CREATURE := 118
+const FX_COMMAND_HUMANOID := 119
+## Przywołania (summoning.cpp getSummonMap): efekt → GMST z identyfikatorem stworzenia
+const SUMMONS := {102: "sMagicScampID", 103: "sMagicClannfearID", 104: "sMagicDaedrothID", 105: "sMagicDremoraID",
+	106: "sMagicAncestralGhostID", 107: "sMagicSkeletalMinionID", 108: "sMagicLeastBonewalkerID",
+	109: "sMagicGreaterBonewalkerID", 110: "sMagicBonelordID", 111: "sMagicWingedTwilightID", 112: "sMagicHungerID",
+	113: "sMagicGoldenSaintID", 114: "sMagicFlameAtronachID", 115: "sMagicFrostAtronachID",
+	116: "sMagicStormAtronachID", 134: "sMagicCenturionSphereID", 137: "sMagicFabricantID",
+	138: "sMagicCreature01ID", 139: "sMagicCreature02ID", 140: "sMagicCreature03ID", 141: "sMagicCreature04ID",
+	142: "sMagicCreature05ID"}
+## modifyAiSetting: efekt → [ustawienie AI, znak zmiany, wariant dla stworzeń (true) / ludzi (false)]
+const AI_EFFECTS := {49: ["fight", -1, false], 50: ["fight", -1, true], 51: ["fight", 1, false], 52: ["fight", 1, true],
+	53: ["flee", 1, false], 54: ["flee", 1, true], 55: ["flee", -1, false], 56: ["flee", -1, true]}
 const FX_SPELL_ABSORPTION := 67
 const FX_REFLECT := 68
 const FX_CURE_COMMON := 69
@@ -164,11 +195,8 @@ const BOUND_ITEMS := {120: ["sMagicBoundDaggerID"], 121: ["sMagicBoundLongswordI
 const MAP_ONLY := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 28, 29, 30, 31, 32, 33, 34, 35, 36, 39, 40, 41, 42, 43, 44, 45,
 	46, 47, 48, 58, 64, 65, 66, 67, 68, 79, 83, 84, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 117, 136]
 # efekty zależne od AI, przywołań, teleportacji po znacznikach itp. – etap 8 (w mapie efektów, bez działania)
-const LATER := {49: "AI (etap 8)", 50: "AI (etap 8)", 51: "AI (etap 8)", 52: "AI (etap 8)", 53: "AI (etap 8)",
-	54: "AI (etap 8)", 55: "AI (etap 8)", 56: "AI (etap 8)", 101: "AI (etap 8)", 118: "AI (etap 8)", 119: "AI (etap 8)",
-	59: "telekineza (etap 8)", 62: "boska interwencja (etap 8)", 63: "interwencja Almsivi (etap 8)",
-	71: "choroby (etap 8)", 126: "ExtraSpell", 132: "choroby (etap 8)", 133: "wampiryzm (etap 8)",
-	135: "obrażenia od słońca (etap 8)"}
+const LATER := {
+	126: "ExtraSpell (brak w danych gry; rozbieranie NPC – brak)", 132: "Korpus: pogarszanie (brak)"}
 const SPELL_SPELL := 0
 const SPELL_ABILITY := 1
 const SPELL_POWER := 5
@@ -264,7 +292,10 @@ func _add_active(fx: Dictionary, list) -> void:
 				continue
 			var id := int(e.get("effect", -1))
 			if id in [FX_FORTIFY_HEALTH, FX_FORTIFY_MAGICKA, FX_FORTIFY_FATIGUE]:
-				continue                  # czasowe: tylko wartość bieżąca (adjustDynamicStat), maksimum bez zmian
+				# czasowe: w mapie efektów (GetEffect, Lua), ale maksimum bez zmian (adjustDynamicStat – tylko
+				# wartość bieżąca) – część czasowa osobno („_tmp…”, odejmowana przy liczeniu maksimum)
+				var k := "_tmp%d" % id
+				fx[k] = float(fx.get(k, 0.0)) + float(e.get("magnitude", 0.0))
 			main.character.add_effect(fx, e, float(e.get("magnitude", 0.0)))
 
 ## Zaklęcia aktora (Spells): po AddSpell/RemoveSpell lista w stanie aktora, inaczej z rekordu.
@@ -487,36 +518,53 @@ func _roll_magnitude(e: Dictionary) -> float:
 ## duration…); spell – rekord czaru (odporność zależy od szansy rzucającego) albo {}; ignore_resist – mikstury
 ## nie (Morrowind: trucizny można odeprzeć), własne czary też podlegają odporności (jak OpenMW).
 ## → {"applied", "resisted", "reflected", "absorbed"}
-func inflict(target: Dictionary, caster: Dictionary, source: Dictionary, list: Array, spell := {}, temporary := true) -> Dictionary:
+func inflict(target: Dictionary, caster: Dictionary, source: Dictionary, list: Array, spell := {}, temporary := true, ignore_reflect := false) -> Dictionary:
 	var res := {"applied": 0, "resisted": 0, "reflected": false, "absorbed": false}
 	if target.is_empty() or list.is_empty() or _combat().is_dead(target):
 		return res
 	var self_cast: bool = not caster.is_empty() and caster.sid == target.sid
-	# odbicie / pochłonięcie (cały czar) – tylko czary rzucane na innych
-	if temporary and not self_cast and not caster.is_empty():
-		var fx := effects(target)
-		if float(fx.get(str(FX_REFLECT), 0.0)) > 0.0 and roll100() < float(fx.get(str(FX_REFLECT), 0.0)):
-			var unref := list.filter(func(e): return not _flag(effect(int(e.get("effect", -1))), "unreflectable"))
-			if not unref.is_empty():
-				var r2 := inflict(caster, target, source, unref, {}, temporary)
-				r2["reflected"] = true
-				return r2
-		var absorb := float(fx.get(str(FX_SPELL_ABSORPTION), 0.0))
-		if absorb > 0.0 and roll100() < absorb:
-			var cost := spell_cost(spell) if not spell.is_empty() else int(total_cost(list))
-			adjust_dynamic(target, 1, float(cost))
-			res["absorbed"] = true
-			return res
 	var entry := {"id": String(source.get("id", "")), "name": String(source.get("name", "")),
 		"kind": String(source.get("kind", "spell")), "caster": String(caster.get("sid", "")) if not caster.is_empty() else "",
 		"effects": []}
 	var harmful := false
+	var reflected := []
+	# applyProtections (dla każdego efektu osobno): odbicie i pochłonięcie – czary tymczasowe rzucone na innych;
+	# rzut k100 dla każdego działającego efektu Odbicia/Pochłonięcia celu po kolei
+	var prot := []
+	if temporary and not self_cast:
+		var fx0 := effects(target)
+		if float(fx0.get(str(FX_REFLECT), 0.0)) > 0.0 or float(fx0.get(str(FX_SPELL_ABSORPTION), 0.0)) > 0.0:
+			prot = _protection_effects(target)
 	for e in list:
 		var id := int(e.get("effect", -1))
 		var mg := effect(id)
 		if mg.is_empty():
 			continue
 		if _flag(mg, "caster_linked") and caster.is_empty():
+			continue
+		var can_reflect := not ignore_reflect and not _flag(mg, "unreflectable") and not caster.is_empty()
+		var stop := ""
+		for x in prot:
+			if int(x[0]) == FX_REFLECT and can_reflect and roll100() < float(x[1]):
+				stop = "reflect"
+				break
+			if int(x[0]) == FX_SPELL_ABSORPTION and roll100() < float(x[1]):
+				stop = "absorb"
+				break
+		if stop == "reflect":
+			reflected.append(e)
+			res["reflected"] = true
+			continue
+		if stop == "absorb":
+			# absorbSpell: magia celu + koszt czaru (zaklęcie przedmiotu – efektywny koszt rzucenia)
+			var cost := 0.0
+			if not spell.is_empty():
+				cost = float(spell_cost(spell))
+			elif String(source.get("kind", "")) == "enchantment":
+				var en := item_enchantment(main.interaction.inventory.item(String(source.get("id", ""))))
+				cost = float(effective_cast_cost(en, caster)) if not en.is_empty() and not caster.is_empty() else 0.0
+			adjust_dynamic(target, 1, cost)
+			res["absorbed"] = true
 			continue
 		var ae := {"effect": id, "skill": int(e.get("skill", -1)), "attribute": int(e.get("attribute", -1)),
 			"min": float(e.get("min", 0)), "max": float(e.get("max", 0)), "duration": float(e.get("duration", 0)),
@@ -529,13 +577,14 @@ func inflict(target: Dictionary, caster: Dictionary, source: Dictionary, list: A
 			ae.time_left = 1.0
 		if _flag(mg, "harmful"):
 			harmful = true
-		if not caster.is_empty() and has_resistance(id):
-			var mult := 1.0 - effect_resistance(id, target, caster, spell) / 100.0
+		# odporności – zawsze (także bez rzucającego: szansa rzucenia 100)
+		if has_resistance(id) and not bool(e.get("ignore_resist", false)):
+			var mult := 1.0 - effect_resistance(id, target, caster, spell if temporary else {}) / 100.0
 			if mult <= 0.0:
 				res.resisted += 1
 				if target.kind == "player":
 					main._toast(_text("sMagicPCResisted", "Oparłeś się zaklęciu."), 2.0)
-				elif caster.kind == "player":
+				elif not caster.is_empty() and caster.kind == "player":
 					main._toast(_text("sMagicTargetResisted", "Cel oparł się zaklęciu."), 2.0)
 				continue
 			if not _flag(mg, "no_magnitude"):
@@ -543,6 +592,8 @@ func inflict(target: Dictionary, caster: Dictionary, source: Dictionary, list: A
 				ae.max *= mult
 		entry.effects.append(ae)
 		res.applied += 1
+	if not reflected.is_empty() and not caster.is_empty():
+		inflict(caster, target, source, reflected, spell, temporary, true)
 	if harmful and not caster.is_empty() and not self_cast and caster.kind == "player" and target.kind != "player":
 		_combat()._actor_state(target)["attacked"] = true
 		main.on_actor_attacked(target)
@@ -554,11 +605,45 @@ func inflict(target: Dictionary, caster: Dictionary, source: Dictionary, list: A
 	sync_dynamic(target)
 	return res
 
+## Działające efekty Odbicia / Pochłonięcia celu ([efekt, wielkość]): czary i stałe źródła (zdolności, przedmioty).
+func _protection_effects(f: Dictionary) -> Array:
+	var out := []
+	for sp in active(f):
+		for x in sp.effects:
+			if bool(x.get("applied", false)) and int(x.effect) in [FX_REFLECT, FX_SPELL_ABSORPTION]:
+				out.append([int(x.effect), float(x.get("magnitude", 0.0))])
+	var spells: Array = (main.player_stats().get("spells", []) as Array).duplicate() if f.kind == "player" else actor_spells(f).duplicate()
+	if f.kind == "npc":
+		spells.append_array(records.record("race", String(f.rec.get("race", ""))).get("powers", []))
+	for sid in spells:
+		var sp2: Dictionary = records.record("spell", String(sid))
+		if not sp2.is_empty() and int(sp2.get("spell_type", 0)) in main.character.CONSTANT_TYPES:
+			for e in sp2.get("effects", []):
+				if int(e.get("effect", -1)) in [FX_REFLECT, FX_SPELL_ABSORPTION]:
+					out.append([int(e.effect), float(e.get("min", 0))])
+	var eq: Dictionary = _combat().equipment(f)
+	for sl in eq:
+		var en := item_enchantment({"rec": eq[sl].rec})
+		if not en.is_empty() and int(en.get("type", -1)) == ENCH_CONSTANT:
+			for e in en.get("effects", []):
+				if int(e.get("effect", -1)) in [FX_REFLECT, FX_SPELL_ABSORPTION]:
+					out.append([int(e.effect), float(e.get("min", 0))])
+	return out
+
 ## Jedno przejście applyMagicEffect dla efektu (dt = 0 – nałożenie przy rzuceniu).
 func _apply_effect(f: Dictionary, entry: Dictionary, e: Dictionary, dt: float) -> void:
 	var id := int(e.effect)
 	var mg := effect(id)
+	if _should_remove(f, e):
+		e.time_left = 0.0
+		e.applied = true
+		e.magnitude = 0.0
+		return
 	var once := _flag(mg, "applied_once")
+	# applyMagicEffect: Przywołanie, interwencje i Niewidzialność nie działają w chwili nałożenia (dt = 0),
+	# dopiero w pierwszej klatce (Morrowind.exe nie stosuje efektów przy otwartym menu)
+	if dt == 0.0 and not bool(e.applied) and id in [FX_RECALL, FX_DIVINE, FX_ALMSIVI, FX_INVISIBILITY]:
+		return
 	if bool(e.applied):
 		if once:
 			e.time_left = float(e.time_left) - dt
@@ -578,6 +663,148 @@ func _apply_effect(f: Dictionary, entry: Dictionary, e: Dictionary, dt: float) -
 	e.magnitude = magnitude
 	e.applied = true
 	e.time_left = float(e.time_left) - dt
+	if bool(e.get("invalid", false)):
+		e.time_left = 0.0                         # Flag_Invalid: mTimeLeft = 0 (usunięte w następnej aktualizacji)
+
+## shouldRemoveEffect: Lewitacja przy wyłączonej lewitacji (DisableLevitation – sLevitateDisabled), Chodzenie po
+## wodzie nałożone zbyt głęboko pod wodą (isWaterWalkingCastableOnTarget – sMagicInvalidEffect).
+func _should_remove(f: Dictionary, e: Dictionary) -> bool:
+	var id := int(e.effect)
+	if id == FX_LEVITATE and not levitation_enabled():
+		if f.kind == "player" and float(e.get("magnitude", 0.0)) >= 0.0:
+			main._toast(_text("sLevitateDisabled", "Lewitacja jest tu niemożliwa."), 2.0)
+		return true
+	if id == FX_WATER_WALKING and not bool(e.get("applied", false)) and not water_walking_castable(f):
+		if f.kind == "player":
+			main._toast(_text("sMagicInvalidEffect", "Nie można rzucić tego zaklęcia."), 2.0)
+		return true
+	return false
+
+func levitation_enabled() -> bool:
+	return main == null or bool(main.state.player.get("levitation_enabled", true))
+
+## World::isWaterWalkingCastableOnTarget: niemożliwe, gdy punkt na wysokości (fSwimHeightScale + 1) × wzrost
+## aktora jest pod wodą albo aktor pod wodą nie ma wolnej drogi na powierzchnię.
+func water_walking_castable(f: Dictionary) -> bool:
+	var n = f.get("node")
+	if n == null or not "water_level" in n or float(n.water_level) == -INF:
+		return true
+	var wl := float(n.water_level)
+	var y: float = n.global_position.y
+	if y + float(n.height) * (float(n.swim_height_scale) + 1.0) < wl:
+		return false
+	if y < wl and n.has_method("test_move") and n.test_move(n.global_transform, Vector3.UP * (wl - y)):
+		return false
+	return true
+
+var _wcache := {}          # sid → [klatka, waga ekwipunku] (bez zapisu)
+
+## Actor::getEncumbrance: waga ekwipunku + Ciężar − Lekkość (≥ 0).
+func encumbrance(f: Dictionary, fx := {}) -> float:
+	if f.kind == "player":
+		return main.player_weight()
+	if fx.is_empty():
+		fx = effects(f)
+	var inv = main.interaction.inventory if main.interaction != null else null
+	var w := 0.0
+	if inv != null:
+		var frame := Engine.get_process_frames()
+		var c: Array = _wcache.get(String(f.sid), [-1, 0.0])
+		if int(c[0]) == frame:
+			w = float(c[1])
+		else:
+			w = float(inv.total_weight(inv.contents(String(f.sid), f.get("rec", {}))))
+			_wcache[String(f.sid)] = [frame, w]
+	return maxf(0.0, w - float(fx.get(str(FX_FEATHER), 0.0)) + float(fx.get(str(FX_BURDEN), 0.0)))
+
+## getNormalizedEncumbrance: obciążenie / udźwig (NPC: siła × fEncumbranceStrMult, stworzenie: siła × 5).
+func normalized_encumbrance(f: Dictionary, fx := {}) -> float:
+	if f.kind == "player":
+		var st: Dictionary = main.player_stats()
+		return main.character.normalized_encumbrance(st, main.player_weight())
+	var w := encumbrance(f, fx)
+	if w == 0.0:
+		return 0.0
+	var strength := float(_combat().attributes(f)[0])
+	var cap := strength * (5.0 if f.kind == "creature" else _gmst("fEncumbranceStrMult", 5.0))
+	return w / cap if cap > 0.0 else INF
+
+## Npc::getSpeed / Creature::getSpeed przy lewitacji (j./s): fMinFlySpeed + 0,01 × (szybkość + wielkość) ×
+## (fMaxFlySpeed − fMinFlySpeed), × (1 − fEncumberedMoveEffect × obciążenie); przeciążony (> 1) – 0.
+func fly_speed(f: Dictionary, levitate: float, fx := {}) -> float:
+	var enc := normalized_encumbrance(f, fx)
+	if enc > 1.0:
+		return 0.0
+	var speed := float(_combat().attributes(f)[4])
+	var x := 0.01 * (speed + levitate)
+	x = _gmst("fMinFlySpeed", 5.0) + x * (_gmst("fMaxFlySpeed", 20.0) - _gmst("fMinFlySpeed", 5.0))
+	x *= 1.0 - _gmst("fEncumberedMoveEffect", 0.3) * enc
+	return maxf(0.0, x)
+
+## Co klatkę: skutki efektów w ruchu aktora (World::isFlying, isSlowFalling, PhysicsSystem – chodzenie po wodzie).
+func apply_movement(f: Dictionary, n: Node) -> void:
+	if f.is_empty() or n == null or not "levitate" in n:
+		return
+	var fx := effects(f)
+	var dead: bool = f.kind != "player" and _combat().is_dead(f)
+	var paralyzed := float(fx.get(str(FX_PARALYZE), 0.0)) > 0.0
+	var lev := float(fx.get(str(FX_LEVITATE), 0.0))
+	n.levitate = lev > 0.0 and levitation_enabled() and not paralyzed and not dead
+	n.levitate_speed = fly_speed(f, lev, fx) / MWCoords.UNITS_PER_METER if n.levitate else 0.0
+	n.slow_fall = 1.0 - clampf(float(fx.get(str(FX_SLOW_FALL), 0.0)) * 0.005, 0.0, 1.0)
+	n.water_walk = float(fx.get(str(FX_WATER_WALKING), 0.0)) > 0.0 and bool(n.get("collide"))
+	# Światło (Animation::setLightEffect): 1 pkt = 1 stopa promienia (22 j.), zasięg × 3, tylko światło otoczenia
+	_light_effect(n, 0.0 if dead else float(fx.get(str(FX_LIGHT), 0.0)))
+	# Widzenie w ciemności gracza (setNightEyeFactor)
+	if f.kind == "player" and main.envr != null:
+		main.envr.night_eye = minf(1.0, maxf(0.0, float(fx.get(str(FX_NIGHT_EYE), 0.0))) / 100.0)
+	# Dźwięk na graczu: pętla „magic sound” o głośności wielkość/100 (applyActorMagicEffect / removeMagicEffect)
+	if f.kind == "player" and main.audio != null:
+		var snd := float(fx.get(str(FX_SOUND), 0.0))
+		var on: bool = main.audio.is_playing_on("player", "magic sound")
+		if snd > 0.0 and not on:
+			main.audio.play_on("player", "magic sound", null, clampf(snd / 100.0, 0.0, 1.0), 1.0, true)
+		elif snd <= 0.0 and on:
+			main.audio.stop_on("player", "magic sound")
+
+func _light_effect(n: Node, mag: float) -> void:
+	var l := n.get_node_or_null("MagicLight") as OmniLight3D
+	if mag <= 0.0:
+		if l != null:
+			l.queue_free()
+		return
+	if l == null:
+		l = OmniLight3D.new()
+		l.name = "MagicLight"
+		l.light_color = Color(1, 1, 1)
+		l.light_energy = 1.5                 # ambient 1,5 (bez światła rozproszonego w OpenMW – przybliżenie)
+		l.shadow_enabled = false
+		l.position = Vector3(0, 1.0, 0)
+		n.add_child(l)
+	l.omni_range = mag * ceilf(64.0 / 3.0) * 3.0 / MWCoords.UNITS_PER_METER
+
+## Actors::updateDrowning: pod wodą (punkt 1/fSwimHeightScale wzrostu pod powierzchnią) bez Oddychania pod wodą
+## ubywa czasu (fHoldBreathTime), po nim fSuffocationDamage zdrowia na sekundę; poza wodą czas wraca do pełna.
+func update_drowning(f: Dictionary, n: Node, dt: float) -> void:
+	if f.is_empty() or n == null or not "water_level" in n or dt <= 0.0:
+		return
+	var h := holder(f)
+	if h.is_empty() or (f.kind != "player" and _combat().is_dead(f)):
+		return
+	var hold := _gmst("fHoldBreathTime", 20.0)
+	var wl := float(n.water_level)
+	var submerged: bool = wl > -INF and n.global_position.y + float(n.height) / float(n.swim_height_scale) < wl
+	if not submerged or magnitude_of(f, FX_WATER_BREATHING) != 0.0:
+		h.erase("drown_time")
+		return
+	var left := maxf(0.0, float(h.get("drown_time", hold)) - dt)
+	h["drown_time"] = left
+	if left == 0.0:
+		adjust_dynamic(f, 0, -_gmst("fSuffocationDamage", 3.0) * dt, true)
+		var who := String(f.get("sid", "player"))
+		if main.audio != null and not main.audio.is_playing_on(who, "drown"):
+			main.audio.play_on(who, "drown", n.global_position if f.kind != "player" else null)
+		_check_death(f, {})
 
 func _caster_of(entry: Dictionary) -> Dictionary:
 	var sid := String(entry.get("caster", ""))
@@ -655,6 +882,15 @@ func _actor_effect(f: Dictionary, entry: Dictionary, e: Dictionary, amount: floa
 					active(c2).append({"id": entry.id, "name": entry.name, "kind": "absorb", "caster": "", "effects": [
 						{"effect": fe, "skill": int(e.skill), "attribute": int(e.attribute), "min": amount, "max": amount,
 						"duration": e.duration, "time_left": e.time_left, "magnitude": amount, "applied": true}]})
+		FX_SUN_DAMAGE:
+			# tylko na zewnątrz: wielkość × clamp(max(widoczność słońca × wschód, fMagicSunBlockedMult × wschód))
+			if main.interior.is_empty() or (main.envr != null and not bool(main.envr.interior)):
+				var risen: float = main.envr.wm.sun_percentage(float(main.envr.game_hour)) if main.envr != null else 0.0
+				var vis: float = main.envr.wm.glare_view() if main.envr != null else 0.0
+				var scale := clampf(maxf(vis * risen, _gmst("fMagicSunBlockedMult", 0.5) * risen), 0.0, 1.0)
+				adjust_dynamic(f, 0, -amount * scale)
+		FX_CURE_CORPRUS:
+			_purge_effect(f, FX_CORPRUS)
 		FX_CURE_POISON:
 			_purge_effect(f, FX_POISON)
 		FX_CURE_PARALYZATION:
@@ -673,20 +909,58 @@ func _actor_effect(f: Dictionary, entry: Dictionary, e: Dictionary, amount: floa
 			if f.kind == "player" and not bool(main.state.player.get("teleport_enabled", true)):
 				main._toast(main.dialogue.gmst_text("sTeleportDisabled", "Teleportacja jest tu niemożliwa.") if main.dialogue != null else "")
 			elif id == FX_MARK and f.kind == "player":
-				main.state.player["mark"] = {"interior": main.interior, "pos": main.position_string()}
+				# Player::markPosition: komórka i pozycja z obrotem (Recall – ActionTeleport do tej pozycji)
+				main.state.player["mark"] = {"interior": main.interior, "pos": main.position_string(),
+					"rot": rad_to_deg(-main.player.rotation.y)}
 			elif id == FX_RECALL and f.kind == "player" and main.state.player.get("mark") is Dictionary and main.has_method("recall_to_mark"):
 				main.recall_to_mark()
+		FX_DIVINE, FX_ALMSIVI:
+			# tylko gracz (applyActorMagicEffect); teleportToClosestMarker „divinemarker”/„templemarker”
+			if f.kind == "player":
+				if not bool(main.state.player.get("teleport_enabled", true)):
+					main._toast(_text("sTeleportDisabled", "Teleportacja jest tu niemożliwa."))
+				elif main.crime != null:
+					main.crime.teleport_to_marker("divinemarker" if id == FX_DIVINE else "templemarker")
+		49, 50, 51, 52, 53, 54, 55, 56:
+			# modifyAiSetting: nie na gracza; wariant „Creature” tylko dla stworzeń, „Humanoid” – dla NPC
+			var spec: Array = AI_EFFECTS[id]
+			if f.kind == "player" or bool(spec[2]) != (f.kind == "creature"):
+				e["invalid"] = true
+			else:
+				_ai_mod(f, String(spec[0]), float(spec[1]) * amount)
+				if id in [49, 50] and amount > 0.0 and main.ai != null and f.get("node") != null:
+					main.ai.stop_combat(f.node)         # Calm: getAiSequence().stopCombat()
+		FX_TURN_UNDEAD:
+			# tylko nieumarli (Creature::Undead = 2): ucieczka + wielkość
+			if f.kind != "creature" or int(f.rec.get("creature_type", -1)) != 2:
+				e["invalid"] = true
+			else:
+				_ai_mod(f, "flee", amount)
+		FX_COMMAND_CREATURE, FX_COMMAND_HUMANOID:
+			# rzucający aktor, cel nie gracz, rodzaj zgodny, wielkość ≥ poziom celu → AiFollow(rzucający, rozkaz)
+			var c3 := _caster_of(entry)
+			var lvl := float(main.scripts.stats().get_level(f)) if main.scripts != null else float(f.rec.get("level", 1))
+			if c3.is_empty() or f.kind == "player" or (id == FX_COMMAND_HUMANOID) != (f.kind == "npc"):
+				e["invalid"] = true
+			elif amount >= lvl and main.ai != null and f.get("node") != null:
+				main.ai.stack(f.node, {"type": "follow", "target": "player" if c3.kind == "player" else String(c3.base),
+					"duration": 0, "commanded": true})
+		FX_CHARM:
+			if f.kind != "npc":
+				e["invalid"] = true
+		102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 134, 137, 138, 139, 140, 141, 142:
+			e["actor"] = summon_creature(id, f)
 		_:
 			if BOUND_ITEMS.has(id):
 				_bound_item(f, id, true)
 			elif LATER.has(id):
 				unsupported[LATER[id]] = int(unsupported.get(LATER[id], 0)) + 1
-	if id in [FX_FIRE, FX_SHOCK, FX_FROST, FX_DAMAGE_HEALTH, FX_POISON, FX_DRAIN_HEALTH, FX_ABSORB_HEALTH]:
+	if id in [FX_FIRE, FX_SHOCK, FX_FROST, FX_DAMAGE_HEALTH, FX_POISON, FX_DRAIN_HEALTH, FX_ABSORB_HEALTH, FX_SUN_DAMAGE]:
 		_check_death(f, entry)
 
 ## removeMagicEffect – cofnięcie efektów jednorazowych po wygaśnięciu.
 func _remove_effect(f: Dictionary, e: Dictionary) -> void:
-	if not bool(e.get("applied", false)):
+	if not bool(e.get("applied", false)) or bool(e.get("invalid", false)):
 		return
 	var id := int(e.effect)
 	var m := float(e.get("magnitude", 0.0))
@@ -714,9 +988,138 @@ func _remove_effect(f: Dictionary, e: Dictionary) -> void:
 			var s := int(e.skill)
 			if s >= 0 and s < 27:
 				p2.skills[s] = maxf(0.0, float(p2.skills[s]) - m)
+		49, 50, 51, 52, 53, 54, 55, 56:
+			var spec: Array = AI_EFFECTS[id]
+			_ai_mod(f, String(spec[0]), -float(spec[1]) * m)
+		FX_TURN_UNDEAD:
+			_ai_mod(f, "flee", -m)
+		102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 134, 137, 138, 139, 140, 141, 142:
+			cleanup_summon(f, String(e.get("actor", "")))
+		FX_COMMAND_CREATURE, FX_COMMAND_HUMANOID:
+			# removeMagicEffect: gdy łączna wielkość ≤ 0 – usunięcie rozkazanych AiFollow
+			if magnitude_of(f, id) - m <= 0.0 and main.ai != null and f.get("node") != null:
+				var st: Dictionary = main.ai.ai_state(f.node)
+				st.packages = (st.packages as Array).filter(func(x):
+					return not (String(x.get("type", "")) == "follow" and bool(x.get("commanded", false))))
 		_:
 			if BOUND_ITEMS.has(id):
 				_bound_item(f, id, false)
+
+## Modyfikator ustawienia AI aktora (Stat<int>::mModifier; GetFight itd. – podstawa + modyfikator).
+func _ai_mod(f: Dictionary, setting: String, delta: float) -> void:
+	var h := holder(f)
+	if not h.get("ai_mod") is Dictionary:
+		h["ai_mod"] = {}
+	h.ai_mod[setting] = int(h.ai_mod.get(setting, 0)) + int(delta)
+	if int(h.ai_mod[setting]) == 0:
+		h.ai_mod.erase(setting)
+	if (h.ai_mod as Dictionary).is_empty():
+		h.erase("ai_mod")
+
+## summonCreature: stworzenie z GMST efektu (dane gry/modów) umieszczone 120 j. przed przywołującym
+## (safePlaceObject – bez wolnego miejsca: w miejscu przywołującego), AiFollow za przywołującym; → sid stworzenia
+## (referencja dynamiczna: zapis, zmiana komórki z przywołującym przez drzwi) albo "" (nie udało się).
+func summon_creature(id: int, summoner: Dictionary) -> String:
+	var cid := String(records.record("gmst", String(SUMMONS[id]).to_lower()).get("value", "")).to_lower()
+	var n = summoner.get("node")
+	if cid.is_empty() or records.record("creature", cid).is_empty() or n == null or not is_instance_valid(n):
+		return ""
+	var pos := MWCoords.godot_to_mw(n.global_position)
+	var rz := -float(n.rotation.y)
+	var fwd := Vector3(sin(rz), cos(rz), 0.0)
+	var place := pos + fwd * 120.0
+	var space: PhysicsDirectSpaceState3D = n.get_world_3d().direct_space_state if n.is_inside_tree() else null
+	if space != null:
+		var from: Vector3 = n.global_position + Vector3.UP * 0.9
+		var q := PhysicsRayQueryParameters3D.create(from, MWCoords.mw_to_godot(place) + Vector3.UP * 0.9)
+		q.exclude = [n.get_rid()]
+		if not space.intersect_ray(q).is_empty():
+			place = pos                          # safePlaceObject: przeszkoda – w miejscu przywołującego
+	var key: String = ("int:" + String(main.interior).to_lower()) if not String(main.interior).is_empty() \
+			else String(main.db.exterior_key(MWCoords.cell_of(MWCoords.mw_to_godot(place))))
+	var sid: String = main.state.add_dynamic(cid, key, place, Vector3(0, 0, rz), 1)
+	var cn = _node_by_sid(sid)
+	if cn != null and main.ai != null:
+		var target := "player" if summoner.kind == "player" else String(summoner.base)
+		main.ai.stack(cn, {"type": "follow", "target": target, "duration": 0, "summoned": true})
+	var h := holder(summoner)
+	if not h.get("summons") is Dictionary:
+		h["summons"] = {}
+	h.summons[sid] = id
+	return sid
+
+## cleanupSummonedCreature: usunięcie przywołanego stworzenia (koniec efektu, śmierć przywołującego).
+func cleanup_summon(summoner: Dictionary, sid: String) -> void:
+	if sid.is_empty():
+		return
+	var h := holder(summoner)
+	if h.get("summons") is Dictionary:
+		h.summons.erase(sid)
+		if (h.summons as Dictionary).is_empty():
+			h.erase("summons")
+	if main.state.dynamic.has(sid):
+		main.state.remove_dynamic(sid)
+	if main.state.get("actors") is Dictionary:
+		main.state.actors.erase(sid)
+
+## updateSummons: martwe przywołane stworzenie – efekt usunięty (można przywołać ponownie), ciało znika.
+func _update_summons(f: Dictionary) -> void:
+	var h := holder(f)
+	if not h.get("summons") is Dictionary:
+		return
+	for sid in (h.summons as Dictionary).keys():
+		var st = main.state.actors.get(sid) if main.state.get("actors") is Dictionary else null
+		var gone: bool = not main.state.dynamic.has(sid)
+		if gone or (st is Dictionary and bool(st.get("dead", false))):
+			for sp in active(f):
+				for x in sp.effects:
+					if String(x.get("actor", "")) == sid:
+						x.time_left = 0.0
+
+func _node_by_sid(sid: String) -> Node:
+	for key in main.loaded:
+		var refs: Node = main.loaded[key].get_node_or_null("Refs")
+		if refs == null:
+			continue
+		for c in refs.get_children():
+			if String(c.get_meta("mw_sid", "")) == sid:
+				return c
+	return null
+
+## ActiveSpells::clear po śmierci (Actors::killDeadActors): wszystkie czary aktora usunięte z cofnięciem
+## skutków (m.in. przywołane stworzenia znikają, rozkazy wygasają).
+func clear_on_death(f: Dictionary) -> void:
+	var list := active(f)
+	for sp in list.duplicate():
+		for x in sp.effects:
+			_remove_effect(f, x)
+	list.clear()
+
+## getStuntedMagickaDuration: −1 – stałe źródło (zdolność, przedmiot), inaczej najdłuższy pozostały czas (s).
+func stunted_magicka_remaining(f: Dictionary) -> float:
+	if magnitude_of(f, FX_STUNTED_MAGICKA) <= 0.0:
+		return 0.0
+	var rem := 0.0
+	var any := false
+	for sp in active(f):
+		for x in sp.effects:
+			if int(x.effect) == FX_STUNTED_MAGICKA:
+				any = true
+				rem = maxf(rem, float(x.time_left))
+	return rem if any else -1.0
+
+## World::breakInvisibility: usuwa Niewidzialność (atak, rzucanie, użycie przedmiotu, wypicie, alchemia…).
+func break_invisibility(f: Dictionary) -> void:
+	if f.is_empty():
+		return
+	var any := false
+	for sp in active(f):
+		for x in sp.effects:
+			if int(x.effect) == FX_INVISIBILITY and float(x.time_left) > 0.0:
+				x.time_left = 0.0
+				any = true
+	if any:
+		_cleanup(f)
 
 func _check_death(f: Dictionary, entry: Dictionary) -> void:
 	var cb = _combat()
@@ -733,6 +1136,12 @@ func _purge_effect(f: Dictionary, fx_id: int) -> void:
 ## Leczenie chorób i klątw: usuwa z listy czarów gracza rodzaje 2 (zaraza), 3 (choroba), 4 (klątwa).
 func _purge_permanent(f: Dictionary, spell_type: int) -> void:
 	if f.kind != "player":
+		# NPC/stworzenie: lista zaklęć aktora w stanie (jak po RemoveSpell) bez chorób/klątw danego rodzaju
+		var own: Array = actor_spells(f).filter(func(x):
+			return int(records.record("spell", String(x).to_lower()).get("spell_type", 0)) != spell_type)
+		if own.size() != actor_spells(f).size():
+			var ast: Dictionary = _combat()._actor_state(f)
+			ast["spells"] = own
 		return
 	var st: Dictionary = main.player_stats()
 	st["spells"] = (st.get("spells", []) as Array).filter(func(s):
@@ -797,6 +1206,7 @@ func tick(f: Dictionary, dt: float) -> void:
 	for sp in list.duplicate():
 		_tick_entry(f, sp, dt)
 	_tick_constant(f, dt)
+	_update_summons(f)
 	_cleanup(f)
 	sync_dynamic(f)
 
@@ -812,7 +1222,38 @@ func sync_dynamic(f: Dictionary) -> void:
 			h[k[0]] = float(h[k[0]]) * mx / old
 		h[k[1]] = mx
 
-const CONSTANT_TICK := [14, 15, 16, 23, 24, 25, 27, 75, 76, 77]
+const CONSTANT_TICK := [14, 15, 16, 23, 24, 25, 27, 75, 76, 77, 135]
+
+## Czy aktor ma stałe źródło efektu działającego co klatkę (zdolność, stałe zaklęcie ekwipunku – np. regeneracja,
+## obrażenia od słońca wampira): wtedy tick także bez działających czarów (Actors::updateActor dla każdego aktora).
+func has_constant_tick(f: Dictionary) -> bool:
+	if f.is_empty() or f.kind == "player":
+		return false
+	var key := String(f.get("base", ""))
+	var own_list: bool = main.state.actors.get(String(f.sid), {}).has("spells")
+	var any := false
+	if _const_tick_cache.has(key) and not own_list:
+		any = bool(_const_tick_cache[key])
+	else:
+		for sid in actor_spells(f):
+			var sp: Dictionary = records.record("spell", String(sid))
+			if not sp.is_empty() and int(sp.get("spell_type", 0)) in main.character.CONSTANT_TYPES:
+				for e in sp.get("effects", []):
+					if int(e.get("effect", -1)) in CONSTANT_TICK:
+						any = true
+		if not own_list:
+			_const_tick_cache[key] = any
+	if not any:
+		var eq: Dictionary = _combat().equipment(f)
+		for s in eq:
+			var en := item_enchantment({"rec": eq[s].rec})
+			if not en.is_empty() and int(en.get("type", -1)) == ENCH_CONSTANT:
+				for e in en.get("effects", []):
+					if int(e.get("effect", -1)) in CONSTANT_TICK:
+						any = true
+	return any
+
+var _const_tick_cache := {}
 
 func _tick_constant(f: Dictionary, dt: float) -> void:
 	if dt <= 0.0:
@@ -878,6 +1319,7 @@ func cast_spell(caster: Dictionary, spell_id: String, touch := {}, roll := -1) -
 		return {"success": false, "cost": cost, "message": _text("sMagicInsufficientSP", "Za mało magii.")}
 	if typ == SPELL_POWER and not can_use_power(caster, spell_id):
 		return {"success": false, "message": _text("sPowerAlreadyUsed", "Tej mocy już dziś użyłeś.")}
+	break_invisibility(caster)               # CharacterController: rzucanie (także nieudane) zdejmuje niewidzialność
 	if cost > 0:
 		set_magicka(caster, magicka(caster) - float(cost))
 	var chance := spell_chance(sp, caster, true, false)
@@ -915,6 +1357,7 @@ func drink(f: Dictionary, id: String) -> Dictionary:
 	var sid := "player" if f.kind == "player" else String(f.sid)
 	if main.interaction.inventory.remove(sid, f.rec, it.id, 1) <= 0:
 		return {"success": false}
+	break_invisibility(f)                    # Actor::consume: breakInvisibility po udanym rzuceniu
 	var r := inflict(f, f, {"id": it.id, "name": String(it.rec.get("name", it.id)), "kind": "potion"}, it.rec.get("effects", []))
 	if main.audio != null and f.kind == "player":
 		main.audio.play("Drink")
@@ -966,6 +1409,7 @@ func eat(f: Dictionary, id: String, roll := -1) -> Dictionary:
 	if e.is_empty():
 		var msg := _text("sNotifyMessage50", "%s nie działa na ciebie.").replace("%s", String(it.rec.get("name", it.id)))
 		return {"success": true, "effect": {}, "message": msg}
+	break_invisibility(f)
 	inflict(f, f, {"id": it.id, "name": String(it.rec.get("name", it.id)), "kind": "ingredient"}, [e])
 	return {"success": true, "effect": e, "message": ""}
 
@@ -1095,6 +1539,8 @@ func brew(f: Dictionary, ingredient_ids: Array, name: String, roll := -1) -> Dic
 		weight += float(main.interaction.inventory.item(id).rec.get("weight", 0.0))
 		main.interaction.inventory.remove(sid, f.rec, id, 1)
 	weight /= ids.size()
+	if not (res.get("effects", []) as Array).is_empty():
+		break_invisibility(f)                # Alchemy::create (gotowe do warzenia)
 	var r := roll if roll >= 0 else roll100()
 	if (res.get("effects", []) as Array).is_empty() or alchemy_factor(f) < float(r):
 		if main.audio != null:
@@ -1173,6 +1619,7 @@ func use_item(caster: Dictionary, id: String, touch := {}) -> Dictionary:
 	if typ != ENCH_WHEN_USED and typ != ENCH_CAST_ONCE:
 		return {"success": false, "message": "Tego zaklęcia nie można użyć."}
 	var sid := "player" if caster.kind == "player" else String(caster.sid)
+	break_invisibility(caster)               # użycie zaklętego przedmiotu (castSpell)
 	if typ == ENCH_WHEN_USED:
 		var cost := effective_cast_cost(en, caster)
 		var ch := item_charge(caster, it.id, en)

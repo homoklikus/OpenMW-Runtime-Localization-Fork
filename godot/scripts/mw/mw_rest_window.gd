@@ -136,7 +136,8 @@ func hours_until_healed() -> int:
 	var h := 0.0
 	if hp > 0.0:
 		h = maxf(h, (float(d.health.modified) - float(st.get("health", 0))) / hp)
-	if mp > 0.0:
+	var stunted: bool = main.magic != null and main.magic.magnitude_of(main.combat.player_fighter(), main.magic.FX_STUNTED_MAGICKA) > 0.0
+	if mp > 0.0 and not stunted:                 # getHoursToRest: przy Osłabionej magii magia się nie liczy
 		h = maxf(h, (float(d.magicka.modified) - float(st.get("magicka", 0))) / mp)
 	return clampi(int(ceilf(h)), 0, 24)
 

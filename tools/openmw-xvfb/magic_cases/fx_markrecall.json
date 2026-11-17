@@ -1,0 +1,40 @@
+{
+ "name": "fx_markrecall",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".track",
+  ".actors"
+ ],
+ "tol": {
+  "pos": 20
+ },
+ "setup": [
+  "player->Position -12288 -69632 160 0"
+ ],
+ "spells": [
+  [
+   3,
+   "player",
+   "mark",
+   ""
+  ],
+  [
+   23,
+   "player",
+   "recall",
+   ""
+  ]
+ ],
+ "after": [
+  [
+   10,
+   "player->Position -11000 -70500 400 90"
+  ]
+ ],
+ "seconds": 2
+}

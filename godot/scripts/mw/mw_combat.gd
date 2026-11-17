@@ -407,6 +407,8 @@ func resist_normal(vic: Dictionary, w: Dictionary, damage: float) -> float:
 ## → {"success", "damage", "health", "victim_dead"}
 func melee(att: Dictionary, vic: Dictionary, attack_type: int, strength: float, roll := -1) -> Dictionary:
 	var w := weapon(att)
+	if main.magic != null and main.magic.main != null:
+		main.magic.break_invisibility(att)        # CharacterController: zwolnienie ataku (AttackRelease)
 	set_fatigue(att, fatigue(att) - attack_fatigue(att, w, strength))
 	if vic.is_empty() or is_dead(vic):
 		return {"success": false}
@@ -435,15 +437,51 @@ func melee(att: Dictionary, vic: Dictionary, attack_type: int, strength: float, 
 		main.skill_used(weapon_skill(w), "weapon_hit")
 	if helpless:
 		damage *= float(_gmst("fCombatKODamageMult", 1.5))
+	# Npc::hit / Creature::hit: zaklęcie broni przy uderzeniu i tarcze żywiołów ofiary – przed blokiem
+	var ench := false
+	if not w.is_empty() and main.magic != null and main.magic.main != null and not is_dead(vic):
+		ench = main.magic.on_strike(att, vic, w)     # applyOnStrikeEnchantment
+	if main.magic != null and main.magic.main != null:
+		elemental_shields(att, vic)
 	var blocked := block(att, vic, w, damage, strength)
 	if blocked:
 		damage = 0.0
 	var res := on_hit(vic, att, {"health": damage} if health_dmg else {"fatigue": damage}, true)
-	if not blocked and not w.is_empty() and main.magic != null and main.magic.main != null and not is_dead(vic):
-		res["enchanted"] = main.magic.on_strike(att, vic, w)     # applyOnStrikeEnchantment
+	if ench:
+		res["enchanted"] = true
 	res["chance"] = chance
 	res["blocked"] = blocked
 	return res
+
+## applyElementalShields: każda tarcza żywiołu ofiary rani atakującego: rzut obronny (zniszczenie + 0,2 SW +
+## 0,1 szczęście) × 1,25 × kondycja − k100, + odporność atakującego na żywioł (≤ 100);
+## fElementalShieldMult × wielkość × (1 − 0,01 × x), skalowane trudnością (z zamienionymi stronami).
+func elemental_shields(att: Dictionary, vic: Dictionary) -> void:
+	if att.is_empty() or vic.is_empty():
+		return
+	var fxv: Dictionary = main.magic.effects(vic)
+	for pair in [[4, 14], [5, 15], [6, 16]]:
+		var mag := float(fxv.get(str(pair[0]), 0.0))
+		if mag == 0.0:
+			continue
+		var at := attributes(att)
+		var save := skill(att, 10) + 0.2 * float(at[2]) + 0.1 * float(at[7])
+		var fmax := max_fatigue(att)
+		var nf := 1.0 if floorf(fmax) == 0.0 else maxf(0.0, fatigue(att) / fmax)
+		save *= 1.25 * nf
+		var x := maxf(0.0, save - float(roll100()))
+		x = minf(100.0, x + main.magic.resistance_attribute(int(pair[1]), main.magic.effects(att)))
+		x = float(_gmst("fElementalShieldMult", 0.1)) * mag * (1.0 - 0.01 * x)
+		x = _difficulty(x, vic, att)
+		set_health(att, health(att) - x)
+		if main.audio != null:
+			main.audio.play("Health Damage", att.node.global_position if att.get("node") != null and att.kind != "player" else null)
+		if health(att) <= 0.0:
+			if att.kind == "player":
+				if main.has_method("_player_died"):
+					main._player_died()
+			elif not is_dead(att):
+				main.on_actor_died(att, vic)
 
 ## blockMeleeAttack: tylko ofiara gotowa do bloku (dobyta broń, tarcza, nie atakuje) – gracz; NPC (AI) – etap 8.
 func block(att: Dictionary, vic: Dictionary, w: Dictionary, damage: float, strength: float, roll := -1) -> bool:

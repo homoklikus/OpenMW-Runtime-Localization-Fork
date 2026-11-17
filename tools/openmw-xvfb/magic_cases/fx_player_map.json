@@ -1,0 +1,200 @@
+{
+ "name": "fx_player_map",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -12288 -69632 160 0"
+ ],
+ "spells": [
+  [
+   3,
+   "player",
+   "charisma",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "daedric health",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "daedric fatigue",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "assured balanced armor",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "blood of the north",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "fire shield",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "lightning shield",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "fifth barrier",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "sanctuary",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "chameleon",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "eye of night",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "jump",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "feather",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "buoyancy",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "telekinesis",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "sotha's mirror",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "spell absorption",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "great resist fire",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "great resist frost",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "great resist shock",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "great resist magicka",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "resist paralysis",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "blindself",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "detect enchantment",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "detect_key",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "brevusa's averted eyes",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "argonian breathing",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "greater resist poison",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "blessed touch",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "fay ability",
+   "player"
+  ]
+ ],
+ "seconds": 3
+}

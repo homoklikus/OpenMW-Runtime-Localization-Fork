@@ -1,0 +1,42 @@
+{
+ "name": "fx_levitate",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects.player.rotz",
+  ".track"
+ ],
+ "tol": {
+  "pos": 20,
+  "track": 20
+ },
+ "setup": [
+  "player->Position -12288 -69632 160 0"
+ ],
+ "spells": [
+  [
+   3,
+   "player",
+   "great levitate",
+   ""
+  ]
+ ],
+ "seconds": 3,
+ "track": [
+  "player"
+ ],
+ "samples": [
+  2,
+  3
+ ],
+ "after": [
+  [
+   5,
+   "player->SetPos z 900"
+  ]
+ ]
+}

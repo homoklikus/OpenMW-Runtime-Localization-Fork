@@ -1,0 +1,53 @@
+{
+ "name": "fx_slowfall",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects.player.rotz",
+  ".track",
+  ".objects.player.pos"
+ ],
+ "tol": {
+  "pos": 25,
+  "track": 25,
+  "dynamic": 1.5
+ },
+ "setup": [
+  "player->Position -12288 -69632 160 0"
+ ],
+ "spells": [
+  [
+   3,
+   "player",
+   "slowfall",
+   ""
+  ]
+ ],
+ "seconds": 8,
+ "track": [
+  "player"
+ ],
+ "samples": [
+  3,
+  4,
+  5,
+  6,
+  7,
+  8
+ ],
+ "after": [],
+ "teleport": [
+  [
+   6,
+   "player",
+   -12288,
+   -69632,
+   600
+  ]
+ ],
+ "debug": true
+}

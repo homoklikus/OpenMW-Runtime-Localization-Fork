@@ -36,6 +36,15 @@ var height := 1.8
 var swim_speed := 2.2
 var swimming := false
 var _fall_start := NAN
+## Efekty magii w ruchu (etap magii, jak OpenMW World::isFlying / PhysicsSystem::prepareSimulation) – ustawia
+## MWMagic.apply_movement co klatkę: Lewitacja (lot bez grawitacji z prędkością Npc::getSpeed), Powolne opadanie
+## (inercja pionowa w dół × (1 − wielkość × 0,005), bez obrażeń od upadku), Chodzenie po wodzie (kolizja
+## z powierzchnią wody; aktor pod wodą przenoszony na powierzchnię, jeśli droga w górę jest wolna).
+var levitate := false
+var levitate_speed := 0.0
+var slow_fall := 1.0
+var water_walk := false
+var on_water := false
 ## Kapsuła kolizji (NPC: stała; stworzenia: z wymiarów modelu – etap 8) i aktorzy bez grawitacji (stworzenia
 ## latające/wodne, które nie chodzą – jak isPureFlyingCreature/isPureWaterCreature).
 var capsule_radius := 0.35
@@ -104,6 +113,23 @@ func step(delta: float) -> void:
 		global_position += velocity * delta
 		want_jump = false
 		return
+	if levitate:
+		# lot: kierunek wg patrzenia (z pochyleniem kamery gracza), bez skoku (character.cpp: vec.z = 0 w locie)
+		jumping = false
+		swimming = false
+		on_water = false
+		_fall_start = NAN
+		var dl := look_basis() * Vector3(move_input.x, 0, move_input.y)
+		velocity = dl.normalized() * levitate_speed if dl.length() > 0.01 else Vector3.ZERO
+		want_jump = false
+		move_and_slide()
+		return
+	if water_walk and water_level > -INF and global_position.y < water_level:
+		# PhysicsTaskScheduler: chodzący po wodzie pod powierzchnią → na powierzchnię (canMoveToWaterSurface)
+		var up := water_level - global_position.y
+		if not test_move(global_transform, Vector3.UP * up):
+			global_position.y = water_level
+			velocity.y = maxf(velocity.y, 0.0)
 	swimming = global_position.y + height * swim_height_scale < water_level
 	if swimming:
 		_fall_start = NAN
@@ -121,31 +147,45 @@ func step(delta: float) -> void:
 		return
 	var speed := run_speed if want_run else walk_speed
 	var wish := (transform.basis * Vector3(move_input.x, 0, move_input.y)).normalized() * speed
-	if not is_on_floor():
+	on_water = water_walk and water_level > -INF and global_position.y <= water_level + 0.005 and velocity.y <= 0.0
+	var grounded := is_on_floor() or on_water
+	if not grounded:
 		wish *= air_factor
 	velocity.x = wish.x
 	velocity.z = wish.z
 	if no_gravity:
 		velocity.y = 0.0
-	elif not is_on_floor():
+	elif not grounded:
 		velocity.y = maxf(velocity.y - gravity * delta, -max_fall_speed)
+		if velocity.y < 0.0:
+			velocity.y *= slow_fall              # MovementSolver: mInertia.z *= mSlowFall
+	elif on_water and not want_jump:
+		velocity.y = 0.0
 	elif want_jump and jump_velocity > 0.0:
 		# skok w ruchu: wektor (kierunek, 1) × wysokość × 0,707 (character.cpp) – pionowo 0,707 prędkości skoku
 		velocity.y = jump_velocity * (0.707 if move_input.length() > 0.01 else 1.0)
 		jumping = true
 		jumped.emit()
 	want_jump = false
-	var was_floor := is_on_floor()
+	var was_floor := grounded
 	var start := global_position
 	move_and_slide()
+	if water_walk and water_level > -INF and global_position.y < water_level and velocity.y <= 0.0:
+		global_position.y = water_level         # powierzchnia wody jak podłoże (kolizja z wodą)
+		velocity.y = 0.0
+		on_water = true
+	if slow_fall < 1.0:
+		_fall_start = NAN                       # PhysicsTaskScheduler: stats.land() przy mSlowFall < 1
 	if was_floor and Vector2(wish.x, wish.z).length() > 0.01:
 		_try_step(start, Vector3(wish.x, 0.0, wish.z) * delta)
-	if not is_on_floor():
-		if is_nan(_fall_start) or global_position.y > _fall_start:
+	var now_ground := is_on_floor() or on_water
+	if not now_ground:
+		if slow_fall >= 1.0 and (is_nan(_fall_start) or global_position.y > _fall_start):
 			_fall_start = global_position.y
-	elif not was_floor and not is_nan(_fall_start):
+	elif not was_floor:
 		jumping = false
-		landed.emit((_fall_start - global_position.y) * MWCoords.UNITS_PER_METER)
+		if not is_nan(_fall_start):
+			landed.emit((_fall_start - global_position.y) * MWCoords.UNITS_PER_METER)
 		_fall_start = NAN
 
 ## Stopień: gdy ruch poziomy zatrzymała ściana, spróbuj „w górę o step_height → do przodu → w dół na podłoże”

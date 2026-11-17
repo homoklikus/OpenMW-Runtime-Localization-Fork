@@ -1,0 +1,47 @@
+{
+ "name": "fx_waterwalk",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects.player.rotz"
+ ],
+ "tol": {
+  "pos": 10,
+  "track": 10
+ },
+ "setup": [
+  "player->Position -12288 -69632 160 0"
+ ],
+ "spells": [
+  [
+   3,
+   "player",
+   "water walking",
+   ""
+  ]
+ ],
+ "seconds": 3,
+ "track": [
+  "player"
+ ],
+ "samples": [
+  0.5,
+  1,
+  2,
+  3
+ ],
+ "teleport": [
+  [
+   5,
+   "player",
+   -16000,
+   -73600,
+   60
+  ]
+ ],
+ "disable_creatures": true
+}
