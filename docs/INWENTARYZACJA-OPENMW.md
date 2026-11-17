@@ -1,6 +1,6 @@
 # Inwentaryzacja zgodności OpenMWGodot z OpenMW
 
-Stan na 2026-11-17 (po etapach „pełny start gry” i „pięć okien tworzenia postaci”). Cel: wierne odtworzenie OpenMW, zanim
+Stan na 2026-11-17 (po etapach „pełny start gry”, „pięć okien tworzenia postaci” i „MWScript zgodny z OpenMW”). Cel: wierne odtworzenie OpenMW, zanim
 zajmiemy się remasterem. OpenMW jest źródłem prawdy (fork `apps/openmw`, ten sam kod co oficjalne 0.51).
 
 ## Statusy
@@ -141,6 +141,9 @@ klasa, statystyki po 9 powrotach = buildPlayer od zera) i `probe_newgame.gd` (15
 
 ## 4. Skrypty (Morrowind, Tribunal, Bloodmoon)
 
+**Stan po etapie MWScript (2026-11-17) – szczegóły w punkcie 4a.** Mapa poniżej (stałe zera, nieobsłużone) to stan
+sprzed etapu, zostawiony dla porównania.
+
 Wcześniejsze wywołanie na sucho (cel: gracz): 127 funkcji zwraca wynik, 13 zwraca stałe 0, 96 nieobsłużonych.
 **127 działających funkcji to status „Zaimplementowane”, nie „Zweryfikowane”** – zweryfikowane są tylko te, które
 przeszły sondę nowej gry: `Say`/`SayDone`, `GetDistance`, `AITravel`, `AIEscort`, `AIWander`,
@@ -202,6 +205,322 @@ Wniosek: żadna z tych funkcji nie jest potrzebna w sekwencji nowej gry (sonda: 
 potrzebne są `GetPCSleep`/`WakeUpPC` (sny wątku głównego), `PlayBink`/`Fade*` (start gry) i rodzina statystyk
 (`Set*`/`Mod*`) – zgodnie z zasadą „funkcje potrzebne wcześniej wdrażamy od razu” wchodzą do etapu 1/3 roadmapy.
 
+## 4a. MWScript – zgodność funkcji z OpenMW (etap 2026-11-17)
+
+**Miarą zgodności nie jest liczba rozpoznawanych instrukcji**, tylko to, czy wykonanie daje ten sam stan gry co
+OpenMW. Każda funkcja oznaczona „Zweryfikowane” przeszła porównanie z oficjalnym OpenMW 0.51 na tych samych danych
+(Morrowind + Tribunal + Bloodmoon) albo sondę nowej gry; „Zaimplementowane” – działa według kodu OpenMW i ma test
+syntetyczny albo wspólną ścieżkę kodu ze zweryfikowanymi, ale nie było porównania.
+
+**Audyt przed etapem (ponowne liczenie, 1207 skryptów, stary kompilator, 253 nazwy):** 142 rozpoznawane
+(130 po nazwie + 12 getterów statystyk przez wzorzec nazwy – to część „17 niezbadanych” z wcześniejszej
+inwentaryzacji), 13 stałych zer, 97 bez obsługi (w tym `fakeiswere`, które nie jest funkcją). Wśród
+„rozpoznawanych” były pozorne: gettery atrybutów i umiejętności NPC zwracały 0, `AddSpell`/`RemoveSpell` działały
+tylko na gracza, `HasSoulGem` zwracało 0/1 zamiast liczby, `OnPCAdd`/`OnPCEquip`/`OnPCDrop` były funkcjami
+„zużywanymi” przy odczycie (w OpenMW to zmienne lokalne ustawiane przez silnik), `OnDeath` było kasowane co klatkę.
+
+**Co zmieniło się w interpreterze (poza nowymi funkcjami):**
+
+* Kompilator czyta argumenty według sygnatur z kodu OpenMW (`components/compiler/extensions0.cpp`, plik
+  generowany `converter/mwconv/mwscript_sig.py`, 511 wpisów): tryb argumentu (`+`, `-`, porównania kończą argument
+  poza nawiasami), argumenty opcjonalne i pomijane, nazwy `c` małymi literami, zmienna lokalna zasłania funkcję,
+  instrukcja w wyrażeniu – nazwa, nieznana nazwa w wyrażeniu – liczba z ostrzeżeniem, `obiekt->zmienna` – odniesienie
+  pominięte („Stray explicit reference”). Na danych gry: błędy kompilacji 1 = 1, ostrzeżenia 43 = 43 (jak przed).
+* `OnPCAdd`, `OnPCEquip`, `OnPCDrop`, `OnPCHitMe`, `OnPCRepair`, `OnPCSoulGemUse`, `PCSkipEquip` – zmienne lokalne
+  ustawiane na 1 przez silnik, tylko gdy skrypt je deklaruje; kasuje je skrypt (OpenMW `setVarByInt`).
+* Kolejność jak `Engine::frame`: skrypty lokalne, potem globalne; skrypty działają także przy otwartych oknach
+  (pauza drzewa Godota) – poza menu głównym w pauzie (`MenuMode` ma więc sens jak w OpenMW).
+* Błąd wykonania: skrypt globalny zatrzymany (`GlobalScripts::run`), lokalny wyłączony dla obiektu do wczytania
+  gry; funkcja z odniesieniem wywołana bez obiektu w skrypcie globalnym (`MissingImplicitRefError`, tabela
+  `godot/scripts/mw/mw_script_refs.gd` z kodu OpenMW) – przerwanie i zatrzymanie (porównane: `fail_global`).
+* Statystyki aktorów (`mw_actor_stats.gd`): baza, modyfikator, ubytek i bieżąca jak `AttributeValue`/`SkillValue`/
+  `DynamicStat` (Set czyści modyfikator, Mod z limitem 100, ModCurrent bez górnego limitu, kondycja poniżej zera →
+  powalenie), przeliczanie magii przy INT/Fortify Maximum Magicka i kondycji przy Str/Wil/Agi/End z zachowaniem
+  proporcji; także NPC i stworzenia poza wczytaną komórką (stan w zapisie).
+* Poprawione przy okazji (wykryte porównaniem): zdolności rasy NPC (`race->mPowers`) w efektach i magii NPC,
+  odnawianie kondycji NPC (`calculateRestoration`), martwy aktor bez efektów zdolności/czarów, spłata grzywny
+  uspokaja świadków (identyfikatory przestępstw `getNewCrimeId`/`recordCrimeId`), reakcja na cios (`GetAttacked`,
+  towarzysze – `friendlyHit`, „pokojowi” z `OnPCHitMe` i Fight 0), `SetPCCrimeLevel` bez obcięcia do zera, teleport
+  gracza bez obrażeń od upadku, nazwa wnętrza z rekordu komórki (kompilator zamienia nazwy na małe litery).
+
+**Porównania z OpenMW** (`tools/openmw-xvfb/mwscript_compare.py`, przypadki `tools/openmw-xvfb/mwscript_cases/`,
+etapy `tools/openmw-xvfb/mwscript_case.sh PRZYPADEK all`): oficjalne OpenMW na Xvfb wykonuje polecenia z dodatku
+testowego (jeden skrypt globalny, bez danych gry) w 30. klatce, skrypt Lua zapisuje migawkę (statystyki bazowe/
+zmodyfikowane/bieżące, efekty, poziom, frakcje, ekwipunek, przedmioty, zmienne skryptu, pozycje, skala, flagi
+gracza); sonda Godota (`godot/tests/probe_mwscript.gd`) wykonuje ten sam skrypt skompilowany konwerterem i zapisuje
+tę samą migawkę. Przy różnych wartościach bazowych (np. inny gracz bez kreatora) porównywane są zmiany albo
+wartości po. Wynik wszystkich 15 przypadków (końcowy przebieg na kodzie z tego etapu): **0 różnic** (po poprawkach wymienionych wyżej). Pominięte pola:
+pozycje aktorów (AI wędrówki), bieżąca kondycja w długich przypadkach (czas klatek llvmpipe), punkty AI.
+
+**Sondy na prawdziwych danych po etapie:** nowa gra 15/15, start gry 12/12, kreator postaci 8/8;
+`tools/run_tests.sh` – wszystkie testy (nowy `test_mwscript_functions.gd`, 36 sprawdzeń).
+
+**Nadal brakujące lub częściowe (zależności nie w zakresie etapu):** animacje śmierci i powalenia (czas `OnDeath`,
+`OnKnockout`), przerywanie snu stworzeniami, okno więzienia, model i nakładka wilkołaka, efekt Lewitacji
+i interwencje (flagi `Enable/Disable*` zapisywane), księżyce (`TurnMoonRed/White`), `SetAngle` w osiach X/Y,
+fizyka zderzeń skryptowych bez Bullet (przybliżenie przez kolizje ruchu Godota). Funkcje z OpenMW nieużywane
+w skryptach gry nie są w tabeli (np. `GetPCRunning`, `ForceJump` – zaimplementowane przy okazji).
+
+Tabela: wszystkie 252 nazwy używane w skryptach gry po kompilacji nowym kompilatorem; „Skrypty” – liczba skryptów
+z daną funkcją; „Porównanie” – przypadki z wynikiem 0 różnic. Generowana: `tools/gen_mwscript_inventory.py`.
+
+| Funkcja | Skrypty | Rodzaj | Status | Test | Porównanie z OpenMW | Zależności | Znane różnice |
+|---|---|---|---|---|---|---|---|
+| `getjournalindex` | 547 | funkcja (wartość) | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `disable` | 390 | instrukcja | Zweryfikowane | test_scripts | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `journal` | 378 | instrukcja | Zweryfikowane | test_scripts | zgodne: misc2 | — | — |
+| `enable` | 300 | instrukcja | Zweryfikowane | test_scripts | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `menumode` | 289 | funkcja (wartość) | Zweryfikowane | test_scripts | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `onactivate` | 258 | funkcja (wartość) | Zweryfikowane | test_scripts | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `getdisabled` | 225 | funkcja (wartość) | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `ondeath` | 221 | funkcja (wartość) | Częściowo zgodne | test_mwscript_functions | zgodne: events_death | śmierć aktora | flaga od razu po śmierci (OpenMW – po animacji śmierci; animacji brak); kasowanie odczytem zgodne |
+| `cellchanged` | 201 | funkcja (wartość) | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `getdistance` | 194 | funkcja (wartość) | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `messagebox` | 172 | — | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `getsecondspassed` | 170 | funkcja (wartość) | Zweryfikowane | sonda nowej gry | zgodne: move_scale | — | — |
+| `stopscript` | 124 | instrukcja | Zweryfikowane | test_scripts | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `getitemcount` | 120 | funkcja (wartość) | Zweryfikowane | test_scripts | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `activate` | 118 | instrukcja | Zweryfikowane | test_scripts | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `startcombat` | 106 | instrukcja | Zweryfikowane | — | zgodne: misc3 | — | — |
+| `getdeadcount` | 105 | funkcja (wartość) | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `forcegreeting` | 98 | instrukcja | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `removeitem` | 81 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `say` | 79 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `additem` | 77 | instrukcja | Zweryfikowane | test_scripts | zgodne: misc_player | — | — |
+| `getpccell` | 77 | funkcja (wartość) | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `aiwander` | 73 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `setfight` | 73 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `gethealth` | 69 | funkcja (wartość) | Zweryfikowane | — | zgodne: stats_player, stats_npc | — | — |
+| `playsound` | 62 | instrukcja | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `positioncell` | 57 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `cast` | 53 | instrukcja | Częściowo zgodne | — | — | — | zależne od efektów magii (etap magii) |
+| `addspell` | 52 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `getbuttonpressed` | 48 | funkcja (wartość) | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `getcurrentaipackage` | 48 | funkcja (wartość) | Zweryfikowane | — | zgodne: misc3 | — | — |
+| `getsoundplaying` | 40 | funkcja (wartość) | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `stopcombat` | 40 | instrukcja | Zweryfikowane | — | zgodne: misc3 | — | — |
+| `playloopsound3dvp` | 39 | instrukcja | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `getcommondisease` | 37 | funkcja (wartość) | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `getpos` | 37 | funkcja (wartość) | Zweryfikowane | — | zgodne: move_scale, misc3 | — | — |
+| `getaipackagedone` | 35 | funkcja (wartość) | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `sethealth` | 33 | instrukcja | Zweryfikowane | test_mwscript_functions | zgodne: stats_player, stats_npc | — | — |
+| `sethello` | 30 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `playgroup` | 29 | instrukcja | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `getblightdisease` | 28 | funkcja (wartość) | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `startscript` | 28 | instrukcja | Zweryfikowane | test_scripts | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `getpcrank` | 26 | funkcja (wartość) | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `dontsaveobject` | 25 | instrukcja | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `aitravel` | 24 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `placeitem` | 24 | instrukcja | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `saydone` | 24 | funkcja (wartość) | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `getpccrimelevel` | 23 | funkcja (wartość) | Zweryfikowane | — | zgodne: werewolf, misc2 | — | — |
+| `random` | 22 | funkcja (wartość) | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `geteffect` | 21 | funkcja (wartość) | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `rotate` | 21 | instrukcja | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `addtopic` | 20 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `becomewerewolf` | 18 | instrukcja | Częściowo zgodne | test_mwscript_functions | zgodne: werewolf | statystyki, ekwipunek, AI, przestępstwa | statystyki, szata, wiedza świadków i grzywna jak OpenMW; brak modelu wilkołaka, nakładki ekranu, pazurów |
+| `getspell` | 18 | funkcja (wartość) | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `lock` | 18 | instrukcja | Zweryfikowane | — | zgodne: misc3 | — | — |
+| `aifollow` | 17 | instrukcja | Zweryfikowane | — | zgodne: misc3 | — | — |
+| `removespell` | 17 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `unlock` | 17 | instrukcja | Zweryfikowane | sonda nowej gry | zgodne: misc3 | — | — |
+| `modhealth` | 16 | instrukcja | Zweryfikowane | — | zgodne: stats_player, stats_npc | — | — |
+| `setdisposition` | 16 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `disableplayercontrols` | 15 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `getangle` | 15 | funkcja (wartość) | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `gettarget` | 15 | funkcja (wartość) | Zweryfikowane | — | zgodne: misc3 | AI (walka, powitanie) | — |
+| `placeatpc` | 15 | instrukcja | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `enableplayercontrols` | 14 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `iswerewolf` | 14 | funkcja (wartość) | Zweryfikowane | test_mwscript_functions | zgodne: werewolf | stan wilkołaka | — |
+| `playsound3d` | 14 | instrukcja | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `position` | 14 | instrukcja | Zweryfikowane | — | zgodne: stats_player | — | — |
+| `getstandingpc` | 13 | funkcja (wartość) | Częściowo zgodne | sonda nowej gry | — | — | jak GetStandingActor |
+| `modreputation` | 12 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `getpcsleep` | 11 | funkcja (wartość) | Częściowo zgodne | test_mwscript_functions | — | odpoczynek (okno) | sen co godzinę po 1/60 s jak TimeAdvancer; brak przerywania snu stworzeniami (fSleepRandMod) |
+| `getdetected` | 10 | funkcja (wartość) | Częściowo zgodne | — | — | AI (wykrywanie) | jak getLOS; zasięg przetwarzania 7168 j. stały |
+| `playbink` | 10 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `resurrect` | 10 | instrukcja | Zweryfikowane | test_mwscript_functions | zgodne: resurrect | stan aktora, koniec gry | — |
+| `setdelete` | 10 | instrukcja | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `xbox` | 10 | funkcja (wartość) | Zweryfikowane | — | zgodne: misc3 | — | — |
+| `getwaterlevel` | 9 | funkcja (wartość) | Zweryfikowane | test_mwscript_functions | zgodne: water/water_ship/water_ext | woda komórki | — |
+| `modcurrenthealth` | 9 | instrukcja | Zweryfikowane | test_mwscript_functions | zgodne: stats_player, stats_npc | — | — |
+| `moddisposition` | 9 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `setpos` | 8 | instrukcja | Zweryfikowane | — | zgodne: misc3 | — | — |
+| `wakeuppc` | 8 | instrukcja | Częściowo zgodne | test_mwscript_functions | — | odpoczynek (okno) | jak GetPCSleep |
+| `fadein` | 7 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `fadeout` | 7 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `modrestoration` | 7 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `setangle` | 7 | instrukcja | Częściowo zgodne | — | zgodne: move_scale | — | tylko oś Z; osie X/Y zgłaszane jako nieobsługiwane |
+| `modfatigue` | 6 | instrukcja | Zweryfikowane | — | zgodne: stats_player, stats_npc | — | — |
+| `modresistfire` | 6 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `modresistfrost` | 6 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `modresistmagicka` | 6 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `modresistparalysis` | 6 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `modresistpoison` | 6 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `setatstart` | 6 | instrukcja | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `setscale` | 6 | instrukcja | Zweryfikowane | test_mwscript_functions | zgodne: move_scale | przebudowa węzła | — |
+| `stopsound` | 6 | instrukcja | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `changeweather` | 5 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `enableplayerfighting` | 5 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `enableplayermagic` | 5 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `explodespell` | 5 | instrukcja | Częściowo zgodne | — | — | — | zależne od efektów magii (etap magii) |
+| `getattacked` | 5 | funkcja (wartość) | Zaimplementowane | test_mwscript_functions | — | walka, przestępstwa (spłata) | nieporównane z OpenMW |
+| `getfatigue` | 5 | funkcja (wartość) | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `loopgroup` | 5 | instrukcja | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `move` | 5 | instrukcja | Zweryfikowane | — | zgodne: move_scale | fizyka, aktorzy na obiekcie | — |
+| `moveworld` | 5 | instrukcja | Zweryfikowane | test_mwscript_functions | zgodne: move_scale | fizyka, aktorzy na obiekcie | — |
+| `onknockout` | 5 | funkcja (wartość) | Częściowo zgodne | test_mwscript_functions | zgodne: events_death | kondycja, powalenie | powalenie bez animacji; od ciosu stałe 2 s (OpenMW – długość animacji knockdown) |
+| `onmurder` | 5 | funkcja (wartość) | Zweryfikowane | test_mwscript_functions | zgodne: events_death | przestępstwa (morderstwo) | — |
+| `pcraiserank` | 5 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `playloopsound3d` | 5 | instrukcja | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `setfatigue` | 5 | instrukcja | Zweryfikowane | — | zgodne: stats_player, stats_npc | — | — |
+| `setflee` | 5 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `undowerewolf` | 5 | instrukcja | Częściowo zgodne | test_mwscript_functions | zgodne: werewolf_undo | statystyki, ekwipunek | jak BecomeWerewolf |
+| `aiescort` | 4 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `clearforcesneak` | 4 | instrukcja | Zaimplementowane | test_mwscript_functions | — | ruch aktora | nieporównane z OpenMW |
+| `enableteleporting` | 4 | instrukcja | Częściowo zgodne | test_mwscript_functions | — | — | Znakowanie/Przywołanie respektują flagę; Boska/Almsivi interwencja nie istnieją (magia) |
+| `forcesneak` | 4 | instrukcja | Zweryfikowane | test_mwscript_functions | zgodne: misc_player | ruch aktora | — |
+| `getlocked` | 4 | funkcja (wartość) | Zweryfikowane | — | zgodne: misc3 | — | — |
+| `hassoulgem` | 4 | funkcja (wartość) | Zweryfikowane | — | zgodne: misc_player | — | — |
+| `modregion` | 4 | instrukcja | Zaimplementowane | — | — | pogoda | nieporównane z OpenMW |
+| `modspeed` | 4 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `modstrength` | 4 | instrukcja | Zweryfikowane | test_mwscript_functions | zgodne: stats_player | — | — |
+| `playsound3dvp` | 4 | instrukcja | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `setalarm` | 4 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `showrestmenu` | 4 | instrukcja | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `disableteleporting` | 3 | instrukcja | Częściowo zgodne | test_mwscript_functions | zgodne: misc_player | — | jak EnableTeleporting |
+| `drop` | 3 | instrukcja | Zweryfikowane | test_mwscript_functions | zgodne: misc_player | ekwipunek, świat | — |
+| `enableinventorymenu` | 3 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `enablemagicmenu` | 3 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `enablemapmenu` | 3 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `enablestatsmenu` | 3 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `getlevel` | 3 | funkcja (wartość) | Zweryfikowane | — | zgodne: stats_player | — | — |
+| `getrace` | 3 | funkcja (wartość) | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `getspelleffects` | 3 | funkcja (wartość) | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `getweapondrawn` | 3 | funkcja (wartość) | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `getwerewolfkills` | 3 | funkcja (wartość) | Zweryfikowane | test_mwscript_functions | zgodne: werewolf | śmierć NPC (wilkołak) | — |
+| `hurtcollidingactor` | 3 | instrukcja | Częściowo zgodne | — | — | — | jak GetCollidingPC |
+| `modwillpower` | 3 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `setmagicka` | 3 | instrukcja | Zweryfikowane | — | zgodne: stats_player | — | — |
+| `setmarksman` | 3 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `setwaterlevel` | 3 | instrukcja | Zweryfikowane | test_mwscript_functions | zgodne: water/water_ship/water_ext | woda komórki | — |
+| `setwerewolfacrobatics` | 3 | instrukcja | Zweryfikowane | — | zgodne: werewolf | statystyki | — |
+| `disablelevitation` | 2 | instrukcja | Częściowo zgodne | — | — | — | jak EnableLevitation |
+| `enablelevitation` | 2 | instrukcja | Częściowo zgodne | — | — | — | flaga zapisywana (LEVT); efekt Lewitacji nie jest jeszcze zaimplementowany |
+| `getcollidingpc` | 2 | funkcja (wartość) | Częściowo zgodne | — | — | — | zderzenie z ostatniego ruchu Godota (slide collisions) zamiast Bullet |
+| `getinterior` | 2 | funkcja (wartość) | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `getlos` | 2 | funkcja (wartość) | Częściowo zgodne | — | — | fizyka (promień) | linia wzroku na wysokości 1,5 m (OpenMW – wysokość oczu aktora z Bullet) |
+| `getpcinjail` | 2 | funkcja (wartość) | Częściowo zgodne | — | — | więzienie | brak okna więzienia – prawda przez jedną klatkę skryptów po GoToJail |
+| `getpcsneaking` | 2 | funkcja (wartość) | Zaimplementowane | test_mwscript_functions | — | skradanie | nieporównane z OpenMW |
+| `getpctraveling` | 2 | funkcja (wartość) | Zaimplementowane | — | — | podróże | nieporównane z OpenMW |
+| `getsecurity` | 2 | funkcja (wartość) | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `getsneak` | 2 | funkcja (wartość) | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `getstrength` | 2 | funkcja (wartość) | Zweryfikowane | — | zgodne: stats_player | — | — |
+| `hasitemequipped` | 2 | funkcja (wartość) | Zweryfikowane | test_mwscript_functions | zgodne: misc_player | — | — |
+| `hitonme` | 2 | funkcja (wartość) | Zaimplementowane | test_mwscript_functions | — | walka | nieporównane z OpenMW |
+| `hurtstandingactor` | 2 | instrukcja | Częściowo zgodne | — | — | — | jak GetStandingActor |
+| `modagility` | 2 | instrukcja | Zweryfikowane | — | zgodne: stats_player | — | — |
+| `modblock` | 2 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `modcurrentfatigue` | 2 | instrukcja | Zweryfikowane | test_mwscript_functions | zgodne: stats_player, stats_npc | — | — |
+| `modendurance` | 2 | instrukcja | Zweryfikowane | — | zgodne: stats_npc | — | — |
+| `modmagicka` | 2 | instrukcja | Zweryfikowane | — | zgodne: stats_player, stats_npc | — | — |
+| `modmediumarmor` | 2 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `modpcfacrep` | 2 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `placeatme` | 2 | instrukcja | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `removesoulgem` | 2 | instrukcja | Zweryfikowane | — | zgodne: misc_player | — | — |
+| `setagility` | 2 | instrukcja | Zweryfikowane | — | zgodne: stats_player | — | — |
+| `setathletics` | 2 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `setblock` | 2 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `setlongblade` | 2 | instrukcja | Zweryfikowane | — | zgodne: stats_player | — | — |
+| `setpccrimelevel` | 2 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `setrestoration` | 2 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `setspeed` | 2 | instrukcja | Zweryfikowane | — | zgodne: stats_player | — | — |
+| `setstrength` | 2 | instrukcja | Zweryfikowane | test_mwscript_functions | zgodne: stats_player, stats_npc | — | — |
+| `setwillpower` | 2 | instrukcja | Zweryfikowane | — | zgodne: stats_player, stats_npc | — | — |
+| `showmap` | 2 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `disableplayerfighting` | 1 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `disableplayerjumping` | 1 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `disableplayermagic` | 1 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `disableplayerviewswitch` | 1 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `disablevanitymode` | 1 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `enablebirthmenu` | 1 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `enableclassmenu` | 1 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `enablenamemenu` | 1 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `enableplayerjumping` | 1 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `enableplayerviewswitch` | 1 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `enableracemenu` | 1 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `enablerest` | 1 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `enablestatreviewmenu` | 1 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `enablevanitymode` | 1 | instrukcja | Zweryfikowane | sonda nowej gry | — | — | sonda nowej gry (bez porównania funkcji osobno) |
+| `face` | 1 | instrukcja | Zaimplementowane | — | — | AI (AiFace) | nieporównane z OpenMW |
+| `fakeiswere` | 1 | — | Nie funkcja | — | — | — | nie funkcja: `player->fakeiswere` – OpenMW pomija odniesienie („Stray explicit reference”) i czyta zmienną lokalną; kompilator konwertera tak samo (od tego etapu) |
+| `fall` | 1 | instrukcja | Zweryfikowane | test_mwscript_functions | zgodne: move_scale | — | — |
+| `forcerun` | 1 | instrukcja | Zweryfikowane | test_mwscript_functions | zgodne: misc_player | ruch aktora | — |
+| `getagility` | 1 | funkcja (wartość) | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `getchameleon` | 1 | funkcja (wartość) | Zweryfikowane | — | zgodne: stats_npc | — | — |
+| `getcollidingactor` | 1 | funkcja (wartość) | Częściowo zgodne | — | — | — | jak GetCollidingPC |
+| `getcurrentweather` | 1 | funkcja (wartość) | Zweryfikowane | — | zgodne: misc3 | — | — |
+| `getdisposition` | 1 | funkcja (wartość) | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `getendurance` | 1 | funkcja (wartość) | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `getflee` | 1 | funkcja (wartość) | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `getintelligence` | 1 | funkcja (wartość) | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `getluck` | 1 | funkcja (wartość) | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `getmagicka` | 1 | funkcja (wartość) | Zweryfikowane | — | zgodne: stats_player | — | — |
+| `getmarksman` | 1 | funkcja (wartość) | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `getparalysis` | 1 | funkcja (wartość) | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `getpersonality` | 1 | funkcja (wartość) | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `getspeed` | 1 | funkcja (wartość) | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `getsquareroot` | 1 | funkcja (wartość) | Zweryfikowane | test_mwscript_functions | zgodne: misc_player | — | — |
+| `getstandingactor` | 1 | funkcja (wartość) | Częściowo zgodne | — | — | — | kontakt z podłożem (normalna) zamiast Bullet |
+| `getstat` | 1 | funkcja (wartość) | Zweryfikowane | test_mwscript_functions | zgodne: misc_player | — | — |
+| `getweapontype` | 1 | funkcja (wartość) | Zweryfikowane | test_mwscript_functions | zgodne: misc_player | — | — |
+| `getwillpower` | 1 | funkcja (wartość) | Zweryfikowane | — | zgodne: stats_npc | — | — |
+| `gotojail` | 1 | instrukcja | Częściowo zgodne | — | — | — | brak okna więzienia (dni, umiejętności – od razu) |
+| `modarmorer` | 1 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `modathletics` | 1 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `modaxe` | 1 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `modbluntweapon` | 1 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `modfactionreaction` | 1 | instrukcja | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `modfight` | 1 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `modheavyarmor` | 1 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `modintelligence` | 1 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `modlongblade` | 1 | instrukcja | Zweryfikowane | — | zgodne: stats_player | — | — |
+| `modluck` | 1 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `modmarksman` | 1 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `modmercantile` | 1 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `modpersonality` | 1 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `modshortblade` | 1 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `modspear` | 1 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `modwaterlevel` | 1 | instrukcja | Zweryfikowane | — | zgodne: water/water_ship/water_ext | woda komórki | — |
+| `payfine` | 1 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `pcclearexpelled` | 1 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `pcexpelled` | 1 | funkcja (wartość) | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `pcjoinfaction` | 1 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `placeitemcell` | 1 | instrukcja | Zaimplementowane | — | — | świat (komórki) | nieporównane z OpenMW |
+| `playsoundvp` | 1 | instrukcja | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `raiserank` | 1 | instrukcja | Zweryfikowane | — | zgodne: rank | frakcje | — |
+| `rotateworld` | 1 | instrukcja | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `scriptrunning` | 1 | funkcja (wartość) | Zweryfikowane | — | zgodne: misc3 | — | — |
+| `setalchemy` | 1 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `setalteration` | 1 | instrukcja | Zweryfikowane | — | zgodne: stats_player | — | — |
+| `setarmorer` | 1 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `setaxe` | 1 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `setbluntweapon` | 1 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `setconjuration` | 1 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `setdestruction` | 1 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `setenchant` | 1 | instrukcja | Zweryfikowane | — | zgodne: misc2 | — | — |
+| `setendurance` | 1 | instrukcja | Zweryfikowane | — | zgodne: stats_player | — | — |
+| `setheavyarmor` | 1 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `setillusion` | 1 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `setmediumarmor` | 1 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `setmysticism` | 1 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `setspear` | 1 | instrukcja | Zaimplementowane | — | — | — | ta sama ścieżka kodu (rodzina statystyk) co funkcje zweryfikowane porównaniem |
+| `streammusic` | 1 | instrukcja | Zaimplementowane | — | — | — | nieporównane z OpenMW |
+| `turnmoonred` | 1 | instrukcja | Brakujące | — | — | — | brak księżyców na niebie (Masser/Secunda nie są renderowane) – instrukcja zgłaszana jako brakująca |
+| `turnmoonwhite` | 1 | instrukcja | Brakujące | — | — | — | jak TurnMoonRed |
+
+Podsumowanie: Zweryfikowane 153, Częściowo zgodne 23, Zaimplementowane 73, Brakujące 2, Nie funkcja 1 (razem 252).
+
 ## 5. Magia
 
 | Element | Status | Uwagi |
@@ -257,7 +576,8 @@ potrzebne są `GetPCSleep`/`WakeUpPC` (sny wątku głównego), `PlayBink`/`Fade*
 
 1. ~~Start gry~~ – wykonane 2026-11-17 (punkt 1); pozostało: autozapis, `WakeUpPC`/`GetPCSleep`, czas animacji śmierci.
 2. ~~Pięć okien kreatora postaci jak w OpenMW~~ – wykonane 2026-11-17 (punkt 2a); pozostało: podpowiedzi z ikonami, tekstury pasków przewijania, pad.
-3. MWScript – najpierw stałe zera, potem nieobsłużone wg mapy z punktu 4.
+3. ~~MWScript – stałe zera i nieobsłużone~~ – wykonane 2026-11-17 (punkt 4a); pozostało: zależności z punktu 4a
+   (animacje śmierci/powalenia, sen przerywany stworzeniami, okno więzienia, wygląd wilkołaka, Lewitacja, księżyce).
 4. Efekty magii z punktu 5.
 5. Interfejs z punktu 3.
 6. Grafika: animacje, widok 1-/3-osobowy, pogoda, oświetlenie.

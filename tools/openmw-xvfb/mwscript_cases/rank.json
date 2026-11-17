@@ -1,0 +1,29 @@
+{
+ "name": "rank",
+ "cell": "Seyda Neen",
+ "frames": 10,
+ "ignore": [
+  ".objects",
+  ".player.cell",
+  ".ai",
+  ".player.water"
+ ],
+ "tol": {},
+ "commands": [
+  "\"chargen dock guard\"->RaiseRank",
+  "\"chargen dock guard\"->RaiseRank",
+  "player->RaiseRank"
+ ],
+ "after": [
+  [
+   1,
+   "\"chargen dock guard\"->LowerRank"
+  ]
+ ],
+ "actors": [
+  "chargen dock guard"
+ ],
+ "setup": [
+  "player->Position -12288 -69632 120 0"
+ ]
+}

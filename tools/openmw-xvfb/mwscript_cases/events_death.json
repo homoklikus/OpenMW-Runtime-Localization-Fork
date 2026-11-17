@@ -1,0 +1,51 @@
+{
+ "name": "events_death",
+ "cell": "Seyda Neen",
+ "frames": 200,
+ "ignore": [
+  ".actors.erene llenim.dynamic.fatigue[1]",
+  ".ai",
+  ".player.cell",
+  ".player.water",
+  ".objects"
+ ],
+ "tol": {
+  "fatigue[1]": 40
+ },
+ "commands": [
+  "fargoth->ModCurrentHealth -1000",
+  "\"erene llenim\"->ModCurrentFatigue -1000"
+ ],
+ "every": [
+  "if ( fargoth->OnDeath )",
+  "  set r_died to r_died + 1",
+  "endif",
+  "if ( \"erene llenim\"->OnKnockout )",
+  "  set r_ko to r_ko + 1",
+  "endif",
+  "if ( fargoth->OnMurder )",
+  "  set r_mur to r_mur + 1",
+  "endif"
+ ],
+ "vars": [
+  [
+   "short",
+   "r_died"
+  ],
+  [
+   "short",
+   "r_ko"
+  ],
+  [
+   "short",
+   "r_mur"
+  ]
+ ],
+ "actors": [
+  "fargoth",
+  "erene llenim"
+ ],
+ "setup": [
+  "player->Position -12288 -69632 120 0"
+ ]
+}

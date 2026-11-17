@@ -1,0 +1,82 @@
+{
+ "name": "move_scale",
+ "cell": "Seyda Neen",
+ "frames": 10,
+ "ignore": [
+  ".objects",
+  ".player.cell",
+  ".ai",
+  ".player.water",
+  ".vars.r_z0",
+  ".vars.r_z1",
+  ".vars.r_dt",
+  ".vars.r_x0",
+  ".vars.r_y0",
+  ".objects.furn_sign_inn_arrille.pos",
+  ".objects.furn_sign_inn_arrille.rotz",
+  ".objects.furn_sign_inn_arrille.enabled"
+ ],
+ "tol": {},
+ "commands": [
+  "\"furn_sign_inn_arrille\"->SetScale 1.5",
+  "\"furn_sign_inn_arrille\"->ModScale 0.25",
+  "set r_s to \"furn_sign_inn_arrille\"->GetScale",
+  "set r_z0 to \"flora_treestump_unique\"->GetPos z",
+  "\"flora_treestump_unique\"->MoveWorld z 100",
+  "set r_z1 to \"flora_treestump_unique\"->GetPos z",
+  "set r_dt to GetSecondsPassed",
+  "set r_vz to ( r_z1 - r_z0 ) / r_dt",
+  "\"flora_treestump_unique\"->SetAngle z 90",
+  "set r_x0 to \"flora_treestump_unique\"->GetPos x",
+  "set r_y0 to \"flora_treestump_unique\"->GetPos y",
+  "\"flora_treestump_unique\"->Move y 100",
+  "set r_vx to ( \"flora_treestump_unique\"->GetPos x - r_x0 ) / r_dt",
+  "set r_vy to ( \"flora_treestump_unique\"->GetPos y - r_y0 ) / r_dt",
+  "\"flora_treestump_unique\"->Fall"
+ ],
+ "vars": [
+  [
+   "float",
+   "r_s"
+  ],
+  [
+   "float",
+   "r_z0"
+  ],
+  [
+   "float",
+   "r_z1"
+  ],
+  [
+   "float",
+   "r_dt"
+  ],
+  [
+   "float",
+   "r_vz"
+  ],
+  [
+   "float",
+   "r_x0"
+  ],
+  [
+   "float",
+   "r_y0"
+  ],
+  [
+   "float",
+   "r_vx"
+  ],
+  [
+   "float",
+   "r_vy"
+  ]
+ ],
+ "objects": [
+  "furn_sign_inn_arrille"
+ ],
+ "actors": [],
+ "setup": [
+  "player->Position -12288 -69632 120 0"
+ ]
+}

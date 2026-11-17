@@ -1,0 +1,35 @@
+{
+ "name": "water_ship",
+ "cell": "Imperial Prison Ship",
+ "frames": 10,
+ "ignore": [
+  ".objects",
+  ".player.cell",
+  ".ai",
+  ".player.water"
+ ],
+ "tol": {},
+ "commands": [
+  "set r_w0 to GetWaterLevel",
+  "SetWaterLevel 50",
+  "set r_w1 to GetWaterLevel",
+  "ModWaterLevel 25",
+  "set r_w2 to GetWaterLevel"
+ ],
+ "vars": [
+  [
+   "float",
+   "r_w0"
+  ],
+  [
+   "float",
+   "r_w1"
+  ],
+  [
+   "float",
+   "r_w2"
+  ]
+ ],
+ "actors": [],
+ "interior": true
+}

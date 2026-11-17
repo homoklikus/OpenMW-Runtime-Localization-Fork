@@ -1,0 +1,115 @@
+{
+ "name": "stats_player",
+ "cell": "Seyda Neen",
+ "frames": 10,
+ "ignore": [
+  ".objects",
+  ".player.cell",
+  ".ai"
+ ],
+ "tol": {
+  "fatigue[1]": 12
+ },
+ "setup": [
+  "player->Position -12288 -69632 120 0",
+  "player->SetStrength 40",
+  "player->SetIntelligence 40",
+  "player->SetWillpower 40",
+  "player->SetAgility 40",
+  "player->SetSpeed 40",
+  "player->SetEndurance 40",
+  "player->SetPersonality 40",
+  "player->SetLuck 40",
+  "player->SetHealth 50",
+  "player->SetMagicka 60",
+  "player->SetFatigue 150",
+  "player->SetLongBlade 20",
+  "player->SetSneak 30",
+  "player->SetAcrobatics 40",
+  "player->SetAlteration 25"
+ ],
+ "commands": [
+  "player->SetStrength 60",
+  "player->ModStrength 20",
+  "player->ModAgility -15",
+  "player->SetIntelligence 70",
+  "player->ModLongBlade 10",
+  "player->SetSneak 50",
+  "player->ModAcrobatics 200",
+  "player->ModAlteration -40",
+  "player->ModHealth 10",
+  "player->ModCurrentHealth -20",
+  "player->ModMagicka -10",
+  "player->ModCurrentMagicka -100",
+  "player->ModCurrentFatigue -30",
+  "player->ModFatigue 20",
+  "player->SetResistFire 30",
+  "player->ModResistShock -10",
+  "player->SetWaterWalking 1",
+  "player->ModSwimSpeed 15",
+  "player->SetLevel 5"
+ ],
+ "vars": [
+  [
+   "float",
+   "r_hp"
+  ],
+  [
+   "float",
+   "r_ratio"
+  ],
+  [
+   "float",
+   "r_str"
+  ],
+  [
+   "float",
+   "r_lb"
+  ],
+  [
+   "float",
+   "r_fire"
+  ],
+  [
+   "float",
+   "r_lvl"
+  ],
+  [
+   "float",
+   "r_mag"
+  ]
+ ],
+ "after": [
+  [
+   1,
+   "set r_hp to player->GetHealth"
+  ],
+  [
+   1,
+   "set r_ratio to player->GetHealthGetRatio"
+  ],
+  [
+   1,
+   "set r_str to player->GetStrength"
+  ],
+  [
+   1,
+   "set r_lb to player->GetLongBlade"
+  ],
+  [
+   1,
+   "set r_fire to player->GetResistFire"
+  ],
+  [
+   1,
+   "set r_lvl to player->GetLevel"
+  ],
+  [
+   1,
+   "set r_mag to player->GetMagicka"
+  ]
+ ],
+ "actors": [
+  "player"
+ ]
+}

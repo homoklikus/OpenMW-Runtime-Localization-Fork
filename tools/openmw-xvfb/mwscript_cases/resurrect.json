@@ -1,0 +1,37 @@
+{
+ "name": "resurrect",
+ "cell": "Seyda Neen",
+ "frames": 160,
+ "ignore": [
+  ".objects",
+  ".player.cell",
+  ".ai",
+  ".player.water"
+ ],
+ "tol": {},
+ "commands": [
+  "\"vodunius nuccius\"->ModCurrentHealth -1000"
+ ],
+ "after": [
+  [
+   150,
+   "\"vodunius nuccius\"->Resurrect"
+  ],
+  [
+   152,
+   "set r_h to \"vodunius nuccius\"->GetHealth"
+  ]
+ ],
+ "vars": [
+  [
+   "float",
+   "r_h"
+  ]
+ ],
+ "actors": [
+  "vodunius nuccius"
+ ],
+ "setup": [
+  "player->Position -12288 -69632 120 0"
+ ]
+}

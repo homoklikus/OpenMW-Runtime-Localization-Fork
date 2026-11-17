@@ -1,0 +1,111 @@
+{
+ "name": "werewolf",
+ "cell": "Seyda Neen",
+ "frames": 6,
+ "ignore": [
+  ".player.water",
+  ".player.cell",
+  ".objects",
+  ".ai",
+  ".player.crime"
+ ],
+ "tol": {
+  "fatigue[1]": 15,
+  "health[1]": 60
+ },
+ "setup": [
+  "player->Position -12288 -69632 120 0",
+  "\"chargen dock guard\"->Position -12288 -69500 120 180",
+  "player->SetStrength 40",
+  "player->SetIntelligence 40",
+  "player->SetWillpower 40",
+  "player->SetAgility 40",
+  "player->SetSpeed 40",
+  "player->SetEndurance 40",
+  "player->SetPersonality 40",
+  "player->SetLuck 40",
+  "player->SetHealth 50",
+  "player->SetMagicka 60",
+  "player->SetFatigue 150",
+  "player->SetAcrobatics 40",
+  "player->SetSneak 30",
+  "player->SetLongBlade 20",
+  "player->SetHandToHand 35"
+ ],
+ "commands": [
+  "player->BecomeWerewolf",
+  "\"chargen dock guard\"->BecomeWerewolf"
+ ],
+ "after": [
+  [
+   1,
+   "set r_ww to player->IsWerewolf"
+  ],
+  [
+   1,
+   "set r_ac to player->GetAcrobatics"
+  ],
+  [
+   2,
+   "player->SetWerewolfAcrobatics"
+  ],
+  [
+   3,
+   "set r_ac2 to player->GetAcrobatics"
+  ],
+  [
+   3,
+   "set r_gw to \"chargen dock guard\"->IsWerewolf"
+  ],
+  [
+   3,
+   "set r_k to GetWerewolfKills"
+  ],
+  [
+   4,
+   "set r_cr to GetPCCrimeLevel"
+  ]
+ ],
+ "vars": [
+  [
+   "short",
+   "r_ww"
+  ],
+  [
+   "float",
+   "r_ac"
+  ],
+  [
+   "float",
+   "r_ac2"
+  ],
+  [
+   "short",
+   "r_gw"
+  ],
+  [
+   "short",
+   "r_k"
+  ],
+  [
+   "float",
+   "r_cr"
+  ]
+ ],
+ "items": [
+  "werewolfrobe"
+ ],
+ "npc_items": [
+  [
+   "chargen dock guard",
+   "werewolfrobe"
+  ]
+ ],
+ "actors": [
+  "player",
+  "chargen dock guard"
+ ],
+ "globals": [
+  "pcknownwerewolf"
+ ]
+}

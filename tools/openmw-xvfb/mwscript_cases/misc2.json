@@ -1,0 +1,221 @@
+{
+ "name": "misc2",
+ "cell": "Seyda Neen",
+ "frames": 10,
+ "ignore": [
+  ".player.cell",
+  ".vars.r_ang2",
+  ".player.water",
+  ".objects",
+  ".vars.r_ang"
+ ],
+ "tol": {
+  "fatigue[1]": 12
+ },
+ "setup": [
+  "player->Position -12288 -69632 120 0"
+ ],
+ "commands": [
+  "fargoth->SetFight 80",
+  "fargoth->ModFight -5",
+  "fargoth->SetFlee 20",
+  "fargoth->SetHello 10",
+  "fargoth->SetAlarm 70",
+  "eldafire->ModFlee 15",
+  "player->ModResistFire 20",
+  "player->ModResistFrost -10",
+  "player->ModResistMagicka 5",
+  "player->ModResistParalysis 30",
+  "player->ModResistPoison 12",
+  "player->ModRestoration 7",
+  "player->SetMarksman 33",
+  "player->ModBlock 4",
+  "player->SetAlchemy 21",
+  "player->SetEnchant 18",
+  "player->ModSpeed 3",
+  "player->ModLuck -2",
+  "player->AddSpell \"fireball\"",
+  "fargoth->AddSpell \"fireball\"",
+  "SetPCCrimeLevel 150",
+  "PCJoinFaction \"Mages Guild\"",
+  "PCRaiseRank \"Mages Guild\"",
+  "ModPCFacRep 7 \"Mages Guild\"",
+  "fargoth->ModDisposition 10",
+  "fargoth->SetDisposition 65",
+  "fargoth->ModReputation 3",
+  "Journal \"A1_1_FindSpymaster\" 10"
+ ],
+ "after": [
+  [
+   1,
+   "set r_jr to GetJournalIndex \"A1_1_FindSpymaster\""
+  ],
+  [
+   1,
+   "set r_f to fargoth->GetFlee"
+  ],
+  [
+   1,
+   "set r_cl to GetPCCrimeLevel"
+  ],
+  [
+   1,
+   "set r_rk to GetPCRank \"Mages Guild\""
+  ],
+  [
+   1,
+   "set r_sp to player->GetSpell \"fireball\""
+  ],
+  [
+   1,
+   "set r_fsp to fargoth->GetSpell \"fireball\""
+  ],
+  [
+   1,
+   "set r_cell to GetPCCell \"Seyda Neen\""
+  ],
+  [
+   1,
+   "set r_dead to GetDeadCount \"fargoth\""
+  ],
+  [
+   1,
+   "set r_int to GetInterior"
+  ],
+  [
+   1,
+   "set r_disp to fargoth->GetDisposition"
+  ],
+  [
+   1,
+   "set r_cd to player->GetCommonDisease"
+  ],
+  [
+   1,
+   "set r_res to player->GetResistFire"
+  ],
+  [
+   2,
+   "player->RemoveSpell \"fireball\""
+  ],
+  [
+   3,
+   "set r_sp2 to player->GetSpell \"fireball\""
+  ],
+  [
+   3,
+   "PayFine"
+  ],
+  [
+   4,
+   "set r_cl2 to GetPCCrimeLevel"
+  ],
+  [
+   4,
+   "PCExpell \"Mages Guild\""
+  ],
+  [
+   5,
+   "set r_ex to PCExpelled \"Mages Guild\""
+  ],
+  [
+   5,
+   "PCClearExpelled \"Mages Guild\""
+  ],
+  [
+   6,
+   "set r_ex2 to PCExpelled \"Mages Guild\""
+  ],
+  [
+   6,
+   "set r_ang to fargoth->GetAngle z"
+  ],
+  [
+   6,
+   "fargoth->SetAngle z 45"
+  ],
+  [
+   7,
+   "set r_ang2 to fargoth->GetAngle z"
+  ]
+ ],
+ "vars": [
+  [
+   "short",
+   "r_jr"
+  ],
+  [
+   "short",
+   "r_f"
+  ],
+  [
+   "long",
+   "r_cl"
+  ],
+  [
+   "short",
+   "r_rk"
+  ],
+  [
+   "short",
+   "r_sp"
+  ],
+  [
+   "short",
+   "r_fsp"
+  ],
+  [
+   "short",
+   "r_cell"
+  ],
+  [
+   "short",
+   "r_dead"
+  ],
+  [
+   "short",
+   "r_int"
+  ],
+  [
+   "short",
+   "r_disp"
+  ],
+  [
+   "short",
+   "r_cd"
+  ],
+  [
+   "float",
+   "r_res"
+  ],
+  [
+   "short",
+   "r_sp2"
+  ],
+  [
+   "long",
+   "r_cl2"
+  ],
+  [
+   "short",
+   "r_ex"
+  ],
+  [
+   "short",
+   "r_ex2"
+  ],
+  [
+   "float",
+   "r_ang"
+  ],
+  [
+   "float",
+   "r_ang2"
+  ]
+ ],
+ "actors": [
+  "player",
+  "fargoth",
+  "eldafire"
+ ]
+}

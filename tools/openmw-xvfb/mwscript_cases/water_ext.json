@@ -1,0 +1,25 @@
+{
+ "name": "water_ext",
+ "cell": "Seyda Neen",
+ "frames": 10,
+ "ignore": [
+  ".objects",
+  ".player.cell",
+  ".ai",
+  ".player.water"
+ ],
+ "tol": {},
+ "commands": [
+  "set r_w0 to GetWaterLevel"
+ ],
+ "vars": [
+  [
+   "float",
+   "r_w0"
+  ]
+ ],
+ "actors": [],
+ "setup": [
+  "player->Position -12288 -69632 120 0"
+ ]
+}

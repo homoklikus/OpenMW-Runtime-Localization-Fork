@@ -1,0 +1,450 @@
+#!/usr/bin/env python3
+"""Porównanie skutków MWScript w OpenMW i OpenMWGodot na tych samych danych.
+
+Przypadek (JSON): {"name", "cell", "commands": [wiersze konsoli MWScript], "actors": [id], "items": [id],
+"globals": [nazwa], "locals": [[id_obiektu, zmienna]], "frames": N}.
+
+  openmw  – uruchamia OpenMW (tools/openmw-xvfb/run.sh) na Xvfb z --skip-menu --start KOMÓRKA, wykonuje polecenia
+            przez --script-run, po N klatkach skrypt Lua (globalny, dołączany tylko do kopii konfiguracji w katalogu
+            roboczym) zapisuje migawkę stanu do dziennika (wiersz MWSNAP) i kończy grę;
+  compile – kompiluje polecenia kompilatorem konwertera (mwconv.mwscript) do JSON dla sondy Godota
+            (godot/tests/probe_mwscript.gd), która wykonuje je i zapisuje taką samą migawkę;
+  diff    – porównuje migawki pole po polu (tolerancja liczbowa).
+
+Migawka zawiera tylko liczby i identyfikatory (bez tekstów gry). Oryginalne pliki Morrowinda nie są zmieniane;
+konfiguracja OpenMW jest kopiowana do katalogu roboczego."""
+import argparse
+import json
+import re
+import os
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+
+ATTRS = ["strength", "intelligence", "willpower", "agility", "speed", "endurance", "personality", "luck"]
+SKILLS = ["block", "armorer", "mediumarmor", "heavyarmor", "bluntweapon", "longblade", "axe", "spear", "athletics",
+          "enchant", "destruction", "alteration", "illusion", "conjuration", "mysticism", "restoration", "alchemy",
+          "unarmored", "security", "sneak", "acrobatics", "lightarmor", "shortblade", "marksman", "mercantile",
+          "speechcraft", "handtohand"]
+# rodzina efektów (statsextensions.cpp): nazwa → (efekt dodatni, ujemny, tarcza) – identyfikatory Lua
+EFFECTS = {"resistmagicka": ("resistmagicka", "weaknesstomagicka", None),
+           "resistfire": ("resistfire", "weaknesstofire", "fireshield"),
+           "resistfrost": ("resistfrost", "weaknesstofrost", "frostshield"),
+           "resistshock": ("resistshock", "weaknesstoshock", "lightningshield"),
+           "resistdisease": ("resistcommondisease", "weaknesstocommondisease", None),
+           "resistblight": ("resistblightdisease", "weaknesstoblightdisease", None),
+           "resistcorprus": ("resistcorprusdisease", "weaknesstocorprusdisease", None),
+           "resistpoison": ("resistpoison", "weaknesstopoison", None),
+           "resistparalysis": ("resistparalysis", None, None),
+           "resistnormalweapons": ("resistnormalweapons", "weaknesstonormalweapons", None),
+           "waterbreathing": ("waterbreathing", None, None), "chameleon": ("chameleon", None, None),
+           "waterwalking": ("waterwalking", None, None), "swimspeed": ("swiftswim", None, None),
+           "superjump": ("jump", None, None), "flying": ("levitate", None, None), "armorbonus": ("shield", None, None),
+           "castpenalty": ("sound", None, None), "silence": ("silence", None, None), "blindness": ("blind", None, None),
+           "paralysis": ("paralyze", None, None), "invisible": ("invisibility", None, None),
+           "attackbonus": ("fortifyattack", None, None), "defendbonus": ("sanctuary", None, None)}
+
+LUA = r'''
+local world = require('openmw.world')
+local types = require('openmw.types')
+local core = require('openmw.core')
+local CFG = __CFG__
+local ATTRS = __ATTRS__
+local SKILLS = __SKILLS__
+local EFFECTS = __EFFECTS__
+local frame = 0
+local done = false
+
+local function enc(v)
+  local t = type(v)
+  if t == 'nil' then return 'null' end
+  if t == 'boolean' then return v and 'true' or 'false' end
+  if t == 'number' then
+    if v ~= v then return 'null' end
+    return string.format('%.4f', v)
+  end
+  if t == 'string' then return '"' .. v:gsub('\\', '\\\\'):gsub('"', '\\"') .. '"' end
+  local parts = {}
+  if #v > 0 then
+    for _, x in ipairs(v) do parts[#parts + 1] = enc(x) end
+    return '[' .. table.concat(parts, ',') .. ']'
+  end
+  for k, x in pairs(v) do parts[#parts + 1] = enc(tostring(k)) .. ':' .. enc(x) end
+  return '{' .. table.concat(parts, ',') .. '}'
+end
+
+local function find(id)
+  local player = world.players[1]
+  if id == 'player' then return player end
+  for _, a in ipairs(world.activeActors) do
+    if a.recordId == id then return a end
+  end
+  for _, o in ipairs(player.cell:getAll()) do
+    if o.recordId == id then return o end
+  end
+  return nil
+end
+
+local function effect(ae, id)
+  if not id then return 0 end
+  local ok, e = pcall(function() return ae:getEffect(id) end)
+  if ok and e then return e.magnitude or 0 end
+  return 0
+end
+
+local function actor(o)
+  local s = {}
+  local A = types.Actor
+  s.dead = A.isDead(o)
+  s.level = A.stats.level(o).current
+  s.attributes = {}
+  for _, n in ipairs(ATTRS) do
+    local a = A.stats.attributes[n](o)
+    s.attributes[n] = {a.base, a.modified}
+  end
+  if types.NPC.objectIsInstance(o) then
+    s.skills = {}
+    for _, n in ipairs(SKILLS) do
+      local k = types.NPC.stats.skills[n](o)
+      s.skills[n] = {k.base, k.modified}
+    end
+    s.werewolf = types.NPC.isWerewolf(o)
+  end
+  s.dynamic = {}
+  for _, n in ipairs({'health', 'magicka', 'fatigue'}) do
+    local d = A.stats.dynamic[n](o)
+    s.dynamic[n] = {d.base, d.current, d.base + d.modifier}
+  end
+  local ae = A.activeEffects(o)
+  s.effects = {}
+  for name, ids in pairs(EFFECTS) do
+    local v = effect(ae, ids[1]) - effect(ae, ids[2]) + effect(ae, ids[3])
+    s.effects[name] = math.floor(v)
+  end
+  local okq, eq = pcall(function() return A.getEquipment(o) end)
+  s.equipment = {}
+  if okq and eq then
+    for slot, item in pairs(eq) do s.equipment[tostring(slot)] = item.recordId end
+  end
+  local ai = A.stats.ai
+  s.ai = {ai.fight(o).modified, ai.hello(o).modified, ai.flee(o).modified, ai.alarm(o).modified}
+  if types.NPC.objectIsInstance(o) and o ~= world.players[1] then
+    s.factions = {}
+    for _, fid in ipairs(types.NPC.getFactions(o)) do s.factions[fid] = types.NPC.getFactionRank(o, fid) end
+  end
+  return s
+end
+
+local function object(o)
+  local s = {}
+  s.pos = {o.position.x, o.position.y, o.position.z}
+  s.rotz = o.rotation:getYaw()
+  s.scale = o.scale
+  s.enabled = o.enabled
+  s.cell = o.cell and o.cell.name or ''
+  return s
+end
+
+local function snapshot()
+  local player = world.players[1]
+  local out = {actors = {}, objects = {}, items = {}, globals = {}, locals = {}, player = {}, vars = {}}
+  for _, id in ipairs(CFG.actors) do
+    local o = find(id)
+    if o then
+      out.actors[id] = actor(o)
+      out.objects[id] = object(o)
+    end
+  end
+  for _, id in ipairs(CFG.objects or {}) do
+    local o = find(id)
+    if o then out.objects[id] = object(o) end
+  end
+  local inv = types.Actor.inventory(player)
+  for _, id in ipairs(CFG.items) do out.items[id] = inv:countOf(id) end
+  out.npc_items = {}
+  for _, p in ipairs(CFG.npc_items or {}) do
+    local o = find(p[1])
+    if o then out.npc_items[p[1] .. '.' .. p[2]] = types.Actor.inventory(o):countOf(p[2]) end
+  end
+  local g = world.mwscript.getGlobalVariables(player)
+  for _, n in ipairs(CFG.globals) do out.globals[n] = g[n] end
+  for _, p in ipairs(CFG.locals or {}) do
+    local o = find(p[1])
+    local sc = o and world.mwscript.getLocalScript(o, player)
+    out.locals[p[1] .. '.' .. p[2]] = sc and sc.variables[p[2]] or nil
+  end
+  local gs = world.mwscript.getGlobalScript('mwprobe_run', player)
+  out.vars = {}
+  if gs then
+    for _, n in ipairs(CFG.vars) do out.vars[n] = gs.variables[n] end
+  end
+  out.player.crime = types.Player.getCrimeLevel(player)
+  out.player.teleporting = types.Player.isTeleportingEnabled(player)
+  out.player.cell = player.cell.name
+  out.player.water = player.cell.waterLevel
+  return out
+end
+
+return {
+  engineHandlers = {
+    onUpdate = function(dt)
+      frame = frame + 1
+      if frame == CFG.frames and not done then
+        done = true
+        local ok, res = pcall(snapshot)
+        if ok then
+          -- krótkie fragmenty: długi wiersz bywa przerywany wpisami innych wątków dziennika
+          local js = enc(res)
+          local n = math.ceil(#js / 300)
+          for i = 1, n do print(string.format('MWSNAP %d/%d %s|', i, n, js:sub((i - 1) * 300 + 1, i * 300))) end
+        else print('MWSNAPERR ' .. tostring(res)) end
+        core.quit()
+      end
+    end,
+  },
+}
+'''
+
+
+def lua_table(v):
+    if isinstance(v, dict):
+        return "{" + ",".join(f"[{lua_table(k)}]={lua_table(x)}" for k, x in v.items()) + "}"
+    if isinstance(v, (list, tuple)):
+        return "{" + ",".join(lua_table(x) for x in v) + "}"
+    if v is None:
+        return "nil"
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, (int, float)):
+        return repr(v)
+    return json.dumps(str(v))
+
+
+DELAY = 30     # klatek od startu do wykonania poleceń (aktorzy komórki już zainicjowani, zdolności nałożone)
+
+
+def probe_script(case: dict) -> str:
+    """Skrypt globalny wykonujący polecenia przypadku raz, w klatce DELAY (OpenMW i sonda Godota – ta sama chwila)."""
+    lines = ["begin mwprobe_run", "short mwprobe_f"] + [f"{t} {n}" for t, n in case.get("vars", [])]
+    lines += ["set mwprobe_f to mwprobe_f + 1", f"if ( mwprobe_f == {int(case.get('delay', DELAY))} )"]
+    lines += ["  " + c for c in case.get("setup", []) + case.get("commands", [])]
+    lines += ["endif"]
+    # co klatkę od chwili poleceń: "every": [polecenie, …]
+    if case.get("every"):
+        lines += [f"if ( mwprobe_f > {int(case.get('delay', DELAY))} )"] + ["  " + c for c in case["every"]] + ["endif"]
+    # polecenia w kolejnych klatkach: "after": [[klatka_po_poleceniach, polecenie], …]
+    for d, c in case.get("after", []):
+        lines += [f"if ( mwprobe_f == {int(case.get('delay', DELAY)) + int(d)} )", "  " + c, "endif"]
+    lines += ["end"]
+    return "\n".join(lines) + "\n"
+
+
+def probe_esp(case: dict) -> bytes:
+    """Dodatek testowy (nie dane gry): jeden rekord SCPT ze skryptem probe_script; master Morrowind.esm."""
+    sys.path.insert(0, str(HERE.parents[1] / "converter"))
+    import struct
+    from mwconv.esm import writer as W
+    src = probe_script(case)
+    schd = b"mwprobe_run".ljust(32, b"\0") + struct.pack("<5i", 1, 0, 0, 0, 0)
+    rec = W.record("SCPT", [W.sub("SCHD", schd), W.sub("SCTX", src.replace("\n", "\r\n").encode("cp1252"))])
+    return W.header([("Morrowind.esm", 0)], 1, desc="mwscript compare probe", is_master=False) + rec
+
+
+def baseline(case: dict) -> dict:
+    """Przypadek bazowy: tylko polecenia „setup” (stan przed poleceniami przypadku)."""
+    b = dict(case)
+    b["name"] = case.get("name", "case") + "_base"
+    b["commands"] = []
+    return b
+
+
+def run_openmw(case: dict, omw_dir: Path, cfg_src: Path, work: Path, display: int, timeout: float) -> dict:
+    work.mkdir(parents=True, exist_ok=True)
+    cfg_dir = work / "cfg"
+    if cfg_dir.exists():
+        shutil.rmtree(cfg_dir)
+    shutil.copytree(cfg_src, cfg_dir / "openmw")
+    probe = work / "probe"
+    (probe / "scripts" / "mwprobe").mkdir(parents=True, exist_ok=True)
+    cfg = {"actors": case.get("actors", []), "objects": case.get("objects", []), "items": case.get("items", []),
+           "globals": case.get("globals", []), "locals": case.get("locals", []),
+           "vars": [n for _, n in case.get("vars", [])], "npc_items": case.get("npc_items", []),
+           "frames": int(case.get("delay", DELAY)) + int(case.get("frames", 10))}
+    lua = (LUA.replace("__CFG__", lua_table(cfg)).replace("__ATTRS__", lua_table(ATTRS))
+           .replace("__SKILLS__", lua_table(SKILLS)).replace("__EFFECTS__", lua_table({k: list(v) for k, v in EFFECTS.items()})))
+    (probe / "scripts" / "mwprobe" / "global.lua").write_text(lua, encoding="utf-8")
+    (probe / "mwprobe.omwscripts").write_text("GLOBAL: scripts/mwprobe/global.lua\n", encoding="utf-8")
+    (probe / "mwprobe.esp").write_bytes(probe_esp(case))
+    with open(cfg_dir / "openmw" / "openmw.cfg", "a", encoding="utf-8") as f:
+        f.write(f'\ndata="{probe}"\ncontent=mwprobe.esp\ncontent=mwprobe.omwscripts\n')
+    cmds = work / "commands.txt"
+    cmds.write_text("startscript mwprobe_run\n", encoding="utf-8")
+    log = work / "openmw.out"
+    env = dict(os.environ, DISPLAY=f":{display}")
+    xvfb = subprocess.Popen(["Xvfb", f":{display}", "-screen", "0", "1024x768x24", "+extension", "GLX", "-nolisten", "tcp"],
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    time.sleep(2)
+    try:
+        args = [str(HERE / "run.sh"), str(omw_dir), str(cfg_dir), "--skip-menu", "--start", case.get("cell", "Seyda Neen"),
+                "--script-run", str(cmds)]
+        with open(log, "w") as out:
+            p = subprocess.Popen(args, stdout=out, stderr=subprocess.STDOUT, env=env)
+            t0 = time.time()
+            while p.poll() is None and time.time() - t0 < timeout:
+                time.sleep(1)
+                if "Quitting peacefully" in log.read_text(errors="replace"):
+                    time.sleep(1)
+                    break
+            if p.poll() is None:
+                p.kill()
+    finally:
+        xvfb.kill()
+    text = log.read_text(errors="replace")
+    parts = {}
+    total = 0
+    for line in text.splitlines():
+        if "MWSNAPERR" in line:
+            raise SystemExit("błąd migawki OpenMW: " + line.split("MWSNAPERR", 1)[1].strip())
+        m = re.search(r"MWSNAP (\d+)/(\d+) (.*)\|\s*$", line)
+        if m:
+            parts[int(m.group(1))] = m.group(3)
+            total = int(m.group(2))
+    if total and len(parts) == total:
+        return json.loads("".join(parts[i] for i in range(1, total + 1)))
+    raise SystemExit(f"brak pełnej migawki OpenMW ({len(parts)}/{total}; dziennik: {log})")
+
+
+def compile_case(case: dict, converter: Path) -> dict:
+    sys.path.insert(0, str(converter))
+    from mwconv.mwscript import compile_script
+    out = dict(case)
+    r = compile_script(probe_script(case), "mwprobe_run")
+    if r["errors"]:
+        raise SystemExit(f"błąd kompilacji skryptu sondy: {r['errors']}")
+    out["script"] = {"body": r["body"], "locals": r["locals"], "warnings": r["warnings"]}
+    out["delay"] = int(case.get("delay", DELAY))
+    return out
+
+
+def _cmp(a, b, path, tol, out):
+    if isinstance(a, dict) and isinstance(b, dict):
+        for k in sorted(set(a) | set(b)):
+            if k not in a or k not in b:
+                out.append((path + "." + k, a.get(k, "∅"), b.get(k, "∅")))
+            else:
+                _cmp(a[k], b[k], path + "." + k, tol, out)
+    elif isinstance(a, list) and isinstance(b, list):
+        if len(a) != len(b):
+            out.append((path, a, b))
+        for i, (x, y) in enumerate(zip(a, b)):
+            _cmp(x, y, f"{path}[{i}]", tol, out)
+    elif isinstance(a, (int, float)) and isinstance(b, (int, float)) and not isinstance(a, bool):
+        if abs(float(a) - float(b)) > tol:
+            out.append((path, a, b))
+    elif a != b:
+        out.append((path, a, b))
+
+
+def _leaves(v, path="", out=None):
+    out = {} if out is None else out
+    if isinstance(v, dict):
+        for k, x in v.items():
+            _leaves(x, path + "." + k, out)
+    elif isinstance(v, list):
+        for i, x in enumerate(v):
+            _leaves(x, f"{path}[{i}]", out)
+    else:
+        out[path] = v
+    return out
+
+
+def _num(v):
+    return isinstance(v, (int, float)) and not isinstance(v, bool)
+
+
+def diff(a: dict, b: dict, tol: float, ignore=(), base_a=None, base_b=None, tols=None) -> list:
+    """Różnice migawek. Z migawkami bazowymi (te same polecenia „setup”, bez poleceń przypadku): gdy wartości
+    bazowe obu silników są równe – porównanie wartości po; gdy różne – porównanie zmian (po − przed)."""
+    la, lb = _leaves(a), _leaves(b)
+    ba, bb = (_leaves(base_a), _leaves(base_b)) if base_a is not None and base_b is not None else ({}, {})
+    out = []
+    for k in sorted(set(la) | set(lb)):
+        if any(k.startswith(i) or i in k for i in ignore):
+            continue
+        x, y = la.get(k, "∅"), lb.get(k, "∅")
+        t = max([tol] + [float(v) for p, v in (tols or {}).items() if p in k])
+        if ba and k in ba and k in bb and _num(x) and _num(y) and _num(ba[k]) and _num(bb[k]) \
+                and abs(float(ba[k]) - float(bb[k])) > t:
+            # różne wartości bazowe: zgodne, gdy równe wartości po (Set…) albo równe zmiany (Mod…)
+            dx, dy = float(x) - float(ba[k]), float(y) - float(bb[k])
+            if abs(dx - dy) > t and abs(float(x) - float(y)) > t:
+                out.append((k + " (zmiana)", round(dx, 4), round(dy, 4)))
+            continue
+        if ba and ba.get(k, "∅") != bb.get(k, "∅") and x == ba.get(k, "∅") and y == bb.get(k, "∅"):
+            continue            # różnica już w stanie bazowym, bez zmiany w żadnym silniku
+        if _num(x) and _num(y):
+            if abs(float(x) - float(y)) > max(t, 1e-6 * max(abs(float(x)), abs(float(y)))):
+                out.append((k, x, y))
+        elif x != y:
+            out.append((k, x, y))
+    return out
+
+
+def main(argv):
+    ap = argparse.ArgumentParser()
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    o = sub.add_parser("openmw")
+    o.add_argument("--case", required=True)
+    o.add_argument("--omw", default="/tmp/omwx")
+    o.add_argument("--cfg", default="/tmp/omwx/cfg/openmw")
+    o.add_argument("--work", required=True)
+    o.add_argument("--display", type=int, default=70)
+    o.add_argument("--timeout", type=float, default=120)
+    o.add_argument("--out", required=True)
+    o.add_argument("--baseline", action="store_true", help="tylko polecenia setup")
+    c = sub.add_parser("compile")
+    c.add_argument("--case", required=True)
+    c.add_argument("--converter", default=str(HERE.parents[1] / "converter"))
+    c.add_argument("--out", required=True)
+    c.add_argument("--baseline", action="store_true", help="tylko polecenia setup")
+    d = sub.add_parser("diff")
+    d.add_argument("a")
+    d.add_argument("b")
+    d.add_argument("--tol", type=float, default=0.01)
+    d.add_argument("--ignore", nargs="*", default=[])
+    d.add_argument("--base-a")
+    d.add_argument("--base-b")
+    d.add_argument("--case", help="przypadek: pola ignore i tol (tolerancje dla fragmentów ścieżek)")
+    a = ap.parse_args(argv)
+    if a.cmd == "openmw":
+        case = json.loads(Path(a.case).read_text(encoding="utf-8"))
+        if a.baseline:
+            case = baseline(case)
+        snap = run_openmw(case, Path(a.omw), Path(a.cfg), Path(a.work), a.display, a.timeout)
+        Path(a.out).write_text(json.dumps(snap, indent=1, sort_keys=True), encoding="utf-8")
+        print("migawka OpenMW:", a.out)
+    elif a.cmd == "compile":
+        case = json.loads(Path(a.case).read_text(encoding="utf-8"))
+        if a.baseline:
+            case = baseline(case)
+        Path(a.out).write_text(json.dumps(compile_case(case, Path(a.converter))), encoding="utf-8")
+        print("skompilowano:", a.out)
+    else:
+        x = json.loads(Path(a.a).read_text(encoding="utf-8"))
+        y = json.loads(Path(a.b).read_text(encoding="utf-8"))
+        ld = (lambda p: json.loads(Path(p).read_text(encoding="utf-8")) if p else None)
+        cs = ld(a.case) or {}
+        ds = diff(x, y, a.tol, list(a.ignore) + cs.get("ignore", []), ld(a.base_a), ld(a.base_b), cs.get("tol", {}))
+        for p, va, vb in ds:
+            print(f"{p}: OpenMW={va} Godot={vb}")
+        print(f"różnice: {len(ds)}")
+        return 1 if ds else 0
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -1,0 +1,43 @@
+{
+ "name": "fail_global",
+ "cell": "Seyda Neen",
+ "frames": 6,
+ "ignore": [
+  ".objects",
+  ".player.cell",
+  ".player.water",
+  ".ai"
+ ],
+ "tol": {
+  "fatigue[1]": 12
+ },
+ "setup": [
+  "player->Position -12288 -69632 120 0"
+ ],
+ "commands": [
+  "set r_a to 1",
+  "ModReputation 3",
+  "set r_b to 1"
+ ],
+ "after": [
+  [
+   1,
+   "set r_c to 1"
+  ]
+ ],
+ "vars": [
+  [
+   "short",
+   "r_a"
+  ],
+  [
+   "short",
+   "r_b"
+  ],
+  [
+   "short",
+   "r_c"
+  ]
+ ],
+ "actors": []
+}

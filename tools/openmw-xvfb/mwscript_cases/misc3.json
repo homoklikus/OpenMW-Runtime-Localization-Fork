@@ -1,0 +1,100 @@
+{
+ "name": "misc3",
+ "cell": "Seyda Neen",
+ "frames": 8,
+ "ignore": [
+  ".objects",
+  ".player.cell",
+  ".player.water",
+  ".ai",
+  ".actors"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -12288 -69632 120 0"
+ ],
+ "commands": [
+  "\"chargen door captain\"->Lock 50",
+  "set r_l1 to \"chargen door captain\"->GetLocked",
+  "\"chargen barrel fatigue\"->Lock 20",
+  "\"chargen barrel fatigue\"->Unlock",
+  "set r_l2 to \"chargen barrel fatigue\"->GetLocked",
+  "\"flora_treestump_unique\"->SetPos x -12000",
+  "set r_px to \"flora_treestump_unique\"->GetPos x",
+  "set r_xb to XBox",
+  "set r_sr to ScriptRunning \"main\"",
+  "set r_sr2 to ScriptRunning \"mwprobe_nonexistent\"",
+  "set r_w to GetCurrentWeather",
+  "fargoth->AIFollow player 0 0 0 0",
+  "eldafire->StartCombat \"vodunius nuccius\""
+ ],
+ "after": [
+  [
+   2,
+   "set r_ap to fargoth->GetCurrentAIPackage"
+  ],
+  [
+   2,
+   "set r_tg to eldafire->GetTarget \"vodunius nuccius\""
+  ],
+  [
+   2,
+   "set r_ap2 to eldafire->GetCurrentAIPackage"
+  ],
+  [
+   3,
+   "eldafire->StopCombat"
+  ],
+  [
+   5,
+   "set r_tg2 to eldafire->GetTarget \"vodunius nuccius\""
+  ]
+ ],
+ "vars": [
+  [
+   "short",
+   "r_l1"
+  ],
+  [
+   "short",
+   "r_l2"
+  ],
+  [
+   "float",
+   "r_px"
+  ],
+  [
+   "short",
+   "r_xb"
+  ],
+  [
+   "short",
+   "r_sr"
+  ],
+  [
+   "short",
+   "r_sr2"
+  ],
+  [
+   "short",
+   "r_w"
+  ],
+  [
+   "short",
+   "r_ap"
+  ],
+  [
+   "short",
+   "r_tg"
+  ],
+  [
+   "short",
+   "r_ap2"
+  ],
+  [
+   "short",
+   "r_tg2"
+  ]
+ ],
+ "actors": []
+}

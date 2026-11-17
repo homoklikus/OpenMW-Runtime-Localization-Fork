@@ -1,0 +1,94 @@
+{
+ "name": "stats_npc",
+ "cell": "Seyda Neen",
+ "frames": 10,
+ "ignore": [
+  ".objects",
+  ".player.cell",
+  ".ai"
+ ],
+ "tol": {
+  "fatigue[1]": 12
+ },
+ "commands": [
+  "fargoth->SetHealth 50",
+  "fargoth->ModHealth -10",
+  "fargoth->ModCurrentFatigue -20",
+  "fargoth->SetIntelligence 80",
+  "fargoth->ModSpeechcraft 12",
+  "fargoth->SetSecurity 3",
+  "\"vodunius nuccius\"->SetResistFire 30",
+  "\"vodunius nuccius\"->ModEndurance 15",
+  "\"vodunius nuccius\"->SetLevel 9",
+  "\"vodunius nuccius\"->ModCurrentHealth -500",
+  "eldafire->ModMagicka 20",
+  "eldafire->SetWillpower 70",
+  "eldafire->ModResistShock -10",
+  "eldafire->ModCurrentMagicka -30",
+  "eldafire->SetChameleon 40",
+  "\"erene llenim\"->SetStrength 90",
+  "\"erene llenim\"->ModFatigue 25",
+  "\"erene llenim\"->SetFatigue 60"
+ ],
+ "actors": [
+  "fargoth",
+  "vodunius nuccius",
+  "eldafire",
+  "erene llenim"
+ ],
+ "vars": [
+  [
+   "float",
+   "r_fh"
+  ],
+  [
+   "float",
+   "r_fr"
+  ],
+  [
+   "float",
+   "r_vr"
+  ],
+  [
+   "float",
+   "r_ei"
+  ],
+  [
+   "float",
+   "r_ec"
+  ],
+  [
+   "float",
+   "r_vd"
+  ]
+ ],
+ "after": [
+  [
+   1,
+   "set r_fh to fargoth->GetHealth"
+  ],
+  [
+   1,
+   "set r_fr to fargoth->GetFatigueGetRatio"
+  ],
+  [
+   1,
+   "set r_vr to \"vodunius nuccius\"->GetResistFire"
+  ],
+  [
+   1,
+   "set r_ei to eldafire->GetWillpower"
+  ],
+  [
+   1,
+   "set r_ec to eldafire->GetChameleon"
+  ],
+  [
+   1,
+   "set r_vd to \"vodunius nuccius\"->GetHealth"
+  ]
+ ],
+ "setup": [
+  "player->Position -12288 -69632 120 0"
+ ]
+}

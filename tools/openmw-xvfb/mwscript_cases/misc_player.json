@@ -1,0 +1,157 @@
+{
+ "name": "misc_player",
+ "cell": "Seyda Neen",
+ "frames": 10,
+ "ignore": [
+  ".objects",
+  ".player.cell",
+  ".ai",
+  ".player.water"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -12288 -69632 120 0",
+  "player->SetStrength 40",
+  "player->SetIntelligence 40",
+  "player->SetWillpower 40",
+  "player->SetAgility 40",
+  "player->SetSpeed 40",
+  "player->SetEndurance 40",
+  "player->SetPersonality 40",
+  "player->SetLuck 40",
+  "player->SetHealth 50",
+  "player->SetMagicka 60",
+  "player->SetFatigue 150",
+  "player->SetAcrobatics 40",
+  "player->SetSneak 30",
+  "player->SetLongBlade 20",
+  "player->SetHandToHand 35"
+ ],
+ "commands": [
+  "player->AddItem \"iron dagger\" 1",
+  "player->Equip \"iron dagger\"",
+  "player->AddItem gold_001 10",
+  "player->AddItem \"pick_apprentice_01\" 1",
+  "player->AddSoulGem \"mudcrab\" \"Misc_SoulGem_Petty\"",
+  "player->AddSoulGem \"rat\" \"Misc_SoulGem_Petty\"",
+  "DisableTeleporting",
+  "player->ForceSneak",
+  "fargoth->ForceRun"
+ ],
+ "after": [
+  [
+   1,
+   "set r_wt to player->GetWeaponType"
+  ],
+  [
+   1,
+   "set r_eq to player->HasItemEquipped \"iron dagger\""
+  ],
+  [
+   1,
+   "set r_eq2 to player->HasItemEquipped \"pick_apprentice_01\""
+  ],
+  [
+   2,
+   "player->RemoveSoulGem \"mudcrab\""
+  ],
+  [
+   3,
+   "set r_sg to player->HasSoulGem \"mudcrab\""
+  ],
+  [
+   3,
+   "set r_sg2 to player->HasSoulGem \"rat\""
+  ],
+  [
+   3,
+   "player->Drop gold_001 4"
+  ],
+  [
+   3,
+   "player->Drop \"pick_apprentice_01\" 3"
+  ],
+  [
+   4,
+   "set r_sq to GetSquareRoot 20.25"
+  ],
+  [
+   4,
+   "set r_fs to player->GetForceSneak"
+  ],
+  [
+   4,
+   "set r_fr to fargoth->GetForceRun"
+  ],
+  [
+   5,
+   "fargoth->ClearForceRun"
+  ],
+  [
+   6,
+   "set r_fr2 to fargoth->GetForceRun"
+  ],
+  [
+   6,
+   "set r_st to player->GetStat 3"
+  ],
+  [
+   6,
+   "set r_wt2 to fargoth->GetWeaponType"
+  ]
+ ],
+ "vars": [
+  [
+   "short",
+   "r_wt"
+  ],
+  [
+   "short",
+   "r_eq"
+  ],
+  [
+   "short",
+   "r_eq2"
+  ],
+  [
+   "short",
+   "r_sg"
+  ],
+  [
+   "short",
+   "r_sg2"
+  ],
+  [
+   "float",
+   "r_sq"
+  ],
+  [
+   "short",
+   "r_fs"
+  ],
+  [
+   "short",
+   "r_fr"
+  ],
+  [
+   "short",
+   "r_fr2"
+  ],
+  [
+   "float",
+   "r_st"
+  ],
+  [
+   "short",
+   "r_wt2"
+  ]
+ ],
+ "items": [
+  "gold_001",
+  "pick_apprentice_01",
+  "iron dagger"
+ ],
+ "actors": [
+  "player"
+ ]
+}
