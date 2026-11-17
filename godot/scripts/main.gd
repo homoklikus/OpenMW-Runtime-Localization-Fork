@@ -85,6 +85,10 @@ func arg(name: String, def := "") -> String:
 func _ready() -> void:
 	MWInput.register_defaults()
 	var mk := preload("res://scripts/mw/mw_menu_key.gd").new()
+	var pump := preload("res://scripts/mw/mw_script_pump.gd").new()
+	pump.name = "ScriptPump"
+	pump.main = self
+	add_child(pump)
 	mk.name = "MenuKey"
 	mk.main = self
 	add_child(mk)
@@ -219,6 +223,7 @@ func _ready() -> void:
 	MWEnvironment.water_mode = "shader" if bool(settings.get("water_shader", true)) else "simple"
 	envr = MWEnvironment.new()
 	envr.name = "Environment"
+	envr.main = self
 	envr.data_root = data
 	envr.fog_distance = float(settings.get("view_distance", 1500))
 	var regs = MWWorldDB._read_json(data.path_join("world/regions.json"))
@@ -308,6 +313,9 @@ func _start_scripted_chargen() -> void:
 		scripts.tick(0.0, [])
 
 func menu_allowed(kind: String) -> bool:
+	# setWerewolf: wilkołak nie ma dostępu do ekwipunku i magii (forceHide GW_Inventory, GW_Magic)
+	if kind in ["inventory", "magic"] and bool(player_stats().get("werewolf", false)):
+		return false
 	var m: Dictionary = state.player.get("menus", {})
 	if kind == "rest" and not bool(m.get("rest", true)) and scripts != null and scripts.get_global("chargenstate") == -1.0:
 		m["rest"] = true                       # getRestEnabled: po zakończeniu tworzenia postaci
@@ -800,6 +808,11 @@ func on_actor_attacked(f: Dictionary) -> void:
 	if not ai.in_combat(f.node):
 		if has_method("on_assault"):
 			call("on_assault", f)
+		# actorAttacked: aktor z OnPCHitMe w skrypcie i Fight 0 nie oddaje graczowi (chyba że StartCombat)
+		var sc: String = String(db.get_object(String(f.get("base", "")).to_lower()).get("script", "")).to_lower()
+		if not sc.is_empty() and scripts != null and scripts._var_type(sc, "onpchitme") != "" \
+				and dialogue != null and int(dialogue.ai_setting(dialogue.make_actor(f.node), "fight")) == 0:
+			return
 		ai.start_combat(f.node, player)
 
 func on_assault(f: Dictionary) -> void:
@@ -872,6 +885,7 @@ func npc_shoot(n: Node3D, target: Node3D, att: Dictionary) -> void:
 ## gracz – koniec gry (wczytanie zapisu).
 func on_actor_died(f: Dictionary, _att: Dictionary) -> void:
 	if f.kind == "player":
+		player_stats()["has_died"] = true      # notifyDied (OnDeath)
 		_player_died()
 		return
 	if dialogue != null and f.get("node") != null and f.kind == "npc":
@@ -880,13 +894,16 @@ func on_actor_died(f: Dictionary, _att: Dictionary) -> void:
 		magic.soul_trap(f)                 # Pułapka dusz: dusza stworzenia do kamienia gracza
 	if crime != null and not _att.is_empty() and _att.get("kind", "") == "player" and f.get("node") != null:
 		crime.on_killed(f.node)            # actorKilled: morderstwo (etap 8)
+	# Npc::onHit/actorKilled: zabicie NPC przez gracza-wilkołaka – GetWerewolfKills
+	if f.kind == "npc" and not _att.is_empty() and _att.get("kind", "") == "player" and bool(player_stats().get("werewolf", false)):
+		player_stats()["werewolf_kills"] = int(player_stats().get("werewolf_kills", 0)) + 1
 	var a: Dictionary = combat._actor_state(f)
 	a["dead"] = true
 	a["health"] = 0.0
 	var ds: Dictionary = dialogue._ds()
 	ds.deaths[f.base] = int(ds.deaths.get(f.base, 0)) + 1
-	if scripts != null:
-		scripts.died[f.sid] = true
+	# notifyDied: OnDeath do odczytu przez skrypt (OpenMW – po animacji śmierci; tu bez animacji, od razu)
+	a["has_died"] = true
 	if f.node != null and is_instance_valid(f.node):
 		apply_dead_pose(f.node)
 
@@ -922,6 +939,8 @@ func _update_magic(dt: float) -> void:
 	if magic == null or combat == null or player_stats().is_empty():
 		return
 	magic.tick(combat.player_fighter(), dt)
+	if player != null:
+		player.move_flags = player_stats().get("move_flags", {})
 	for key in loaded:
 		var refs: Node = loaded[key].get_node_or_null("Refs")
 		if refs == null:
@@ -932,10 +951,51 @@ func _update_magic(dt: float) -> void:
 			var a = state.actors.get(String(n.get_meta("mw_sid", "")))
 			if a is Dictionary and not (a.get("active_spells", []) as Array).is_empty():
 				magic.tick(combat.fighter_of(n), dt)
+			if a is Dictionary and a.has("fatigue") and not bool(a.get("dead", false)):
+				_restore_actor_fatigue(combat.fighter_of(n), a, dt)
+			if a is Dictionary and not bool(a.get("dead", false)):
+				_update_knockdown(a, dt)
+			if a is Dictionary and "move_flags" in n:
+				n.move_flags = a.get("move_flags", {})
 	_recharge_acc += dt
 	if _recharge_acc >= 1.0:
 		magic.recharge(player_stats(), _recharge_acc)
 		_recharge_acc = 0.0
+
+const KNOCKDOWN_TIME := 2.0     # czas powalenia (bez animacji knockdown – jak dotąd w AI walki)
+
+## Powalenie (CharacterController::refreshHitRecoilAnims, Actors::update): kondycja < 0 – nieprzytomny (knockout,
+## trwa do odzyskania kondycji), powalenie od ciosu – KNOCKDOWN_TIME. OnKnockout: dokładnie jedna klatka po
+## powaleniu (knockedDownOneFrame → knockedDownOverOneFrame); wstanie kasuje oba.
+func _update_knockdown(a: Dictionary, dt: float) -> void:
+	var knockout := a.has("fatigue") and float(a.fatigue) < 0.0
+	if knockout and not bool(a.get("knocked_down", false)):
+		a["knocked_down"] = true
+	if not bool(a.get("knocked_down", false)):
+		return
+	a["knocked_down_t"] = float(a.get("knocked_down_t", 0.0)) + dt
+	if bool(a.get("knocked_one", false)) and not bool(a.get("knocked_over", false)):
+		a.erase("knocked_one")
+		a["knocked_over"] = true
+	elif not bool(a.get("knocked_one", false)) and not bool(a.get("knocked_over", false)):
+		a["knocked_one"] = true
+	if not knockout and float(a.knocked_down_t) >= KNOCKDOWN_TIME:
+		for k in ["knocked_down", "knocked_down_t", "knocked_one", "knocked_over"]:
+			a.erase(k)
+
+## Odnawianie kondycji NPC/stworzeń we wczytanych komórkach (Actors::calculateRestoration, co klatkę):
+## (fFatigueReturnBase + fFatigueReturnMult × wytrzymałość) × czas, tylko poniżej podstawy (wzmocnienie – bez zmian).
+## Dotyczy aktorów ze zmienioną kondycją (walka, ModCurrentFatigue) – pozostali mają pełną.
+func _restore_actor_fatigue(f: Dictionary, a: Dictionary, dt: float) -> void:
+	if f.is_empty():
+		return
+	var cur := float(a.fatigue)
+	var base: float = combat.max_fatigue(f)
+	if cur >= base:
+		return
+	var en: float = float(combat.attributes(f)[5])
+	var x: float = float(character._gmst("ffatiguereturnbase", 2.5)) + float(character._gmst("ffatiguereturnmult", 0.02)) * en
+	a["fatigue"] = minf(cur + dt * x, base)
 
 ## Upływ czasu (odpoczynek, podróż): czary i ładowanie przedmiotów gracza (Actors::rest, rechargeItems).
 func pass_magic_time(seconds: float) -> void:
@@ -1125,7 +1185,15 @@ func _player_died() -> void:
 
 const DEATH_ANIM_SECONDS := 3.0
 
+## Resurrect na graczu (StateManager::resumeGame): koniec gry cofnięty, pytanie o wczytanie już się nie pojawi.
+func resume_after_death() -> void:
+	if game_state == "ended":
+		game_state = "running"
+	_death_handled = false
+
 func ask_load_recent() -> void:
+	if game_state != "ended":
+		return
 	if main_menu != null and main_menu.is_open():
 		return
 	if last_savegame.is_empty() or not FileAccess.file_exists(last_savegame):
@@ -1655,6 +1723,15 @@ func activate(r: Node, force_default := false) -> bool:
 			var f: Dictionary = combat.fighter_of(r)           # martwy aktor – przeszukanie (jak pojemnik)
 			menu_mode.open_container(f.sid, f.rec, dialogue.actor_name(dialogue.make_actor(r)))
 			return true
+		# Npc::activate: gracz-wilkołak nie rozmawia z NPC (sWerewolfRefusal, dźwięk WolfNPC); NPC-wilkołak też nie
+		var fa: Dictionary = combat.fighter_of(r) if combat != null else {}
+		if String(r.get_meta("mw_actor", "")) == "npc" and bool(player_stats().get("werewolf", false)):
+			_toast(dialogue.gmst_text("sWerewolfRefusal", ""))
+			if audio != null:
+				audio.play("wolfnpc", (r as Node3D).global_position)
+			return true
+		if not fa.is_empty() and state.actors.has(String(fa.sid)) and bool(state.actors[String(fa.sid)].get("werewolf", false)):
+			return true
 		open_dialogue(r)                  # ActionTalk (NPC, stworzenia); bez powitania okno się nie otwiera
 		return true
 	var at: Vector3 = (r as Node3D).global_position
@@ -1767,6 +1844,8 @@ func drop_item(id: String, count: int) -> String:
 	var ground: Vector3 = hit["position"] if not hit.is_empty() else player.global_position
 	var key := ("int:" + interior.to_lower()) if not interior.is_empty() else db.exterior_key(MWCoords.cell_of(ground))
 	var sid: String = interaction.drop(id, count, key, MWCoords.godot_to_mw(ground), -player.rotation.y)
+	if scripts != null and not sid.is_empty():
+		scripts.item_dropped(id, sid)            # World::PCDropped: zmienne skryptu z przedmiotem, OnPCDrop = 1
 	return sid
 
 func travel(dest: Dictionary) -> void:
@@ -1933,8 +2012,37 @@ func _update_water_level() -> void:
 	if player == null or db == null:
 		return
 	var key := ("int:" + interior.to_lower()) if not interior.is_empty() else db.exterior_key(MWCoords.cell_of(player.global_position))
+	player.water_level = cell_water_m(key)
+
+## Poziom wody komórki w metrach Godota (−INF – bez wody): SetWaterLevel/ModWaterLevel (CellStore::setWaterLevel,
+## zapisywane ze stanem gry w player.cell_water, jednostki MW), potem dane komórki.
+## Komórka bez wody (Cell::hasWater) pozostaje bez wody także po SetWaterLevel (zapamiętany sam poziom).
+func cell_water_m(key: String) -> float:
 	var c := db.get_cell(key)
-	player.water_level = float(c.get("water_height_m", 0.0)) if c.get("has_water", false) else -INF
+	if not c.get("has_water", false):
+		return -INF
+	var ov: Dictionary = state.player.get("cell_water", {})
+	if ov.has(key):
+		return float(ov[key]) / MWCoords.UNITS_PER_METER
+	return float(c.get("water_height_m", 0.0))
+
+## Nowy poziom wody wnętrza (jednostki MW): stan, płaszczyzna wody i poziom dla pływania gracza i aktorów.
+func set_cell_water(key: String, level_mw: float) -> void:
+	if not state.player.get("cell_water") is Dictionary:
+		state.player["cell_water"] = {}
+	state.player.cell_water[key] = level_mw
+	var h := level_mw / MWCoords.UNITS_PER_METER
+	if loaded.has(key):
+		var root: Node = loaded[key]
+		var w := root.get_node_or_null("Water") as Node3D
+		if w != null:
+			w.position.y = h
+		var refs: Node = root.get_node_or_null("Refs")
+		if refs != null and db.get_cell(key).get("has_water", false):
+			for n in refs.get_children():
+				if n.has_meta("mw_actor") and "water_level" in n:
+					n.water_level = h
+	_update_water_level()
 
 ## World::useTorches: na zewnątrz po zmroku (przed 6:00 i po 20:00 – wschód 6, zachód 18 + 2 h zmierzchu) i bez
 ## opadów (pogody z „Using Precip”: deszcz, burza, śnieg, zamieć); we wnętrzach – gdy suma składowych światła
@@ -2058,6 +2166,8 @@ func load_game(path: String) -> Array:
 	var d: Dictionary = m["data"]
 	var warnings := GameStateScript.compatibility(d.get("header", {}), save_header())
 	warnings.append_array(state.from_dict(d))
+	if scripts != null:
+		scripts.inactive.clear()           # ScriptManager::clear przy wczytaniu: wyłączone po błędzie – znowu aktywne
 	game_state = "running"
 	_death_handled = false
 	if player != null:
@@ -2152,7 +2262,10 @@ func travel_to_cell(cell: String, mw_pos: Vector3, rot_z_deg: float) -> void:
 	if db.find_cell(key).is_empty():
 		travel({"cell_key": "", "cell_name": "", "transform": t})
 	else:
-		travel({"cell_key": key, "cell_name": cell, "transform": t})
+		# nazwa z rekordu komórki (kompilator zamienia nazwy w argumentach „c” na małe litery jak OpenMW;
+		# findCell nie rozróżnia wielkości liter)
+		var nm := String(db.find_cell(key).get("name", cell))
+		travel({"cell_key": key, "cell_name": nm if not nm.is_empty() else cell, "transform": t})
 
 ## MessageBox ze skryptu: bez przycisków – komunikat; z przyciskami – okno (tryb menu), wybór → GetButtonPressed.
 func show_message_box(text: String, buttons: Array, on_button := Callable(), engine := false) -> void:

@@ -78,10 +78,22 @@ func _actor_state(f: Dictionary) -> Dictionary:
 		a[f.sid] = {}
 	return a[f.sid]
 
+## Statystyki bazowe NPC/stworzenia: z rekordu (autoobliczane) albo zmienione skryptem (state.actors[sid]:
+## "attributes", "skills" – kopia przy pierwszej zmianie, jak NpcStats po utworzeniu CustomData).
 func _npc_stats(f: Dictionary) -> Dictionary:
+	var st: Dictionary = main.state.actors.get(String(f.get("sid", "")), {}) if main.state.get("actors") is Dictionary else {}
+	var out: Dictionary
 	if f.kind == "npc":
-		return main.script_host.npc_autocalc(f.rec)
-	return {"attributes": f.rec.get("attributes", [0, 0, 0, 0, 0, 0, 0, 0]), "skills": []}
+		out = main.script_host.npc_autocalc(f.rec)
+	else:
+		out = {"attributes": f.rec.get("attributes", [0, 0, 0, 0, 0, 0, 0, 0]), "skills": []}
+	if st.has("attributes") or st.has("skills"):
+		out = out.duplicate()
+		if st.has("attributes"):
+			out["attributes"] = st.attributes
+		if st.has("skills"):
+			out["skills"] = st.skills
+	return out
 
 func attributes(f: Dictionary) -> Array:
 	if f.kind == "player":
@@ -109,6 +121,9 @@ func skill(f: Dictionary, i: int) -> float:
 func max_health(f: Dictionary) -> float:
 	if f.kind == "player":
 		return float(main.character.derived(main.player_stats()).health.modified)
+	var st: Dictionary = _actor_state(f)
+	if st.has("health_base"):
+		return float(st.health_base)
 	if f.kind == "creature":
 		return float(f.rec.get("health", 1))
 	return float(main.script_host.npc_health(f.rec))
@@ -118,10 +133,12 @@ func max_fatigue(f: Dictionary) -> float:
 		return float(main.character.derived(main.player_stats()).fatigue.modified)
 	if f.kind == "creature":
 		return float(f.rec.get("fatigue", 1))
-	if not bool(f.rec.get("autocalc", false)) and f.rec.has("fatigue"):
-		return float(f.rec.fatigue)
 	var at := attributes(f)
-	return float(at[0]) + float(at[2]) + float(at[3]) + float(at[5])
+	var key := [at[0], at[2], at[3], at[5]]
+	var formula := float(at[0]) + float(at[2]) + float(at[3]) + float(at[5])
+	if not bool(f.rec.get("autocalc", false)) and f.rec.has("fatigue"):
+		formula = float(f.rec.fatigue)
+	return main.character.dyn_base_override(_actor_state(f), "fatigue", key, formula)
 
 func health(f: Dictionary) -> float:
 	if f.kind == "player":
@@ -185,7 +202,25 @@ func equipment(f: Dictionary) -> Dictionary:
 	if av.equipment == null:
 		av.equipment = av.Equipment.new(av)
 	var items: Array = main.interaction.inventory.contents(f.sid, f.rec)
+	# wilkołak (setWerewolf: unequipAll + szata) – tylko szata, bez automatycznego doboru
+	if main.state.actors.has(f.sid) and bool(_actor_state(f).get("werewolf", false)):
+		var robe: Dictionary = main.interaction.inventory.item("werewolfrobe")
+		var only := {}
+		for e in items:
+			if String(e.id).to_lower() == "werewolfrobe" and not robe.is_empty():
+				only[11] = {"id": "werewolfrobe", "kind": robe.kind, "rec": robe.rec, "health": -1.0}
+		return only
 	var slots: Dictionary = av.equipment.auto_equip(f.rec, items)
+	# Equip ze skryptu (InventoryStore::equip): wybrany przedmiot w slocie, jeśli aktor nadal go ma
+	var ov: Dictionary = _actor_state(f).get("equip_override", {}) if main.state.actors.has(f.sid) else {}
+	for sk in ov:
+		var oid := String(ov[sk])
+		for e in items:
+			if String(e.id).to_lower() == oid:
+				var oit: Dictionary = main.interaction.inventory.item(oid)
+				if not oit.is_empty():
+					slots[int(sk)] = {"id": oid, "kind": oit.kind, "rec": oit.rec}
+				break
 	var cond: Dictionary = _actor_state(f).get("condition", {})
 	for s in slots:
 		var e2: Dictionary = slots[s]
@@ -441,13 +476,49 @@ func block(att: Dictionary, vic: Dictionary, w: Dictionary, damage: float, stren
 	main.skill_used(SK_BLOCK, "block")
 	return true
 
+## Npc/Creature::onHit – część przed obrażeniami: atakujący aktor, z którym ofiara jeszcze nie walczy → GetAttacked
+## (stats.setAttacked), trafienie towarzysza przez gracza (friendlyHit: do 3 trafień bez reakcji) albo reakcja
+## (actorAttacked: przestępstwo, walka – z wyjątkiem „pokojowych” z OnPCHitMe i Fight 0). OnPCHitMe = 1 przy
+## każdym trafieniu/chybieniu przez gracza poza trafieniem towarzysza.
+func _hit_reaction(vic: Dictionary, att: Dictionary) -> void:
+	var ai = main.get("ai")
+	var node = vic.get("node")
+	var live: bool = node != null and is_instance_valid(node) and ai != null
+	var att_id := "player" if att.kind == "player" else String(att.get("sid", ""))
+	var set_hit := true
+	if not (live and ai.in_combat_with(node, att_id)):
+		_actor_state(vic)["attacked"] = true
+		if att.kind == "player" and live and ai.sides_with_player(node):
+			# friendlyHit: w walce – bez reakcji; poza nią licznik, od 4. trafienia reakcja
+			if ai.in_combat(node):
+				set_hit = false
+			else:
+				var st := _actor_state(vic)
+				st["friendly_hits"] = int(st.get("friendly_hits", 0)) + 1
+				if int(st.friendly_hits) < 4:
+					set_hit = false
+					if main.dialogue != null:
+						main.dialogue.say_voice(node, "hit")
+		if set_hit and att.kind == "player":
+			main.on_actor_attacked(vic)
+	if set_hit and att.kind == "player" and main.get("scripts") != null and main.scripts != null:
+		main.scripts.actor_hit_by_player(String(vic.sid), String(vic.base))   # OnPCHitMe = 1
+
 ## onHit (Lua: pancerz, trudność, powalenie) + Npc::onHit (zdrowie, kondycja, śmierć).
 ## damages: {"health": x} albo {"fatigue": x}. → {"success", "damage", "health", "victim_dead"}
 func on_hit(vic: Dictionary, att: Dictionary, damages: Dictionary, successful: bool, ignore_armor := false) -> Dictionary:
-	if vic.kind != "player" and not att.is_empty() and att.kind == "player":
-		var vs := _actor_state(vic)
-		vs["attacked"] = true                               # reakcja (AI walki, przestępstwa) – etap 8
-		main.on_actor_attacked(vic)
+	if vic.kind != "player" and not att.is_empty():
+		_hit_reaction(vic, att)
+	# setLastHitAttemptObject / setLastHitObject (HitAttemptOnMe / HitOnMe): id broni (pocisku, czaru) ataku
+	var obj := String(damages.get("object", ""))
+	if obj.is_empty() and not att.is_empty():
+		var aw := weapon(att)
+		obj = String(aw.get("id", "")) if not aw.is_empty() else ""
+	var vh: Dictionary = main.player_stats() if vic.kind == "player" else _actor_state(vic)
+	if not obj.is_empty():
+		vh["last_hit_attempt"] = obj.to_lower()
+		if successful:
+			vh["last_hit"] = obj.to_lower()
 	if not successful:
 		if not att.is_empty() and att.kind == "player" and main.audio != null:
 			main.audio.play("miss", vic.node.global_position if vic.node != null else null)
@@ -540,7 +611,7 @@ func projectile_hit(att: Dictionary, vic: Dictionary, launcher: Dictionary, ammo
 	dmg = resist_normal(vic, ammo, dmg)
 	if att.kind == "player":
 		main.skill_used(skid, "weapon_hit")
-	var res := on_hit(vic, att, {"health": dmg}, true)
+	var res := on_hit(vic, att, {"health": dmg, "object": String(launcher.get("id", ammo.get("id", "")))}, true)
 	if main.magic != null and main.magic.main != null and not is_dead(vic):
 		res["enchanted"] = main.magic.on_strike(att, vic, ammo, true)
 	res["chance"] = chance

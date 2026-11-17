@@ -46,9 +46,10 @@ func build_cell(key: String) -> Node3D:
 		var tn := MWTerrain.build(t, db.data_root, not editor_mode)
 		if tn:
 			root.add_child(tn)
+	var wov = (state.player.get("cell_water", {}) as Dictionary).get(key) if state != null and state.player.get("cell_water") is Dictionary else null
 	if with_water and c.get("has_water", false):
 		if c.get("interior", false):
-			root.add_child(MWEnvironment.water_plane(600.0, float(c.get("water_height_m", 0.0))))
+			root.add_child(MWEnvironment.water_plane(600.0, float(wov) / MWCoords.UNITS_PER_METER if wov != null else float(c.get("water_height_m", 0.0))))
 		elif c.has("origin_godot"):
 			var o: Array = c["origin_godot"]
 			var size := MWCoords.CELL_SIZE / MWCoords.UNITS_PER_METER
@@ -69,6 +70,8 @@ func build_cell(key: String) -> Node3D:
 				refs_node.add_child(dn)
 	# poziom wody komórki dla aktorów (pływanie NPC i stworzeń jak gracza; bez tego toną i chodzą po dnie)
 	var wl := float(c.get("water_height_m", 0.0)) if c.get("has_water", false) else -INF
+	if wov != null and c.get("has_water", false):
+		wl = float(wov) / MWCoords.UNITS_PER_METER
 	for n in refs_node.get_children():
 		if n.has_meta("mw_actor") and "water_level" in n:
 			n.water_level = wl

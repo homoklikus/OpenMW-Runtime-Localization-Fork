@@ -239,6 +239,13 @@ func add_extra_effects(st: Dictionary, fx: Dictionary) -> void:
 		var it: Dictionary = main.interaction.inventory.item(String(eq[s].id))
 		_add_constant_item(fx, it)
 	_add_active(fx, st.get("active_spells", []))
+	_add_effect_base(fx, st)
+
+## Zmiany podstawy efektów ze skryptów (SetResistFire, ModWaterWalking… – MagicEffects::modifyBase).
+static func _add_effect_base(fx: Dictionary, h: Dictionary) -> void:
+	var eb: Dictionary = h.get("effect_base", {})
+	for k in eb:
+		fx[str(k)] = float(fx.get(str(k), 0.0)) + float(eb[k])
 
 func _add_constant_item(fx: Dictionary, it: Dictionary) -> void:
 	var en := item_enchantment(it)
@@ -260,13 +267,29 @@ func _add_active(fx: Dictionary, list) -> void:
 				continue                  # czasowe: tylko wartość bieżąca (adjustDynamicStat), maksimum bez zmian
 			main.character.add_effect(fx, e, float(e.get("magnitude", 0.0)))
 
+## Zaklęcia aktora (Spells): po AddSpell/RemoveSpell lista w stanie aktora, inaczej z rekordu.
+func actor_spells(f: Dictionary) -> Array:
+	var st = main.state.actors.get(String(f.get("sid", ""))) if main != null and main.state.get("actors") is Dictionary else null
+	if st is Dictionary and st.get("spells") is Array:
+		return st.spells
+	return (f.get("rec", {}) as Dictionary).get("spells", []) as Array
+
 ## Mapa efektów walczącego: gracz – MWCharacter.constant_effects; NPC/stworzenie – zdolności z rekordu, stałe
 ## zaklęcia ekwipunku, działające czary.
 func effects(f: Dictionary) -> Dictionary:
 	if f.kind == "player":
 		return main.character.constant_effects(main.player_stats())
 	var fx := {}
-	for sid in f.rec.get("spells", []):
+	# martwy (killDeadActors po animacji śmierci: ActiveSpells::clear) – bez zdolności, zaklęć przedmiotów i czarów;
+	# zostają zmiany podstawy ze skryptów (Set/Mod…)
+	if _combat().is_dead(f):
+		_add_effect_base(fx, _combat()._actor_state(f))
+		return fx
+	# zdolności rasy (Npc::getCreatureStats: addAllToInstance(race->mPowers)) i własne zaklęcia rekordu
+	var own: Array = actor_spells(f).duplicate()
+	if f.kind == "npc":
+		own.append_array(records.record("race", String(f.rec.get("race", ""))).get("powers", []))
+	for sid in own:
 		var sp: Dictionary = records.record("spell", String(sid))
 		if not sp.is_empty() and int(sp.get("spell_type", 0)) in main.character.CONSTANT_TYPES:
 			for e in sp.get("effects", []):
@@ -275,6 +298,7 @@ func effects(f: Dictionary) -> Dictionary:
 	for s in eq:
 		_add_constant_item(fx, {"rec": eq[s].rec})
 	_add_active(fx, _combat()._actor_state(f).get("active_spells", []))
+	_add_effect_base(fx, _combat()._actor_state(f))
 	return fx
 
 func magnitude_of(f: Dictionary, fx: int) -> float:
@@ -283,15 +307,18 @@ func magnitude_of(f: Dictionary, fx: int) -> float:
 ## Atrybuty/umiejętności NPC: wzmocnienia z mapy efektów, ubytki z puli (gracz – MWCharacter.derived).
 func npc_modified(f: Dictionary, base: Array, kind: String) -> Array:
 	var st: Dictionary = _combat()._actor_state(f)
-	var has_fx: bool = st.has("active_spells") or st.has("magic_damage")
-	if not has_fx and (f.rec.get("spells", []) as Array).is_empty():
+	var has_fx: bool = st.has("active_spells") or st.has("magic_damage") or st.has("mod_adjust") or st.has("effect_base")
+	if not has_fx and actor_spells(f).is_empty() \
+			and (records.record("race", String(f.rec.get("race", ""))).get("powers", []) as Array).is_empty():
 		return base
 	var fx := effects(f)
 	var dmg: Array = (st.get("magic_damage", {}) as Dictionary).get(kind, [])
+	var adj: Array = (st.get("mod_adjust", {}) as Dictionary).get(kind, [])
 	var fid := FX_FORTIFY_ATTRIBUTE if kind == "attributes" else FX_FORTIFY_SKILL
 	var out := []
 	for i in base.size():
-		out.append(maxf(0.0, float(base[i]) + float(fx.get("%d:%d" % [fid, i], 0.0)) - (float(dmg[i]) if i < dmg.size() else 0.0)))
+		out.append(maxf(0.0, float(base[i]) + float(fx.get("%d:%d" % [fid, i], 0.0)) + (float(adj[i]) if i < adj.size() else 0.0)
+			- (float(dmg[i]) if i < dmg.size() else 0.0)))
 	return out
 
 # --- odporność (spellresistance.cpp) ------------------------------------------------------------------------
@@ -403,12 +430,14 @@ func can_use_power(f: Dictionary, id: String) -> bool:
 func max_magicka(f: Dictionary) -> float:
 	if f.kind == "player":
 		return float(main.character.derived(main.player_stats()).magicka.modified)
-	if f.kind == "creature":
-		return float(f.rec.get("magicka", 0))
-	if not bool(f.rec.get("autocalc", false)) and f.rec.has("magicka"):
-		return float(f.rec.magicka)
 	var at: Array = _combat().attributes(f)
-	return float(at[A_INTELLIGENCE]) * _gmst("fNPCbaseMagickaMult", 2.0)
+	var factor := _gmst("fNPCbaseMagickaMult", 2.0) + magnitude_of(f, 84) * 0.1
+	var formula := float(at[A_INTELLIGENCE]) * factor
+	if f.kind == "creature":
+		formula = float(f.rec.get("magicka", 0))
+	elif not bool(f.rec.get("autocalc", false)) and f.rec.has("magicka"):
+		formula = float(f.rec.magicka)
+	return main.character.dyn_base_override(_combat()._actor_state(f), "magicka", [at[A_INTELLIGENCE], factor], formula)
 
 func magicka(f: Dictionary) -> float:
 	if f.kind == "player":
@@ -639,11 +668,13 @@ func _actor_effect(f: Dictionary, entry: Dictionary, e: Dictionary, amount: floa
 						x.time_left = 0.0
 		FX_DISINTEGRATE_WEAPON, FX_DISINTEGRATE_ARMOR:
 			_disintegrate(f, id == FX_DISINTEGRATE_WEAPON, amount)
-		FX_MARK:
-			if f.kind == "player":
+		FX_MARK, FX_RECALL:
+			# DisableTeleporting (World::isTeleportingEnabled): Znakowanie/Przywołanie nie działają, komunikat
+			if f.kind == "player" and not bool(main.state.player.get("teleport_enabled", true)):
+				main._toast(main.dialogue.gmst_text("sTeleportDisabled", "Teleportacja jest tu niemożliwa.") if main.dialogue != null else "")
+			elif id == FX_MARK and f.kind == "player":
 				main.state.player["mark"] = {"interior": main.interior, "pos": main.position_string()}
-		FX_RECALL:
-			if f.kind == "player" and main.state.player.get("mark") is Dictionary and main.has_method("recall_to_mark"):
+			elif id == FX_RECALL and f.kind == "player" and main.state.player.get("mark") is Dictionary and main.has_method("recall_to_mark"):
 				main.recall_to_mark()
 		_:
 			if BOUND_ITEMS.has(id):
@@ -787,7 +818,7 @@ func _tick_constant(f: Dictionary, dt: float) -> void:
 	if dt <= 0.0:
 		return
 	var src := []
-	var spells: Array = main.player_stats().get("spells", []) if f.kind == "player" else f.rec.get("spells", [])
+	var spells: Array = main.player_stats().get("spells", []) if f.kind == "player" else actor_spells(f)
 	for sid in spells:
 		var sp: Dictionary = records.record("spell", String(sid))
 		if not sp.is_empty() and int(sp.get("spell_type", 0)) in main.character.CONSTANT_TYPES:

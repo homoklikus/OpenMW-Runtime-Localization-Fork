@@ -75,7 +75,9 @@ func _run() -> void:
 	cb.set_health(vic, 1.0)
 	var r3: Dictionary = cb.melee(me, vic, 0, 1.0, 0)
 	check(bool(r3.victim_dead) and cb.is_dead(vic) and int(main.dialogue._ds().deaths.get("synth_villager", 0)) == 1, "śmierć NPC, licznik zabitych")
-	check(main.scripts.died.has(vic.sid), "OnDeath w tej klatce")
+	var odc = main.scripts.Ctx.new()
+	check(main.scripts._call("synth_villager", "ondeath", [], odc) == 1.0 and main.scripts._call("synth_villager", "ondeath", [], odc) == 0.0,
+			"OnDeath: 1 do pierwszego odczytu, potem 0 (hasDied kasowane odczytem)")
 	v = _ref(main, "synth_villager")
 	check(v.get_meta("mw_dead", false), "ciało leży")
 	check(main.activate(v) and main.menu_mode.visible and main.menu_mode.cont_sid == vic.sid, "przeszukanie ciała")

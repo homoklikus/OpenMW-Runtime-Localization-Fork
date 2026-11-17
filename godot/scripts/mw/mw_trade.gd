@@ -420,5 +420,6 @@ func travel(a: Dictionary, index: int) -> bool:
 			main.audio.play("mysticism cast")
 		var rot: Array = o.rot
 		main.travel_to_cell(String(o.cell), o.pos, rad_to_deg(float(rot[2])) if rot.size() > 2 else 0.0)
+		main.state.player["traveling"] = true        # World::setPlayerTraveling – GetPCTraveling przez klatkę
 		return true
 	return false

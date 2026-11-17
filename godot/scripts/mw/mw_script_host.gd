@@ -105,6 +105,7 @@ func _move(t: Dictionary, pos: Vector3, rot_z_deg: float, cell := "") -> void:
 		if not is_nan(rot_z_deg):
 			main.player.rotation.y = -deg_to_rad(rot_z_deg)
 		main.player.velocity = Vector3.ZERO
+		main.player.set("_fall_start", NAN)       # teleport: wysokość upadku liczona od nowa (bez obrażeń)
 		return
 	var sid := String(t.get("sid", ""))
 	if sid.is_empty():
@@ -112,7 +113,7 @@ func _move(t: Dictionary, pos: Vector3, rot_z_deg: float, cell := "") -> void:
 	var rot := _mw_rot(t)
 	if not is_nan(rot_z_deg):
 		rot.z = deg_to_rad(rot_z_deg)
-	main.state.set_ref_mw(sid, pos, rot)
+	main.state.set_ref_mw(sid, pos, rot, ref_scale(t))
 
 func script_set_transform(t: Dictionary, fname: String, args: Array, c, vm) -> void:
 	if t.is_empty():
@@ -141,7 +142,152 @@ func script_set_transform(t: Dictionary, fname: String, args: Array, c, vm) -> v
 				var r: Dictionary = main.base_ref(String(n.get_meta("mw_sid")))
 				if not r.is_empty():
 					main.state.set_ref_mw(String(n.get_meta("mw_sid")), Vector3(r.mw.pos[0], r.mw.pos[1], r.mw.pos[2]),
-							Vector3(r.mw.rot[0], r.mw.rot[1], r.mw.rot[2]))
+							Vector3(r.mw.rot[0], r.mw.rot[1], r.mw.rot[2]), ref_scale(t))
+
+## Skala referencji (CellRef::getScale): nadpisanie stanu gry, potem dane komórki; gracz – 1.
+func ref_scale(t: Dictionary) -> float:
+	var sid := String(t.get("sid", ""))
+	if sid.is_empty() or sid == "player":
+		return float(main.state.player.get("scale", 1.0)) if sid == "player" else 1.0
+	var ov: Dictionary = main.state.refs.get(sid, {})
+	if ov.has("mw"):
+		return float((ov.mw as Dictionary).get("scale", 1.0))
+	var r: Dictionary = main.base_ref(sid)
+	if r.is_empty() and main.state.dynamic.has(sid):
+		return float((main.state.dynamic[sid].get("mw", {}) as Dictionary).get("scale", 1.0))
+	return float((r.get("mw", {}) as Dictionary).get("scale", 1.0)) if not r.is_empty() else 1.0
+
+## SetScale/ModScale (World::scaleObject): nowa skala referencji (bez zmiany przy tej samej wartości), węzeł
+## przebudowany z nową skalą (model, kolizja). Obiekt spoza wczytanych komórek: tylko stan (skala po wczytaniu).
+## Gracz: skala zapamiętana i nałożona na węzeł gracza.
+func script_set_scale(t: Dictionary, scale: float) -> void:
+	var sid := String(t.get("sid", ""))
+	if sid.is_empty() or is_equal_approx(scale, ref_scale(t)):
+		return
+	if sid == "player":
+		main.state.player["scale"] = scale
+		if main.player != null:
+			main.player.scale = Vector3.ONE * scale
+		return
+	var p = _mw_pos(t)
+	var pos: Vector3
+	var rot: Vector3
+	if p != null:
+		pos = p
+		rot = _mw_rot(t)
+	else:
+		var src: Dictionary = (main.state.refs.get(sid, {}) as Dictionary).get("mw", {})
+		if src.is_empty():
+			var e: Dictionary = refindex_entry(sid)
+			src = e.get("mw", {})
+		if src.is_empty():
+			return
+		pos = Vector3(src.pos[0], src.pos[1], src.pos[2])
+		rot = Vector3(src.rot[0], src.rot[1], src.rot[2])
+	main.state.set_ref_mw(sid, pos, rot, scale)
+
+func refindex_entry(sid: String) -> Dictionary:
+	for k in main.scripts.refindex():
+		var e: Dictionary = main.scripts.refindex()[k]
+		if String(e.get("sid", "")) == sid:
+			return e
+	return {}
+
+## Move (osie obiektu) / MoveWorld (osie świata): przesunięcie o prędkość × czas klatki (jednostki MW), razem
+## z aktorami stojącymi na obiekcie (moveStandingActors – windy). Tylko obiekty z węzłem (włączone, we
+## wczytanej komórce). Bez przebudowy węzła; stan zapisany (store_ref_mw).
+func script_move(t: Dictionary, axis: String, units: float, local: bool) -> void:
+	var n := _node(t)
+	if String(t.get("sid", "")) == "player":
+		n = main.player
+	if n == null or n.get_meta("mw_disabled", false):
+		return
+	var v := Vector3.ZERO
+	match axis:
+		"x": v = Vector3(units, 0, 0)
+		"y": v = Vector3(0, units, 0)
+		"z": v = Vector3(0, 0, units)
+		_: return
+	var g := MWCoords.mw_to_godot(v)          # wektor przesunięcia w osiach Godota (liniowe przeliczenie)
+	if local:
+		g = n.global_transform.basis.orthonormalized() * g
+	var riders: Array = actors_standing_on(n)
+	n.global_position += g
+	if n != main.player and n.has_meta("mw_sid"):
+		main.state.store_ref_mw(String(n.get_meta("mw_sid")), MWCoords.godot_to_mw(n.global_position), _mw_rot(t))
+	for a in riders:
+		(a as Node3D).global_position += g
+
+## Aktorzy stojący na obiekcie (PhysicsSystem::getActorsStandingOn): kontakt z podłożem, którym jest ten obiekt.
+func actors_standing_on(obj: Node) -> Array:
+	var out := []
+	var cands: Array = [main.player] if main.player != null else []
+	if main.ai != null:
+		cands.append_array(main.ai.actor_nodes())
+	for a in cands:
+		if a != obj and a is CharacterBody3D and _touching(a, obj, true):
+			out.append(a)
+	return out
+
+## Kontakt aktora z obiektem w ostatnim ruchu: standing – podłoże (normalna w górę), inaczej każde zderzenie
+## (MovementSolver: Object::addCollision – GetCollidingPC/GetCollidingActor).
+func _touching(a: CharacterBody3D, obj: Node, standing: bool) -> bool:
+	if standing and not a.is_on_floor():
+		return false
+	for i in a.get_slide_collision_count():
+		var k := a.get_slide_collision(i)
+		if standing and k.get_normal().y < 0.7:
+			continue
+		var col := k.get_collider() as Node
+		while col != null:
+			if col == obj:
+				return true
+			col = col.get_parent()
+	return false
+
+## GetCollidingPC/GetCollidingActor: gracz / któryś inny aktor zderzył się z obiektem w ostatnim ruchu.
+func colliding(t: Dictionary, player_only: bool) -> bool:
+	var n := _node(t)
+	if n == null:
+		return false
+	if player_only:
+		return main.player != null and _touching(main.player, n, false)
+	if main.ai == null:
+		return false
+	for a in main.ai.actor_nodes():
+		if a != n and a is CharacterBody3D and _touching(a, n, false):
+			return true
+	return false
+
+func actors_colliding_with(n: Node) -> Array:
+	var out := []
+	var cands: Array = [main.player] if main.player != null else []
+	if main.ai != null:
+		cands.append_array(main.ai.actor_nodes())
+	for a in cands:
+		if a != n and a is CharacterBody3D and _touching(a, n, false):
+			out.append(a)
+	return out
+
+var nonsolid := {}       # sid → true (markAsNonSolid: nie można na nim odpoczywać; do wczytania gry)
+
+## HurtStandingActor/HurtCollidingActor (World::hurtStandingActors/…): poza trybem menu każdy żywy aktor na/
+## przy obiekcie traci (−leczy) zdrowie × czas klatki; obiekt przestaje być „stałym podłożem”; dźwięk obrażeń.
+func hurt_actors(t: Dictionary, per_second: float, standing: bool, dt: float) -> void:
+	var n := _node(t)
+	if n == null or menu_mode():
+		return
+	var list: Array = actors_standing_on(n) if standing else actors_colliding_with(n)
+	for a in list:
+		var f: Dictionary = main.combat.player_fighter() if a == main.player else main.combat.fighter_of(a)
+		if f.is_empty() or main.combat.is_dead(f):
+			continue
+		if n.has_meta("mw_sid"):
+			nonsolid[String(n.get_meta("mw_sid"))] = true
+		var S = main.scripts.stats()
+		S._set_current(f, 0, S.dyn_current(f, 0) - per_second * dt, false, false)
+		if per_second > 0.0 and main.audio != null:
+			main.audio.play("health damage", (a as Node3D).global_position)
 
 func script_distance(a: Dictionary, b: Dictionary) -> float:
 	var pa = _mw_pos(a)

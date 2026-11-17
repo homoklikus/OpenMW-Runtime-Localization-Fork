@@ -88,6 +88,10 @@ func _run() -> void:
 	check(main.rest_window.open() and main.rest_window.sleeping, "okno odpoczynku (sen na zewnątrz)")
 	var hb := float(st.health_base)
 	main.rest_window.rest(2)
+	for i in 120:
+		if not main.rest_window.is_resting():
+			break
+		await process_frame
 	check(near(fposmod(main.envr.game_hour - hour0, 24.0), 2.0), "upływ 2 godzin")
 	check(near(float(st.health), minf(float(dd.health.modified), 10.0 + 2.0 * 0.1 * end), 0.01), "sen: zdrowie + 0,1 × wytrzymałość na godzinę (%s)" % st.health)
 	check(main.rest_window.levelup.visible, "po śnie przy postępie ≥ 10 – okno awansu")

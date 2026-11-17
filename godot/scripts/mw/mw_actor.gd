@@ -50,6 +50,8 @@ var move_input := Vector2.ZERO     # x: w prawo, y: do tyłu (jak Input.get_vect
 var want_run := false
 var want_jump := false
 var want_sneak := false            # skradanie (etap 8: wykrywanie)
+var jumping := false               # od skoku do lądowania (Player::setJumping – GetPCJumping)
+var move_flags: Dictionary = {}    # ForceSneak/ForceRun/ForceJump/ForceMoveJump (CreatureStats::mMovementFlags)
 
 var controller: Node = null:
 	set(c):
@@ -84,7 +86,19 @@ func _physics_process(delta: float) -> void:
 
 ## Ruch z bieżących intencji (wspólny dla wszystkich aktorów).
 func step(delta: float) -> void:
+	# CreatureStats::getStance: postawa = klawisz/AI albo flaga wymuszenia; ForceJump – skok przy każdym kontakcie
+	# z podłożem, ForceMoveJump – tylko w ruchu (CharacterController::update, poza wodą i lotem)
+	if not move_flags.is_empty():
+		if bool(move_flags.get("force_sneak", false)):
+			want_sneak = true
+			want_run = false
+		if bool(move_flags.get("force_run", false)):
+			want_run = true
+		if bool(move_flags.get("force_jump", false)) or bool(move_flags.get("force_move_jump", false)) \
+				and move_input.length() > 0.5:
+			want_jump = true
 	if fly:
+		jumping = false
 		var d := look_basis() * Vector3(move_input.x, 0, move_input.y)
 		velocity = d * fly_speed * (3.0 if want_run else 1.0)
 		global_position += velocity * delta
@@ -93,6 +107,7 @@ func step(delta: float) -> void:
 	swimming = global_position.y + height * swim_height_scale < water_level
 	if swimming:
 		_fall_start = NAN
+		jumping = false
 		# kierunek ruchu wg patrzenia (także w górę/w dół), skok = w górę; nie wyżej niż powierzchnia
 		var d := look_basis() * Vector3(move_input.x, 0, move_input.y)
 		if want_jump:
@@ -117,6 +132,7 @@ func step(delta: float) -> void:
 	elif want_jump and jump_velocity > 0.0:
 		# skok w ruchu: wektor (kierunek, 1) × wysokość × 0,707 (character.cpp) – pionowo 0,707 prędkości skoku
 		velocity.y = jump_velocity * (0.707 if move_input.length() > 0.01 else 1.0)
+		jumping = true
 		jumped.emit()
 	want_jump = false
 	var was_floor := is_on_floor()
@@ -128,6 +144,7 @@ func step(delta: float) -> void:
 		if is_nan(_fall_start) or global_position.y > _fall_start:
 			_fall_start = global_position.y
 	elif not was_floor and not is_nan(_fall_start):
+		jumping = false
 		landed.emit((_fall_start - global_position.y) * MWCoords.UNITS_PER_METER)
 		_fall_start = NAN
 

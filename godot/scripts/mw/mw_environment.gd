@@ -23,6 +23,7 @@ var world_env: WorldEnvironment
 var env: Environment
 var sky_mat: ShaderMaterial
 var regions := {}
+var main = null                       # gra (stan: ModRegion)
 var data_root := ""
 var wm = WeatherScript.new()          # stan pogody (OpenMW WeatherManager)
 var fog_distance := 7168.0 / MWCoords.UNITS_PER_METER   # koniec mgły (m) – ustawia gra (odległość widzenia)
@@ -265,6 +266,22 @@ func set_region(region_id: String) -> void:
 
 ## Pogoda regionu: rzut 0..99 wg szans REGN (deterministyczny dla regionu i numeru zmiany pogody); na początku gry
 ## od razu, potem przejście (addWeatherTransition).
+## Szanse pogód regionu: ModRegion (WeatherManager::modRegion – trwałe, w stanie gry) albo rekord regionu.
+func region_chances(rid: String) -> Dictionary:
+	var ov = main.state.player.get("region_weather", {}).get(rid.to_lower()) if main != null and main.state.player.get("region_weather") is Dictionary else null
+	if ov is Dictionary:
+		return ov
+	return (regions.get(rid.to_lower(), {}) as Dictionary).get("weather", {"clear": 100})
+
+## ModRegion: nowe szanse; bieżący region bez obecnej pogody wśród możliwych – zmiana pogody
+## (regionalWeatherChanged).
+func mod_region(rid: String, chances: Dictionary) -> void:
+	if not main.state.player.get("region_weather") is Dictionary:
+		main.state.player["region_weather"] = {}
+	main.state.player.region_weather[rid.to_lower()] = chances
+	if rid.to_lower() == region.to_lower() and forced_weather.is_empty() and int(chances.get(weather, 0)) <= 0:
+		pick_weather()
+
 func pick_weather() -> void:
 	if not forced_weather.is_empty():
 		weather = forced_weather
@@ -272,8 +289,7 @@ func pick_weather() -> void:
 		_weather_started = true
 		apply()
 		return
-	var r: Dictionary = regions.get(region.to_lower(), {})
-	var chances: Dictionary = r.get("weather", {"clear": 100})
+	var chances := region_chances(region)
 	var total := 0
 	for k in chances:
 		total += int(chances[k])

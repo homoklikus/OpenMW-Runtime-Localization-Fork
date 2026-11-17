@@ -102,10 +102,10 @@ func rest_state() -> Dictionary:
 		return {"ok": false}
 	if p.swimming or (not p.is_on_floor() and p.collide) or p.fly:
 		return {"ok": false, "message": _t("sNotifyMessage1", "Nie możesz tu odpoczywać.")}
-	var can_sleep := true
+	var can_sleep := not bool(main.player_stats().get("werewolf", false))     # WaitDialog::setCanRest – wilkołak czeka
 	if not main.interior.is_empty():
 		var c: Dictionary = main.db.get_cell("int:" + main.interior.to_lower())
-		can_sleep = (int(c.get("flags", 0)) & 0x4) == 0
+		can_sleep = can_sleep and (int(c.get("flags", 0)) & 0x4) == 0
 	return {"ok": true, "sleep": can_sleep}
 
 func open() -> bool:
@@ -140,20 +140,62 @@ func hours_until_healed() -> int:
 		h = maxf(h, (float(d.magicka.modified) - float(st.get("magicka", 0))) / mp)
 	return clampi(int(ceilf(h)), 0, 24)
 
-## Odpoczynek: n godzin; po śnie – awans, jeśli możliwy.
+## Odpoczynek: n godzin (WaitDialog + TimeAdvancer): okno znika, po wygaszeniu (0,4 s) co 1/60 s jedna godzina
+## (restoreDynamicStats, upływ czasu, czary); skrypty działają w tym czasie (GetPCSleep = 1 podczas snu,
+## WakeUpPC przerywa). Po śnie – awans, jeśli możliwy. Przerwanie snu przez stworzenia z listy regionu – brak.
+const STEP_DELAY := 1.0 / 60.0
+var _rest := {}
+
 func rest(n: int) -> void:
-	var st: Dictionary = main.player_stats()
-	var w: float = main.player_weight()
-	for i in maxi(1, n):
-		character.rest_hour(st, sleeping, character.normalized_encumbrance(st, w))
-		main.envr.advance(1.0)
-		if main.has_method("pass_magic_time"):
-			main.pass_magic_time(3600.0)          # czary wygasają, przedmioty się ładują (Actors::rest)
-	visible = false
-	if sleeping and character.can_level_up(st):
-		open_levelup()
+	panel.visible = false
+	_rest = {"hours": maxi(1, n), "cur": 0, "fade": 0.4, "t": STEP_DELAY}
+
+func is_resting() -> bool:
+	return not _rest.is_empty()
+
+## getPlayerSleeping: odliczanie trwa i to sen (nie czekanie).
+func player_sleeping() -> bool:
+	return is_resting() and sleeping and float(_rest.fade) <= 0.0
+
+## WakeUpPC (WaitDialog::wakeUp): koniec snu bez awansu.
+func wake_up() -> void:
+	if not is_resting():
 		return
+	sleeping = false
+	_stop_rest()
+
+func _stop_rest() -> void:
+	_rest = {}
 	close()
+
+func _process(dt: float) -> void:
+	if _rest.is_empty():
+		return
+	if float(_rest.fade) > 0.0:
+		_rest.fade = float(_rest.fade) - dt
+		return
+	_rest.t = float(_rest.t) - dt
+	while not _rest.is_empty() and float(_rest.t) <= 0.0:
+		_rest.t = float(_rest.t) + STEP_DELAY
+		_rest_hour()
+
+func _rest_hour() -> void:
+	var st: Dictionary = main.player_stats()
+	character.rest_hour(st, sleeping, character.normalized_encumbrance(st, main.player_weight()))
+	main.envr.advance(1.0)
+	if main.has_method("pass_magic_time"):
+		main.pass_magic_time(3600.0)          # czary wygasają, przedmioty się ładują (Actors::rest)
+	_rest.cur = int(_rest.cur) + 1
+	if main.combat != null and main.combat.is_dead(main.combat.player_fighter()):
+		_stop_rest()
+		return
+	if int(_rest.cur) >= int(_rest.hours):
+		_rest = {}
+		visible = false
+		if sleeping and character.can_level_up(st):
+			open_levelup()
+			return
+		close()
 
 func open_levelup() -> void:
 	var st: Dictionary = main.player_stats()

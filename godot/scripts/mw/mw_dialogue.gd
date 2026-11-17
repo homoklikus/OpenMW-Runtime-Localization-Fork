@@ -182,8 +182,11 @@ func _npc_state(a: Dictionary) -> Dictionary:
 func faction_of(a: Dictionary) -> String:
 	return String(a.rec.get("faction", "")).to_lower() if a.npc else ""
 
+## Ranga NPC w jego frakcji: RaiseRank/LowerRank (stan rozmów) albo rekord.
 func faction_rank_of(a: Dictionary) -> int:
-	return int(a.rec.get("rank", 0)) if not faction_of(a).is_empty() else -1
+	if faction_of(a).is_empty():
+		return -1
+	return int(_ds().npcs.get(a.sid, {}).get("rank", a.rec.get("rank", 0)))
 
 func base_disposition(a: Dictionary) -> int:
 	var s: Dictionary = _ds().npcs.get(a.sid, {})
@@ -446,7 +449,22 @@ func _select_int(c: Dictionary, a: Dictionary) -> int:
 				if (r < value) if low else (r > value):
 					value = r
 			return value
-		"creaturetarget": return _partial(f, 0)
+		"creaturetarget":
+			# Function_CreatureTarget: cel walki mówcy – wilkołak 2, stworzenie 1, inaczej 0
+			var cn = a.get("node")
+			if main.get("ai") == null or cn == null or not is_instance_valid(cn):
+				return 0
+			var tid: String = main.ai.combat_target(cn)
+			if tid.is_empty():
+				return 0
+			if tid == "player":
+				return 2 if bool(main.player_stats().get("werewolf", false)) else 0
+			var tn: Node = main.ai._target_of({"target": tid})
+			if tn == null:
+				return 0
+			if String(tn.get_meta("mw_actor", "")) == "creature":
+				return 1
+			return 2 if bool(_astate({"sid": tid}).get("werewolf", false)) else 0
 	return 0
 
 func _select_bool(c: Dictionary, a: Dictionary) -> bool:
@@ -481,7 +499,7 @@ func _select_bool(c: Dictionary, a: Dictionary) -> bool:
 			if main.get("ai") == null or sn == null or not is_instance_valid(sn):
 				return _partial("shouldattack", 0) != 0
 			return main.ai.in_combat(sn) or main.ai.fight_term(sn, main.player) >= 100.0
-		"werewolf": return false
+		"werewolf": return bool(a.get("npc", false)) and bool(_astate(a).get("werewolf", false))    # mówca (filter.cpp)
 	return false
 
 func _astate(a: Dictionary) -> Dictionary:

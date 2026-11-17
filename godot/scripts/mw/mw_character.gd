@@ -291,22 +291,42 @@ func derived(st: Dictionary) -> Dictionary:
 	var dmg: Dictionary = st.get("magic_damage", {})       # ubytki (Damage/Drain – AttributeValue::damage)
 	var da: Array = dmg.get("attributes", [])
 	var ds: Array = dmg.get("skills", [])
+	# korekta modyfikatora ze skryptów (Set*/Mod* atrybutu: AttributeValue::setBase(v, true) zeruje modyfikator)
+	var adj: Dictionary = st.get("mod_adjust", {})
+	var aa: Array = adj.get("attributes", [])
+	var sa: Array = adj.get("skills", [])
 	for i in 8:
 		am.append(maxf(0.0, float(a[i]) + float(fx.get("%d:%d" % [FX_FORTIFY_ATTRIBUTE, i], 0.0))
-			- (float(da[i]) if i < da.size() else 0.0)))
+			+ (float(aa[i]) if i < aa.size() else 0.0) - (float(da[i]) if i < da.size() else 0.0)))
 	for i in 27:
 		sm.append(maxf(0.0, float(s[i]) + float(fx.get("%d:%d" % [FX_FORTIFY_SKILL, i], 0.0))
-			- (float(ds[i]) if i < ds.size() else 0.0)))
+			+ (float(sa[i]) if i < sa.size() else 0.0) - (float(ds[i]) if i < ds.size() else 0.0)))
 	# zdrowie bazowe: przy tworzeniu ⌊(siła + wytrzymałość)/2⌋ (updateHealth), potem rośnie przy awansie
 	var hb := float(st["health_base"]) if st.has("health_base") else floorf(0.5 * (float(a[ATTR_STRENGTH]) + float(a[ATTR_ENDURANCE])))
 	var factor := _gmst("fpcbasemagickamult", 1.0) + float(fx.get(str(FX_FORTIFY_MAX_MAGICKA), 0.0)) * 0.1
-	var mb: float = factor * float(am[ATTR_INTELLIGENCE])
-	var fb: float = maxf(0.0, float(am[ATTR_STRENGTH]) + float(am[ATTR_WILLPOWER]) + float(am[ATTR_AGILITY]) + float(am[ATTR_ENDURANCE]))
+	var mb: float = dyn_base_override(st, "magicka", [am[ATTR_INTELLIGENCE], factor], factor * float(am[ATTR_INTELLIGENCE]))
+	var fb: float = dyn_base_override(st, "fatigue", [am[ATTR_STRENGTH], am[ATTR_WILLPOWER], am[ATTR_AGILITY], am[ATTR_ENDURANCE]],
+		maxf(0.0, float(am[ATTR_STRENGTH]) + float(am[ATTR_WILLPOWER]) + float(am[ATTR_AGILITY]) + float(am[ATTR_ENDURANCE])))
 	return {"attributes": am, "skills": sm,
 		"health": {"base": hb, "modified": hb + float(fx.get(str(FX_FORTIFY_HEALTH), 0.0))},
 		"magicka": {"base": mb, "modified": mb + float(fx.get(str(FX_FORTIFY_MAGICKA), 0.0))},
 		"fatigue": {"base": fb, "modified": fb + float(fx.get(str(FX_FORTIFY_FATIGUE), 0.0))},
-		"jump": float(fx.get(str(FX_JUMP), 0.0))}
+		"jump": float(fx.get(str(FX_JUMP), 0.0)),
+		"dyn_keys": {"magicka": [am[ATTR_INTELLIGENCE], factor],
+			"fatigue": [am[ATTR_STRENGTH], am[ATTR_WILLPOWER], am[ATTR_AGILITY], am[ATTR_ENDURANCE]]}}
+
+## Wartość bazowa magii/kondycji ustawiona skryptem (SetMagicka/ModFatigue…): obowiązuje, dopóki nie zmienią się
+## dane, z których OpenMW ją przelicza (CreatureStats::setAttribute – inteligencja/wzmocnienie maks. magii dla
+## magii, siła + siła woli + zręczność + wytrzymałość dla kondycji); potem wraca wzór.
+static func dyn_base_override(holder: Dictionary, kind: String, key: Array, formula: float) -> float:
+	var o: Dictionary = holder.get("dyn_base", {})
+	if not o.has(kind):
+		return formula
+	var e: Array = o[kind]
+	if e.size() >= 2 and str(e[1]) == str(key):
+		return float(e[0])
+	o.erase(kind)
+	return formula
 
 ## getFatigueTerm: fFatigueBase − fFatigueMult × (1 − bieżąca/maksymalna kondycja).
 func fatigue_term(st: Dictionary, d: Dictionary) -> float:

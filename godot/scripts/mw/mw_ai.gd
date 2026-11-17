@@ -13,7 +13,7 @@ extends RefCounted
 
 const PathgridScript := preload("res://scripts/mw/mw_pathgrid.gd")
 const TYPE_ID := {"wander": 0, "travel": 1, "escort": 2, "follow": 3, "activate": 4, "combat": 5, "pursue": 6,
-	"avoiddoor": 7}
+	"avoiddoor": 7, "face": 8}
 const REACTION := 0.25                  # AiReactionTimer (s)
 const DESTINATION_TOLERANCE := 64.0     # AiWander
 const DEFAULT_TOLERANCE := 32.0         # pathfinding.hpp: domyślna odległość osiągnięcia celu (3D)
@@ -87,6 +87,8 @@ func ai_state(n: Node) -> Dictionary:
 func _package_from_record(p: Dictionary) -> Dictionary:
 	var d: Dictionary = p.duplicate(true)
 	match String(p.get("type", "")):
+		"face":
+			d["priority"] = 2
 		"wander":
 			d["remaining"] = float(p.get("duration", 0))
 		"escort", "follow":
@@ -559,6 +561,10 @@ func update_actor(n: CharacterBody3D, dt: float) -> void:
 			"activate": finished = _activate(n, r, p, dt)
 			"combat": finished = _combat(n, r, p, dt, react)
 			"avoiddoor": finished = _avoid_door(n, r, p, dt)
+			"face":
+				# AiFace (Face x y): obrót do punktu, koniec przy różnicy < 3° (zTurn); priorytet 2, bez anulowania
+				_stop(n)
+				finished = _turn_to(n, Vector3(float(p.x), float(p.y), 0.0), dt, deg_to_rad(3.0))
 			_:
 				if main.has_method("ai_package") :
 					finished = main.ai_package(n, p, dt)
@@ -1113,6 +1119,27 @@ func in_combat(n: Node) -> bool:
 			return true
 	return false
 
+## AiSequence::isInCombat(target): pakiet walki z tym celem (sid albo "player").
+func in_combat_with(n: Node, target_sid: String) -> bool:
+	for p in ai_state(n).packages:
+		if String(p.get("type", "")) == "combat" and String(p.get("target", "")) == target_sid:
+			return true
+	return false
+
+## Cel walki (AiSequence::getCombatTarget): sid pierwszego pakietu walki albo "".
+func combat_target(n: Node) -> String:
+	for p in ai_state(n).packages:
+		if String(p.get("type", "")) == "combat":
+			return String(p.get("target", ""))
+	return ""
+
+## Po stronie gracza (getActorsSidingWith(player)): towarzysz z pakietem AiFollow/AiEscort na gracza.
+func sides_with_player(n: Node) -> bool:
+	for p in ai_state(n).packages:
+		if String(p.get("type", "")) in ["follow", "escort"] and String(p.get("target", "")) == "player":
+			return true
+	return false
+
 ## MechanicsManager::startCombat: pakiet walki przed pozostałymi (priorytet 1).
 func start_combat(n: Node, target: Node) -> void:
 	if in_combat(n) or not _alive(n):
@@ -1142,6 +1169,15 @@ func fight_term(n: Node3D, target: Node3D) -> float:
 	var a: Dictionary = main.dialogue.make_actor(n) if main.dialogue != null else {}
 	if not a.is_empty() and a.npc:
 		disp = float(main.dialogue.derived_disposition(a))
+	# isAggressive: NPC wobec wilkołaka (albo gracza znanego jako wilkołak – PCKnownWerewolf) + iWerewolfFightMod
+	var ww := false
+	if not a.is_empty() and a.npc and String(target.get_meta("mw_actor", "npc" if target == main.player else "")) == "npc":
+		if target == main.player:
+			ww = bool(main.player_stats().get("werewolf", false)) or (main.scripts != null and main.scripts.get_global("pcknownwerewolf") != 0.0)
+		else:
+			ww = bool(main.state.actors.get(String(target.get_meta("mw_sid", "")), {}).get("werewolf", false))
+	if ww:
+		fight += float(_gmst("iWerewolfFightMod", 100))
 	return fight + bias + (50.0 - disp) * float(_gmst("fFightDispMult", 0.2))
 
 ## engageCombat (względem gracza): agresywny (getFightTerm ≥ 100), w linii wzroku, zauważa gracza.
@@ -1186,7 +1222,7 @@ func _choose_action(n: Node3D, target: Node3D) -> Dictionary:
 			maxf(float(sl[1]) * sk * float(_gmst("fAIMeleeWeaponMult", 1.0)), float(th[1]) * sk * float(_gmst("fAIMeleeWeaponMult", 1.0))))
 		best.rating = rating
 		anti = rating
-	var spells: Array = f.rec.get("spells", [])
+	var spells: Array = main.magic.actor_spells(f) if main.magic != null else f.rec.get("spells", [])
 	for sid in spells:
 		var sp: Dictionary = main.builder.actors.record("spell", String(sid).to_lower())
 		if sp.is_empty() or int(sp.get("spell_type", -1)) != 0:
@@ -1239,13 +1275,9 @@ func _combat(n: CharacterBody3D, r: Dictionary, p: Dictionary, dt: float, react:
 	if tf.is_empty() or cb.is_dead(tf):
 		return true
 	var f: Dictionary = cb.fighter_of(n)
-	if bool(_actor(n).get("knocked_down", false)):
-		_actor(n)["knocked_down_t"] = float(_actor(n).get("knocked_down_t", 0.0)) + dt
-		if float(_actor(n).knocked_down_t) < 2.0:
-			_stop(n)
-			return false
-		_actor(n).erase("knocked_down")
-		_actor(n).erase("knocked_down_t")
+	if bool(_actor(n).get("knocked_down", false)):       # czas powalenia – main._update_knockdown
+		_stop(n)
+		return false
 	var here := mw_pos(n)
 	var there := mw_pos(target)
 	if here.distance_to(there) > MAX_TRAVEL:

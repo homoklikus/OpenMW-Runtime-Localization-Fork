@@ -40,6 +40,34 @@ func bounty() -> int:
 
 func set_bounty(v: int) -> void:
 	st()["bounty"] = maxi(0, v)
+	if v <= 0:
+		record_crime_id()
+
+## Identyfikatory przestępstw (Player::getNewCrimeId / recordCrimeId / getCrimeId): świadkowie i ofiary dostają
+## identyfikator zgłoszenia; po spłacie grzywny (grzywna 0) uspokajają się (Actors::updateCrimePursuit).
+func new_crime_id() -> int:
+	st()["crime_id_current"] = int(st().get("crime_id_current", -1)) + 1
+	return int(st().crime_id_current)
+
+func record_crime_id() -> void:
+	st()["crime_id_paid"] = int(st().get("crime_id_current", -1))
+
+## Świadek ze spłaconym przestępstwem: koniec pościgu (strażnik) i walki, GetAttacked/alarm 0, Fight z rekordu.
+func calm_witnesses() -> void:
+	var paid := int(st().get("crime_id_paid", -1))
+	for n in main.ai.actor_nodes():
+		var a: Dictionary = main.combat._actor_state(main.combat.fighter_of(n)) if main.state.actors.has(String(n.get_meta("mw_sid", ""))) else {}
+		if a.is_empty() or not a.has("crime_id") or int(a.crime_id) > paid:
+			continue
+		if _is_guard(n):
+			var ast: Dictionary = main.ai.ai_state(n)
+			ast.packages = (ast.packages as Array).filter(func(x): return String(x.get("type", "")) != "pursue")
+		main.ai.stop_combat(n)
+		a.erase("attacked")
+		a.erase("alarmed")
+		a.erase("crime_id")
+		var act: Dictionary = main.dialogue.make_actor(n)
+		main.dialogue.set_ai_setting(act, "fight", int((act.rec.get("ai", {}) as Dictionary).get("fight", 0)))
 
 # --- własność ------------------------------------------------------------------------------------------------
 
@@ -171,6 +199,9 @@ func _in_pursuit(n: Node) -> bool:
 ## reportCrime: grzywna, reakcje świadków (strażnik – pościg, inni – walka wg Fight), wydalenie z frakcji.
 func report(victim, type: String, faction := "", arg := 0) -> bool:
 	var b := arg
+	var id := new_crime_id()
+	if type == MURDER and victim != null:
+		main.combat._actor_state(main.combat.fighter_of(victim))["murdered"] = true     # notifyMurder (OnMurder)
 	var fight := 0
 	var fight_victim := 0
 	match type:
@@ -208,6 +239,7 @@ func report(victim, type: String, faction := "", arg := 0) -> bool:
 		var a: Dictionary = main.combat._actor_state(main.combat.fighter_of(n))
 		if _is_guard(n) and alarm >= 100:
 			a["alarmed"] = true
+			a["crime_id"] = id
 			if not _in_pursuit(n) and not main.ai.in_combat(n):
 				main.ai.stack(n, {"type": "pursue", "target": "player", "priority": 2}, false)
 			continue
@@ -227,6 +259,7 @@ func report(victim, type: String, faction := "", arg := 0) -> bool:
 			main.ai.start_combat(n, main.player)
 			main.dialogue.set_ai_setting(main.dialogue.make_actor(n), "fight", of + int(ft))
 			a["alarmed"] = true
+			a["crime_id"] = id
 	if reported:
 		set_bounty(bounty() + b)
 		var vf := ""
@@ -237,8 +270,10 @@ func report(victim, type: String, faction := "", arg := 0) -> bool:
 		var facs: Dictionary = st().get("factions", {})
 		if not vf.is_empty() and facs.has(vf):
 			facs[vf]["expelled"] = true
-	if type == ASSAULT and victim != null and not main.ai.in_combat(victim) and not _in_pursuit(victim):
-		main.ai.start_combat(victim, main.player)
+	if type == ASSAULT and victim != null:
+		if not main.ai.in_combat(victim) and not _in_pursuit(victim):
+			main.ai.start_combat(victim, main.player)
+		main.combat._actor_state(main.combat.fighter_of(victim))["crime_id"] = id
 	return reported
 
 ## actorAttacked (gracz zaatakował NPC): napaść, jeśli NPC nie był wrogi (canCommitCrimeAgainst).
@@ -247,7 +282,7 @@ func on_assault(victim: Node) -> void:
 		return
 	if main.ai.in_combat(victim) or _in_pursuit(victim) or main.ai.fight_term(victim, main.player) >= 100.0:
 		return
-	main.combat._actor_state(main.combat.fighter_of(victim))["crime_id"] = 1
+	main.combat._actor_state(main.combat.fighter_of(victim))["crime_id"] = int(st().get("crime_id_current", -1)) + 1
 	commit(victim, ASSAULT)
 
 ## actorKilled: morderstwo, gdy gracz zaczął (crime_id) albo ofiara nie była wroga.
@@ -268,6 +303,9 @@ func tick(dt: float) -> void:
 	if _timer < 0.25 or main.player == null:
 		return
 	_timer = 0.0
+	if bool(st().get("werewolf", false)):
+		return                      # updateCrimePursuit: wobec wilkołaka bez pościgu i bez uspokajania świadków
+	calm_witnesses()
 	var b := bounty()
 	var cut := int(_gmst("iCrimeThreshold", 1000))
 	if b < cut:
@@ -284,6 +322,7 @@ func tick(dt: float) -> void:
 		else:
 			main.ai.stack(n, {"type": "pursue", "target": "player", "priority": 2}, false)
 		main.combat._actor_state(main.combat.fighter_of(n))["alarmed"] = true
+		main.combat._actor_state(main.combat.fighter_of(n))["crime_id"] = new_crime_id()
 
 ## AiPursue: strażnik biegnie do gracza; na 100 jednostek i w linii wzroku – rozmowa (grzywna, więzienie, opór).
 func pursue(n: CharacterBody3D, p: Dictionary, dt: float) -> bool:
@@ -353,6 +392,7 @@ func closest_marker(kind: String) -> Dictionary:
 ## GoToJail: dni = max(1, grzywna / iDaysinPrisonMod), grzywna 0, przedmioty zabrane, przeniesienie do znacznika
 ## więzienia, upływ czasu (odpoczynek), odsiadka (jailTimeServed: losowe umiejętności −1, Security/Sneak +1).
 func go_to_jail() -> Dictionary:
+	main.state.player["in_jail"] = true              # World::goToJail – GetPCInJail (bez okna więzienia: klatka)
 	var days := maxi(1, int(bounty() / maxi(1, int(_gmst("iDaysinPrisonMod", 100)))))
 	set_bounty(0)
 	confiscate()
