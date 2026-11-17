@@ -72,8 +72,8 @@ PARTIAL = {
     "hurtstandingactor": "jak GetStandingActor",
     "hurtcollidingactor": "jak GetCollidingPC",
     "getstandingpc": "jak GetStandingActor",
-    "cast": "zależne od efektów magii (etap magii)",
-    "explodespell": "zależne od efektów magii (etap magii)",
+    "cast": "gracz: tylko wybór czaru (jak OpenMW); NPC: efekty od razu, bez AiCast/animacji",
+    "explodespell": "gracz: tylko wybór czaru (jak OpenMW); NPC: efekty od razu, bez AiCast/animacji",
 }
 MISSING = {
     "turnmoonred": "brak księżyców na niebie (Masser/Secunda nie są renderowane) – instrukcja zgłaszana jako brakująca",
