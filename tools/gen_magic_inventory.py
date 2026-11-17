@@ -87,6 +87,9 @@ s([126],B,I,"NPC zdejmuje wszystko poza bronią, amunicją, spodniami i pochodni
 s([17],I,Z,"ubytki atrybutów, przywracanie po wygaśnięciu i wyleczeniu","fx_corprus, fx_disease_cure: wartości stałe zgodne (bez rzutu odporności)")
 s([133],C,C,"dialogi, Obrażenia od słońca i Słabość na ogień ze zdolności, brak przestępstwa przy napaści na wampira (canCommitCrimeAgainst), wielkość zostaje po śmierci; wygląd głowy wampira – brak (obraz)","fx_sun, fx_vampire_crime: grzywna 0 w obu")
 s([4],C,Z,"odporność na ogień + rani atakującego wręcz (applyElementalShields: 0,1 × wielkość × (1 − 0,01 × x), przed blokiem)","fx_shield_attack: 2 pkt na trafienie w obu (liczba trafień zależy od AI walki)")
+s([39],C,Z,"wykrywanie, trafienie; zdejmowana przy ataku, czarze, przedmiocie, wypiciu, alchemii; od pierwszej klatki; czar z tej samej klatki (kolejka ActiveSpells) nie jest zdejmowany","fx_invis_break, fx_invis_break2: 0 różnic")
+s([45],I,Z,"bez ruchu i ataku (sparaliżowany NPC nie zadaje ciosów); Leczenie paraliżu","fx_paralyze_combat (gracz bez strat), fx_cures")
+s([49],B,Z,"Fight − wielkość i stopCombat","fx_npc_ai, fx_calm_combat: GetTarget player 0 po Uspokojeniu w obu")
 rows=["| # | Efekt | Przed etapem | Po etapie | Działanie | Test / porównanie z OpenMW |","|---|---|---|---|---|---|"]
 from collections import Counter
 cb,ca=Counter(),Counter()

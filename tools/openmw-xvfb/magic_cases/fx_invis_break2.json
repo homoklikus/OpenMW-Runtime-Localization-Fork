@@ -1,0 +1,25 @@
+{
+ "name": "fx_invis_break2",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -12288 -69632 160 0",
+  "player->Equip \"p_invisibility_b\""
+ ],
+ "seconds": 3,
+ "after": [
+  [
+   10,
+   "player->Equip \"p_fire_shield_e\""
+  ]
+ ]
+}

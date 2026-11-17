@@ -1,0 +1,39 @@
+{
+ "name": "fx_calm_combat",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player",
+  "fargoth"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -10450 -71150 300 0",
+  "player->SetHealth 500",
+  "fargoth->StartCombat player"
+ ],
+ "spells": [
+  [
+   0,
+   "fargoth",
+   "calm humanoid",
+   "player",
+   1.0
+  ]
+ ],
+ "every": [
+  "set r_t to fargoth->GetTarget player"
+ ],
+ "vars": [
+  [
+   "short",
+   "r_t"
+  ]
+ ],
+ "seconds": 4
+}

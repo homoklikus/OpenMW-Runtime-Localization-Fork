@@ -531,7 +531,7 @@ _remove_effect → removeMagicEffect, _should_remove → shouldRemoveEffect), sk
 (apply_movement co klatkę), walka w `mw_combat.gd`, AI w `mw_ai.gd`/`mw_dialogue.gd`.
 
 **Stan przed etapem:** 0 zweryfikowanych porównaniem, 79 zaimplementowanych (testy syntetyczne), 14 częściowo,
-50 brakujących. **Po etapie:** 69 zweryfikowanych porównaniem z OpenMW (32 przypadki porównawcze), 66
+50 brakujących. **Po etapie:** 70 zweryfikowanych porównaniem z OpenMW (36 przypadków porównawczych), 65
 zaimplementowanych zgodnie z kodem OpenMW, 8 częściowo zgodnych, 0 brakujących.
 
 Dodatkowo w tej części: trwałe czary (choroby, zaraza, klątwy) nakładają efekty jednorazowe na pule (Wyssanie i
@@ -587,17 +587,17 @@ ekwipunku i położeń (próbki w czasie).
 | 36 | WeaknessToNormalWeapons | Zaimplementowane | Zaimplementowane | słabości w odpornościach i obrażeniach | wielkość w mapie zgodna (fx_player_damage: Fire, Poison – rzut odporności) |
 | 37 | DisintegrateWeapon | Zaimplementowane | Zaimplementowane | zużycie broni/pancerza wg slotów (kolejność OpenMW) | test_magic |
 | 38 | DisintegrateArmor | Zaimplementowane | Zaimplementowane | zużycie broni/pancerza wg slotów (kolejność OpenMW) | test_magic |
-| 39 | Invisibility | Częściowo zgodne | Zaimplementowane | wykrywanie, trafienie; zdejmowana przy ataku, czarze, przedmiocie, wypiciu, alchemii; od pierwszej klatki | mapa zgodna; test_combat_ai |
+| 39 | Invisibility | Częściowo zgodne | Zweryfikowane | wykrywanie, trafienie; zdejmowana przy ataku, czarze, przedmiocie, wypiciu, alchemii; od pierwszej klatki; czar z tej samej klatki (kolejka ActiveSpells) nie jest zdejmowany | fx_invis_break, fx_invis_break2: 0 różnic |
 | 40 | Chameleon | Zaimplementowane | Zaimplementowane | wykrywanie/obrona/atak (combat.cpp) | wielkość w mapie zgodna (fx_player_map) |
 | 41 | Light | Brakujące | Częściowo zgodne | światło przy aktorze (promień 22 j. × wielkość × 3) | bez porównania obrazu; tylko światło otoczenia w OpenMW – tu OmniLight |
 | 42 | Sanctuary | Zaimplementowane | Zaimplementowane | wykrywanie/obrona/atak (combat.cpp) | wielkość w mapie zgodna (fx_player_map) |
 | 43 | NightEye | Brakujące | Częściowo zgodne | światło otoczenia + 0,7 × min(1, wielkość/100) dla gracza | bez porównania obrazu |
 | 44 | Charm | Brakujące | Zaimplementowane | postawa NPC + wielkość (getDerivedDisposition) | fx_npc_ai: Urok zgodny; postawa różna przez grzywnę (patrz różnice) |
-| 45 | Paralyze | Zaimplementowane | Zweryfikowane | trucizna, paraliż i ich leczenie | fx_cures: 0 różnic |
+| 45 | Paralyze | Zaimplementowane | Zweryfikowane | bez ruchu i ataku (sparaliżowany NPC nie zadaje ciosów); Leczenie paraliżu | fx_paralyze_combat (gracz bez strat), fx_cures |
 | 46 | Silence | Zaimplementowane | Zaimplementowane | blokada czarów / kara do szansy; Dźwięk: pętla „magic sound” gracza | test_magic |
 | 47 | Blind | Zaimplementowane | Zaimplementowane | wykrywanie/obrona/atak (combat.cpp) | wielkość w mapie zgodna (fx_player_map) |
 | 48 | Sound | Zaimplementowane | Zaimplementowane | blokada czarów / kara do szansy; Dźwięk: pętla „magic sound” gracza | test_magic |
-| 49 | CalmHumanoid | Brakujące | Zweryfikowane | modyfikator Fight/Flee (modifyAiSetting), Uspokojenie zatrzymuje walkę, wariant ludzi/stworzeń | fx_npc_ai: Fight 0 / Flee 34 jak OpenMW |
+| 49 | CalmHumanoid | Brakujące | Zweryfikowane | Fight − wielkość i stopCombat | fx_npc_ai, fx_calm_combat: GetTarget player 0 po Uspokojeniu w obu |
 | 50 | CalmCreature | Brakujące | Zweryfikowane | modyfikator Fight/Flee stworzeń | fx_creature_ai: ustawienia AI zgodne |
 | 51 | FrenzyHumanoid | Brakujące | Zweryfikowane | modyfikator Fight/Flee | fx_npc_command: 0 różnic |
 | 52 | FrenzyCreature | Brakujące | Zaimplementowane | modyfikator Fight/Flee (modifyAiSetting), wariant ludzi/stworzeń | fx_npc_ai: Szał stworzeń na NPC – nieprawidłowy w obu |

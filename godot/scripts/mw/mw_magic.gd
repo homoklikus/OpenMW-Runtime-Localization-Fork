@@ -734,6 +734,9 @@ func inflict(target: Dictionary, caster: Dictionary, source: Dictionary, list: A
 		main.on_actor_attacked(target)
 	if entry.effects.is_empty():
 		return res
+	# ActiveSpells::addSpell: nowy czar trafia do kolejki – aktywny od następnego ActiveSpells::update; usuwanie
+	# efektów w tej samej klatce (breakInvisibility, leczenie) go nie widzi
+	entry["queued_frame"] = Engine.get_process_frames()
 	active(target).append(entry)
 	_tick_entry(target, entry, 0.0)
 	_cleanup(target)
@@ -1309,7 +1312,10 @@ func break_invisibility(f: Dictionary) -> void:
 	if f.is_empty():
 		return
 	var any := false
+	var frame := Engine.get_process_frames()
 	for sp in active(f):
+		if int(sp.get("queued_frame", -1)) == frame:
+			continue
 		for x in sp.effects:
 			if int(x.effect) == FX_INVISIBILITY and float(x.time_left) > 0.0:
 				x.time_left = 0.0
@@ -1324,7 +1330,10 @@ func _check_death(f: Dictionary, entry: Dictionary) -> void:
 		main.on_actor_died(f, c)
 
 func _purge_effect(f: Dictionary, fx_id: int) -> void:
+	var frame := Engine.get_process_frames()
 	for sp in active(f):
+		if int(sp.get("queued_frame", -1)) == frame:
+			continue
 		for x in sp.effects:
 			if int(x.effect) == fx_id:
 				x.time_left = 0.0

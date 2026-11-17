@@ -1,0 +1,30 @@
+{
+ "name": "fx_paralyze_combat",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player",
+  "fargoth"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -10450 -71150 300 0",
+  "player->SetHealth 500",
+  "fargoth->StartCombat player"
+ ],
+ "spells": [
+  [
+   0,
+   "fargoth",
+   "medusa's gaze",
+   "",
+   0.5
+  ]
+ ],
+ "seconds": 8
+}
