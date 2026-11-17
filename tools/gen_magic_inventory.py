@@ -85,6 +85,8 @@ s([132],C,Z,"choroba jako trwały czar: Wyssanie/Wzmocnienie przy dodaniu, pogar
 s([64,65,66],B,I,"znaczniki na mapie lokalnej (listDetectedReferences: promień wielkość × 22 j., pojemniki i aktorzy z przedmiotem)","mapa efektów zgodna (fx_potions); znaczniki – bez porównania obrazu")
 s([126],B,I,"NPC zdejmuje wszystko poza bronią, amunicją, spodniami i pochodnią; po wygaśnięciu autoEquip","brak czaru z tym efektem w danych gry – bez porównania")
 s([17],I,Z,"ubytki atrybutów, przywracanie po wygaśnięciu i wyleczeniu","fx_corprus, fx_disease_cure: wartości stałe zgodne (bez rzutu odporności)")
+s([133],C,C,"dialogi, Obrażenia od słońca i Słabość na ogień ze zdolności, brak przestępstwa przy napaści na wampira (canCommitCrimeAgainst), wielkość zostaje po śmierci; wygląd głowy wampira – brak (obraz)","fx_sun, fx_vampire_crime: grzywna 0 w obu")
+s([4],C,Z,"odporność na ogień + rani atakującego wręcz (applyElementalShields: 0,1 × wielkość × (1 − 0,01 × x), przed blokiem)","fx_shield_attack: 2 pkt na trafienie w obu (liczba trafień zależy od AI walki)")
 rows=["| # | Efekt | Przed etapem | Po etapie | Działanie | Test / porównanie z OpenMW |","|---|---|---|---|---|---|"]
 from collections import Counter
 cb,ca=Counter(),Counter()

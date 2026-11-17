@@ -1,0 +1,24 @@
+{
+ "name": "fx_shield_attack",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player",
+  "fargoth"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -10450 -71150 300 0",
+  "player->SetHealth 500"
+ ],
+ "commands": [
+  "player->Equip \"p_fire_shield_e\"",
+  "fargoth->StartCombat player"
+ ],
+ "seconds": 10
+}

@@ -338,8 +338,19 @@ func on_assault(victim: Node) -> void:
 		return
 	if main.ai.in_combat(victim) or _in_pursuit(victim) or main.ai.fight_term(victim, main.player) >= 100.0:
 		return
+	if not can_commit_against(victim):
+		return
 	main.combat._actor_state(main.combat.fighter_of(victim))["crime_id"] = int(st().get("crime_id_current", -1)) + 1
 	commit(victim, ASSAULT)
+
+## canCommitCrimeAgainst (część niezależna od walki): ofiara nie jest wilkołakiem ani wampirem (Vampirism > 0).
+func can_commit_against(victim: Node) -> bool:
+	var f: Dictionary = main.combat.fighter_of(victim)
+	if f.is_empty():
+		return false
+	if bool(main.combat._actor_state(f).get("werewolf", false)):
+		return false
+	return main.magic == null or main.magic.magnitude_of(f, 133) <= 0.0
 
 ## actorKilled: morderstwo, gdy gracz zaczął (crime_id) albo ofiara nie była wroga.
 func on_killed(victim: Node) -> void:
@@ -348,6 +359,8 @@ func on_killed(victim: Node) -> void:
 	var a: Dictionary = main.combat._actor_state(main.combat.fighter_of(victim))
 	var hostile: bool = main.ai.fight_term(victim, main.player) >= 100.0 and not a.has("crime_id")
 	if hostile and not a.has("crime_id"):
+		return
+	if not can_commit_against(victim):
 		return
 	commit(victim, MURDER)
 

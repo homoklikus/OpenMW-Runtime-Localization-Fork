@@ -435,6 +435,14 @@ func effects(f: Dictionary) -> Dictionary:
 	# zostają zmiany podstawy ze skryptów (Set/Mod…)
 	if _combat().is_dead(f):
 		_add_effect_base(fx, _combat()._actor_state(f))
+		# Actors::killDeadActors: po ActiveSpells::clear wielkość Wampiryzmu zostaje w mapie efektów
+		var vamp := 0.0
+		for sid in actor_spells(f):
+			for e in records.record("spell", String(sid)).get("effects", []):
+				if int(e.get("effect", -1)) == 133:
+					vamp += float(e.get("min", 0))
+		if vamp != 0.0:
+			fx["133"] = float(fx.get("133", 0.0)) + vamp
 		return fx
 	# zdolności rasy (Npc::getCreatureStats: addAllToInstance(race->mPowers)) i własne zaklęcia rekordu
 	var own: Array = actor_spells(f).duplicate()

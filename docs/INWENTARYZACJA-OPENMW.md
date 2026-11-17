@@ -531,7 +531,7 @@ _remove_effect → removeMagicEffect, _should_remove → shouldRemoveEffect), sk
 (apply_movement co klatkę), walka w `mw_combat.gd`, AI w `mw_ai.gd`/`mw_dialogue.gd`.
 
 **Stan przed etapem:** 0 zweryfikowanych porównaniem, 79 zaimplementowanych (testy syntetyczne), 14 częściowo,
-50 brakujących. **Po etapie:** 68 zweryfikowanych porównaniem z OpenMW (30 przypadków porównawczych), 67
+50 brakujących. **Po etapie:** 69 zweryfikowanych porównaniem z OpenMW (32 przypadki porównawcze), 66
 zaimplementowanych zgodnie z kodem OpenMW, 8 częściowo zgodnych, 0 brakujących.
 
 Dodatkowo w tej części: trwałe czary (choroby, zaraza, klątwy) nakładają efekty jednorazowe na pule (Wyssanie i
@@ -552,7 +552,7 @@ ekwipunku i położeń (próbki w czasie).
 | 1 | SwiftSwim | Częściowo zgodne | Zaimplementowane | prędkość pływania gracza i NPC × (1 + 0,01 × wielkość) | mapa efektów zgodna (fx_player_map) |
 | 2 | WaterWalking | Brakujące | Zweryfikowane | kolizja z powierzchnią wody, przeniesienie na powierzchnię, castable (za głęboko), usuwane po teleporcie | fx_waterwalk: z = 0 w obu silnikach |
 | 3 | Shield | Częściowo zgodne | Zaimplementowane | pancerz +wielkość (Npc::getArmorRating), GetArmorBonus | fx_player_map |
-| 4 | FireShield | Częściowo zgodne | Zaimplementowane | odporność na żywioł + rani atakującego wręcz (applyElementalShields, przed blokiem) | mapa zgodna; obrażenia atakującego – test syntetyczny brak porównania |
+| 4 | FireShield | Częściowo zgodne | Zweryfikowane | odporność na ogień + rani atakującego wręcz (applyElementalShields: 0,1 × wielkość × (1 − 0,01 × x), przed blokiem) | fx_shield_attack: 2 pkt na trafienie w obu (liczba trafień zależy od AI walki) |
 | 5 | LightningShield | Częściowo zgodne | Zaimplementowane | odporność na żywioł + rani atakującego wręcz (applyElementalShields, przed blokiem) | mapa zgodna; obrażenia atakującego – test syntetyczny brak porównania |
 | 6 | FrostShield | Częściowo zgodne | Zaimplementowane | odporność na żywioł + rani atakującego wręcz (applyElementalShields, przed blokiem) | mapa zgodna; obrażenia atakującego – test syntetyczny brak porównania |
 | 7 | Burden | Częściowo zgodne | Zaimplementowane | obciążenie gracza i NPC (prędkość, lot, skok, przeciążenie) | fx_player_map, fx_npc_stats (Ciężar: rzut odporności) |
@@ -681,7 +681,7 @@ ekwipunku i położeń (próbki w czasie).
 | 130 | BoundShield | Zaimplementowane | Zweryfikowane | przedmiot przywołany: ActionEquip bez zdejmowania broni dwuręcznej/tarczy | fx_bound_weapons: 0 różnic |
 | 131 | BoundGloves | Zaimplementowane | Zweryfikowane | przedmiot w ekwipunku na czas efektu | fx_bound: ekwipunek zgodny |
 | 132 | Corprus | Częściowo zgodne | Zweryfikowane | choroba jako trwały czar: Wyssanie/Wzmocnienie przy dodaniu, pogarszanie co 24 h znacznika czasu (DaysPassed) | fx_corprus: atrybuty po 2 dniach zgodne (dwa pogorszenia) |
-| 133 | Vampirism | Częściowo zgodne | Częściowo zgodne | dialogi, zdolność z Obrażeniami od słońca i Słabością na ogień; reakcje NPC/sen – brak | fx_sun: mapa zgodna |
+| 133 | Vampirism | Częściowo zgodne | Częściowo zgodne | dialogi, Obrażenia od słońca i Słabość na ogień ze zdolności, brak przestępstwa przy napaści na wampira (canCommitCrimeAgainst), wielkość zostaje po śmierci; wygląd głowy wampira – brak (obraz) | fx_sun, fx_vampire_crime: grzywna 0 w obu |
 | 134 | SummonCenturionSphere | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
 | 135 | SunDamage | Brakujące | Zweryfikowane | zdrowie na zewnątrz × widoczność słońca | fx_sun: ~5/s w obu (Wampir: obrażenia od słońca) |
 | 136 | StuntedMagicka | Brakujące | Zaimplementowane | bez odnowy magii przy odpoczynku (pozostały czas), getHoursToRest | bez porównania |

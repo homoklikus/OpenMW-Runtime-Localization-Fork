@@ -1,0 +1,30 @@
+{
+ "name": "fx_vampire_crime",
+ "cell": "Seyda Neen",
+ "actors": [
+  "fargoth"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -10400 -71000 300 180"
+ ],
+ "commands": [
+  "fargoth->AddSpell \"vampire sun damage\""
+ ],
+ "spells": [
+  [
+   0,
+   "fargoth",
+   "blessed touch",
+   "player",
+   1.0
+  ]
+ ],
+ "seconds": 3
+}
