@@ -1,0 +1,22 @@
+{
+ "name": "fx_sun",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -12288 -69632 160 0",
+  "set GameHour to 12"
+ ],
+ "commands": [
+  "player->AddSpell \"vampire sun damage\""
+ ],
+ "seconds": 4
+}

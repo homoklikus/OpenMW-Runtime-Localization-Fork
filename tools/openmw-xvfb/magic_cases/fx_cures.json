@@ -1,0 +1,46 @@
+{
+ "name": "fx_cures",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -12288 -69632 160 0"
+ ],
+ "spells": [
+  [
+   3,
+   "player",
+   "medusa's gaze",
+   ""
+  ],
+  [
+   3,
+   "player",
+   "alit bite",
+   ""
+  ],
+  [
+   0,
+   "player",
+   "free action",
+   "",
+   2.0
+  ],
+  [
+   0,
+   "player",
+   "balyna's antidote",
+   "",
+   2.0
+  ]
+ ],
+ "seconds": 4
+}

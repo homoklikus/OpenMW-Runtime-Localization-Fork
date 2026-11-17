@@ -1,0 +1,27 @@
+{
+ "name": "fx_corprus",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -12288 -69632 160 0"
+ ],
+ "commands": [
+  "player->AddSpell corprus"
+ ],
+ "after": [
+  [
+   20,
+   "set GameHour to GameHour + 25"
+  ]
+ ],
+ "seconds": 5
+}

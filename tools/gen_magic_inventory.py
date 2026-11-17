@@ -60,6 +60,21 @@ s([132],C,C,"dialogi (filtr); pogarszanie co dobę (worsen) – brak","zależno�
 s([133],C,C,"dialogi, Obrażenia od słońca ze zdolności; reakcje NPC/sen – brak","")
 s([135],B,I,"zdrowie na zewnątrz × widoczność słońca (getSunPercentage, Glare_View)","bez porównania")
 s([136],B,I,"bez odnowy magii przy odpoczynku (pozostały czas), getHoursToRest","bez porównania")
+
+# --- etap 2 (porównania dodatkowe, 2026-11-17 wieczór) ---
+s([103,104,105,106,108,109,110,111,112,113,114,115,116,134,138,139,140],B,Z,"pełny aktor z GMST (statystyki, odporności, zdolności, AI follow)","fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji")
+s([137,141,142],B,I,"jak inne przywołania (Fabrykant bez czaru w danych; Creature04/05 – GMST bez stworzenia)","bez porównania")
+s([121,122,123,124,125,130],I,Z,"przedmiot przywołany: ActionEquip bez zdejmowania broni dwuręcznej/tarczy","fx_bound_weapons: 0 różnic")
+s([119],B,Z,"AiFollow (rozkaz), gdy wielkość ≥ poziom","fx_npc_command: GetCurrentAIPackage = 3 w obu")
+s([51,55],B,Z,"modyfikator Fight/Flee","fx_npc_command: 0 różnic")
+s([50,54,56],B,Z,"modyfikator Fight/Flee stworzeń","fx_creature_ai: ustawienia AI zgodne")
+s([118],B,I,"AiFollow (rozkaz) dla stworzeń","fx_creature_ai: wielkość zgodna; pakiet – niejednoznaczny obiekt „mudcrab” w skrypcie")
+s([18,20],I,Z,"wyssanie zdrowia/kondycji","fx_npc_dynamic (różnica 0,6 zdrowia – czas próbki)")
+s([88],I,Z,"pochłanianie kondycji do rzucającego","fx_absorb: ~20/s w obu (różnica – długość okna czasu)")
+s([27,45,72,73],I,Z,"trucizna, paraliż i ich leczenie","fx_cures: 0 różnic")
+s([132],C,C,"choroba jako trwały czar: Wyssanie/Wzmocnienie atrybutów przy dodaniu (jak OpenMW); pogarszanie co 24 h","fx_corprus: atrybuty zgodne; pogarszanie po SetGameHour nie zadziałało w żadnym silniku (nie potwierdzone)")
+s([135],B,Z,"zdrowie na zewnątrz × widoczność słońca","fx_sun: ~5/s w obu (Wampir: obrażenia od słońca)")
+s([133],C,C,"dialogi, zdolność z Obrażeniami od słońca i Słabością na ogień; reakcje NPC/sen – brak","fx_sun: mapa zgodna")
 rows=["| # | Efekt | Przed etapem | Po etapie | Działanie | Test / porównanie z OpenMW |","|---|---|---|---|---|---|"]
 from collections import Counter
 cb,ca=Counter(),Counter()

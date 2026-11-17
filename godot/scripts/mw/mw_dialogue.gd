@@ -238,6 +238,9 @@ func derived_disposition(a: Dictionary, clamp := true) -> int:
 	var st := _pst()
 	var d := _pderived()
 	var x := float(base_disposition(a))
+	# getBaseDisposition + getCrimeDispositionModifier (zmiana postawy za przestępstwo do czasu spłaty)
+	if main.state.get("actors") is Dictionary:
+		x += float((main.state.actors.get(String(a.sid), {}) as Dictionary).get("crime_disp", 0))
 	if String(a.rec.get("race", "")).to_lower() == String(st.get("race", "")).to_lower():
 		x += float(_gmst("fDispRaceMod", 5.0))
 	var pers := float(d.attributes[A_PERSONALITY]) if d.attributes.size() > A_PERSONALITY else 0.0

@@ -1,0 +1,28 @@
+{
+ "name": "fx_absorb",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player",
+  "fargoth"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -12288 -69632 160 0"
+ ],
+ "spells": [
+  [
+   3,
+   "player",
+   "tap energy",
+   "fargoth"
+  ]
+ ],
+ "seconds": 3,
+ "disable_creatures": true
+}

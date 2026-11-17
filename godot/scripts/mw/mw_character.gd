@@ -260,8 +260,10 @@ func constant_effects(st: Dictionary) -> Dictionary:
 		var sp: Dictionary = records.record("spell", String(sid))
 		if sp.is_empty() or not int(sp.get("spell_type", 0)) in CONSTANT_TYPES:
 			continue
+		var ei := 0
 		for e in sp.get("effects", []):
-			add_effect(fx, e, float(e.get("min", 0)))
+			add_effect(fx, e, magic.spell_store_magnitude(st, String(sid), ei, e) if magic != null else float(e.get("min", 0)))
+			ei += 1
 	if magic != null:
 		magic.add_extra_effects(st, fx)
 	return fx

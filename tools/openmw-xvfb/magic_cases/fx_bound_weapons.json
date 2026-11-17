@@ -1,0 +1,71 @@
+{
+ "name": "fx_bound_weapons",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -12288 -69632 160 0"
+ ],
+ "spells": [
+  [
+   3,
+   "player",
+   "bound dagger",
+   ""
+  ],
+  [
+   8,
+   "player",
+   "bound longsword",
+   ""
+  ],
+  [
+   13,
+   "player",
+   "bound mace",
+   ""
+  ],
+  [
+   18,
+   "player",
+   "bound battle-axe",
+   ""
+  ],
+  [
+   23,
+   "player",
+   "bound spear",
+   ""
+  ],
+  [
+   28,
+   "player",
+   "bound longbow",
+   ""
+  ],
+  [
+   33,
+   "player",
+   "bound shield",
+   ""
+  ]
+ ],
+ "seconds": 8,
+ "items": [
+  "bound_dagger",
+  "bound_longsword",
+  "bound_mace",
+  "bound_battle_axe",
+  "bound_spear",
+  "bound_longbow",
+  "bound_shield"
+ ]
+}

@@ -1,0 +1,53 @@
+{
+ "name": "fx_npc_dynamic",
+ "cell": "Seyda Neen",
+ "actors": [
+  "fargoth"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "spells": [
+  [
+   3,
+   "fargoth",
+   "dagoth's bosom",
+   ""
+  ],
+  [
+   3,
+   "fargoth",
+   "ash feast",
+   ""
+  ],
+  [
+   3,
+   "fargoth",
+   "daedric health",
+   ""
+  ],
+  [
+   3,
+   "fargoth",
+   "daedric fatigue",
+   ""
+  ],
+  [
+   3,
+   "fargoth",
+   "suicide_test",
+   ""
+  ],
+  [
+   3,
+   "fargoth",
+   "blood of the north",
+   ""
+  ]
+ ],
+ "seconds": 3
+}

@@ -131,12 +131,17 @@ func max_health(f: Dictionary) -> float:
 func max_fatigue(f: Dictionary) -> float:
 	if f.kind == "player":
 		return float(main.character.derived(main.player_stats()).fatigue.modified)
-	if f.kind == "creature":
-		return float(f.rec.get("fatigue", 1))
 	var at := attributes(f)
 	var key := [at[0], at[2], at[3], at[5]]
 	var formula := float(at[0]) + float(at[2]) + float(at[3]) + float(at[5])
-	if not bool(f.rec.get("autocalc", false)) and f.rec.has("fatigue"):
+	# CreatureStats::setAttribute: zmiana siły/SW/zręczności/wytrzymałości przelicza podstawę kondycji na ich sumę
+	# (zmodyfikowane); bez zmiany – wartość z rekordu (stworzenia, NPC bez autoobliczania)
+	var ra: Array = f.rec.get("attributes", [])
+	var changed: bool = ra.size() >= 6 and (float(ra[0]) != float(at[0]) or float(ra[2]) != float(at[2])
+		or float(ra[3]) != float(at[3]) or float(ra[5]) != float(at[5]))
+	if f.kind == "creature":
+		return maxf(0.0, formula) if changed else float(f.rec.get("fatigue", 1))
+	if not bool(f.rec.get("autocalc", false)) and f.rec.has("fatigue") and not changed:
 		formula = float(f.rec.fatigue)
 	return main.character.dyn_base_override(_actor_state(f), "fatigue", key, formula)
 

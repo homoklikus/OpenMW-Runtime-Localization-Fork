@@ -120,6 +120,7 @@ func _snapshot(case: Dictionary) -> Dictionary:
 	return out
 
 var _track := {}
+var _spells_done := {}
 
 ## Czar nakładany bezpośrednio (para do Lua ActiveSpells:add): wszystkie efekty rekordu na cel.
 func _apply_spell(sp: Array) -> void:
@@ -165,8 +166,13 @@ func _run() -> void:
 	var frame := 0
 	while true:
 		frame += 1
-		for sp in case.get("spells", []):
-			if frame == delay + int(sp[0]):
+		var spl: Array = case.get("spells", [])
+		for si in spl.size():
+			var sp: Array = spl[si]
+			var due: bool = (t_after >= 0.0 and t_after >= float(sp[4]) and not _spells_done.has(si)) if sp.size() > 4 \
+				else frame == delay + int(sp[0])
+			if due:
+				_spells_done[si] = true
 				_apply_spell(sp)
 		if bool(case.get("disable_creatures", false)) and frame == delay:
 			for an in main.ai.actor_nodes():

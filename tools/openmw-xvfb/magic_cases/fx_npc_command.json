@@ -1,0 +1,47 @@
+{
+ "name": "fx_npc_command",
+ "cell": "Seyda Neen",
+ "actors": [
+  "fargoth"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "spells": [
+  [
+   3,
+   "fargoth",
+   "command humanoid",
+   "player"
+  ],
+  [
+   3,
+   "fargoth",
+   "rally humanoid",
+   "player"
+  ],
+  [
+   3,
+   "fargoth",
+   "frenzy humanoid",
+   "player"
+  ]
+ ],
+ "every": [
+  "set r_p to fargoth->GetCurrentAIPackage"
+ ],
+ "vars": [
+  [
+   "short",
+   "r_p"
+  ]
+ ],
+ "seconds": 3,
+ "setup": [
+  "player->Position -10400 -71000 300 180"
+ ]
+}

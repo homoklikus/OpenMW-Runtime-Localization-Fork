@@ -1,0 +1,59 @@
+{
+ "name": "fx_creature_ai",
+ "cell": "Seyda Neen",
+ "actors": [
+  "mudcrab"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "spells": [
+  [
+   3,
+   "mudcrab",
+   "calm creature",
+   "player"
+  ],
+  [
+   3,
+   "mudcrab",
+   "demoralize beast",
+   "player"
+  ],
+  [
+   3,
+   "mudcrab",
+   "rally beast",
+   "player"
+  ],
+  [
+   3,
+   "mudcrab",
+   "frenzy humanoid",
+   "player"
+  ],
+  [
+   3,
+   "mudcrab",
+   "command beast",
+   "player"
+  ]
+ ],
+ "every": [
+  "set r_p to mudcrab->GetCurrentAIPackage"
+ ],
+ "vars": [
+  [
+   "short",
+   "r_p"
+  ]
+ ],
+ "seconds": 3,
+ "setup": [
+  "player->Position -15000 -67400 300 180"
+ ]
+}

@@ -588,8 +588,10 @@ func equipped_slot_of(id: String) -> int:
 			return int(s)
 	return -1
 
-## Załóż przedmiot gracza. Broń dwuręczna zdejmuje tarczę i odwrotnie. → komunikat ("" = gotowe)
-func equip_item(id: String) -> String:
+## Załóż przedmiot gracza. Broń dwuręczna zdejmuje tarczę i odwrotnie (okno ekwipunku – InventoryWindow::useItem);
+## resolve = false – jak sama ActionEquip (przedmioty przywołane): bez zdejmowania kolidującej broni/tarczy.
+## → komunikat ("" = gotowe)
+func equip_item(id: String, resolve := true) -> String:
 	var k := id.to_lower()
 	if interaction.inventory.count_of("player", {}, k) <= 0:
 		return "Nie masz tego przedmiotu."
@@ -601,9 +603,9 @@ func equip_item(id: String) -> String:
 	if slots.size() > 1 and eq.has(str(slots[0])) and not eq.has(str(slots[1])):
 		slot = slots[1]
 	var it: Dictionary = interaction.inventory.item(k)
-	if slot == EQ.SLOT_CARRIED_RIGHT and int(it.rec.get("weapon_type", 0)) in EQ.WEAPON_TWO_HANDED:
+	if resolve and slot == EQ.SLOT_CARRIED_RIGHT and int(it.rec.get("weapon_type", 0)) in EQ.WEAPON_TWO_HANDED:
 		eq.erase(str(EQ.SLOT_CARRIED_LEFT))
-	if slot == EQ.SLOT_CARRIED_LEFT and eq.has(str(EQ.SLOT_CARRIED_RIGHT)):
+	if resolve and slot == EQ.SLOT_CARRIED_LEFT and eq.has(str(EQ.SLOT_CARRIED_RIGHT)):
 		var w: Dictionary = interaction.inventory.item(String(eq[str(EQ.SLOT_CARRIED_RIGHT)].id))
 		if not w.is_empty() and int(w.rec.get("weapon_type", 0)) in EQ.WEAPON_TWO_HANDED:
 			eq.erase(str(EQ.SLOT_CARRIED_RIGHT))
@@ -965,7 +967,8 @@ func _update_magic(dt: float) -> void:
 				continue
 			var a = state.actors.get(String(n.get_meta("mw_sid", "")))
 			var fa: Dictionary = combat.fighter_of(n)
-			if (a is Dictionary and not (a.get("active_spells", []) as Array).is_empty()) or magic.has_constant_tick(fa):
+			if (a is Dictionary and not (a.get("active_spells", []) as Array).is_empty()) or magic.has_constant_tick(fa) \
+					or magic.has_spell_store(fa):
 				magic.tick(fa, dt)
 			magic.apply_movement(fa, n)
 			magic.update_drowning(fa, n, dt)

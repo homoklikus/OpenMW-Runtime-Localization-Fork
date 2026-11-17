@@ -1,0 +1,141 @@
+{
+ "name": "fx_summon_all",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player",
+  "clannfear_summon",
+  "daedroth_summon",
+  "dremora_summon",
+  "ancestor_ghost_summon",
+  "bonewalker_summon",
+  "bonewalker_greater_summ",
+  "bonelord_summon",
+  "winged twilight_summon",
+  "hunger_summon",
+  "golden saint_summon",
+  "atronach_flame_summon",
+  "atronach_frost_summon",
+  "atronach_storm_summon",
+  "centurion_sphere_summon",
+  "bm_wolf_grey_summon",
+  "bm_bear_black_summon",
+  "bm_wolf_bone_summon"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track",
+  ".actors.player"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -12288 -69632 160 0"
+ ],
+ "spells": [
+  [
+   3,
+   "player",
+   "summon clanfear",
+   ""
+  ],
+  [
+   3,
+   "player",
+   "sp_nchurdamzsummon",
+   ""
+  ],
+  [
+   3,
+   "player",
+   "summon dremora",
+   ""
+  ],
+  [
+   3,
+   "player",
+   "ghost guard",
+   ""
+  ],
+  [
+   3,
+   "player",
+   "summon least bonewalker",
+   ""
+  ],
+  [
+   3,
+   "player",
+   "summon greater bonewalker",
+   ""
+  ],
+  [
+   3,
+   "player",
+   "summon bonelord",
+   ""
+  ],
+  [
+   3,
+   "player",
+   "summon winged twilight",
+   ""
+  ],
+  [
+   3,
+   "player",
+   "summon hunger",
+   ""
+  ],
+  [
+   3,
+   "player",
+   "summon golden saint",
+   ""
+  ],
+  [
+   3,
+   "player",
+   "summon flame atronach",
+   ""
+  ],
+  [
+   3,
+   "player",
+   "summon frost atronach",
+   ""
+  ],
+  [
+   3,
+   "player",
+   "summon storm atronach",
+   ""
+  ],
+  [
+   3,
+   "player",
+   "summon_centurion_unique",
+   ""
+  ],
+  [
+   3,
+   "player",
+   "bm_summonwolf",
+   ""
+  ],
+  [
+   3,
+   "player",
+   "bm_summonbear",
+   ""
+  ],
+  [
+   3,
+   "player",
+   "bm_summonbonewolf",
+   ""
+  ]
+ ],
+ "seconds": 3,
+ "disable_creatures": true
+}

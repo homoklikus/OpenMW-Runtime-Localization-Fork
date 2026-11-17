@@ -531,8 +531,14 @@ _remove_effect → removeMagicEffect, _should_remove → shouldRemoveEffect), sk
 (apply_movement co klatkę), walka w `mw_combat.gd`, AI w `mw_ai.gd`/`mw_dialogue.gd`.
 
 **Stan przed etapem:** 0 zweryfikowanych porównaniem, 79 zaimplementowanych (testy syntetyczne), 14 częściowo,
-50 brakujących. **Po etapie:** 23 zweryfikowane porównaniem z OpenMW, 105 zaimplementowanych zgodnie z kodem
-OpenMW, 14 częściowo zgodnych, 1 brakujący (ExtraSpell – nieużywany w danych gry).
+50 brakujących. **Po etapie:** 60 zweryfikowanych porównaniem z OpenMW (25 przypadków porównawczych), 68
+zaimplementowanych zgodnie z kodem OpenMW, 14 częściowo zgodnych, 1 brakujący (ExtraSpell – nieużywany w danych gry).
+
+Dodatkowo w tej części: trwałe czary (choroby, zaraza, klątwy) nakładają efekty jednorazowe na pule (Wyssanie i
+Uszkodzenie atrybutów/umiejętności) i Korpus pogarsza się co 24 h; wielkości zdolności losowane raz i zapisywane;
+podstawa kondycji/magii przeliczana po zmianie atrybutów (CreatureStats::setAttribute / recalculateMagicka – także
+stworzenia i NPC bez autoobliczania); przedmioty przywołane zakładane jak ActionEquip (bez zdejmowania broni
+dwuręcznej), także NPC; zmiana postawy za przestępstwa (reportCrime).
 
 Porównania: `tools/openmw-xvfb/magic_run.sh tools/openmw-xvfb/magic_cases/*.json` – czary nakładane w obu
 silnikach jak `ActiveSpells:add` (Lua po stronie OpenMW), migawka pełnej mapy efektów („fx”), statystyk, AI,
@@ -558,16 +564,16 @@ ekwipunku i położeń (próbki w czasie).
 | 15 | ShockDamage | Zaimplementowane | Zaimplementowane | obrażenia zdrowia co sekundę, śmierć, odporności/słabości | test_magic |
 | 16 | FrostDamage | Zaimplementowane | Zaimplementowane | obrażenia zdrowia co sekundę, śmierć, odporności/słabości | test_magic |
 | 17 | DrainAttribute | Zaimplementowane | Częściowo zgodne | ubytki atrybutów/umiejętności, przywracanie po wygaśnięciu (Drain) | fx_player_damage/fx_npc_stats: wartości zgodne do rzutu odporności (losowe) |
-| 18 | DrainHealth | Zaimplementowane | Zaimplementowane | zdrowie/magia/kondycja, Drain poniżej zera | test_magic |
+| 18 | DrainHealth | Zaimplementowane | Zweryfikowane | wyssanie zdrowia/kondycji | fx_npc_dynamic (różnica 0,6 zdrowia – czas próbki) |
 | 19 | DrainMagicka | Zaimplementowane | Zaimplementowane | zdrowie/magia/kondycja, Drain poniżej zera | test_magic |
-| 20 | DrainFatigue | Zaimplementowane | Zaimplementowane | zdrowie/magia/kondycja, Drain poniżej zera | test_magic |
+| 20 | DrainFatigue | Zaimplementowane | Zweryfikowane | wyssanie zdrowia/kondycji | fx_npc_dynamic (różnica 0,6 zdrowia – czas próbki) |
 | 21 | DrainSkill | Zaimplementowane | Częściowo zgodne | ubytki atrybutów/umiejętności, przywracanie po wygaśnięciu (Drain) | fx_player_damage/fx_npc_stats: wartości zgodne do rzutu odporności (losowe) |
 | 22 | DamageAttribute | Zaimplementowane | Częściowo zgodne | ubytki atrybutów/umiejętności, przywracanie po wygaśnięciu (Drain) | fx_player_damage/fx_npc_stats: wartości zgodne do rzutu odporności (losowe) |
 | 23 | DamageHealth | Zaimplementowane | Zweryfikowane | obrażenia zdrowia co sekundę, śmierć | fx_player_damage |
 | 24 | DamageMagicka | Zaimplementowane | Zaimplementowane | zdrowie/magia/kondycja, Drain poniżej zera | test_magic |
 | 25 | DamageFatigue | Zaimplementowane | Zaimplementowane | zdrowie/magia/kondycja, Drain poniżej zera | test_magic |
 | 26 | DamageSkill | Zaimplementowane | Częściowo zgodne | ubytki atrybutów/umiejętności, przywracanie po wygaśnięciu (Drain) | fx_player_damage/fx_npc_stats: wartości zgodne do rzutu odporności (losowe) |
-| 27 | Poison | Zaimplementowane | Zaimplementowane | obrażenia zdrowia co sekundę, śmierć, odporności/słabości | test_magic |
+| 27 | Poison | Zaimplementowane | Zweryfikowane | trucizna, paraliż i ich leczenie | fx_cures: 0 różnic |
 | 28 | WeaknessToFire | Zaimplementowane | Zaimplementowane | słabości w odpornościach i obrażeniach | wielkość w mapie zgodna (fx_player_damage: Fire, Poison – rzut odporności) |
 | 29 | WeaknessToFrost | Zaimplementowane | Zaimplementowane | słabości w odpornościach i obrażeniach | wielkość w mapie zgodna (fx_player_damage: Fire, Poison – rzut odporności) |
 | 30 | WeaknessToShock | Zaimplementowane | Zaimplementowane | słabości w odpornościach i obrażeniach | wielkość w mapie zgodna (fx_player_damage: Fire, Poison – rzut odporności) |
@@ -585,18 +591,18 @@ ekwipunku i położeń (próbki w czasie).
 | 42 | Sanctuary | Zaimplementowane | Zaimplementowane | wykrywanie/obrona/atak (combat.cpp) | wielkość w mapie zgodna (fx_player_map) |
 | 43 | NightEye | Brakujące | Częściowo zgodne | światło otoczenia + 0,7 × min(1, wielkość/100) dla gracza | bez porównania obrazu |
 | 44 | Charm | Brakujące | Zaimplementowane | postawa NPC + wielkość (getDerivedDisposition) | fx_npc_ai: Urok zgodny; postawa różna przez grzywnę (patrz różnice) |
-| 45 | Paralyze | Zaimplementowane | Zaimplementowane | bez ruchu/skoku/ataku; Leczenie paraliżu | test_magic, test_combat_ai |
+| 45 | Paralyze | Zaimplementowane | Zweryfikowane | trucizna, paraliż i ich leczenie | fx_cures: 0 różnic |
 | 46 | Silence | Zaimplementowane | Zaimplementowane | blokada czarów / kara do szansy; Dźwięk: pętla „magic sound” gracza | test_magic |
 | 47 | Blind | Zaimplementowane | Zaimplementowane | wykrywanie/obrona/atak (combat.cpp) | wielkość w mapie zgodna (fx_player_map) |
 | 48 | Sound | Zaimplementowane | Zaimplementowane | blokada czarów / kara do szansy; Dźwięk: pętla „magic sound” gracza | test_magic |
 | 49 | CalmHumanoid | Brakujące | Zweryfikowane | modyfikator Fight/Flee (modifyAiSetting), Uspokojenie zatrzymuje walkę, wariant ludzi/stworzeń | fx_npc_ai: Fight 0 / Flee 34 jak OpenMW |
-| 50 | CalmCreature | Brakujące | Zaimplementowane | modyfikator Fight/Flee (modifyAiSetting), wariant ludzi/stworzeń | fx_npc_ai: Szał stworzeń na NPC – nieprawidłowy w obu |
-| 51 | FrenzyHumanoid | Brakujące | Zaimplementowane | modyfikator Fight/Flee (modifyAiSetting), wariant ludzi/stworzeń | fx_npc_ai: Szał stworzeń na NPC – nieprawidłowy w obu |
+| 50 | CalmCreature | Brakujące | Zweryfikowane | modyfikator Fight/Flee stworzeń | fx_creature_ai: ustawienia AI zgodne |
+| 51 | FrenzyHumanoid | Brakujące | Zweryfikowane | modyfikator Fight/Flee | fx_npc_command: 0 różnic |
 | 52 | FrenzyCreature | Brakujące | Zaimplementowane | modyfikator Fight/Flee (modifyAiSetting), wariant ludzi/stworzeń | fx_npc_ai: Szał stworzeń na NPC – nieprawidłowy w obu |
 | 53 | DemoralizeHumanoid | Brakujące | Zweryfikowane | modyfikator Fight/Flee (modifyAiSetting), Uspokojenie zatrzymuje walkę, wariant ludzi/stworzeń | fx_npc_ai: Fight 0 / Flee 34 jak OpenMW |
-| 54 | DemoralizeCreature | Brakujące | Zaimplementowane | modyfikator Fight/Flee (modifyAiSetting), wariant ludzi/stworzeń | fx_npc_ai: Szał stworzeń na NPC – nieprawidłowy w obu |
-| 55 | RallyHumanoid | Brakujące | Zaimplementowane | modyfikator Fight/Flee (modifyAiSetting), wariant ludzi/stworzeń | fx_npc_ai: Szał stworzeń na NPC – nieprawidłowy w obu |
-| 56 | RallyCreature | Brakujące | Zaimplementowane | modyfikator Fight/Flee (modifyAiSetting), wariant ludzi/stworzeń | fx_npc_ai: Szał stworzeń na NPC – nieprawidłowy w obu |
+| 54 | DemoralizeCreature | Brakujące | Zweryfikowane | modyfikator Fight/Flee stworzeń | fx_creature_ai: ustawienia AI zgodne |
+| 55 | RallyHumanoid | Brakujące | Zweryfikowane | modyfikator Fight/Flee | fx_npc_command: 0 różnic |
+| 56 | RallyCreature | Brakujące | Zweryfikowane | modyfikator Fight/Flee stworzeń | fx_creature_ai: ustawienia AI zgodne |
 | 57 | Dispel | Zaimplementowane | Zaimplementowane | usuwanie czarów z szansą wielkości | test_magic |
 | 58 | Soultrap | Zaimplementowane | Zaimplementowane | dusza do kamienia (soulTrap) | test_magic |
 | 59 | Telekinesis | Brakujące | Zaimplementowane | zasięg aktywacji + wielkość × 21,33 j., bez aktorów i otwartych drzwi teleportujących | bez porównania |
@@ -612,8 +618,8 @@ ekwipunku i położeń (próbki w czasie).
 | 69 | CureCommonDisease | Zaimplementowane | Zaimplementowane | usuwanie chorób/trucizn/paraliżu/klątw (także NPC) | test_magic |
 | 70 | CureBlightDisease | Zaimplementowane | Zaimplementowane | usuwanie chorób/trucizn/paraliżu/klątw (także NPC) | test_magic |
 | 71 | CureCorprusDisease | Brakujące | Zaimplementowane | usuwa efekt Korpus | bez porównania |
-| 72 | CurePoison | Zaimplementowane | Zaimplementowane | usuwanie chorób/trucizn/paraliżu/klątw (także NPC) | test_magic |
-| 73 | CureParalyzation | Zaimplementowane | Zaimplementowane | usuwanie chorób/trucizn/paraliżu/klątw (także NPC) | test_magic |
+| 72 | CurePoison | Zaimplementowane | Zweryfikowane | trucizna, paraliż i ich leczenie | fx_cures: 0 różnic |
+| 73 | CureParalyzation | Zaimplementowane | Zweryfikowane | trucizna, paraliż i ich leczenie | fx_cures: 0 różnic |
 | 74 | RestoreAttribute | Zaimplementowane | Zweryfikowane | przywracanie | fx_player_map (Restore Health), fx_player_damage (Restore Attribute) |
 | 75 | RestoreHealth | Zaimplementowane | Zweryfikowane | przywracanie | fx_player_map (Restore Health), fx_player_damage (Restore Attribute) |
 | 76 | RestoreMagicka | Zaimplementowane | Zaimplementowane | przywracanie | test_magic |
@@ -628,7 +634,7 @@ ekwipunku i położeń (próbki w czasie).
 | 85 | AbsorbAttribute | Zaimplementowane | Zaimplementowane | pochłanianie do rzucającego | test_magic |
 | 86 | AbsorbHealth | Zaimplementowane | Zaimplementowane | pochłanianie do rzucającego | test_magic |
 | 87 | AbsorbMagicka | Zaimplementowane | Zaimplementowane | pochłanianie do rzucającego | test_magic |
-| 88 | AbsorbFatigue | Zaimplementowane | Zaimplementowane | pochłanianie do rzucającego | test_magic |
+| 88 | AbsorbFatigue | Zaimplementowane | Zweryfikowane | pochłanianie kondycji do rzucającego | fx_absorb: ~20/s w obu (różnica – długość okna czasu) |
 | 89 | AbsorbSkill | Zaimplementowane | Zaimplementowane | pochłanianie do rzucającego | test_magic |
 | 90 | ResistFire | Zaimplementowane | Zaimplementowane | odporności (getEffectResistance – zawsze, także bez rzucającego) | wielkość w mapie zgodna (fx_player_map) |
 | 91 | ResistFrost | Zaimplementowane | Zaimplementowane | odporności (getEffectResistance – zawsze, także bez rzucającego) | wielkość w mapie zgodna (fx_player_map) |
@@ -643,46 +649,46 @@ ekwipunku i położeń (próbki w czasie).
 | 100 | RemoveCurse | Zaimplementowane | Zaimplementowane | usuwanie chorób/trucizn/paraliżu/klątw (także NPC) | test_magic |
 | 101 | TurnUndead | Brakujące | Częściowo zgodne | Flee + wielkość dla nieumarłych | OpenMW zostawia wielkość nieprawidłowego efektu w mapie (różnica mapy) |
 | 102 | SummonScamp | Brakujące | Zweryfikowane | pełny aktor (statystyki, ekwipunek, AI follow, pomoc w walce, koniec, śmierć, przez drzwi z graczem, zapis) | fx_summon (0 różnic), fx_summon_end (znika po 10 s) |
-| 103 | SummonClannfear | Brakujące | Zaimplementowane | jak przywołanie Scampa (ten sam mechanizm, inne stworzenie z GMST) | bez osobnego porównania |
-| 104 | SummonDaedroth | Brakujące | Zaimplementowane | jak przywołanie Scampa (ten sam mechanizm, inne stworzenie z GMST) | bez osobnego porównania |
-| 105 | SummonDremora | Brakujące | Zaimplementowane | jak przywołanie Scampa (ten sam mechanizm, inne stworzenie z GMST) | bez osobnego porównania |
-| 106 | SummonAncestralGhost | Brakujące | Zaimplementowane | jak przywołanie Scampa (ten sam mechanizm, inne stworzenie z GMST) | bez osobnego porównania |
+| 103 | SummonClannfear | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
+| 104 | SummonDaedroth | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
+| 105 | SummonDremora | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
+| 106 | SummonAncestralGhost | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
 | 107 | SummonSkeletalMinion | Brakujące | Zweryfikowane | pełny aktor (statystyki, ekwipunek, AI follow, pomoc w walce, koniec, śmierć, przez drzwi z graczem, zapis) | fx_summon (0 różnic), fx_summon_end (znika po 10 s) |
-| 108 | SummonBonewalker | Brakujące | Zaimplementowane | jak przywołanie Scampa (ten sam mechanizm, inne stworzenie z GMST) | bez osobnego porównania |
-| 109 | SummonGreaterBonewalker | Brakujące | Zaimplementowane | jak przywołanie Scampa (ten sam mechanizm, inne stworzenie z GMST) | bez osobnego porównania |
-| 110 | SummonBonelord | Brakujące | Zaimplementowane | jak przywołanie Scampa (ten sam mechanizm, inne stworzenie z GMST) | bez osobnego porównania |
-| 111 | SummonWingedTwilight | Brakujące | Zaimplementowane | jak przywołanie Scampa (ten sam mechanizm, inne stworzenie z GMST) | bez osobnego porównania |
-| 112 | SummonHunger | Brakujące | Zaimplementowane | jak przywołanie Scampa (ten sam mechanizm, inne stworzenie z GMST) | bez osobnego porównania |
-| 113 | SummonGoldenSaint | Brakujące | Zaimplementowane | jak przywołanie Scampa (ten sam mechanizm, inne stworzenie z GMST) | bez osobnego porównania |
-| 114 | SummonFlameAtronach | Brakujące | Zaimplementowane | jak przywołanie Scampa (ten sam mechanizm, inne stworzenie z GMST) | bez osobnego porównania |
-| 115 | SummonFrostAtronach | Brakujące | Zaimplementowane | jak przywołanie Scampa (ten sam mechanizm, inne stworzenie z GMST) | bez osobnego porównania |
-| 116 | SummonStormAtronach | Brakujące | Zaimplementowane | jak przywołanie Scampa (ten sam mechanizm, inne stworzenie z GMST) | bez osobnego porównania |
+| 108 | SummonBonewalker | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
+| 109 | SummonGreaterBonewalker | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
+| 110 | SummonBonelord | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
+| 111 | SummonWingedTwilight | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
+| 112 | SummonHunger | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
+| 113 | SummonGoldenSaint | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
+| 114 | SummonFlameAtronach | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
+| 115 | SummonFrostAtronach | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
+| 116 | SummonStormAtronach | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
 | 117 | FortifyAttack | Zaimplementowane | Zaimplementowane | wykrywanie/obrona/atak (combat.cpp) | wielkość w mapie zgodna (fx_player_map) |
-| 118 | CommandCreature | Brakujące | Zaimplementowane | AiFollow (rozkaz), gdy wielkość ≥ poziom; koniec – usunięcie pakietu | bez porównania |
-| 119 | CommandHumanoid | Brakujące | Zaimplementowane | AiFollow (rozkaz), gdy wielkość ≥ poziom; koniec – usunięcie pakietu | bez porównania |
+| 118 | CommandCreature | Brakujące | Zaimplementowane | AiFollow (rozkaz) dla stworzeń | fx_creature_ai: wielkość zgodna; pakiet – niejednoznaczny obiekt „mudcrab” w skrypcie |
+| 119 | CommandHumanoid | Brakujące | Zweryfikowane | AiFollow (rozkaz), gdy wielkość ≥ poziom | fx_npc_command: GetCurrentAIPackage = 3 w obu |
 | 120 | BoundDagger | Zaimplementowane | Zweryfikowane | przedmiot w ekwipunku na czas efektu | fx_bound: ekwipunek zgodny |
-| 121 | BoundLongsword | Zaimplementowane | Zaimplementowane | przedmiot w ekwipunku na czas efektu | test_magic |
-| 122 | BoundMace | Zaimplementowane | Zaimplementowane | przedmiot w ekwipunku na czas efektu | test_magic |
-| 123 | BoundBattleAxe | Zaimplementowane | Zaimplementowane | przedmiot w ekwipunku na czas efektu | test_magic |
-| 124 | BoundSpear | Zaimplementowane | Zaimplementowane | przedmiot w ekwipunku na czas efektu | test_magic |
-| 125 | BoundLongbow | Zaimplementowane | Zaimplementowane | przedmiot w ekwipunku na czas efektu | test_magic |
+| 121 | BoundLongsword | Zaimplementowane | Zweryfikowane | przedmiot przywołany: ActionEquip bez zdejmowania broni dwuręcznej/tarczy | fx_bound_weapons: 0 różnic |
+| 122 | BoundMace | Zaimplementowane | Zweryfikowane | przedmiot przywołany: ActionEquip bez zdejmowania broni dwuręcznej/tarczy | fx_bound_weapons: 0 różnic |
+| 123 | BoundBattleAxe | Zaimplementowane | Zweryfikowane | przedmiot przywołany: ActionEquip bez zdejmowania broni dwuręcznej/tarczy | fx_bound_weapons: 0 różnic |
+| 124 | BoundSpear | Zaimplementowane | Zweryfikowane | przedmiot przywołany: ActionEquip bez zdejmowania broni dwuręcznej/tarczy | fx_bound_weapons: 0 różnic |
+| 125 | BoundLongbow | Zaimplementowane | Zweryfikowane | przedmiot przywołany: ActionEquip bez zdejmowania broni dwuręcznej/tarczy | fx_bound_weapons: 0 różnic |
 | 126 | ExtraSpell | Brakujące | Brakujące | nieużywany w danych gry; rozbieranie NPC – brak |  |
 | 127 | BoundCuirass | Zaimplementowane | Zweryfikowane | przedmiot w ekwipunku na czas efektu | fx_bound: ekwipunek zgodny |
 | 128 | BoundHelm | Zaimplementowane | Zweryfikowane | przedmiot w ekwipunku na czas efektu | fx_bound: ekwipunek zgodny |
 | 129 | BoundBoots | Zaimplementowane | Zweryfikowane | przedmiot w ekwipunku na czas efektu | fx_bound: ekwipunek zgodny |
-| 130 | BoundShield | Zaimplementowane | Zaimplementowane | przedmiot w ekwipunku na czas efektu | test_magic |
+| 130 | BoundShield | Zaimplementowane | Zweryfikowane | przedmiot przywołany: ActionEquip bez zdejmowania broni dwuręcznej/tarczy | fx_bound_weapons: 0 różnic |
 | 131 | BoundGloves | Zaimplementowane | Zweryfikowane | przedmiot w ekwipunku na czas efektu | fx_bound: ekwipunek zgodny |
-| 132 | Corprus | Częściowo zgodne | Częściowo zgodne | dialogi (filtr); pogarszanie co dobę (worsen) – brak | zależność: trwałe czary jako ActiveSpells |
-| 133 | Vampirism | Częściowo zgodne | Częściowo zgodne | dialogi, Obrażenia od słońca ze zdolności; reakcje NPC/sen – brak |  |
-| 134 | SummonCenturionSphere | Brakujące | Zaimplementowane | jak przywołanie Scampa (ten sam mechanizm, inne stworzenie z GMST) | bez osobnego porównania |
-| 135 | SunDamage | Brakujące | Zaimplementowane | zdrowie na zewnątrz × widoczność słońca (getSunPercentage, Glare_View) | bez porównania |
+| 132 | Corprus | Częściowo zgodne | Częściowo zgodne | choroba jako trwały czar: Wyssanie/Wzmocnienie atrybutów przy dodaniu (jak OpenMW); pogarszanie co 24 h | fx_corprus: atrybuty zgodne; pogarszanie po SetGameHour nie zadziałało w żadnym silniku (nie potwierdzone) |
+| 133 | Vampirism | Częściowo zgodne | Częściowo zgodne | dialogi, zdolność z Obrażeniami od słońca i Słabością na ogień; reakcje NPC/sen – brak | fx_sun: mapa zgodna |
+| 134 | SummonCenturionSphere | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
+| 135 | SunDamage | Brakujące | Zweryfikowane | zdrowie na zewnątrz × widoczność słońca | fx_sun: ~5/s w obu (Wampir: obrażenia od słońca) |
 | 136 | StuntedMagicka | Brakujące | Zaimplementowane | bez odnowy magii przy odpoczynku (pozostały czas), getHoursToRest | bez porównania |
-| 137 | SummonFabricant | Brakujące | Zaimplementowane | jak przywołanie Scampa (ten sam mechanizm, inne stworzenie z GMST) | bez osobnego porównania |
-| 138 | SummonWolf | Brakujące | Zaimplementowane | jak przywołanie Scampa (ten sam mechanizm, inne stworzenie z GMST) | bez osobnego porównania |
-| 139 | SummonBear | Brakujące | Zaimplementowane | jak przywołanie Scampa (ten sam mechanizm, inne stworzenie z GMST) | bez osobnego porównania |
-| 140 | SummonBonewolf | Brakujące | Zaimplementowane | jak przywołanie Scampa (ten sam mechanizm, inne stworzenie z GMST) | bez osobnego porównania |
-| 141 | SummonCreature04 | Brakujące | Zaimplementowane | jak przywołanie Scampa (ten sam mechanizm, inne stworzenie z GMST) | bez osobnego porównania |
-| 142 | SummonCreature05 | Brakujące | Zaimplementowane | jak przywołanie Scampa (ten sam mechanizm, inne stworzenie z GMST) | bez osobnego porównania |
+| 137 | SummonFabricant | Brakujące | Zaimplementowane | jak inne przywołania (Fabrykant bez czaru w danych; Creature04/05 – GMST bez stworzenia) | bez porównania |
+| 138 | SummonWolf | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
+| 139 | SummonBear | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
+| 140 | SummonBonewolf | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
+| 141 | SummonCreature04 | Brakujące | Zaimplementowane | jak inne przywołania (Fabrykant bez czaru w danych; Creature04/05 – GMST bez stworzenia) | bez porównania |
+| 142 | SummonCreature05 | Brakujące | Zaimplementowane | jak inne przywołania (Fabrykant bez czaru w danych; Creature04/05 – GMST bez stworzenia) | bez porównania |
 
 ### Różnice i zależności (magia)
 
@@ -690,8 +696,12 @@ ekwipunku i położeń (próbki w czasie).
   wynika z rzutu, nie ze wzoru (wzór sprawdzony na wypisanych wartościach). Brak porównania rozkładów.
 - **Nieprawidłowe efekty** (Odpędzenie nieumarłych na NPC, Szał stworzeń na NPC): OpenMW zostawia ich wielkość
   w mapie efektów do końca (Flag_Invalid bez Flag_Applied); w Godocie znikają – mechanika bez skutku w obu.
-- **Szkodliwy czar na NPC przy strażniku:** OpenMW nalicza grzywnę za napaść (40), Godot nie (system
-  przestępstw: świadek z alarmem ≥ 100 w promieniu) – stąd różnica postawy w fx_npc_ai. Do zbadania w etapie AI.
+- **Szkodliwy czar na NPC** (onHit → napaść): grzywna 40 i spadek postawy ofiary (fDispAttacking) – zgodne po
+  uzupełnieniu reportCrime o zmiany postawy (trwałe i modyfikator przestępstwa do spłaty) oraz getFightDispositionBias.
+- **Przywołania:** OpenMW AI rzuca czary wzmacniające (np. Daedroth – Bariera) – w Godocie brak (etap AI walki);
+  ekwipunek z list poziomowanych i wielkości zdolności (np. regeneracja) są losowane w obu silnikach.
+- **Pogarszanie Korpusu:** zaimplementowane co 24 h gry; `set GameHour to GameHour + 25` nie wywołało pogorszenia
+  w żadnym silniku – brak potwierdzenia porównaniem.
 - **Powolne opadanie:** w Xvfb OpenMW działa z 2–5 kl./s i większym krokiem fizyki – prędkość graniczna różni
   się od wzoru przy 60 Hz; brak obrażeń od upadku zgodny.
 - **SetPos/Position gracza w OpenMW stawia go na podłożu**, gdy nie lewituje (Godot nie) – różnica MWScript,
@@ -734,6 +744,7 @@ ekwipunku i położeń (próbki w czasie).
 | AiPackage::openDoors – NPC otwiera drzwi na drodze (poza AiWander), z kluczem; evadeObstacles: najpierw drzwi | Zaimplementowane | brak sceny testowej z NPC przechodzącym przez drzwi na prawdziwych danych |
 | AiWander (bezczynność, punkty w promieniu, spacer) | Zaimplementowane | sonda Seyda Neen 60 s: 13/15 aktorów w ruchu, wszyscy w promieniu wędrówki, nikt nie spadł pod teren |
 | Aresztowanie przez strażnika, grzywna, więzienie | Nieprzetestowane | do sondy | 
+| Zmiana postawy świadków i ofiary za przestępstwo (reportCrime: trwała / modyfikator do spłaty, getFightDispositionBias) | Zweryfikowane | napaść czarem: fx_npc_ai (grzywna 40, postawa −10 jak OpenMW) |
 | Wilkołactwo (Bloodmoon) | Częściowo zgodne | od etapu MWScript: statystyki z GMST, szata, świadkowie i grzywna, brak rozmów/ekwipunku/snu, agresja NPC – porównane z OpenMW; brak modelu, nakładki ekranu i pazurów (punkt 4a) |
 | Choroby, wampiryzm | Częściowo zgodne | leczenie chorób NPC, Obrażenia od słońca; Korpus bez pogarszania (punkt 5) |
 

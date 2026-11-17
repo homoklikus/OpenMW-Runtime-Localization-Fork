@@ -11,7 +11,9 @@
   ".track"
  ],
  "tol": {},
- "setup": [],
+ "setup": [
+  "player->Position -10400 -71000 300 180"
+ ],
  "spells": [
   [
    3,

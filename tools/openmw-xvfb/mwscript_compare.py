@@ -63,6 +63,7 @@ local EFFECT_IDS = __EFFECT_IDS__
 local t_after = -1
 local samples_done = {}
 local track = {}
+local spells_done = {}
 local frame = 0
 local done = false
 
@@ -216,8 +217,13 @@ return {
     onUpdate = function(dt)
       frame = frame + 1
       -- czary nakładane bezpośrednio (ActiveSpells:add – jak applyMagicEffects): [przesunięcie, cel, czar, rzucający]
-      for _, sp in ipairs(CFG.spells or {}) do
-        if frame == CFG.delay + sp[1] then
+      for si, sp in ipairs(CFG.spells or {}) do
+        -- piąty element: chwila w sekundach od poleceń (zamiast klatki) – niezależnie od liczby klatek na sekundę
+        local due_sp
+        if sp[5] then due_sp = t_after >= 0 and t_after >= sp[5] and not spells_done[si]
+        else due_sp = frame == CFG.delay + sp[1] end
+        if due_sp then
+          spells_done[si] = true
           local o = find(sp[2])
           local rec = core.magic.spells.records[sp[3]]
           if o and rec then

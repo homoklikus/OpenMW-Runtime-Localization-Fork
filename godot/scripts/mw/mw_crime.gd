@@ -66,6 +66,7 @@ func calm_witnesses() -> void:
 		a.erase("attacked")
 		a.erase("alarmed")
 		a.erase("crime_id")
+		a.erase("crime_disp")                    # setCrimeDispositionModifier(0)
 		var act: Dictionary = main.dialogue.make_actor(n)
 		main.dialogue.set_ai_setting(act, "fight", int((act.rec.get("ai", {}) as Dictionary).get("fight", 0)))
 
@@ -204,27 +205,39 @@ func report(victim, type: String, faction := "", arg := 0) -> bool:
 		main.combat._actor_state(main.combat.fighter_of(victim))["murdered"] = true     # notifyMurder (OnMurder)
 	var fight := 0
 	var fight_victim := 0
+	var disp := 0.0
+	var disp_victim := 0.0
 	match type:
 		TRESPASS:
 			b = int(_gmst("iCrimeTresspass", 5))
 			fight = int(_gmst("iFightTrespass", 30))
 			fight_victim = fight
+			disp = float(_gmst("iDispTresspass", -20))
+			disp_victim = disp
 		PICKPOCKET:
 			b = int(_gmst("iCrimePickPocket", 25))
 			fight = int(_gmst("iFightPickpocket", 20))
 			fight_victim = fight * 4
+			disp = float(_gmst("fDispPickPocketMod", -25))
+			disp_victim = disp
 		ASSAULT:
 			b = int(_gmst("iCrimeAttack", 40))
 			fight = int(_gmst("iFightAttacking", 50))
 			fight_victim = int(_gmst("iFightAttack", 100))
+			disp = float(_gmst("iDispAttackMod", -20))
+			disp_victim = float(_gmst("fDispAttacking", -10))
 		MURDER:
 			b = int(_gmst("iCrimeKilling", 1000))
 			fight = int(_gmst("iFightKilling", 50))
 			fight_victim = fight
+			disp = float(_gmst("iDispKilling", -50))
+			disp_victim = disp
 		THEFT:
 			b = maxi(1, int(arg * float(_gmst("fCrimeStealing", 0.5))))
 			fight = int(float(_gmst("fFightStealing", 50)) * arg)
 			fight_victim = fight
+			disp = float(_gmst("fDispStealing", -0.5)) * arg
+			disp_victim = disp
 	var neighbours := _neighbours(victim)
 	var reported := false
 	for n in neighbours:
@@ -237,18 +250,58 @@ func report(victim, type: String, faction := "", arg := 0) -> bool:
 			continue
 		var alarm := _alarm(n)
 		var a: Dictionary = main.combat._actor_state(main.combat.fighter_of(n))
-		if _is_guard(n) and alarm >= 100:
+		var alarm_term := 0.01 * alarm
+		var is_victim: bool = n == victim
+		# reportCrime: zmiana postawy świadka/ofiary (trwała – podstawa; inaczej modyfikator przestępstwa do spłaty)
+		var disp_term := disp_victim if is_victim else disp
+		var guard := _is_guard(n)
+		var dmod := 0
+		var permanent := false
+		var only_hostile := false
+		match type:
+			THEFT:
+				dmod = int(disp_term * alarm_term)
+			PICKPOCKET:
+				if alarm >= 100 and guard:
+					dmod = int(disp_term)
+				elif is_victim and guard:
+					permanent = true
+					dmod = int(disp_term * alarm_term)
+				elif is_victim:
+					permanent = true
+					dmod = int(disp_term)
+			ASSAULT:
+				if is_victim and not guard:
+					permanent = true
+					dmod = int(disp_term)
+				elif alarm >= 100:
+					dmod = int(disp_term)
+				elif is_victim and guard:
+					permanent = true
+					dmod = int(disp_term * alarm_term)
+				else:
+					only_hostile = true
+					dmod = int(disp_term * alarm_term)
+		var da: Dictionary = main.dialogue.make_actor(n) if main.dialogue != null else {}
+		if dmod != 0 and not only_hostile and not da.is_empty():
+			var cur := int(main.dialogue.derived_disposition(da))
+			dmod = clampi(dmod, -cur, 100 - cur)
+			if permanent:
+				main.dialogue.set_base_disposition(da, main.dialogue.base_disposition(da) + dmod)
+			else:
+				a["crime_disp"] = int(a.get("crime_disp", 0)) + dmod
+			a["crime_id"] = id
+		if guard and alarm >= 100:
 			a["alarmed"] = true
 			a["crime_id"] = id
 			if not _in_pursuit(n) and not main.ai.in_combat(n):
 				main.ai.stack(n, {"type": "pursue", "target": "player", "priority": 2}, false)
 			continue
-		var alarm_term := 0.01 * alarm
-		var is_victim: bool = n == victim
 		if type == PICKPOCKET:
 			alarm_term = (1.0 if alarm_term == 0.0 else alarm_term) if is_victim else 0.0
 		var ft := float(fight_victim if is_victim else fight)
 		var d: float = main.ai.mw_pos(n).distance_to(main.ai.mw_pos(main.player))
+		ft += (50.0 - disp_term) * float(_gmst("fFightDispMult", 0.2))       # getFightDispositionBias
 		ft += float(_gmst("iFightDistanceBase", 20)) - float(_gmst("fFightDistanceMultiplier", 0.005)) * d
 		ft *= alarm_term
 		var of := _fight(n)
@@ -256,6 +309,9 @@ func report(victim, type: String, faction := "", arg := 0) -> bool:
 			ft = 100.0 - of
 		ft = maxf(0.0, ft)
 		if of + ft >= 100.0:
+			if dmod != 0 and only_hostile and not da.is_empty():
+				var cur2 := int(main.dialogue.derived_disposition(da))
+				a["crime_disp"] = int(a.get("crime_disp", 0)) + clampi(dmod, -cur2, 100 - cur2)
 			main.ai.start_combat(n, main.player)
 			main.dialogue.set_ai_setting(main.dialogue.make_actor(n), "fight", of + int(ft))
 			a["alarmed"] = true

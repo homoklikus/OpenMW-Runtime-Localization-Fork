@@ -146,6 +146,126 @@ const FX_CHARM := 44
 const FX_TURN_UNDEAD := 101
 const FX_COMMAND_CREATURE := 118
 const FX_COMMAND_HUMANOID := 119
+## Wielkość efektu trwałego czaru (zdolność, choroba, klątwa): losowana raz przy dodaniu czaru (min..max,
+## ActiveSpells – jak OpenMW), zapamiętana w stanie aktora („spell_rolls”, zapis gry); min = max – bez zapisu.
+func spell_store_magnitude(h: Dictionary, sid: String, idx: int, e: Dictionary) -> float:
+	var mn := float(e.get("min", 0))
+	var mx := float(e.get("max", 0))
+	if mx <= mn:
+		return mn
+	var key := "%s|%d" % [sid.to_lower(), idx]
+	var rolls = h.get("spell_rolls")
+	if rolls is Dictionary and rolls.has(key):
+		return float(rolls[key])
+	if not rolls is Dictionary:
+		rolls = {}
+		h["spell_rolls"] = rolls
+	var v := _roll_magnitude({"min": mn, "max": mx})
+	rolls[key] = v
+	return v
+
+## Trwałe czary (Spells → ActiveSpells z Flag_SpellStore): choroby, zaraza, klątwy – efekty jednorazowe zmieniające
+## pule (Wyssanie/Uszkodzenie atrybutu i umiejętności, Wyssanie zdrowia/magii/kondycji) nakładane raz przy dodaniu
+## czaru; po usunięciu czaru Wyssanie wraca (removeMagicEffect), Uszkodzenie zostaje. Wzmocnienia i odporności –
+## w mapie efektów (constant_effects). Zdolności (Flag_AffectsBaseValues) – bez zmian (mapa efektów).
+const SPELL_STORE_TYPES := [2, 3, 4]
+const SPELL_STORE_POOL := [17, 18, 19, 20, 21, 22, 26]
+
+func _permanent_spells(f: Dictionary) -> Array:
+	if f.kind == "player":
+		return main.player_stats().get("spells", [])
+	return actor_spells(f)
+
+func has_spell_store(f: Dictionary) -> bool:
+	if f.is_empty():
+		return false
+	if holder(f).get("spell_store") is Dictionary and not (holder(f).spell_store as Dictionary).is_empty():
+		return true
+	for sid in _permanent_spells(f):
+		var sp: Dictionary = records.record("spell", String(sid).to_lower())
+		if int(sp.get("spell_type", 0)) in SPELL_STORE_TYPES:
+			return true
+	return false
+
+## Synchronizacja trwałych czarów z ich efektami jednorazowymi + pogarszanie Korpusu co 24 h gry
+## (ActiveSpellParams::worsen/shouldWorsen: ponowne nałożenie efektów jednorazowych czaru, sMagicCorprusWorsens).
+func _sync_spell_store(f: Dictionary) -> void:
+	var h := holder(f)
+	var store: Dictionary = h.get("spell_store", {}) if h.get("spell_store") is Dictionary else {}
+	var now := _now_hours()
+	var have := {}
+	for sid0 in _permanent_spells(f):
+		var sid := String(sid0).to_lower()
+		var sp: Dictionary = records.record("spell", sid)
+		if not int(sp.get("spell_type", 0)) in SPELL_STORE_TYPES:
+			continue
+		have[sid] = true
+		if not store.has(sid):
+			var applied := []
+			var corprus := false
+			var ei := -1
+			for e in sp.get("effects", []):
+				ei += 1
+				var id := int(e.get("effect", -1))
+				if id == FX_CORPRUS:
+					corprus = true
+				if id in SPELL_STORE_POOL:
+					var ae := {"effect": id, "skill": int(e.get("skill", -1)), "attribute": int(e.get("attribute", -1)),
+						"min": float(e.get("min", 0)), "max": float(e.get("max", 0))}
+					var m := spell_store_magnitude(h, sid, ei, e)
+					ae["magnitude"] = m
+					_actor_effect(f, {"caster": ""}, ae, m)
+					applied.append(ae)
+			var rec := {"applied": applied}
+			if corprus:
+				rec["worsen"] = 0
+				rec["next"] = now + 24.0
+			store[sid] = rec
+		elif store[sid].has("next") and now >= float(store[sid].next):
+			var r: Dictionary = store[sid]
+			r["worsen"] = int(r.worsen) + 1
+			r["next"] = float(r.next) + 24.0
+			for e in sp.get("effects", []):
+				var id2 := int(e.get("effect", -1))
+				if id2 == FX_CORPRUS or not _flag(effect(id2), "applied_once"):
+					continue
+				var we := {"effect": id2, "skill": int(e.get("skill", -1)), "attribute": int(e.get("attribute", -1)),
+					"min": float(e.get("min", 0)), "max": float(e.get("max", 0))}
+				var wm := _roll_magnitude(we)
+				if id2 in SPELL_STORE_POOL:
+					_actor_effect(f, {"caster": ""}, we, wm)
+				elif id2 in [FX_FORTIFY_ATTRIBUTE, FX_FORTIFY_SKILL]:
+					_mod_adjust(f, "attributes" if id2 == FX_FORTIFY_ATTRIBUTE else "skills",
+						int(we.attribute) if id2 == FX_FORTIFY_ATTRIBUTE else int(we.skill), wm)
+			if f.kind == "player":
+				main._toast(_text("sMagicCorprusWorsens", "Korpus postępuje."), 3.0)
+	for sid in store.keys():
+		if have.has(sid):
+			continue
+		for ae in store[sid].get("applied", []):
+			var id3 := int(ae.effect)
+			if id3 in [17, 18, 19, 20, 21]:
+				ae["applied"] = true
+				_remove_effect(f, ae)
+		store.erase(sid)
+	if store.is_empty():
+		h.erase("spell_store")
+	else:
+		h["spell_store"] = store
+
+func _mod_adjust(f: Dictionary, key: String, idx: int, d: float) -> void:
+	if idx < 0:
+		return
+	var h := holder(f)
+	if not h.get("mod_adjust") is Dictionary:
+		h["mod_adjust"] = {}
+	var n := 8 if key == "attributes" else 27
+	var arr: Array = h.mod_adjust.get(key, [])
+	while arr.size() < n:
+		arr.append(0.0)
+	arr[idx] = float(arr[idx]) + d
+	h.mod_adjust[key] = arr
+
 ## Przywołania (summoning.cpp getSummonMap): efekt → GMST z identyfikatorem stworzenia
 const SUMMONS := {102: "sMagicScampID", 103: "sMagicClannfearID", 104: "sMagicDaedrothID", 105: "sMagicDremoraID",
 	106: "sMagicAncestralGhostID", 107: "sMagicSkeletalMinionID", 108: "sMagicLeastBonewalkerID",
@@ -320,11 +440,14 @@ func effects(f: Dictionary) -> Dictionary:
 	var own: Array = actor_spells(f).duplicate()
 	if f.kind == "npc":
 		own.append_array(records.record("race", String(f.rec.get("race", ""))).get("powers", []))
+	var hold: Dictionary = _combat()._actor_state(f)
 	for sid in own:
 		var sp: Dictionary = records.record("spell", String(sid))
 		if not sp.is_empty() and int(sp.get("spell_type", 0)) in main.character.CONSTANT_TYPES:
+			var ei := 0
 			for e in sp.get("effects", []):
-				main.character.add_effect(fx, e, float(e.get("min", 0)))
+				main.character.add_effect(fx, e, spell_store_magnitude(hold, String(sid), ei, e))
+				ei += 1
 	var eq: Dictionary = _combat().equipment(f)
 	for s in eq:
 		_add_constant_item(fx, {"rec": eq[s].rec})
@@ -464,9 +587,13 @@ func max_magicka(f: Dictionary) -> float:
 	var at: Array = _combat().attributes(f)
 	var factor := _gmst("fNPCbaseMagickaMult", 2.0) + magnitude_of(f, 84) * 0.1
 	var formula := float(at[A_INTELLIGENCE]) * factor
-	if f.kind == "creature":
+	# recalculateMagicka (zmiana inteligencji, Wzmocnienie maks. magii): inteligencja × współczynnik; bez zmian –
+	# wartość z rekordu (stworzenia, NPC bez autoobliczania)
+	var ra: Array = f.rec.get("attributes", [])
+	var recalc: bool = magnitude_of(f, 84) != 0.0 or (ra.size() > A_INTELLIGENCE and float(ra[A_INTELLIGENCE]) != float(at[A_INTELLIGENCE]))
+	if f.kind == "creature" and not recalc:
 		formula = float(f.rec.get("magicka", 0))
-	elif not bool(f.rec.get("autocalc", false)) and f.rec.has("magicka"):
+	elif f.kind != "creature" and not bool(f.rec.get("autocalc", false)) and f.rec.has("magicka") and not recalc:
 		formula = float(f.rec.magicka)
 	return main.character.dyn_base_override(_combat()._actor_state(f), "magicka", [at[A_INTELLIGENCE], factor], formula)
 
@@ -1173,8 +1300,24 @@ func _bound_item(f: Dictionary, id: int, add: bool) -> void:
 		if add:
 			inv.add(sid, f.rec, item_id, 1)
 			if f.kind == "player":
-				main.equip_item(item_id)
+				main.equip_item(item_id, false)      # addBoundItem: ActionEquip (bez rozwiązywania kolizji okna)
+			else:
+				var slots: Array = main.item_slots(item_id) if main.has_method("item_slots") else []
+				if not slots.is_empty():
+					var st: Dictionary = _combat()._actor_state(f)
+					if not st.get("equip_override") is Dictionary:
+						st["equip_override"] = {}
+					var sl: int = int(slots[0])
+					if slots.size() > 1 and st.equip_override.has(str(slots[0])) and not st.equip_override.has(str(slots[1])):
+						sl = int(slots[1])
+					st.equip_override[str(sl)] = item_id
 		else:
+			if f.kind != "player":
+				var st2: Dictionary = _combat()._actor_state(f)
+				if st2.get("equip_override") is Dictionary:
+					for k in (st2.equip_override as Dictionary).keys():
+						if String(st2.equip_override[k]) == item_id:
+							st2.equip_override.erase(k)
 			if f.kind == "player":
 				var slot: int = main.equipped_slot_of(item_id)
 				if slot >= 0:
@@ -1206,6 +1349,8 @@ func tick(f: Dictionary, dt: float) -> void:
 	for sp in list.duplicate():
 		_tick_entry(f, sp, dt)
 	_tick_constant(f, dt)
+	if has_spell_store(f):
+		_sync_spell_store(f)
 	_update_summons(f)
 	_cleanup(f)
 	sync_dynamic(f)
@@ -1259,22 +1404,31 @@ func _tick_constant(f: Dictionary, dt: float) -> void:
 	if dt <= 0.0:
 		return
 	var src := []
+	var mags := []
+	var hold := holder(f)
 	var spells: Array = main.player_stats().get("spells", []) if f.kind == "player" else actor_spells(f)
 	for sid in spells:
 		var sp: Dictionary = records.record("spell", String(sid))
 		if not sp.is_empty() and int(sp.get("spell_type", 0)) in main.character.CONSTANT_TYPES:
-			src.append_array(sp.get("effects", []))
+			var ei := 0
+			for e in sp.get("effects", []):
+				src.append(e)
+				mags.append(spell_store_magnitude(hold, String(sid), ei, e))
+				ei += 1
 	var eq: Dictionary = _combat().equipment(f)
 	for s in eq:
 		var en := item_enchantment({"rec": eq[s].rec})
 		if not en.is_empty() and int(en.get("type", -1)) == ENCH_CONSTANT:
-			src.append_array(en.get("effects", []))
-	for e in src:
+			for e in en.get("effects", []):
+				src.append(e)
+				mags.append(float(e.get("min", 0)))
+	for k in src.size():
+		var e: Dictionary = src[k]
 		var id := int(e.get("effect", -1))
 		if id in CONSTANT_TICK:
 			var ae := {"effect": id, "skill": int(e.get("skill", -1)), "attribute": int(e.get("attribute", -1)),
 				"min": float(e.get("min", 0)), "max": float(e.get("max", 0)), "duration": 0.0, "time_left": 0.0}
-			_actor_effect(f, {"caster": ""}, ae, _roll_magnitude(ae) * dt)
+			_actor_effect(f, {"caster": ""}, ae, float(mags[k]) * dt)
 
 ## Ładowanie przedmiotów gracza (Recharge: fMagicItemRechargePerSecond × czas, do pełnego ładunku).
 func recharge(st: Dictionary, seconds: float) -> void:
