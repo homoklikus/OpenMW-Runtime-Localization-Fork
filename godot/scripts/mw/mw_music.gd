@@ -93,6 +93,33 @@ func stream_script(file: String, fade := 1.0) -> void:
 	current = ""
 	_advance(f, fade)
 
+## Engine::go: muzyka tytułowa w menu głównym (MWSound::titleMusic, MusicType::Normal – playlisty gry ją zastąpią).
+const TITLE_MUSIC := "music/special/morrowind title.mp3"
+
+func play_title() -> bool:
+	if not enabled or not FileAccess.file_exists(data_root.path_join(TITLE_MUSIC)):
+		push_warning("Title music not found")
+		return false
+	music_type = "normal"
+	current = ""
+	_next = ""
+	_fade = 0.0
+	_start(TITLE_MUSIC)
+	return is_playing()
+
+## SoundManager::stopMusic (np. przed filmem nowej gry).
+func stop_music() -> void:
+	_next = ""
+	_fade = 0.0
+	_stop()
+	track = ""
+	current = ""
+
+## Wstrzymanie na czas filmu (pauseSounds VideoPlayback).
+func set_paused(on: bool) -> void:
+	if _player != null and is_instance_valid(_player):
+		_player.stream_paused = on
+
 func player_died() -> void:
 	music_type = "script"
 	_advance("music/special/mw_death.mp3", fade_time)

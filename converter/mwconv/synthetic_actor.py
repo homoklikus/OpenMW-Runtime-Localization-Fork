@@ -831,10 +831,16 @@ def write_actors(data_dir: Path) -> dict:
     # Morrowind.ini obok katalogu danych: 10 pytań o klasę (teksty testowe, nie z gry) – etap 10
     ini = ["[General]"] + [f"[Question {n}]\nQuestion=Pytanie testowe {n}?\nAnswerOne=Walka {n}\n"
                            f"AnswerTwo=Magia {n}\nAnswerThree=Skradanie {n}" for n in range(1, 11)]
+    # start gry: filmy z [Movies] (pliki .ogv tworzy osobno run_tests.sh – syntetycznego Binka nie da się zakodować)
+    ini += ["[Movies]\nCompany Logo=synth_logo.bik\nMorrowind Logo=synth_mwlogo.bik\nNew Game=synth_intro.bik"]
     (data_dir.parent / "Morrowind.ini").write_text("\n".join(ini) + "\n", encoding="cp1252")
     from PIL import Image
     (data_dir / "BookArt").mkdir(parents=True, exist_ok=True)
     Image.new("RGB", (64, 32), (120, 40, 40)).save(data_dir / "BookArt" / "synth_pic.tga")
+    # ekrany ładowania (Splash/): dwa wzory testowe
+    (data_dir / "Splash").mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (64, 64), (40, 60, 120)).save(data_dir / "Splash" / "Splash_SynthA.tga")
+    Image.new("RGB", (64, 64), (120, 100, 40)).save(data_dir / "Splash" / "Splash_SynthB.tga")
     recs = [_race()] + [_body(k, *v) for k, v in BODYPARTS.items()]
     recs += [_item_body(k, *v) for k, v in ITEM_BODYPARTS.items()]
     recs += [_armor(k, *v) for k, v in ARMORS.items()] + [_clothing(k, *v) for k, v in CLOTHES.items()] + [_weapon()]

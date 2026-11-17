@@ -1,6 +1,6 @@
 # Inwentaryzacja zgodności OpenMWGodot z OpenMW
 
-Stan na 2026-11-17 (po naprawie AI strażnika i sondzie nowej gry). Cel: wierne odtworzenie OpenMW, zanim
+Stan na 2026-11-17 (po etapie „pełny start gry”). Cel: wierne odtworzenie OpenMW, zanim
 zajmiemy się remasterem. OpenMW jest źródłem prawdy (fork `apps/openmw`, ten sam kod co oficjalne 0.51).
 
 ## Statusy
@@ -17,21 +17,39 @@ Priorytet: **P1** – psuje wierność od pierwszych minut gry, **P2** – zauwa
 
 Sposób sprawdzenia: przegląd kodu OpenMW, testy `tools/run_tests.sh` (dane syntetyczne), sondy na prawdziwych
 danych na VM użytkownika (tylko identyfikatory i liczby – bez tekstów gry). **Porównanie w działaniu z OpenMW
-przez MCP-openMW (`openmw_ai_compare_start`) nie jest dziś możliwe**: OpenMW na VM kończy się błędem
-„x11 not available” (brak ekranu X). Do czasu udostępnienia ekranu porównujemy z kodem OpenMW i ze skryptami
-z danych, które OpenMW wykonuje tak samo.
+przez MCP-openMW (`openmw_ai_compare_start`) nie działa**: serwer MCP działa w sesji pulpitu użytkownika i nie ma
+dostępu do ekranu X („Authorization required … x11 not available” – brak uprawnień do ekranu sesji, prawdopodobnie
+po zablokowaniu/ponownym logowaniu; nie ingerowaliśmy w sesję). **Obejście (od etapu startu gry):** oficjalne
+OpenMW 0.51.0 uruchamiane na VM na wirtualnym ekranie Xvfb (renderowanie programowe llvmpipe, bez dźwięku,
+glibc 2.39 i libstdc++ 14 z Ubuntu 24.04 tylko dla tego procesu, konfiguracja w /tmp – bez zmian w systemie
+i profilu użytkownika), sterowane przez XTest; Godot uruchamiany na tym samym Xvfb (renderer zgodności).
 
 ## 1. Start gry i menu
 
-| Element | Status | Uwagi | Prio |
+Etap „pełny start gry” (2026-11-17). Porównanie z działającym OpenMW 0.51.0 (oficjalne wydanie) na wirtualnym
+ekranie Xvfb na VM – zrzuty obu silników w `OpenMW RLF/Raporty/xvfb-2026-11-17/` (lokalnie, nie w repozytorium).
+Sonda `godot/tests/probe_start.gd` na prawdziwych danych (12/12) i test `test_start_game.gd` na syntetycznych (62/62).
+
+| Element | Status | Wynik / różnice | Prio |
 |---|---|---|---|
-| Filmy: logo Bethesdy, logo Morrowinda, wstęp po „Nowej grze” | Brakujące | pliki `Video/*.bik` gracza; ffmpeg dekoduje Bink → konwersja lokalna do Ogg Theora – sprawdzone na VM | P1 |
-| Menu główne (Nowa gra, Wczytaj, Opcje, Zasługi, Wyjdź), tło `mw_menu.bik`, muzyka tytułowa | Brakujące | gra startuje od razu w świecie z launchera | P1 |
-| Ekran ładowania (losowy obraz z `Splash/`, pasek postępu) | Brakujące | | P2 |
-| Okno zapisu/wczytywania (lista zapisów, nazwa, postać, miejsce, zrzut) | Brakujące | jest tylko szybki zapis/wczytanie (F5/F9) | P1 |
-| Menu pauzy (Esc) | Częściowo zgodne | prosty, bez zapisu/wczytania z listą | P2 |
-| Ekran śmierci | Częściowo zgodne | prosty; OpenMW: wczytanie ostatniego zapisu albo menu | P2 |
-| `PlayBink`, `FadeIn`/`FadeOut`/`FadeTo`, `WakeUpPC` w skryptach | Brakujące | patrz punkt 4 – mapa zależności | P1 |
+| Kolejność startu (Engine::go): logo firmy → menu główne + muzyka tytułowa → logo Morrowinda | Zweryfikowane | ta sama kolejność na zrzutach OpenMW i Godota; logo firmy 16,2 s przy długości 16,0 s, tempo 4,01 s po 4 s; logo Morrowinda bez wyciszania muzyki | – |
+| Filmy: lokalna konwersja Bink → Theora (ffmpeg gracza), ścieżka aktualizacji, błędy | Zaimplementowane | 17 filmów zakodowanych na VM (~2 min, 140 MB w katalogu danych gracza); kodowanie tylko po zmianie źródła; brak ffmpeg/kodera – filmy pominięte z komunikatem; test_video (atrapa ffmpeg) | – |
+| Pomijanie filmów (tylko Esc, gdy allowSkipping) | Zweryfikowane | Esc pomija logo Morrowinda i wstęp w obu silnikach | – |
+| Synchronizacja obrazu i dźwięku filmów | Nieprzetestowane | tempo obrazu zgodne z zegarem; zgodności dźwięku nie da się sprawdzić bez urządzenia audio (VM: dźwięk wyłączony w obu silnikach) | P2 |
+| Menu główne (bez gry: Nowa gra, Opcje, Zasługi, Wyjdź, „Wczytaj” przy zapisach; w grze: Wróć, Nowa gra, Zapisz, Wczytaj, Opcje, Wyjdź) | Zweryfikowane | układ przycisków i obraz tła zgodne ze zrzutami OpenMW; Nowa gra/Wyjdź w trakcie gry z potwierdzeniem; Zasługi = film mw_credits | – |
+| Animowane tło menu | Zweryfikowane | OpenMW z danymi Morrowinda pokazuje **obraz** menu_morrowind.dds (animacja tylko, gdy istnieje video/menu_background.bik – w Morrowindzie go nie ma); u nas tak samo | – |
+| Ekrany ładowania (Splash/, pasek, etykieta; tapeta tylko bez gry, w grze zamrożona klatka po 50 ms) | Częściowo zgodne | wygląd tapety i paska sprawdzony zrzutem Godota; ekranu OpenMW nie uchwycono (ładowanie za szybkie); dane wczytujemy przed logo, więc ekranu „Inicjalizacja…” po logo firmy nie ma | P3 |
+| Okno zapisu/wczytania (postać, lista, zrzut 259×133, komórka, opis, usuń, nazwa, OK/Anuluj) | Zweryfikowane | układ i treść opisu zgodne ze zrzutami OpenMW (Poziom, Dzień, Zdrowie, data w grze, czas gry, data pliku) | – |
+| Zapisy według postaci, nadpisywanie z potwierdzeniem, usuwanie z potwierdzeniem, pusta nazwa | Zweryfikowane | jak CharacterManager/SaveGameDialog; test_start_game | – |
+| Szybki zapis/odczyt (F5/F9) | Zaimplementowane | „Quicksave”, najstarszy z max quicksaves nadpisywany; odczyt – najnowszy zapis postaci | – |
+| Zgodność wsteczna zapisów | Zweryfikowane | zapisy sprzed etapu (katalog główny, bez opisu) widoczne jako osobna postać, wczytywane z migracją; nowe zapisy tej postaci idą do katalogu postaci | – |
+| Uszkodzony plik zapisu | Zweryfikowane | pominięty na liście; wczytanie – stan wyczyszczony, menu główne i komunikat, plik nietknięty | – |
+| Menu pauzy = menu główne w grze (Esc) | Zweryfikowane | HUD widoczny pod menu (jak OpenMW) | – |
+| Śmierć gracza: stan „Ended”, po animacji pytanie o wczytanie ostatniego zapisu / menu | Częściowo zgodne | czas animacji śmierci stały (3 s) zamiast końca animacji gracza | P2 |
+| `PlayBink`, `FadeIn`/`FadeOut`/`FadeTo` | Zaimplementowane | ScreenFader – kolejka i liniowe przejścia jak OpenMW; PlayBink zatrzymuje świat na czas filmu, ale reszta skryptu wykonuje się w tej samej klatce (w OpenMW po filmie) | – |
+| Nowa gra z menu: ekran ładowania, film Movies_New_Game, fadeScreenOut(0)+fadeScreenIn(1) | Zweryfikowane | statek po filmie, przejście z czerni w 1 s; HUD bez pasków/minimapy na starcie (wcześniej widoczny – naprawione) | – |
+| Autozapis przy odpoczynku ([Saves] autosave) | Brakujące | | P2 |
+| `WakeUpPC`, `GetPCSleep` (sny wątku głównego) | Brakujące | poza tym etapem | P1 |
 
 ## 2. Nowa gra (statek więzienny → urząd celny → Seyda Neen)
 
@@ -55,7 +73,7 @@ z bliska tylko przy odblokowanym sterowaniu, zamyka okna jak gracz): **15/15 spr
 | Wyjście (`chargendoorexitcaptain`): `CharGenState` −1, odblokowanie okien, teleport do Seyda Neen | Zweryfikowane | po wyjściu brak blokad sterowania i okien |
 | Blokady okien w trakcie tworzenia postaci (disallowAll) – także odpoczynek | Zweryfikowane | **naprawione:** odpoczynek był dozwolony; teraz zablokowany do `EnableRest` albo `CharGenState` −1 (getRestEnabled) |
 | Okna kreatora jak w OpenMW: imię, rasa (podgląd 3D, płeć, twarz, włosy), klasa (wybór/pytania/własna), znak, przegląd z „Wstecz” | Częściowo zgodne | u nas jeden wspólny formularz – etap roadmapy 2 | P1 |
-| Wstęp wideo i `FadeIn` po starcie | Brakujące | etap roadmapy 1 | P1 |
+| Wstęp wideo i zaciemnienie po starcie | Zweryfikowane | punkt 1 | – |
 
 Odchylenie sondy od gracza: aktywacja z odległości 64 j. w poziomie od obiektu (w OpenMW – promień z kamery
 do obiektu ≤ iMaxActivateDist 192); odległości 3D od oczu zapisuje dziennik sondy (63–136 j.).
@@ -123,10 +141,10 @@ do potwierdzenia przy wdrażaniu).
 | `SetHealth` | 33 | 14: `bm_bearhunt1`, `bm_meadhall`, `bm_missionary`, `bm_skaalattack`; skrypty globalne `endgame` | statystyki dynamiczne |
 | `BecomeWerewolf`, `UndoWerewolf`, `SetWerewolfAcrobatics` | 18 / 5 / 3 | 9: `bm_bearhunt*`, `bm_ceremony*` | wilkołactwo |
 | `ModHealth`, `ModCurrentHealth`, `ModFatigue`, `SetFatigue`, `ModMagicka`, `SetMagicka`, `ModCurrentFatigue` | 2–16 | `c3_destroydagoth`, `tr_champion`, `va_vampcurse`, `ms_crimsonplague` | statystyki dynamiczne – **zakończenie wątku głównego** |
-| `PlayBink` | 10 | 11: `a1_sleepersawake`, `a2_6_incarnate`, `bm_bearhunt*` | filmy (roadmapa 1) |
+| ~~`PlayBink`~~ | 10 | 11: `a1_sleepersawake`, `a2_6_incarnate`, `bm_bearhunt*` | **zaimplementowane** (etap startu gry) |
 | `Resurrect` | 10 | `tr_champion`, `bm_trees`, `co_10` | |
 | `WakeUpPC` | 8 | 17 zadań wątku głównego (`a1_*`) | sen – **wątek główny** |
-| `FadeIn`/`FadeOut` | 7/7 | Bloodmoon `bm_*` | ekran (roadmapa 1) |
+| ~~`FadeIn`/`FadeOut`~~ (i `FadeTo`) | 7/7 | Bloodmoon `bm_*` | **zaimplementowane** (etap startu gry) |
 | `Mod*`/`Set*`/`Get*` atrybutów i umiejętności (`ModRestoration` 65 obiektów, `ModStrength`, `GetStrength`, …) | 1–7 | `va_vampcurse`, `tg_bitterbribe`, `co_12`, `tr_champion` | statystyki |
 | `ModResist*` (5 wariantów), `SetScale` | 6 | `bm_trees`, `co_10` | stworzenia skryptowe |
 | `ForceSneak`/`ClearForceSneak`, `ForceRun` | 4/1 | 7: `co_3`, `co_6`, `co_6a`, `ms_adulterer`, `co_12` | ruch NPC |
@@ -199,8 +217,7 @@ potrzebne są `GetPCSleep`/`WakeUpPC` (sny wątku głównego), `PlayBink`/`Fade*
 
 ## Kolejność dalszych prac (roadmapa użytkownika)
 
-1. Start gry: filmy (konwersja lokalna ffmpeg → Theora), menu główne, ekrany ładowania, okno zapisu/wczytania,
-   `PlayBink`, `FadeIn`/`FadeOut`/`FadeTo`, `WakeUpPC`/`GetPCSleep`.
+1. ~~Start gry~~ – wykonane 2026-11-17 (punkt 1); pozostało: autozapis, `WakeUpPC`/`GetPCSleep`, czas animacji śmierci.
 2. Pięć okien kreatora postaci jak w OpenMW.
 3. MWScript – najpierw stałe zera, potem nieobsłużone wg mapy z punktu 4.
 4. Efekty magii z punktu 5.

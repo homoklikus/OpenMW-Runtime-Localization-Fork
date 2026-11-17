@@ -66,7 +66,7 @@ var ai = null                         # etap 8: AI aktorów (mw_ai.gd)
 var crime = null                      # etap 8: przestępstwa i strażnicy (mw_crime.gd)
 var magic_ready := false              # przygotowana magia (klawisz R) – lewy przycisk rzuca
 var state = GameStateScript.new()   # różnice stanu gry względem danych bazowych (zapis gry)
-var pause_menu: Control
+var pause_menu = null                  # menu główne w trybie gry (MainMenu)
 var loc  # Loc
 var current_region := ""
 var settings := {}
@@ -239,6 +239,12 @@ func _ready() -> void:
 	add_child(mw_hud)
 	mw_hud.build()
 	_apply_settings()
+	_setup_start_ui()
+	if menu_start_wanted():
+		_enter_nogame()
+		_startup_sequence.call_deferred()
+		return
+	game_state = "running"
 	var start_t := _start_transform()
 	player.global_position = start_t.origin
 	player.rotation.y = start_t.basis.get_euler().y
@@ -1098,42 +1104,40 @@ func explode_bolt(p: Dictionary, at: Vector3, hit: Dictionary) -> void:
 	if audio != null:
 		audio.play("%s hit" % _school_name(int(magic.school_skill(int((p.bolt[0] as Dictionary).get("effect", -1))))))
 
-var death_screen: CanvasLayer = null
+var death_screen = null                 # zgodność: dawny ekran śmierci (zastąpiony askLoadRecent)
+var _death_handled := false
 
+## Śmierć gracza jak OpenMW: Engine – StateManager::endGame (stan „Ended”, bez zapisu i powrotu do gry), po końcu
+## animacji śmierci Actors → StateManager::askLoadRecent: bez zapisów – menu główne; inaczej pytanie
+## „Ostatni zapis to ''…''. Czy chcesz go wczytać?” (Tak – wczytanie, Nie – menu główne).
 func _player_died() -> void:
 	player_stats()["health"] = 0.0
-	if music != null and (death_screen == null or not is_instance_valid(death_screen)):
+	if music != null and not _death_handled:
 		music.player_died()
-	if death_screen != null and is_instance_valid(death_screen):
+	if _death_handled:
 		return
-	death_screen = CanvasLayer.new()
-	death_screen.layer = 40
-	death_screen.process_mode = Node.PROCESS_MODE_ALWAYS
-	var panel := PanelContainer.new()
-	var box := VBoxContainer.new()
-	panel.add_child(box)
-	var l := Label.new()
-	l.text = "Nie żyjesz."
-	box.add_child(l)
-	if FileAccess.file_exists(quicksave_path()):
-		var b := Button.new()
-		b.text = "Wczytaj szybki zapis"
-		b.pressed.connect(func():
-			death_screen.queue_free()
-			death_screen = null
-			get_tree().paused = false
-			load_game(quicksave_path()))
-		box.add_child(b)
-	var q := Button.new()
-	q.text = "Zakończ grę"
-	q.pressed.connect(func(): get_tree().quit(0))
-	box.add_child(q)
-	death_screen.add_child(panel)
-	add_child(death_screen)
-	panel.position = (get_viewport().get_visible_rect().size - panel.get_combined_minimum_size()) / 2.0
-	get_tree().paused = true
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_death_handled = true
+	game_state = "ended"
+	# czas animacji śmierci gracza (CharacterController::Result_DeathAnimJustFinished) – u nas stały
+	get_tree().create_timer(DEATH_ANIM_SECONDS, true, false, true).timeout.connect(ask_load_recent)
+
+const DEATH_ANIM_SECONDS := 3.0
+
+func ask_load_recent() -> void:
+	if main_menu != null and main_menu.is_open():
+		return
+	if last_savegame.is_empty() or not FileAccess.file_exists(last_savegame):
+		open_main_menu()
+		return
+	var desc := last_savegame.get_file().get_basename()
+	var h = saves.read_header(last_savegame) if saves != null else null
+	if h != null:
+		desc = String(h.get("description", desc))
+	show_message_box("Ostatni zapis to ''%s''. Czy chcesz go wczytać?" % desc, ["Tak", "Nie"], func(i):
+		if i == 0:
+			load_slot(saves.current, last_savegame)
+		else:
+			open_main_menu(), true)
 
 static func _load_settings(path: String) -> Dictionary:
 	if path.is_empty() or not FileAccess.file_exists(path):
@@ -1400,6 +1404,8 @@ func _capture_tick() -> void:
 var _last_pos := Vector3.ZERO
 func _process(_d: float) -> void:
 	_frames += 1
+	if game_state == "nogame":
+		return
 	if player != null and audio != null:
 		var moved: float = Vector2(player.global_position.x - _last_pos.x, player.global_position.z - _last_pos.z).length()
 		_last_pos = player.global_position
@@ -1572,12 +1578,12 @@ func coords_text() -> String:
 	return "\n%s  |  pozycja %s  |  kierunek %d°  [lb]F3 ukryj, F4 kopiuj]" % [Loc.escape_bbcode(cell), position_string(), roundi(yaw)]
 
 func _unhandled_input(e: InputEvent) -> void:
+	if game_state == "nogame":
+		return
 	if e.is_action_pressed("quick_save"):
-		var r := save_game(quicksave_path())
-		_toast("Zapisano grę (szybki zapis)" if r.is_empty() else "Błąd zapisu: " + r)
+		quick_save()                     # InputManager: StateManager::quickSave („Quicksave”)
 	elif e.is_action_pressed("quick_load"):
-		var w = load_game(quicksave_path())
-		_toast(("Wczytano grę" + ("" if w.is_empty() else ":\n" + "\n".join(w))) if not (w.size() == 1 and String(w[0]).begins_with("BŁĄD")) else String(w[0]))
+		quick_load()                     # StateManager::quickLoad – najnowszy zapis bieżącej postaci
 	elif e.is_action_pressed("toggle_coords"):
 		show_coords = not show_coords
 		if hud != null:
@@ -1776,7 +1782,14 @@ func travel(dest: Dictionary) -> void:
 	var t: Transform3D = dest["transform"]
 	if String(dest.get("cell_key", "")) != "":
 		interior = String(dest["cell_name"])
+		if loading != null:                   # Scene::changeToInteriorCell: „Wczytywanie obszaru wewnętrznego”
+			loading.loading_on()
+			loading.set_label("Wczytywanie obszaru wewnętrznego")
+			loading.set_progress_range(1)
 		_load(dest["cell_key"])
+		if loading != null:
+			loading.increase_progress()
+			loading.loading_off()
 		envr.set_interior(db.get_cell(dest["cell_key"]))
 	else:
 		interior = ""
@@ -1819,9 +1832,17 @@ func _update_streaming(_force: bool) -> void:
 			var key := db.exterior_key(g + Vector2i(dx, dy))
 			if not db.find_cell(key).is_empty():
 				want[key] = true
-	for key in want:
-		if not loaded.has(key):
-			_load(key)
+	var todo := want.keys().filter(func(k): return not loaded.has(k))
+	if not todo.is_empty() and loading != null:   # Scene::changeCellGrid: „Wczytywanie obszaru zewnętrznego”
+		loading.loading_on()
+		loading.set_label("Wczytywanie obszaru zewnętrznego")
+		loading.set_progress_range(todo.size())
+	for key in todo:
+		_load(key)
+		if loading != null:
+			loading.increase_progress()
+	if not todo.is_empty() and loading != null:
+		loading.loading_off()
 	for key in loaded.keys():
 		if not want.has(key):
 			if ai != null:
@@ -1972,7 +1993,12 @@ func saves_dir() -> String:
 	var s := arg("saves")
 	return s if not s.is_empty() else ProjectSettings.globalize_path("user://saves")
 
+## Ścieżka szybkiego zapisu bieżącej postaci (zgodność z dawnymi wywołaniami; F5 używa quick_save()).
 func quicksave_path() -> String:
+	if saves != null and saves.current != null:
+		var q = saves.quick_slot(saves.current, "Quicksave")
+		if q != null:
+			return String(q.path)
 	return saves_dir().path_join("quicksave.mwsave")
 
 ## Nagłówek zapisu: profil, lista treści z manifestu konwersji (wtyczki + SHA-256, kolejność ładowania),
@@ -1999,11 +2025,16 @@ func capture_state() -> void:
 	state.player = keep
 
 ## Zwraca "" albo opis błędu.
-func save_game(path: String) -> String:
+func save_game(path: String, profile := {}) -> String:
 	if player == null:
 		return "gra nie jest uruchomiona"
 	capture_state()
-	var err := GameStateScript.write_file(path, state.to_dict(save_header()))
+	var header := save_header()
+	if profile.is_empty():
+		profile = save_profile(path.get_file().get_basename())
+	header.merge(profile, true)
+	header["character"] = String(header.get("player_name", ""))
+	var err := GameStateScript.write_file(path, state.to_dict(header))
 	if err != OK:
 		return "kod %d" % err
 	print("MWGODOT_SAVE ", path)
@@ -2025,6 +2056,15 @@ func load_game(path: String) -> Array:
 	var d: Dictionary = m["data"]
 	var warnings := GameStateScript.compatibility(d.get("header", {}), save_header())
 	warnings.append_array(state.from_dict(d))
+	game_state = "running"
+	_death_handled = false
+	if player != null:
+		player.process_mode = Node.PROCESS_MODE_INHERIT
+		player.visible = true
+	if mw_hud != null:
+		mw_hud.visible = true
+	time_played = float((d.get("header", {}) as Dictionary).get("time_played", 0.0))
+	last_savegame = path
 	_apply_state()
 	print("MWGODOT_LOAD ", path, " ostrzeżenia=", warnings.size())
 	events.game_loaded.emit(path, warnings)
@@ -2113,7 +2153,7 @@ func travel_to_cell(cell: String, mw_pos: Vector3, rot_z_deg: float) -> void:
 		travel({"cell_key": key, "cell_name": cell, "transform": t})
 
 ## MessageBox ze skryptu: bez przycisków – komunikat; z przyciskami – okno (tryb menu), wybór → GetButtonPressed.
-func show_message_box(text: String, buttons: Array) -> void:
+func show_message_box(text: String, buttons: Array, on_button := Callable(), engine := false) -> void:
 	if buttons.is_empty():
 		_toast(text, 4.0)
 		return
@@ -2135,12 +2175,17 @@ func show_message_box(text: String, buttons: Array) -> void:
 		b.text = String(buttons[i])
 		var idx := i
 		b.pressed.connect(func():
-			scripts.button_pressed = idx
+			if not engine:
+				scripts.button_pressed = idx
 			cl.visible = false
 			cl.queue_free()
-			get_tree().paused = false
-			if DisplayServer.get_name() != "headless":
-				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED)
+			var resume: bool = game_state == "running" and not (main_menu != null and main_menu.is_open())
+			if resume:
+				get_tree().paused = false
+				if DisplayServer.get_name() != "headless":
+					Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+			if on_button.is_valid():
+				on_button.call(idx))
 		box.add_child(b)
 	cl.add_child(panel)
 	add_child(cl)
@@ -2188,43 +2233,419 @@ func open_settings() -> void:
 		add_child(settings_window)
 	settings_window.open()
 
+## Esc w grze (bez otwartych okien): menu główne w trybie gry (OpenMW GM_MainMenu – „Wróć”, zapis, wczytanie…).
 func toggle_pause_menu() -> void:
-	if pause_menu == null:
-		pause_menu = _build_pause_menu()
-	pause_menu.visible = not pause_menu.visible
-	get_tree().paused = pause_menu.visible
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if pause_menu.visible else Input.MOUSE_MODE_CAPTURED
+	if main_menu == null:
+		return
+	if main_menu.is_open():
+		if game_state == "running" and not save_dialog.visible and not confirm.is_open():
+			close_main_menu()
+	else:
+		open_main_menu()
 
-func _build_pause_menu() -> Control:
-	var cl := CanvasLayer.new()
-	cl.layer = 10
-	cl.process_mode = Node.PROCESS_MODE_ALWAYS
-	add_child(cl)
-	var panel := PanelContainer.new()
-	panel.name = "PauseMenu"
-	panel.process_mode = Node.PROCESS_MODE_ALWAYS
-	panel.set_anchors_preset(Control.PRESET_CENTER)
-	var box := VBoxContainer.new()
-	box.custom_minimum_size = Vector2(320, 0)
-	panel.add_child(box)
-	var title := Label.new()
-	title.text = "Pauza"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(title)
-	for item in [["Wróć do gry", func(): toggle_pause_menu()],
-			["Ustawienia", func(): open_settings()],
-			["Szybki zapis (F5)", func(): _toast("Zapisano grę" if save_game(quicksave_path()).is_empty() else "Błąd zapisu")],
-			["Szybki odczyt (F9)", func():
-				var w = load_game(quicksave_path())
-				toggle_pause_menu()
-				_toast("Wczytano grę" if w.is_empty() else "\n".join(w))],
-			["Wyjdź z gry", func(): get_tree().quit()]]:
-		var b := Button.new()
-		b.text = item[0]
-		b.pressed.connect(item[1])
-		box.add_child(b)
-	cl.add_child(panel)
-	panel.position = (get_viewport().get_visible_rect().size - panel.get_combined_minimum_size()) / 2.0
-	panel.visible = false
-	return panel
+
+# --- start gry, menu główne, zapisy (etap: pełny start gry – OpenMW Engine::go, StateManager, MainMenu) ----------
+
+const SavesScript := preload("res://scripts/mw/mw_saves.gd")
+const UIStyle := preload("res://scripts/mw/mw_ui.gd")
+const MONTH_GMST := ["sMonthMorningstar", "sMonthSunsdawn", "sMonthFirstseed", "sMonthRainshand", "sMonthSecondseed",
+	"sMonthMidyear", "sMonthSunsheight", "sMonthLastseed", "sMonthHeartfire", "sMonthFrostfall", "sMonthSunsdusk",
+	"sMonthEveningstar"]
+
+## Stan jak MWBase::StateManager: "nogame" (menu główne bez gry), "running", "ended" (gracz nie żyje).
+var game_state := "running"
+var video = null                      # mw_video.gd – WindowManager::playVideo
+var fader = null                      # mw_fader.gd – ScreenFader (FadeIn/FadeOut/FadeTo)
+var loading = null                    # mw_loading_screen.gd – LoadingScreen
+var main_menu = null                  # mw_main_menu.gd – MainMenu (także menu pauzy)
+var save_dialog = null                # mw_save_dialog.gd – SaveGameDialog
+var confirm = null                    # mw_confirm_dialog.gd – ConfirmationDialog
+var saves = null                      # mw_saves.gd – CharacterManager
+var time_played := 0.0                # StateManager::mTimePlayed (s)
+var last_savegame := ""               # StateManager::mLastSavegame
+var quit_requested := false
+var startup_log: Array = []           # sondy/testy: kolejność kroków startu
+
+func _data_roots() -> Array:
+	var r := [data_dir]
+	for b in MWModelCache.base_roots:
+		if String(b) != data_dir:
+			r.append(String(b))
+	return r
+
+func _setup_start_ui() -> void:
+	video = preload("res://scripts/mw/mw_video.gd").new()
+	video.name = "Video"
+	video.main = self
+	video.data_roots = _data_roots()
+	add_child(video)
+	fader = preload("res://scripts/mw/mw_fader.gd").new()
+	fader.name = "ScreenFader"
+	add_child(fader)
+	loading = preload("res://scripts/mw/mw_loading_screen.gd").new()
+	loading.name = "LoadingScreen"
+	loading.main = self
+	loading.data_roots = _data_roots()
+	add_child(loading)
+	loading.find_splash_screens()
+	confirm = preload("res://scripts/mw/mw_confirm_dialog.gd").new()
+	confirm.name = "ConfirmationDialog"
+	confirm.main = self
+	add_child(confirm)
+	save_dialog = preload("res://scripts/mw/mw_save_dialog.gd").new()
+	save_dialog.name = "SaveGameDialog"
+	save_dialog.main = self
+	add_child(save_dialog)
+	main_menu = preload("res://scripts/mw/mw_main_menu.gd").new()
+	main_menu.name = "MainMenu"
+	main_menu.main = self
+	main_menu.version_text = "OpenMWGodot %s" % String(ProjectSettings.get_setting("application/config/version", ""))
+	add_child(main_menu)
+	pause_menu = main_menu                 # tryb menu dla skryptów (MenuMode)
+	var content := []
+	var man = MWWorldDB._read_json(db.data_root.path_join("world/manifest.json"))
+	if man is Dictionary:
+		content = man.get("content", [])
+	saves = SavesScript.new(saves_dir(), SavesScript.first_game_file(content))
+	saves.max_quicksaves = int(settings.get("max_quicksaves", 1))
+	saves.refresh()
+	var lc := _read_saves_character()
+	if not lc.is_empty():
+		settings["saves_character"] = lc
+
+## Start przez menu główne (OpenMW bez --skip-menu): gra z launchera bez wczytywania zapisu, wskazanego miejsca
+## ani wymuszonej nowej gry; --menu=1 wymusza (sondy/testy), --skip-menu=1 pomija.
+func menu_start_wanted() -> bool:
+	if arg("menu") == "1":
+		return true
+	if not launched_by_launcher or arg("skip-menu", "0") == "1":
+		return false
+	return arg("load").is_empty() and arg("cell").is_empty() and arg("pos").is_empty() and arg("newgame").is_empty() \
+		and arg("screenshot").is_empty() and arg("autotest-frames", "0") == "0"
+
+## Wartość Fallback::Map (world/fallbacks.json gracza, brakujące – domyślne OpenMW).
+func fallback(key: String) -> String:
+	var fb = UIStyle._fallbacks()
+	return String(fb.fb.get(key, "")) if fb != null else ""
+
+func set_scene_visible(on: bool) -> void:
+	if player != null:
+		var cam := player.get_node_or_null("Camera3D") as Camera3D
+		if cam != null:
+			cam.current = on or cam.current
+
+## Brak gry: świat pusty, gracz i HUD ukryte (MWState::StateManager::State_NoGame).
+func _enter_nogame() -> void:
+	game_state = "nogame"
+	if player != null:
+		player.visible = false
+		player.set_physics_process(false)
+		player.process_mode = Node.PROCESS_MODE_DISABLED
+	if mw_hud != null:
+		mw_hud.visible = false
+	if hud != null:
+		hud.visible = false
+	get_tree().paused = false
+
+## Engine::go: logo firmy (Movies_Company_Logo) w trakcie wczytywania danych, potem menu główne, muzyka tytułowa
+## (music/special/morrowind title.mp3) i logo Morrowinda (Movies_Morrowind_Logo, bez wyciszania dźwięków).
+func _startup_sequence() -> void:
+	var logo := fallback("Movies_Company_Logo")
+	startup_log.append("company_logo:" + logo)
+	if not logo.is_empty():
+		await video.play(logo, true)
+	open_main_menu()
+	startup_log.append("main_menu")
+	if music != null:
+		music.play_title()
+		startup_log.append("title_music:" + String(music.track))
+	var mwlogo := fallback("Movies_Morrowind_Logo")
+	startup_log.append("morrowind_logo:" + mwlogo)
+	if not mwlogo.is_empty():
+		await video.play(mwlogo, true, false)
+
+func open_main_menu() -> void:
+	if main_menu == null:
+		return
+	main_menu.open()
+	if game_state != "nogame":
+		get_tree().paused = true
+
+func close_main_menu() -> void:
+	if main_menu == null:
+		return
+	main_menu.close()
+	if game_state == "running" and not (msgbox != null and is_instance_valid(msgbox) and msgbox.visible):
+		get_tree().paused = false
+		if DisplayServer.get_name() != "headless":
+			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+func settings_window_open() -> bool:
+	return settings_window != null and settings_window.visible
+
+func close_settings() -> void:
+	if settings_window != null and settings_window.visible:
+		settings_window.close()
+
+func request_quit() -> void:
+	quit_requested = true
+	get_tree().quit(0)
+
+func message_box(text: String) -> void:
+	show_message_box(text, ["OK"], Callable(), true)
+
+func message_count() -> int:
+	return 1 if msgbox != null and is_instance_valid(msgbox) and msgbox.visible else 0
+
+func month_name(m: int) -> String:
+	var id: String = MONTH_GMST[clampi(m, 0, 11)]
+	return dialogue.gmst_text(id, id.substr(6)) if dialogue != null else id.substr(6)
+
+## StateManager::quickSave / saveGame warunek: gra trwa, CharGenState −1, WindowManager::isSavingAllowed (bez okien
+## poza menu głównym i odpoczynkiem).
+func saving_allowed() -> bool:
+	if game_state != "running" or scripts == null or scripts.get_global("chargenstate") != -1.0:
+		return false
+	for w in [item_window, chargen, msgbox, dialogue_window, journal_window, trade_window, get("magic_window"),
+			get("book_window"), get("map_window")]:
+		if w != null and is_instance_valid(w) and w.visible:
+			return false
+	if menu_mode != null and menu_mode.visible:
+		return false
+	return true
+
+## StateManager::cleanup – stan gry wyczyszczony przed nową grą / wczytaniem.
+func cleanup() -> void:
+	for key in loaded.keys():
+		events.cell_unloaded.emit(key)
+		loaded[key].free()
+		if navmesh != null:
+			navmesh.clear_cell(key)
+	loaded.clear()
+	state.from_dict({"format": GameStateScript.FORMAT, "version": GameStateScript.VERSION})
+	if ai != null:
+		ai.rt.clear()
+		ai.graphs.clear()
+	if doors != null:
+		doors.moving.clear()
+	if fader != null:
+		fader.clear()
+	for w in [item_window, dialogue_window, journal_window, trade_window, get("magic_window"), get("book_window"),
+			get("map_window"), menu_mode, rest_window]:
+		if w != null and is_instance_valid(w) and w.visible and w.has_method("close"):
+			w.close()
+	if msgbox != null and is_instance_valid(msgbox):
+		msgbox.queue_free()
+		msgbox = null
+	if saves != null:
+		saves.current = null
+	time_played = 0.0
+	last_savegame = ""
+	_death_handled = false
+	weapon_drawn = false
+	magic_ready = false
+	interior = ""
+
+## StateManager::newGame: cleanup, skrypty startowe, World::startNewGame (komórka startowa, film
+## Movies_New_Game – mw_intro.bik), stan „running”, fadeScreenOut(0) i fadeScreenIn(1).
+func new_game() -> void:
+	var from_menu := game_state == "nogame"
+	cleanup()
+	if loading != null:
+		loading.loading_on()
+		loading.set_label("Inicjalizacja...")
+	state.seed = randi()
+	state.player["character"] = character.build(default_choice())   # gracz istnieje od razu (rekord „player”)
+	game_state = "running"
+	player.process_mode = Node.PROCESS_MODE_INHERIT
+	player.visible = true
+	if mw_hud != null:
+		mw_hud.visible = true
+	var t := _start_transform()
+	player.global_position = t.origin
+	player.rotation.y = t.basis.get_euler().y
+	player.velocity = Vector3.ZERO
+	_update_streaming(true)
+	if scripts != null and _scripted_chargen_wanted_menu():
+		_start_scripted_chargen()
+	else:
+		if scripts != null:
+			scripts.start_new_game()
+		if bool(settings.get("character_creation", true)) and builder.actors.available():
+			chargen.open(default_choice())
+		else:
+			state.player["character"] = character.build(default_choice())
+	if loading != null:
+		loading.loading_off()
+	startup_log.append("new_game" + (" (z menu)" if from_menu else ""))
+	var intro := fallback("Movies_New_Game")
+	startup_log.append("new_game_video:" + intro)
+	if not intro.is_empty():
+		if music != null:
+			music.stop_music()          # bez muzyki tytułowej po filmie nowej gry
+		await video.play(intro, true)
+	if fader != null:
+		fader.fade_screen_out(0)
+		fader.fade_screen_in(1)
+	get_tree().paused = false
+	if DisplayServer.get_name() != "headless":
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+func _scripted_chargen_wanted_menu() -> bool:
+	var mode := String(settings.get("chargen_mode", "morrowind"))
+	if arg("newgame") in ["morrowind", "quick"]:
+		mode = arg("newgame")
+	return mode == "morrowind" and not scripts.script_rec("chargen").is_empty() and not scripts.script_rec("main").is_empty()
+
+## Nazwa komórki do zapisu (World::getCellName: wnętrze, nazwa komórki zewnętrznej albo regionu).
+func cell_name_for_save() -> String:
+	if not interior.is_empty():
+		return loc.plain(Loc.key("CELL", interior, "NAME"), interior) if loc != null else interior
+	var c: Dictionary = db.get_cell(db.exterior_key(MWCoords.cell_of(player.global_position)))
+	var n := String(c.get("name", ""))
+	if not n.is_empty():
+		return n
+	var reg := String(c.get("region", current_region)).to_lower()
+	return String(envr.regions.get(reg, {}).get("name", reg))
+
+## Zrzut do zapisu jak StateManager::writeScreenshot (518×266, JPEG): sama scena, bez interfejsu.
+func save_screenshot_b64() -> String:
+	if DisplayServer.get_name() == "headless":
+		return ""
+	var hidden := []
+	for c in get_children():
+		if c is CanvasLayer and c.visible:
+			c.visible = false
+			hidden.append(c)
+	RenderingServer.force_draw(false)
+	var img := get_viewport().get_texture().get_image()
+	for c in hidden:
+		c.visible = true
+	if img == null or img.is_empty():
+		return ""
+	var want := 518.0 / 266.0
+	var w := img.get_width()
+	var h := img.get_height()
+	if float(w) / h > want:
+		var nw := int(h * want)
+		img = img.get_region(Rect2i((w - nw) / 2, 0, nw, h))
+	else:
+		var nh := int(w / want)
+		img = img.get_region(Rect2i(0, (h - nh) / 2, w, nh))
+	img.resize(518, 266, Image.INTERPOLATE_BILINEAR)
+	return Marshalls.raw_to_base64(img.save_jpg_to_buffer(0.85))
+
+## ESM::SavedGame: opis slotu w nagłówku zapisu.
+func save_profile(description: String) -> Dictionary:
+	var st := player_stats()
+	var cls_id := String(st.get("class", ""))
+	var cls_rec: Dictionary = builder.actors.record("class", cls_id.to_lower()) if not cls_id.is_empty() else {}
+	var d: Dictionary = character.derived(st) if character != null and not st.is_empty() else {}
+	return {"description": description, "player_name": String(st.get("name", "")),
+		"player_level": int(st.get("level", 1)), "player_class_id": cls_id,
+		"player_class_name": String(cls_rec.get("name", st.get("class_name", cls_id))),
+		"cell_name": cell_name_for_save(),
+		"game_time": {"day": int(scripts.get_global("day")) if scripts != null else 1,
+			"month": int(scripts.get_global("month")) if scripts != null else 0,
+			"year": int(scripts.get_global("year")) if scripts != null else 427,
+			"hour": float(envr.game_hour) if envr != null else 9.0},
+		"current_day": int(scripts.get_global("dayspassed")) if scripts != null else 0,
+		"health": float(st.get("health", 0.0)),
+		"max_health": float(d.health.modified) if d.has("health") else 0.0,
+		"time_played": time_played, "screenshot": save_screenshot_b64()}
+
+## StateManager::saveGame(description, slot): postać tworzona przy pierwszym zapisie, slot nadpisywany albo nowy.
+func save_to_slot(description: String, slot = null) -> String:
+	if not saving_allowed():
+		message_box("Gra nie może być teraz zapisana.")
+		return "zapis niedozwolony"
+	var ch = saves.current
+	if ch == null or bool(ch.get("legacy", false)):
+		ch = saves.create_character(String(player_stats().get("name", "")))
+		saves.current = ch
+	var path: String = String(slot.path) if slot != null else saves.new_slot_path(ch, description)
+	if loading != null:
+		loading.loading_on()
+		loading.set_label("Zapisywanie...", true)
+	var err := save_game(path, save_profile(description))
+	if loading != null:
+		loading.loading_off()
+	if not err.is_empty():
+		show_message_box("Nie udało się zapisać gry: " + err, ["OK"], Callable(), true)
+		return err
+	last_savegame = path
+	_write_saves_character(String(ch.dir))
+	saves.refresh()
+	var f = saves.find_slot(path)
+	if not f.is_empty():
+		saves.current = f[0]
+	return ""
+
+## StateManager::quickSave: opis „Quicksave”, najstarszy z max quicksaves nadpisywany.
+func quick_save() -> String:
+	if not saving_allowed():
+		message_box("Gra nie może być teraz zapisana.")
+		return "zapis niedozwolony"
+	return save_to_slot("Quicksave", saves.quick_slot(saves.current, "Quicksave"))
+
+## StateManager::quickLoad: najnowszy zapis bieżącej postaci.
+func quick_load() -> Array:
+	var p: String = saves.latest(saves.current) if saves != null else ""
+	if p.is_empty():
+		return []
+	return load_slot(saves.current, p)
+
+## StateManager::loadGame(character, path): ekran ładowania, odczyt; błąd – stan wyczyszczony, menu główne
+## i komunikat (printSavegameFormatError); oryginalny plik zostaje bez zmian.
+func load_slot(ch, path: String) -> Array:
+	if loading != null:
+		loading.loading_on()
+		loading.set_label("Wczytywanie zapisu gry")
+	var raw_ok := not GameStateScript.read_file(path).has("error")
+	var prev_state := game_state
+	if raw_ok:
+		cleanup()
+	var w := load_game(path)
+	if loading != null:
+		loading.loading_off()
+	if not w.is_empty() and String(w[0]).begins_with("BŁĄD"):
+		if prev_state != "nogame" or raw_ok:
+			cleanup()
+		_enter_nogame()
+		open_main_menu()
+		show_message_box("Nie udało się wczytać zapisu gry: " + String(w[0]).substr(6), ["OK"], Callable(), true)
+		return w
+	var f = saves.find_slot(path) if saves != null else []
+	saves.current = f[0] if not f.is_empty() and not bool(f[0].get("legacy", false)) else null
+	if saves.current != null:
+		_write_saves_character(String(saves.current.dir))
+	if not w.is_empty():
+		_toast("\n".join(w), 8.0)
+	return w
+
+func delete_save(ch, slot) -> void:
+	var p := String(slot.path)
+	saves.delete_slot(ch, slot)
+	if last_savegame == p:                 # StateManager::deleteGame
+		last_savegame = saves.latest(ch) if ch != null and saves.characters.has(ch) else ""
+
+func _saves_character_file() -> String:
+	return saves_dir().path_join("character.json")
+
+func _read_saves_character() -> String:
+	var p := _saves_character_file()
+	if not FileAccess.file_exists(p):
+		return ""
+	var d = JSON.parse_string(FileAccess.get_file_as_string(p))
+	return String(d.get("character", "")) if d is Dictionary else ""
+
+## [Saves] character – ostatnio używana postać (wybierana w oknie wczytywania).
+func _write_saves_character(dir: String) -> void:
+	settings["saves_character"] = dir
+	DirAccess.make_dir_recursive_absolute(saves_dir())
+	var p := _saves_character_file()
+	var f := FileAccess.open(p + ".tmp", FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify({"character": dir}))
+		f.close()
+		DirAccess.rename_absolute(p + ".tmp", p)

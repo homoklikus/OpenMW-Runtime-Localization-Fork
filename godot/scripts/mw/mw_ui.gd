@@ -163,6 +163,10 @@ const WINDOW_BG := Color(0, 0, 0, 0.84)
 static func window_box() -> StyleBox:
 	return _frame_box("menu_thick_border", WINDOW_BG)
 
+## Skórka MW_DialogNoTransp (okna modalne: zapis/wczytanie, potwierdzenie) – nieprzezroczyste tło.
+static func dialog_box_opaque() -> StyleBox:
+	return _frame_box("menu_thick_border", Color(0, 0, 0, 1))
+
 static func inner_box(bg := Color(0, 0, 0, 0.0)) -> StyleBox:
 	return _frame_box("menu_thin_border", bg)
 

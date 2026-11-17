@@ -133,6 +133,20 @@ step "6d. Aktorzy (NPC z części ciała, skinning, lustro lewej strony, animacj
    --content mwg_synthtown.esm --content mwg_synthtown_patch.esp --content mwg_actors.esp \
    --cell Synthville --out "$WORK/actors_out" | grep -E "Gotowe")
 run_gd test_actors.gd --data="$WORK/actors_out"
+# start gry: syntetyczne filmy Theora (zamiast Binka z gry) – 1 s, logo Morrowinda bez dźwięku jak mw_logo.bik
+if command -v ffmpeg >/dev/null 2>&1; then
+  mkdir -p "$WORK/actors_out/video"
+  for v in synth_logo synth_intro mw_credits; do
+    ffmpeg -hide_banner -nostdin -y -v error -f lavfi -i testsrc=size=320x240:rate=30:duration=1 \
+      -f lavfi -i sine=frequency=440:duration=1 -c:v libtheora -q:v 5 -c:a libvorbis -ar 44100 -ac 2 -f ogg \
+      "$WORK/actors_out/video/$v.ogv"
+  done
+  ffmpeg -hide_banner -nostdin -y -v error -f lavfi -i testsrc=size=320x240:rate=30:duration=2 \
+    -c:v libtheora -q:v 5 -f ogg "$WORK/actors_out/video/synth_mwlogo.ogv"
+  printf '{"format":"mwgodot-video","version":1,"videos":{"video/synth_logo.bik":{"audio":true},"video/synth_intro.bik":{"audio":true},"video/mw_credits.bik":{"audio":true},"video/synth_mwlogo.bik":{"audio":false}}}' > "$WORK/actors_out/video/index.json"
+fi
+rm -rf "$WORK/saves_start"
+run_gd test_start_game.gd --data="$WORK/actors_out" --project="$WORK/project_start" --saves="$WORK/saves_start" --menu=1
 run_gd test_interaction.gd --data="$WORK/actors_out" --project="$WORK/project_interaction" --pos=2300,2400,300 --scripts=0
 run_gd test_character.gd --data="$WORK/actors_out" --project="$WORK/project_character" --pos=2300,2400,900 --scripts=0
 run_gd test_scripts.gd --data="$WORK/actors_out" --project="$WORK/project_scripts" --pos=2000,2300,900

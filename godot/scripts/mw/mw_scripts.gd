@@ -812,6 +812,19 @@ func _call(ref, fname: String, args: Array, c: Ctx):
 		"changeweather":
 			game.change_weather(_str(args, 0), int(_num(args, 1, c)))
 			return null
+		# --- start gry / ekran (OpenMW miscextensions: OpPlayBink, OpFadeIn, OpFadeOut, OpFadeTo) ---
+		"playbink":
+			game.play_bink(_str(args, 0), _num(args, 1, c) != 0.0)
+			return null
+		"fadein":
+			game.fade("in", _num(args, 0, c))
+			return null
+		"fadeout":
+			game.fade("out", _num(args, 0, c))
+			return null
+		"fadeto":
+			game.fade("to", _num(args, 1, c), _num(args, 0, c))
+			return null
 		"getrace":
 			var tr := _target(ref, c)
 			var race := ""

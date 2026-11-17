@@ -76,7 +76,8 @@ def _converter_ok(prev_conv: str, converter: str, vfs, key: str) -> bool:
     chk = COMPAT_CONVERTERS.get(prev_conv)
     return converter == MODEL_CONVERTER and chk is not None and chk(vfs, key)
 TEXTURE_CONVERTER = "tex2png-0.1.0"
-WORLD_EXPORT_VERSION = 16         # 16: tekstury interfejsu i ikony (icons/), FontColor; 15: tekstury wody (textures/water); 14: fallbacki pogody/wody/księżyców, tekstury nieba i słońca; 13: SNDG (generatory dźwięków stworzeń); 12: world/fallbacks.json (pytania o klasę, awans); 11: mapa świata (world/map/); 10: głosy (sound/vo), muzyka (music/), szanse dźwięków regionów (etap 10); 9: stworzenia z punktów LEVC i znaczniki (etap 8); 8: siatki ścieżek PGRD w komórkach (etap 8); 2: world/records/ (etap 1); 3: rekordy etapu 3, dźwięki (sound/); 4: SPEL (etap 4); 5: skrypty; 6: dialogi (etap 6); 7: MGEF, ENCH (etap 7)
+WORLD_EXPORT_VERSION = 17         # 17: filmy (video/*.ogv – lokalnie przez ffmpeg), ekrany ładowania (splash/), fallback Movies_*;
+# 16: tekstury interfejsu i ikony (icons/), FontColor; 15: tekstury wody (textures/water); 14: fallbacki pogody/wody/księżyców, tekstury nieba i słońca; 13: SNDG (generatory dźwięków stworzeń); 12: world/fallbacks.json (pytania o klasę, awans); 11: mapa świata (world/map/); 10: głosy (sound/vo), muzyka (music/), szanse dźwięków regionów (etap 10); 9: stworzenia z punktów LEVC i znaczniki (etap 8); 8: siatki ścieżek PGRD w komórkach (etap 8); 2: world/records/ (etap 1); 3: rekordy etapu 3, dźwięki (sound/); 4: SPEL (etap 4); 5: skrypty; 6: dialogi (etap 6); 7: MGEF, ENCH (etap 7)
 
 _VFS: Optional[Vfs] = None
 _OUT: Optional[Path] = None
@@ -472,7 +473,9 @@ UI_TEXTURE_PREFIXES = ("textures/tx_menubook", "textures/scroll.",
                        # kompas, ikony przedmiotów i efektów (icons/), znaki urodzenia
                        "textures/menu_", "textures/tx_cursor", "textures/compass", "textures/target",
                        "textures/door_icon", "textures/cursor_drop_ground", "textures/birthsigns/",
-                       "textures/levelup/", "icons/")
+                       "textures/levelup/", "icons/",
+                       # start gry: ekrany ładowania (Splash/ – LoadingScreen::findSplashScreens)
+                       "splash/")
 
 
 def ui_textures(vfs) -> set:
@@ -673,6 +676,8 @@ def _assets_only(cfg, opts, vfs, cache, state, stats, run_id, T0, log) -> dict:
     _run_jobs(convert_texture_job, ttodo, cfg, opts, "textures", log, cache, "texture", TEXTURE_CONVERTER, vfs, stats)
     stats.setdefault("textures", {}).update(skipped_unchanged=tskip, from_base=tbase)
     stats["localization"] = _localization(cfg, vfs, out, log)
+    from . import video                     # filmy: także gdy świat bez zmian (np. ffmpeg doinstalowany później)
+    stats["videos"] = video.convert_all(vfs, out, log, emit, base_out=opts.base_out if _Base.out else None)
     if opts.bake_godot:
         bake(opts, stats, log)
     stats["total_seconds"] = round(time.perf_counter() - T0, 3)
@@ -867,10 +872,14 @@ def _run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) 
                                        if not k.startswith("localization/"))
                              .encode()).hexdigest()
     from .mwscript import COMPILER_VERSION
+    from . import fallbacks as fallbacks_mod
     export_key = {"v": __version__, "world": WORLD_EXPORT_VERSION, "mwscript": COMPILER_VERSION, "base": str(opts.base_out or ""), "content": content_fingerprint(cfg.content),
                   "flora": opts.flora, "groundcover": content_fingerprint(cfg.groundcover), "cells": sorted(opts.cells),
                   "grids": sorted(map(list, opts.grids)), "all_cells": opts.all_cells, "all_models": opts.all_models,
-                  "vfs": vfs_sig}
+                  "vfs": vfs_sig,
+                  # zmiana Morrowind.ini / fallbacków openmw.cfg (np. [Movies]) wymusza eksport world/fallbacks.json
+                  "fallbacks": hashlib.sha256(json.dumps(fallbacks_mod.find_values(cfg), sort_keys=True)
+                                              .encode()).hexdigest()}
     state_file = out / ".mwconv" / "export_state.json"
     state = json.loads(state_file.read_text()) if state_file.exists() else {}
     if state.get("key") == export_key and (out / "world" / "manifest.json").exists():
@@ -1018,6 +1027,8 @@ def _run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) 
     }
     write_json(wdir / "manifest.json", manifest)
     stats["sounds"] = _sounds(world, vfs, out, log)
+    from . import video
+    stats["videos"] = video.convert_all(vfs, out, log, emit, base_out=opts.base_out if _Base.out else None)
     stats["localization"] = _localization(cfg, vfs, out, log)
     stats["flora"] = _flora(world, vfs, cfg, out, opts, keys, log)
     stats["world_export"] = {"cells": len(keys), "terrain": len(terrain_json), "objects": len(objs),

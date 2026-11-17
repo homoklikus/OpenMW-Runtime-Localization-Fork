@@ -445,3 +445,17 @@ func play_group(t: Dictionary, group: String, _mode: int, loop: bool, _count: in
 			if loop:
 				a.get_animation(group).loop_mode = Animation.LOOP_LINEAR
 			return
+
+## PlayBink: film „video\<nazwa>” (WindowManager::playVideo; świat stoi do końca filmu).
+func play_bink(name: String, allow_skipping: bool) -> void:
+	if main.video != null:
+		main.video.play(name, allow_skipping)
+
+## FadeIn/FadeOut/FadeTo (clearQueue = false): czas w s, FadeTo – alpha w procentach.
+func fade(kind: String, time: float, alpha := 0.0) -> void:
+	if main.fader == null:
+		return
+	match kind:
+		"in": main.fader.fade_screen_in(time, false)
+		"out": main.fader.fade_screen_out(time, false)
+		"to": main.fader.fade_screen_to(int(alpha), time, false)

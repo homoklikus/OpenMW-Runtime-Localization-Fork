@@ -23,3 +23,15 @@ def test_openmw_cfg_weather(tmp_path):
     cfg.write_text("fallback=Weather_Clear_Sky_Day_Color,095,135,203\nfallback=General_Foo,1\n", encoding="utf-8")
     v = fallbacks._from_openmw_cfg(cfg)
     assert v == {"Weather_Clear_Sky_Day_Color": "095,135,203"}
+
+
+def test_movies_from_ini_and_cfg(tmp_path):
+    """Start gry: [Movies] z Morrowind.ini → Movies_Company_Logo… (jak openmw-iniimporter), też z openmw.cfg."""
+    ini = tmp_path / "Morrowind.ini"
+    ini.write_bytes(b"[Movies]\r\nCompany Logo=bethesda logo.bik\r\nMorrowind Logo=mw_logo.bik\r\nNew Game=mw_intro.bik\r\n")
+    v = fallbacks._from_ini(ini)
+    assert v == {"Movies_Company_Logo": "bethesda logo.bik", "Movies_Morrowind_Logo": "mw_logo.bik",
+                 "Movies_New_Game": "mw_intro.bik"}
+    cfg = tmp_path / "openmw.cfg"
+    cfg.write_text("fallback=Movies_New_Game,mw_intro.bik\n", encoding="utf-8")
+    assert fallbacks._from_openmw_cfg(cfg) == {"Movies_New_Game": "mw_intro.bik"}

@@ -19,6 +19,8 @@ var spell_icon: TextureRect
 var spell_frame: TextureRect
 var spell_bar: ProgressBar
 var sneak_box: Control
+var weap_box: Control
+var spell_box: Control
 var effects_box: HBoxContainer
 var minimap: Control
 var minimap_tiles: Control
@@ -75,6 +77,7 @@ func build() -> void:
 	cell_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	# pola broni i czaru
 	var wb := _box(Vector2(82 * s, vp.y - 54 * s))
+	weap_box = wb
 	weap_frame = _icon_rect(wb, true)
 	weap_icon = _icon_rect(wb, false)
 	weap_bar = UI.progress_bar("weapon_fill", s)
@@ -84,6 +87,7 @@ func build() -> void:
 	weap_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(weap_bar)
 	var sb := _box(Vector2(122 * s, vp.y - 54 * s))
+	spell_box = sb
 	spell_frame = _icon_rect(sb, true)
 	spell_icon = _icon_rect(sb, false)
 	spell_bar = UI.progress_bar("magic_fill", s)
@@ -209,10 +213,14 @@ func flash(text: String) -> void:
 func _process(delta: float) -> void:
 	if root == null or main == null or main.player == null:
 		return
-	var menu_open: bool = main.menu_mode != null and main.menu_mode.visible
-	root.visible = hud_visible and not menu_open and not get_tree().paused
+	# WindowManager::updateVisible: HUD widoczny zawsze (także pod menu głównym, ekwipunkiem, rozmową),
+	# poza ekranem ładowania, filmem (enableScene(false)) i stanem bez gry; F11 – mHudEnabled
+	var loading_on: bool = main.get("loading") != null and main.loading != null and main.loading.visible
+	var video_on: bool = main.get("video") != null and main.video != null and main.video.playing
+	root.visible = hud_visible and String(main.get("game_state")) != "nogame" and not loading_on and not video_on
 	if not root.visible:
 		return
+	_apply_allowed()
 	update_stats()
 	update_weapon_spell()
 	sneak_box.visible = bool(main.player.want_sneak)
@@ -230,6 +238,23 @@ func _process(delta: float) -> void:
 		update_minimap()
 		update_effects()
 	update_focus()
+
+## WindowManager::updateVisible: części HUD zależne od dozwolonych okien (nowa gra – disallowAll, potem skrypty
+## CharGen): paski – statystyki, broń – ekwipunek, czar i efekty – magia, minimapa – mapa.
+func _apply_allowed() -> void:
+	if not main.has_method("menu_allowed"):
+		return
+	var hms: bool = main.menu_allowed("stats")
+	for k in bars:
+		bars[k].visible = hms
+	var inv: bool = main.menu_allowed("inventory")
+	weap_box.visible = inv
+	weap_bar.visible = inv
+	var mag: bool = main.menu_allowed("magic")
+	spell_box.visible = mag
+	spell_bar.visible = mag
+	effects_box.visible = mag
+	minimap.visible = main.menu_allowed("map")
 
 func _fade(l: Label, delta: float, var_name: String) -> void:
 	var t: float = get(var_name)

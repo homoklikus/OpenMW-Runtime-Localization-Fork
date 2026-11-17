@@ -1,4 +1,5 @@
-"""Wartości „fallback” z instalacji gracza (etap 10): pytania o klasę, komunikaty awansu, pogoda, woda, księżyce – w OpenMW
+"""Wartości „fallback” z instalacji gracza (etap 10): pytania o klasę, komunikaty awansu, pogoda, woda, księżyce,
+filmy ([Movies]: Company Logo, Morrowind Logo, New Game – jak openmw-iniimporter: Movies_Company_Logo…) – w OpenMW
 Fallback::Map ("Question_1_Question", "Level_Up_Level2"…), pochodzące z Morrowind.ini (sekcje [Question 1],
 [Level Up]) albo z openmw.cfg (fallback=Klucz,Wartość). Zapis: world/fallbacks.json (tylko lokalnie – teksty gry)."""
 
@@ -7,8 +8,8 @@ from __future__ import annotations
 import configparser
 from pathlib import Path
 
-PREFIXES = ("Question_", "Level_Up_", "Weather_", "Water_", "Moons_", "FontColor_")
-INI_SECTIONS = ("Question ", "Level Up", "Weather", "Water", "Moons", "FontColor")
+PREFIXES = ("Question_", "Level_Up_", "Weather_", "Water_", "Moons_", "FontColor_", "Movies_")
+INI_SECTIONS = ("Question ", "Level Up", "Weather", "Water", "Moons", "FontColor", "Movies")
 
 
 def _from_openmw_cfg(path: Path) -> dict:
