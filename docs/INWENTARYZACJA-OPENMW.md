@@ -259,7 +259,7 @@ pozycje aktorów (AI wędrówki), bieżąca kondycja w długich przypadkach (cza
 `OnKnockout`), przerywanie snu stworzeniami, okno więzienia, model i nakładka wilkołaka, efekt Lewitacji
 i interwencje (flagi `Enable/Disable*` zapisywane), księżyce (`TurnMoonRed/White`), `SetAngle` w osiach X/Y,
 fizyka zderzeń skryptowych bez Bullet (przybliżenie przez kolizje ruchu Godota). Funkcje z OpenMW nieużywane
-w skryptach gry nie są w tabeli (np. `GetPCRunning`, `ForceJump` – zaimplementowane przy okazji).
+w skryptach gry nie są w tabeli (np. `ForceJump`, `ForceMoveJump`, `GetForceJump`, `HitAttemptOnMe` – zaimplementowane przy okazji).
 
 Tabela: wszystkie 252 nazwy używane w skryptach gry po kompilacji nowym kompilatorem; „Skrypty” – liczba skryptów
 z daną funkcją; „Porównanie” – przypadki z wynikiem 0 różnic. Generowana: `tools/gen_mwscript_inventory.py`.
