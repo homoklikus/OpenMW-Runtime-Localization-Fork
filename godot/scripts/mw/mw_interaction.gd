@@ -172,7 +172,7 @@ func activate(node: Node) -> Dictionary:
 			if not u.ok:
 				return {"action": "locked", "sound": "LockedDoor", "message": _join([tr, u.message])}
 			if (c.dest as Dictionary).is_empty():
-				return {"action": "none", "message": _join([tr, u.message])}
+				return {"action": "door", "message": _join([tr, u.message])}     # ActionDoor (drzwi obrotowe)
 			var dr: Dictionary = records.record("door", String(c.base))
 			return {"action": "travel", "dest": c.dest, "sound": String(dr.get("open_sound", "")),
 					"message": _join([tr, u.message])}

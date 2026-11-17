@@ -109,6 +109,11 @@ func _run() -> void:
 	# pakiety ze skryptu: AiTravel i AiFollow
 	main.scripts._ai_function("aitravel", {"node": tr}, [["num", 2200.0], ["num", 2000.0], ["num", 900.0]], null)
 	check(ai.current_type(tr) == 1 and not bool(ai.ai_state(tr).done), "AiTravel ze skryptu")
+	# regresja (strażnik ze statku): nowy pakiet ma własny PathFinder – stan drogi zakończonego pakietu nie
+	# może sprawić, że następny od razu uzna cel za osiągnięty
+	check((ai._rt(tr).path as Array).is_empty() and not bool(ai._rt(tr).get("path_built", false)), "nowy pakiet: wyczyszczona droga")
+	await _frames(30)
+	check(not bool(ai.ai_state(tr).done) and ai.current_type(tr) == 1, "AiTravel ze skryptu nie kończy się od razu")
 	main.scripts._ai_function("aifollow", {"node": tr}, [["id", "player"], ["num", 0.0], ["num", 0.0], ["num", 0.0], ["num", 0.0]], null)
 	check(main.scripts._ai_function("getcurrentaipackage", {"node": tr}, [], null) == 3.0, "AiFollow zastępuje AiTravel (GetCurrentAIPackage = 3)")
 	main.player.global_position = tr.global_position + Vector3(6.0, 0, 0)

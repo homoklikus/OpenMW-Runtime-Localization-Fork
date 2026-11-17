@@ -59,6 +59,8 @@ var trade_window = null
 var combat = null                     # etap 7: walka
 var magic_window = null               # etap 7d: magia, alchemia, zaklinanie
 var data_dir := ""                    # katalog przekonwertowanych danych
+var navmesh = null                    # siatka nawigacji AI (mw_navmesh.gd)
+var doors = null                      # drzwi obrotowe (World::activateDoor/processDoors)
 var menu_mode = null                  # etap 10: tryb menu (statystyki, ekwipunek, magia, mapa)
 var ai = null                         # etap 8: AI aktorów (mw_ai.gd)
 var crime = null                      # etap 8: przestępstwa i strażnicy (mw_crime.gd)
@@ -145,6 +147,8 @@ func _ready() -> void:
 	trade = TradeScript.new(self)
 	combat = CombatScript.new(self)
 	ai = preload("res://scripts/mw/mw_ai.gd").new(self)
+	navmesh = preload("res://scripts/mw/mw_navmesh.gd").new(self)
+	doors = preload("res://scripts/mw/mw_doors.gd").new(self)
 	ai.enabled = arg("ai", "1") != "0"
 	crime = preload("res://scripts/mw/mw_crime.gd").new(self)
 	interaction.crime = crime
@@ -271,7 +275,7 @@ func _ready() -> void:
 
 # --- nowa gra ze skryptami CharGen (etap 9) -------------------------------------------------------------------
 
-const CHARGEN_MENUS := ["inventory", "magic", "map", "stats"]      # odpoczynek dozwolony (DisableRest go blokuje)
+const CHARGEN_MENUS := ["inventory", "magic", "map", "stats", "rest"]   # WindowManager::disallowAll (też odpoczynek)
 
 ## Nowa gra jak w Morrowindzie (World::startNewGame bez pomijania): gdy są skrypty CharGen i tryb nie jest
 ## „szybki” (ustawienie chargen_mode, argument --newgame=morrowind|quick).
@@ -287,6 +291,8 @@ func _start_scripted_chargen() -> void:
 	state.player["menus"] = {}
 	for m in CHARGEN_MENUS:
 		state.player["menus"][m] = false
+	if book_window != null:
+		book_window.set_inventory_allowed(false)
 	state.player["chargen_choice"] = default_choice()
 	scripts.set_global("chargenstate", 1.0)
 	scripts.start_new_game()
@@ -294,7 +300,11 @@ func _start_scripted_chargen() -> void:
 		scripts.tick(0.0, [])
 
 func menu_allowed(kind: String) -> bool:
-	return bool((state.player.get("menus", {}) as Dictionary).get(kind, true))
+	var m: Dictionary = state.player.get("menus", {})
+	if kind == "rest" and not bool(m.get("rest", true)) and scripts != null and scripts.get_global("chargenstate") == -1.0:
+		m["rest"] = true                       # getRestEnabled: po zakończeniu tworzenia postaci
+		state.player["menus"] = m
+	return bool(m.get(kind, true))
 
 func control_allowed(kind: String) -> bool:
 	return script_host == null or script_host.control_enabled(kind)
@@ -1406,6 +1416,8 @@ func _process(_d: float) -> void:
 		_update_combat(_d)
 		_update_magic(_d)
 		_perf_mark("rpg+combat+magic")
+		if doors != null:
+			doors.process(_d)                     # World::processDoors
 		if ai != null and arg("screenshot").is_empty():
 			ai.tick(_d)
 			if ai.enabled:
@@ -1670,6 +1682,9 @@ func activate(r: Node, force_default := false) -> bool:
 		"open_container":
 			menu_mode.open_container(String(res["sid"]), interaction.container_record(String(res["base"])),
 					String(res.get("name", "")))
+		"door":
+			if doors != null:
+				doors.activate(r)              # dźwięk otwarcia/zamknięcia wybiera Door::activate
 		"take", "locked":
 			pass
 		_:
@@ -1814,6 +1829,8 @@ func _update_streaming(_force: bool) -> void:
 			events.cell_unloaded.emit(key)
 			loaded[key].queue_free()
 			loaded.erase(key)
+			if navmesh != null:
+				navmesh.clear_cell(key)
 
 func _load(key: String) -> void:
 	if script_host != null:
@@ -1824,6 +1841,10 @@ func _load(key: String) -> void:
 	if n:
 		add_child(n)
 		loaded[key] = n
+		if navmesh != null:
+			navmesh.bake_cell(key, n)          # siatka nawigacji AI (DetourNavigator) – w tle
+		if doors != null:
+			doors.resume_cell(key)             # Door::insertObject: dokończenie ruchu drzwi
 		if not arg("screenshot").is_empty():
 			# ujęcia porównawcze: aktorzy zamrożeni w pozycjach z danych – jak MCP zamraża aktorów w OpenMW
 			for a in n.get_node("Refs").get_children():

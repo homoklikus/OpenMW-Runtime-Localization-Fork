@@ -62,13 +62,14 @@ func _ready() -> void:
 		return
 	var col := CollisionShape3D.new()
 	col.name = "Capsule"
-	# walec (płaski spód) zamiast kapsuły: OpenMW koliduje aktorów prostopadłościanem, więc stoją pewnie na
-	# krawędziach stopni i trapów; zaokrąglony spód kapsuły zsuwał się z nich (normalna kontaktu stroma)
-	var cap := CylinderShape3D.new()
-	cap.radius = capsule_radius
-	cap.height = maxf(capsule_height, capsule_radius * 2.0)
-	col.shape = cap
-	col.position.y = cap.height * 0.5
+	# prostopadłościan jak w OpenMW (btBoxShape z połówek wymiarów aktora): płaski spód stoi pewnie na krawędziach
+	# stopni i trapów; walec w fizyce Godota zaczepiał krawędzią dolnej podstawy o brzeg podłogi (zerowy ruch
+	# u szczytu schodów statku więziennego), kapsuła zsuwała się z krawędzi
+	var box := BoxShape3D.new()
+	var h := maxf(capsule_height, capsule_radius * 2.0)
+	box.size = Vector3(capsule_radius * 2.0, h, capsule_radius * 2.0)
+	col.shape = box
+	col.position.y = h * 0.5
 	add_child(col)
 
 ## Baza kierunku latania: kamera, jeśli aktor ją ma (gracz), inaczej sam aktor.
@@ -132,50 +133,64 @@ func step(delta: float) -> void:
 
 ## Stopień: gdy ruch poziomy zatrzymała ściana, spróbuj „w górę o step_height → do przodu → w dół na podłoże”
 ## (OpenMW MovementSolver/Stepper). Krok przyjmujemy, jeśli dalej sięga niż sam ruch z poślizgiem
-## i ląduje na powierzchni nie bardziej stromej niż floor_max_angle.
+## (trzy próby jak Stepper::step z sDoExtraStairHacks).
 func _try_step(start: Vector3, motion: Vector3) -> void:
-	var blocked := false
-	for i in get_slide_collision_count():
-		var n := get_slide_collision(i).get_normal()
-		if n.angle_to(Vector3.UP) > floor_max_angle and n.dot(motion) < 0.0:
-			blocked = true
-			break
-	if not blocked:
-		return
+	# MovementSolver: każde zderzenie z obiektem (nie aktorem) poniżej wysokości stopnia → próba wejścia
+	# (Stepper::step) – niezależnie od normalnej kontaktu (krawędź rampy schodów ma normalną „podłogową”,
+	# a mimo to zatrzymuje ruch)
 	var slid := global_position - start
 	slid.y = 0.0
 	if slid.length() >= motion.length() * 0.9:
 		return
-	var xf := Transform3D(global_transform.basis, start)
+	var blocked := false
+	for i in get_slide_collision_count():
+		var c := get_slide_collision(i)
+		if c.get_collider() is CharacterBody3D:
+			continue
+		if c.get_position().y - start.y < step_height:
+			blocked = true
+			break
+	if not blocked:
+		return
+	# Stepper::step: w górę o sStepSizeUp (minus margines), do przodu (próba 1: zwykły ruch; 2: sMinStep = 10;
+	# 3: sMinStep2 = 20 bez schodzenia poniżej startu), w dół; zejście tylko na nachylenie ≤ sMaxSlope i nie na aktora
+	var u := 1.0 / MWCoords.UNITS_PER_METER
+	var margin := 0.2 * u                                # sCollisionMargin
 	var res := KinematicCollision3D.new()
-	var up := Vector3.UP * step_height
-	if test_move(xf, up, res):
-		up = res.get_travel()
-	xf.origin += up
-	if up.y < 0.05:
+	var up_d := step_height
+	if test_move(Transform3D(global_transform.basis, start), Vector3.UP * step_height, res):
+		up_d = res.get_travel().y - margin
+		if up_d <= 0.0:
+			return
+	var tpos := start + Vector3.UP * up_d
+	var dir := Vector3(motion.x, 0.0, motion.z)
+	var mdist := dir.length()
+	if mdist < 1e-6:
 		return
-	var fwd := motion
-	if test_move(xf, fwd, res):
-		fwd = res.get_travel()
-	if Vector2(fwd.x, fwd.z).length() <= Vector2(slid.x, slid.z).length() + 0.001:
+	dir /= mdist
+	var max_slope_cos := cos(deg_to_rad(46.0))         # sMaxSlope
+	var newpos := Vector3.ZERO
+	var ok := false
+	for attempt in [1, 2, 3]:
+		var dist: float = mdist if attempt == 1 else (10.0 * u if attempt == 2 else 20.0 * u)
+		if test_move(Transform3D(global_transform.basis, tpos), dir * dist, res):
+			var moved := res.get_travel().length()
+			if moved <= margin:
+				return
+			dist = moved - margin
+		var dest := tpos + dir * dist
+		var down_size: float = up_d if attempt > 2 else dist + up_d + 62.0 * u   # sStepSizeDown
+		var down_len := down_size
+		if test_move(Transform3D(global_transform.basis, dest), Vector3.DOWN * down_size, res):
+			down_len = res.get_travel().length()
+			if res.get_normal().y > max_slope_cos and not (res.get_collider() is CharacterBody3D):
+				newpos = dest + Vector3.DOWN * maxf(0.0, down_len - margin)
+				ok = true
+				break
+		if attempt == 2 and dist > up_d - down_len:
+			return
+	if not ok or (newpos - start).length() < margin:
 		return
-	xf.origin += fwd
-	if not test_move(xf, -up - Vector3.UP * 0.05, res):
-		return                          # brak podłoża w zasięgu – to nie stopień
-	if res.get_normal().angle_to(Vector3.UP) > floor_max_angle and not _walkable_below(res.get_position(), motion):
-		return
-	xf.origin += res.get_travel()
-	global_position = xf.origin
+	global_position = newpos
 	velocity.y = 0.0
 	apply_floor_snap()
-
-## Kapsuła opiera się na KRAWĘDZI stopnia zaokrąglonym spodem, więc normalna kontaktu jest stroma, choć sam
-## stopień jest płaski (OpenMW używa prostopadłościanu i tego problemu nie ma). Sprawdź promieniem w dół tuż
-## za punktem kontaktu, czy jest tam powierzchnia do chodzenia.
-func _walkable_below(contact: Vector3, motion: Vector3) -> bool:
-	var dir := Vector3(motion.x, 0.0, motion.z).normalized() * 0.03
-	var from := contact + dir + Vector3.UP * 0.1
-	var q := PhysicsRayQueryParameters3D.create(from, from - Vector3.UP * 0.25)
-	q.exclude = [get_rid()]
-	var hit := get_world_3d().direct_space_state.intersect_ray(q)
-	return not hit.is_empty() and (hit.normal as Vector3).angle_to(Vector3.UP) <= floor_max_angle

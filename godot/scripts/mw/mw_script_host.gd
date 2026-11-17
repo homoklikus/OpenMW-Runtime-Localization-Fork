@@ -338,6 +338,8 @@ func enable_menu(kind: String) -> void:
 	var m: Dictionary = main.state.player.get("menus", {})
 	m[kind] = true
 	main.state.player["menus"] = m
+	if kind == "inventory" and main.book_window != null:
+		main.book_window.set_inventory_allowed(true)
 
 func disable_menu(kind: String) -> void:
 	var m: Dictionary = main.state.player.get("menus", {})

@@ -36,8 +36,20 @@ func _run() -> void:
 	var cg = main.chargen
 	# nowa gra „jak w Morrowindzie” niedostępna bez skryptów CharGen w danych – szybki tryb jak dotąd
 	check(not main._scripted_chargen_wanted(), "bez skryptu CharGen w danych – brak nowej gry ze skryptami")
-	main.state.player["menus"] = {"inventory": false, "magic": false, "map": false, "stats": false}
-	check(not main.menu_allowed("inventory") and main.menu_allowed("rest"), "okna zablokowane jak przy nowej grze (odpoczynek dozwolony)")
+	main.state.player["menus"] = {"inventory": false, "magic": false, "map": false, "stats": false, "rest": false}
+	var cg0: float = sc.get_global("chargenstate")
+	sc.set_global("chargenstate", 10.0)
+	check(not main.menu_allowed("inventory") and not main.menu_allowed("rest"), "okna i odpoczynek zablokowane jak przy nowej grze (disallowAll)")
+	# BookWindow::setInventoryAllowed: bez ekwipunku przycisk „Weź” ukryty, odblokowanie ekwipunku go pokazuje
+	main.book_window.open("synth_book", main.interaction.records.record("book", "synth_book"), true)
+	check(main.book_window._take != null and not main.book_window._take.visible, "książka w czasie tworzenia postaci: bez „Weź”")
+	main.script_host.enable_menu("inventory")
+	check(main.book_window._take.visible, "EnableInventoryMenu przy otwartej książce pokazuje „Weź”")
+	main.book_window.close()
+	main.state.player["menus"]["inventory"] = false
+	sc.set_global("chargenstate", -1.0)
+	check(main.menu_allowed("rest"), "getRestEnabled: odpoczynek po zakończeniu tworzenia postaci (CharGenState −1)")
+	sc.set_global("chargenstate", cg0)
 	sc.start("synth_cg")
 	await _frames(3)
 	check(not main.control_allowed("controls") and not main.control_allowed("fighting"), "DisablePlayerControls / DisablePlayerFighting")

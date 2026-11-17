@@ -101,18 +101,23 @@ func closest(pos: Vector3) -> int:
 			best = i
 	return best
 
-## Najbliższy punkt osiągalny z punktu start (getClosestReachablePoint).
-func closest_reachable(pos: Vector3, start: int) -> int:
-	var best := -1
-	var bd := INF
+## Najbliższy punkt osiągalny z punktu start (getClosestReachablePoint) → [indeks, czy to najbliższy punkt
+## w ogóle]. Drugi element decyduje, czy droga kończy się w celu (cel osiągalny z tego punktu).
+func closest_reachable(pos: Vector3, start: int) -> Array:
+	var best_any := INF
+	var best_reach := INF
+	var idx_any := 0
+	var idx_reach := 0
 	for i in points.size():
-		if not connected(start, i):
-			continue
 		var d: float = (points[i] as Vector3).distance_squared_to(pos)
-		if d < bd:
-			bd = d
-			best = i
-	return best
+		if d < best_reach:
+			if connected(start, i):
+				best_reach = d
+				idx_reach = i
+			if d < best_any:
+				best_any = d
+				idx_any = i
+	return [idx_reach, idx_reach == idx_any]
 
 ## aStarSearch → indeksy punktów od start do goal (puste, gdy niespójne).
 func astar(start: int, goal: int) -> Array:
@@ -159,20 +164,38 @@ func astar(start: int, goal: int) -> Array:
 		path.push_front(c)
 	return path
 
-## PathFinder::buildPath (wariant siatki): najbliższy punkt startu → A* → najbliższy osiągalny punkt celu →
-## cel. Bez siatki – prosto do celu. → [Vector3] (MW)
-func build_path(from: Vector3, to: Vector3) -> Array:
-	if points.size() < 2:
-		return [to]
+## PathFinder::buildPathByPathgridImpl → [Vector3] (MW, świat):
+## * brak siatki → pusto (wywołujący idzie prosto do celu – jak OpenMW bez siatki nawigacji),
+## * najbliższy punkt startu (3D), najbliższy osiągalny punkt celu,
+## * cel bliżej niż start→pierwszy punkt albo cel→ostatni punkt → prosto do celu,
+## * A* (gdy start = koniec: sam punkt), pierwszy punkt pomijany tylko, gdy leży za aktorem względem drugiego
+##   i drugi jest widoczny (los: Callable(from, to) → bool, test świata bez drzwi i aktorów, +16 j. w górę),
+## * cel dopisywany tylko, gdy punkt końcowy jest najbliższym punktem celu (inaczej cel uznany za nieosiągalny).
+func build_path(from: Vector3, to: Vector3, los := Callable()) -> Array:
+	if points.is_empty():
+		return []
 	var s := closest(from)
-	var e := closest_reachable(to, s)
-	var out: Array = []
-	for i in astar(s, e):
-		out.append(points[i])
-	# pierwszy punkt pomijany, gdy cel jest bliżej niż on (jak w OpenMW – droga nie wraca)
-	if out.size() >= 1 and from.distance_to(to) <= (out[0] as Vector3).distance_to(to):
+	var er := closest_reachable(to, s)
+	var e: int = er[0]
+	var start_to_end := from.distance_squared_to(to)
+	if start_to_end < (points[s] as Vector3).distance_squared_to(from) or start_to_end < (points[e] as Vector3).distance_squared_to(to):
 		return [to]
-	out.append(to)
+	var out: Array = []
+	if s == e:
+		out.append(points[s])
+	else:
+		var path := astar(s, e)
+		if path.size() > 1:
+			var first: Vector3 = points[s]
+			var second: Vector3 = points[path[1]]
+			if (second - first).dot(from - first) > 0.0:
+				var z := Vector3(0, 0, 16.0)
+				if not los.is_valid() or bool(los.call(from + z, second + z)):
+					path.pop_front()
+		for i in path:
+			out.append(points[i])
+	if bool(er[1]):
+		out.append(to)
 	return out
 
 ## Sąsiedzi punktu (getNeighbouringPoints).

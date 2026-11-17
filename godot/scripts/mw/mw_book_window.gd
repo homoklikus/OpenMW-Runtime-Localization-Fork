@@ -14,6 +14,13 @@ var data_root := ""
 var book_id := ""
 var is_scroll := false
 var take_visible := false
+var take_allowed := true          # BookWindow::setInventoryAllowed (GW_Inventory) – przycisk „Weź” tylko z ekwipunkiem
+
+## WindowManager::allow/disallowAll → BookWindow/ScrollWindow::setInventoryAllowed (także przy otwartym oknie).
+func set_inventory_allowed(on: bool) -> void:
+	take_allowed = on
+	if _take != null and is_instance_valid(_take):
+		_take.visible = take_visible and take_allowed
 var current := 0                   # numer rozkładówki (książka)
 var fmt = null
 var _root: Control
@@ -50,6 +57,8 @@ func open(id: String, rec: Dictionary, show_take: bool) -> void:
 	book_id = id.to_lower()
 	is_scroll = bool(rec.get("scroll", false))
 	take_visible = show_take
+	if main != null and main.has_method("menu_allowed"):
+		take_allowed = main.menu_allowed("inventory")
 	current = 0
 	scale_ui = 1.0
 	var vp := Vector2(1280, 720)
@@ -165,7 +174,7 @@ func _build_book(win: Control, text: String) -> void:
 	_prev = _button(win, "prev", _t("sPrev", "Poprzednia"), Vector2(205, 358), Vector2(48, 32), prev_page)
 	_next = _button(win, "next", _t("sNext", "Następna"), Vector2(330, 358), Vector2(48, 32), next_page)
 	_close = _button(win, "close", _t("sClose", "Zamknij"), Vector2(488, 358), Vector2(48, 32), close)
-	_take.visible = take_visible
+	_take.visible = take_visible and take_allowed
 	update_pages()
 
 func _build_scroll(win: Control, text: String) -> void:
@@ -182,7 +191,7 @@ func _build_scroll(win: Control, text: String) -> void:
 	_papers = [paper]
 	_take = _button(win, "take", _t("sTake", "Weź"), Vector2(12, 14), Vector2(128, 32), take)
 	_close = _button(win, "close", _t("sClose", "Zamknij"), Vector2(415, 20), Vector2(128, 32), close)
-	_take.visible = take_visible
+	_take.visible = take_visible and take_allowed
 
 ## „Papier”: wszystkie elementy tekstu i obrazy w pozycjach z formatowania (piksele × skala).
 func _paper() -> Control:
