@@ -49,7 +49,7 @@ Sonda `godot/tests/probe_start.gd` na prawdziwych danych (12/12) i test `test_st
 | `PlayBink`, `FadeIn`/`FadeOut`/`FadeTo` | Zaimplementowane | ScreenFader – kolejka i liniowe przejścia jak OpenMW; PlayBink zatrzymuje świat na czas filmu, ale reszta skryptu wykonuje się w tej samej klatce (w OpenMW po filmie) | – |
 | Nowa gra z menu: ekran ładowania, film Movies_New_Game, fadeScreenOut(0)+fadeScreenIn(1) | Zweryfikowane | statek po filmie, przejście z czerni w 1 s; HUD bez pasków/minimapy na starcie (wcześniej widoczny – naprawione) | – |
 | Autozapis przy odpoczynku ([Saves] autosave) | Brakujące | | P2 |
-| `WakeUpPC`, `GetPCSleep` (sny wątku głównego) | Brakujące | poza tym etapem | P1 |
+| `WakeUpPC`, `GetPCSleep` (sny wątku głównego) | Częściowo zgodne | od etapu MWScript: odpoczynek godzina po godzinie (TimeAdvancer), skrypty w trakcie, WakeUpPC przerywa; brak przerywania snu stworzeniami – punkt 4a | P2 |
 
 ## 2. Nowa gra (statek więzienny → urząd celny → Seyda Neen)
 
@@ -557,7 +557,7 @@ Podsumowanie: Zweryfikowane 153, Częściowo zgodne 23, Zaimplementowane 73, Bra
 | AiPackage::openDoors – NPC otwiera drzwi na drodze (poza AiWander), z kluczem; evadeObstacles: najpierw drzwi | Zaimplementowane | brak sceny testowej z NPC przechodzącym przez drzwi na prawdziwych danych |
 | AiWander (bezczynność, punkty w promieniu, spacer) | Zaimplementowane | sonda Seyda Neen 60 s: 13/15 aktorów w ruchu, wszyscy w promieniu wędrówki, nikt nie spadł pod teren |
 | Aresztowanie przez strażnika, grzywna, więzienie | Nieprzetestowane | do sondy | 
-| Wilkołactwo (Bloodmoon) | Brakujące | |
+| Wilkołactwo (Bloodmoon) | Częściowo zgodne | od etapu MWScript: statystyki z GMST, szata, świadkowie i grzywna, brak rozmów/ekwipunku/snu, agresja NPC – porównane z OpenMW; brak modelu, nakładki ekranu i pazurów (punkt 4a) |
 | Choroby, wampiryzm | Częściowo zgodne | |
 
 ### Odchylenia od OpenMW (świadome, udokumentowane)
@@ -574,7 +574,7 @@ Podsumowanie: Zweryfikowane 153, Częściowo zgodne 23, Zaimplementowane 73, Bra
 
 ## Kolejność dalszych prac (roadmapa użytkownika)
 
-1. ~~Start gry~~ – wykonane 2026-11-17 (punkt 1); pozostało: autozapis, `WakeUpPC`/`GetPCSleep`, czas animacji śmierci.
+1. ~~Start gry~~ – wykonane 2026-11-17 (punkt 1); pozostało: autozapis, czas animacji śmierci.
 2. ~~Pięć okien kreatora postaci jak w OpenMW~~ – wykonane 2026-11-17 (punkt 2a); pozostało: podpowiedzi z ikonami, tekstury pasków przewijania, pad.
 3. ~~MWScript – stałe zera i nieobsłużone~~ – wykonane 2026-11-17 (punkt 4a); pozostało: zależności z punktu 4a
    (animacje śmierci/powalenia, sen przerywany stworzeniami, okno więzienia, wygląd wilkołaka, Lewitacja, księżyce).
