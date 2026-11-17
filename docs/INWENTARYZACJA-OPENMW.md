@@ -531,8 +531,8 @@ _remove_effect → removeMagicEffect, _should_remove → shouldRemoveEffect), sk
 (apply_movement co klatkę), walka w `mw_combat.gd`, AI w `mw_ai.gd`/`mw_dialogue.gd`.
 
 **Stan przed etapem:** 0 zweryfikowanych porównaniem, 79 zaimplementowanych (testy syntetyczne), 14 częściowo,
-50 brakujących. **Po etapie:** 70 zweryfikowanych porównaniem z OpenMW (36 przypadków porównawczych), 65
-zaimplementowanych zgodnie z kodem OpenMW, 8 częściowo zgodnych, 0 brakujących.
+50 brakujących. **Po etapie:** 73 zweryfikowane porównaniem z OpenMW (42 przypadki porównawcze, w tym statystyczne:
+40 nałożeń tego samego czaru – odporność, paraliż, odbicie, pochłonięcie, usuwanie), 62 zaimplementowane zgodnie z kodem OpenMW, 8 częściowo zgodnych, 0 brakujących.
 
 Dodatkowo w tej części: trwałe czary (choroby, zaraza, klątwy) nakładają efekty jednorazowe na pule (Wyssanie i
 Uszkodzenie atrybutów/umiejętności) i Korpus pogarsza się co 24 h; wielkości zdolności losowane raz i zapisywane;
@@ -605,7 +605,7 @@ ekwipunku i położeń (próbki w czasie).
 | 54 | DemoralizeCreature | Brakujące | Zweryfikowane | modyfikator Fight/Flee stworzeń | fx_creature_ai: ustawienia AI zgodne |
 | 55 | RallyHumanoid | Brakujące | Zweryfikowane | modyfikator Fight/Flee | fx_npc_command: 0 różnic |
 | 56 | RallyCreature | Brakujące | Zweryfikowane | modyfikator Fight/Flee stworzeń | fx_creature_ai: ustawienia AI zgodne |
-| 57 | Dispel | Zaimplementowane | Zaimplementowane | usuwanie czarów z szansą wielkości | test_magic |
+| 57 | Dispel | Zaimplementowane | Zweryfikowane | usuwanie czarów tymczasowych z szansą wielkości (każdy osobno) | porównanie statystyczne 40 czarów: usunięte 9/40 OpenMW, 5–13/40 Godot (oczekiwane 20%) |
 | 58 | Soultrap | Zaimplementowane | Zaimplementowane | dusza do kamienia (soulTrap) | test_magic |
 | 59 | Telekinesis | Brakujące | Zaimplementowane | zasięg aktywacji + wielkość × 21,33 j., bez aktorów i otwartych drzwi teleportujących | bez porównania |
 | 60 | Mark | Częściowo zgodne | Zweryfikowane | Znak z obrotem, Przywołanie, DisableTeleporting, zapis | fx_markrecall: 0 różnic |
@@ -615,8 +615,8 @@ ekwipunku i położeń (próbki w czasie).
 | 64 | DetectAnimal | Brakujące | Zaimplementowane | znaczniki na mapie lokalnej (listDetectedReferences: promień wielkość × 22 j., pojemniki i aktorzy z przedmiotem) | mapa efektów zgodna (fx_potions); znaczniki – bez porównania obrazu |
 | 65 | DetectEnchantment | Brakujące | Zaimplementowane | znaczniki na mapie lokalnej (listDetectedReferences: promień wielkość × 22 j., pojemniki i aktorzy z przedmiotem) | mapa efektów zgodna (fx_potions); znaczniki – bez porównania obrazu |
 | 66 | DetectKey | Brakujące | Zaimplementowane | znaczniki na mapie lokalnej (listDetectedReferences: promień wielkość × 22 j., pojemniki i aktorzy z przedmiotem) | mapa efektów zgodna (fx_potions); znaczniki – bez porównania obrazu |
-| 67 | SpellAbsorption | Częściowo zgodne | Zaimplementowane | dla każdego efektu osobno: rzut dla każdego aktywnego efektu, absorbSpell (+koszt) | rzuty losowe – porównanie rozkładu brak |
-| 68 | Reflect | Częściowo zgodne | Zaimplementowane | dla każdego efektu osobno: rzut dla każdego aktywnego efektu, absorbSpell (+koszt) | rzuty losowe – porównanie rozkładu brak |
+| 67 | SpellAbsorption | Częściowo zgodne | Zweryfikowane | dla każdego efektu osobno: rzut dla każdego aktywnego efektu Odbicia/Pochłonięcia, absorbSpell (+koszt) | porównanie statystyczne 40 czarów: odbite 9/40 OpenMW, 4–10/40 Godot; pochłonięte 4/40 i 8/40 (oczekiwane 20%) |
+| 68 | Reflect | Częściowo zgodne | Zweryfikowane | dla każdego efektu osobno: rzut dla każdego aktywnego efektu Odbicia/Pochłonięcia, absorbSpell (+koszt) | porównanie statystyczne 40 czarów: odbite 9/40 OpenMW, 4–10/40 Godot; pochłonięte 4/40 i 8/40 (oczekiwane 20%) |
 | 69 | CureCommonDisease | Zaimplementowane | Zweryfikowane | usuwanie chorób i zarazy z listy czarów (także NPC), cofnięcie Wyssania | fx_disease_cure: GetSpell/GetCommonDisease/GetBlightDisease 0, atrybuty wracają |
 | 70 | CureBlightDisease | Zaimplementowane | Zweryfikowane | usuwanie chorób i zarazy z listy czarów (także NPC), cofnięcie Wyssania | fx_disease_cure: GetSpell/GetCommonDisease/GetBlightDisease 0, atrybuty wracają |
 | 71 | CureCorprusDisease | Brakujące | Zaimplementowane | usuwa efekt Korpus | bez porównania |
@@ -694,6 +694,9 @@ ekwipunku i położeń (próbki w czasie).
 
 ### Różnice i zależności (magia)
 
+- **Kumulowanie czarów** (ActiveSpells::addToSpells): ten sam czar/zaklęcie od tego samego rzucającego zastępuje
+  poprzednie wystąpienie albo dołącza efekty o innych indeksach; kumulują się tylko mikstury i składniki
+  (fx_recast). Wcześniej Godot kumulował każdy czar.
 - **Rzuty odporności** (getEffectResistance) są losowe w obu silnikach – częściowe odparcie (np. 19 zamiast 20)
   wynika z rzutu, nie ze wzoru (wzór sprawdzony na wypisanych wartościach). Brak porównania rozkładów.
 - **Nieprawidłowe efekty** (Odpędzenie nieumarłych na NPC, Szał stworzeń na NPC): OpenMW zostawia ich wielkość

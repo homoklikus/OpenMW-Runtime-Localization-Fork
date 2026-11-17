@@ -701,9 +701,10 @@ func inflict(target: Dictionary, caster: Dictionary, source: Dictionary, list: A
 			adjust_dynamic(target, 1, cost)
 			res["absorbed"] = true
 			continue
+		var src_list: Array = spell.get("effects", list) if not spell.is_empty() else list
 		var ae := {"effect": id, "skill": int(e.get("skill", -1)), "attribute": int(e.get("attribute", -1)),
 			"min": float(e.get("min", 0)), "max": float(e.get("max", 0)), "duration": float(e.get("duration", 0)),
-			"time_left": float(e.get("duration", 0)), "magnitude": 0.0, "applied": false}
+			"time_left": float(e.get("duration", 0)), "magnitude": 0.0, "applied": false, "index": src_list.find(e)}
 		if _flag(mg, "no_magnitude"):
 			ae.min = 1.0
 			ae.max = 1.0
@@ -737,6 +738,33 @@ func inflict(target: Dictionary, caster: Dictionary, source: Dictionary, list: A
 	# ActiveSpells::addSpell: nowy czar trafia do kolejki – aktywny od następnego ActiveSpells::update; usuwanie
 	# efektów w tej samej klatce (breakInvisibility, leczenie) go nie widzi
 	entry["queued_frame"] = Engine.get_process_frames()
+	# ActiveSpells::addToSpells: czary i zaklęcia przedmiotów nie kumulują się (Flag_Stackable – tylko mikstury
+	# i składniki): ten sam czar od tego samego rzucającego – dołączenie efektów o innych indeksach (merge) albo
+	# zastąpienie poprzedniego wystąpienia
+	var stackable: bool = bool(source.get("stackable", String(entry.kind) in ["potion", "ingredient"]))
+	if not stackable:
+		for old in active(target):
+			if String(old.get("id", "")) != String(entry.id) or String(old.get("caster", "")) != String(entry.caster) \
+					or String(old.get("kind", "")) != String(entry.kind):
+				continue
+			var idx := {}
+			for x in old.effects:
+				idx[int(x.get("index", -1))] = true
+			var clash := false
+			for x in entry.effects:
+				if idx.has(int(x.get("index", -1))):
+					clash = true
+			if not clash:
+				old.effects.append_array(entry.effects)
+				_tick_entry(target, old, 0.0)
+				_cleanup(target)
+				sync_dynamic(target)
+				return res
+			for x in old.effects:
+				x.time_left = 0.0
+				if not bool(x.get("applied", false)):
+					x["applied"] = true
+			break
 	active(target).append(entry)
 	_tick_entry(target, entry, 0.0)
 	_cleanup(target)

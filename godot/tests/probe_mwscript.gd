@@ -121,6 +121,7 @@ func _snapshot(case: Dictionary) -> Dictionary:
 
 var _track := {}
 var _spells_done := {}
+var _case: Dictionary = {}
 
 ## Czar nakładany bezpośrednio (para do Lua ActiveSpells:add): wszystkie efekty rekordu na cel.
 func _apply_spell(sp: Array) -> void:
@@ -132,8 +133,8 @@ func _apply_spell(sp: Array) -> void:
 	var c: Dictionary = {}
 	if sp.size() > 3 and String(sp[3]) != "":
 		c = vm._fighter(vm._target(String(sp[3]), _ctx()))
-	main.magic.inflict(t, c, {"id": String(sp[2]).to_lower(), "name": String(rec.get("name", "")), "kind": "spell"},
-		rec.get("effects", []), rec)
+	main.magic.inflict(t, c, {"id": String(sp[2]).to_lower(), "name": String(rec.get("name", "")), "kind": "spell",
+		"stackable": bool(_case.get("stackable", false))}, rec.get("effects", []), rec)
 
 func _sample(case: Dictionary, t: float) -> void:
 	for id in case.get("track", []):
@@ -158,6 +159,7 @@ func _run() -> void:
 	# skrypt globalny sondy (jak mwprobe.esp po stronie OpenMW): polecenia w klatce „delay” od startu skryptu
 	vm._scripts["mwprobe_run"] = case.get("script", {})
 	vm.start("mwprobe_run")
+	_case = case
 	var delay := int(case.get("delay", 30))
 	var secs := float(case.get("seconds", 0.0))
 	var samples: Array = case.get("samples", [])

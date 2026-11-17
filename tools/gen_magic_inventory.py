@@ -90,6 +90,8 @@ s([4],C,Z,"odporność na ogień + rani atakującego wręcz (applyElementalShiel
 s([39],C,Z,"wykrywanie, trafienie; zdejmowana przy ataku, czarze, przedmiocie, wypiciu, alchemii; od pierwszej klatki; czar z tej samej klatki (kolejka ActiveSpells) nie jest zdejmowany","fx_invis_break, fx_invis_break2: 0 różnic")
 s([45],I,Z,"bez ruchu i ataku (sparaliżowany NPC nie zadaje ciosów); Leczenie paraliżu","fx_paralyze_combat (gracz bez strat), fx_cures")
 s([49],B,Z,"Fight − wielkość i stopCombat","fx_npc_ai, fx_calm_combat: GetTarget player 0 po Uspokojeniu w obu")
+s([67,68],C,Z,"dla każdego efektu osobno: rzut dla każdego aktywnego efektu Odbicia/Pochłonięcia, absorbSpell (+koszt)","porównanie statystyczne 40 czarów: odbite 9/40 OpenMW, 4–10/40 Godot; pochłonięte 4/40 i 8/40 (oczekiwane 20%)")
+s([57],I,Z,"usuwanie czarów tymczasowych z szansą wielkości (każdy osobno)","porównanie statystyczne 40 czarów: usunięte 9/40 OpenMW, 5–13/40 Godot (oczekiwane 20%)")
 rows=["| # | Efekt | Przed etapem | Po etapie | Działanie | Test / porównanie z OpenMW |","|---|---|---|---|---|---|"]
 from collections import Counter
 cb,ca=Counter(),Counter()

@@ -230,7 +230,7 @@ return {
             local idx = {}
             for i = 1, #rec.effects do idx[i] = i - 1 end
             local c = (sp[4] and sp[4] ~= '') and find(sp[4]) or nil
-            types.Actor.activeSpells(o):add({id = rec.id, effects = idx, caster = c})
+            types.Actor.activeSpells(o):add({id = rec.id, effects = idx, caster = c, stackable = CFG.stackable})
           end
         end
       end
@@ -368,6 +368,7 @@ def run_openmw(case: dict, omw_dir: Path, cfg_src: Path, work: Path, display: in
            "frames": int(case.get("delay", DELAY)) + int(case.get("frames", 10)),
            "delay": int(case.get("delay", DELAY)), "spells": case.get("spells", []), "remove": case.get("remove", []), "debug": bool(case.get("debug", False)), "teleport": case.get("teleport", []),
            "disable_creatures": bool(case.get("disable_creatures", False)),
+           "stackable": bool(case.get("stackable", False)),
            "seconds": float(case.get("seconds", 0)), "samples": case.get("samples", []), "track": case.get("track", [])}
     lua = (LUA.replace("__CFG__", lua_table(cfg)).replace("__ATTRS__", lua_table(ATTRS))
            .replace("__SKILLS__", lua_table(SKILLS)).replace("__EFFECTS__", lua_table({k: list(v) for k, v in EFFECTS.items()}))

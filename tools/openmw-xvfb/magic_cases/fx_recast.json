@@ -1,0 +1,33 @@
+{
+ "name": "fx_recast",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -10400 -71000 300 180"
+ ],
+ "spells": [
+  [
+   3,
+   "player",
+   "charisma",
+   ""
+  ],
+  [
+   0,
+   "player",
+   "charisma",
+   "",
+   1.0
+  ]
+ ],
+ "seconds": 2
+}
