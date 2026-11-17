@@ -1,0 +1,27 @@
+{
+  "format": "openmwgodot-native-mod",
+  "version": 1,
+  "id": "first-fish",
+  "name": "Pierwsza rybka (eksperyment)",
+  "description": "Prototyp natywnego modu OpenMWGodot: własny model glTF z animacją swim_idle i proste pływanie w małym obszarze.",
+  "license": "Własny asset projektu (model, tekstura i animacja generowane skryptem blender/build_fish.py).",
+  "creatures": [
+    {
+      "id": "first_fish",
+      "model": "models/first_fish.glb",
+      "animation": "swim_idle",
+      "behaviour": "scripts/fish_swim.gd",
+      "params": {"speed": 0.25, "turn_rate_deg": 70.0, "min_depth": 0.25, "min_clearance": 0.20}
+    }
+  ],
+  "spawns": [
+    {
+      "creature": "first_fish",
+      "comment": "płycizna przy pomoście Seyda Neen (obok strażnika na nabrzeżu), ok. 2–3 m wody",
+      "pos": [-9200, -72900],
+      "count": 3,
+      "radius": 260,
+      "seed": 11
+    }
+  ]
+}

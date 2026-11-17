@@ -36,6 +36,7 @@ const CombatScript := preload("res://scripts/mw/mw_combat.gd")
 const EQ := preload("res://scripts/mw/mw_equipment.gd")
 const UI := preload("res://scripts/mw/mw_ui.gd")
 var events = Events.new()           # szyna zdarzeń (etap 0)
+var native_mods = null               # mw_native_mods.gd – natywne mody (eksperyment first-fish)
 var interaction = null                # MWInteraction (etap 3)
 var item_window = null                # okno pojemnika / ekwipunku
 var audio = null                      # MWAudio (etap 3)
@@ -109,6 +110,12 @@ func _ready() -> void:
 	models = MWModelCache.new(data)
 	builder = MWCellBuilder.new(db, models)
 	builder.state = state
+	# natywne mody OpenMWGodot (eksperyment first-fish): mods/ obok projektu, --mods=KATALOG, --mods= wyłącza
+	var mods_dir := arg("mods", String(settings.get("native_mods_dir",
+			ProjectSettings.globalize_path("res://").path_join("../mods").simplify_path())))
+	native_mods = preload("res://scripts/mw/mw_native_mods.gd").new(self, mods_dir)
+	events.cell_loaded.connect(native_mods.on_cell_loaded)
+	tree_exiting.connect(native_mods.free_cache)
 	state.ref_changed.connect(_on_ref_changed)
 	state.dynamic_changed.connect(_on_dynamic_changed)
 	state.inventory_changed.connect(_on_inventory_changed)

@@ -76,6 +76,7 @@ run_gd() {  # $1 = skrypt, reszta = argumenty
 step "5. Godot: testy"
 run_gd test_import.gd --data="$OUT"
 run_gd test_editor_import.gd
+run_gd test_first_fish.gd
 run_gd test_step_sound.gd
 run_gd test_ai_mechanics.gd
 run_gd test_controllers.gd --data="$OUT"
