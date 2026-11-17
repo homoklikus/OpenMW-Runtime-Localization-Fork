@@ -20,8 +20,11 @@ import re
 from dataclasses import dataclass, field
 from typing import Optional
 
+from .mwscript_sig import SIG
+
 # zmiana wyniku kompilacji → ponowny eksport świata (klucz eksportu w pipeline.py)
-COMPILER_VERSION = 3
+# 4: argumenty według sygnatur OpenMW (mwscript_sig.py), OnPCAdd/OnPCEquip/OnPCDrop/OnPCHitMe jako zmienne lokalne
+COMPILER_VERSION = 4
 
 _ATTRS = ["strength", "intelligence", "willpower", "agility", "speed", "endurance", "personality", "luck"]
 _SKILLS = ["block", "armorer", "mediumarmor", "heavyarmor", "bluntweapon", "longblade", "axe", "spear", "athletics",
@@ -58,6 +61,8 @@ EXPR_ARITY: dict[str, int] = {
 for _a in _ATTRS + _SKILLS + _RESIST:
     EXPR_ARITY["get" + _a] = 0
 OPTIONAL_STR = {"getpcrank", "getpcfacrep", "pcexpelled"}
+# zmienne lokalne ustawiane przez silnik (OpenMW: setVarByInt na zadeklarowanej zmiennej skryptu) – nie funkcje
+VARIABLE_EVENTS = {"onpcadd", "onpcequip", "onpcdrop", "onpchitme", "onpcrepair", "onpcsoulgemuse", "pcskipequip"}
 
 KEYWORDS = {"begin", "end", "short", "long", "float", "set", "to", "if", "elseif", "else", "endif", "while",
             "endwhile", "return"}
@@ -129,6 +134,8 @@ class _P:
     toks: list
     i: int = 0
     used: set = field(default_factory=set)
+    locals: dict = field(default_factory=dict)
+    warnings: list = field(default_factory=list)
 
     def peek(self, k=0) -> Optional[Tok]:
         j = self.i + k
@@ -217,7 +224,13 @@ def _primary(p: _P):
             f = p.next()
             if f is None or f.kind != "id":
                 raise ParseError("brak funkcji po ->")
-            return _expr_call(p, t.text.lower(), f.text.lower())
+            fl = f.text.lower()
+            if fl not in SIG and fl not in EXPR_ARITY:
+                # ExprParser::parseName z mRefOp: „Stray explicit reference” – odniesienie pominięte, nazwa jak
+                # zwykła (zmienna lokalna albo nieznana nazwa = liczba)
+                p.warnings.append(f"zbędne odniesienie przed {f.text!r} – pominięte")
+                return ["id", f.text] if fl in p.locals else _member_or_id(f.text)
+            return _expr_call(p, t.text.lower(), fl)
         if t.kind == "str":
             # "obiekt".zmienna
             if _is(p.peek(), "id") and p.peek().text.startswith("."):
@@ -225,38 +238,122 @@ def _primary(p: _P):
                 return ["member", t.text.lower(), v.lower()]
             return ["str", t.text]
         low = t.text.lower()
-        if low in EXPR_ARITY:
+        if low in p.locals:
+            return ["id", t.text]
+        if SIG.get(low, ("",))[0] == "f":
+            return _expr_call(p, None, low)
+        if low in SIG:
+            return _member_or_id(t.text)          # instrukcja w wyrażeniu – jak nazwa (ExprParser::parseKeyword)
+        if low in EXPR_ARITY and low not in VARIABLE_EVENTS:
             return _expr_call(p, None, low)
         return _member_or_id(t.text)
     raise ParseError(f"nieoczekiwany symbol {t.text!r}")
 
 
 def _arg(p: _P):
-    """Argument funkcji: liczba, tekst, identyfikator (bez rozwijania wywołań) albo wyrażenie w nawiasach."""
+    """Argument liczbowy w trybie argumentu (ExprParser z mArgument): operand (liczba, zmienna, wywołanie funkcji,
+    wyrażenie w nawiasach, minus jednoargumentowy) z mnożeniem i dzieleniem; „+”, „-” i porównania poza nawiasami
+    kończą argument („Thank you Morrowind for this rotten syntax”)."""
     t = p.peek()
     if t is None:
         return None
+    a = _arg_operand(p)
+    while _is(p.peek(), "op", "*") or _is(p.peek(), "op", "/"):
+        op = p.next().text
+        a = ["bin", op, a, _arg_operand(p)]
+    return a
+
+
+def _arg_operand(p: _P):
+    t = p.peek()
+    if t is None:
+        raise ParseError("brak argumentu")
     if _is(t, "op", "("):
         return _primary(p)
-    if _is(t, "op", "-") and p.peek(1) is not None and p.peek(1).kind == "num":
+    if _is(t, "op", "-"):
         p.next()
-        return ["num", -float(p.next().text)]
-    p.next()
+        v = _arg_operand(p)
+        return ["num", -v[1]] if v[0] == "num" else ["neg", v]
+    if _is(t, "op", "+"):
+        p.next()
+        return _arg_operand(p)
     if t.kind == "num":
+        p.next()
         return ["num", float(t.text)]
-    if t.kind == "str":
+    if t.kind == "str" and not _is(p.peek(1), "arrow"):
+        p.next()
+        if _is(p.peek(), "id") and p.peek().text.startswith("."):
+            return ["member", t.text.lower(), p.next().text[1:].lower()]
         return ["str", t.text]
-    if t.kind == "id":
-        return _member_or_id(t.text)
+    if t.kind in ("id", "str"):
+        return _primary(p)
     raise ParseError(f"nieoczekiwany argument {t.text!r}")
+
+
+def _string_arg(p: _P, lower: bool):
+    t = p.peek()
+    if t is None or t.kind not in ("id", "str", "num"):
+        return None
+    p.next()
+    text = t.text
+    return ["str", text.lower() if lower else text]
+
+
+def _starts_operand(p: _P, allow_sign: bool) -> bool:
+    t = p.peek()
+    if t is None:
+        return False
+    if t.kind in ("num", "id", "str"):
+        return True
+    return _is(t, "op", "(") or (allow_sign and (_is(t, "op", "-") or _is(t, "op", "+")))
+
+
+def _args_by_sig(p: _P, spec: str) -> list:
+    """Argumenty według sygnatury OpenMW (ExprParser::parseArguments)."""
+    args = []
+    optional = False
+    for ch in spec:
+        _skip_commas(p)
+        if ch == "/":
+            optional = True
+            continue
+        if ch in "cSx":
+            a = _string_arg(p, ch == "c")
+            if a is None:
+                if optional or ch == "x":
+                    break
+                raise ParseError("brak argumentu tekstowego")
+            if ch != "x":
+                args.append(a)
+            continue
+        if ch in "Xz":
+            if not _starts_operand(p, allow_sign=False):
+                break
+            if ch == "X":
+                _arg(p)
+            else:
+                p.next()
+            continue
+        if ch == "j":
+            continue
+        if not _starts_operand(p, allow_sign=True):
+            if optional:
+                break
+            raise ParseError("brak argumentu liczbowego")
+        args.append(_arg(p))
+    return args
 
 
 def _expr_call(p: _P, ref, name: str):
     p.used.add(name)
+    if name in SIG:
+        return ["call", ref, name, _args_by_sig(p, SIG[name][2])]
     args = []
     n = EXPR_ARITY.get(name, 0)
     for _ in range(n):
         _skip_commas(p)
+        if p.at_end():
+            break
         a = _arg(p)
         if a is None:
             break
@@ -268,15 +365,31 @@ def _expr_call(p: _P, ref, name: str):
 
 def _stmt_call(p: _P, ref, name: str):
     p.used.add(name)
+    if name in SIG and name != "messagebox":
+        args = _args_by_sig(p, SIG[name][2])
+        return ["call", ref, name, args]
     args = []
     while not p.at_end():
         _skip_commas(p)
         if p.at_end():
             break
-        a = _arg(p)
-        if a is None:
-            break
-        args.append(a)
+        t = p.peek()
+        if t.kind == "num":
+            p.next()
+            args.append(["num", float(t.text)])
+        elif t.kind == "str":
+            p.next()
+            args.append(["str", t.text])
+        elif t.kind == "id":
+            p.next()
+            args.append(_member_or_id(t.text))
+        elif _is(t, "op", "-") and p.peek(1) is not None and p.peek(1).kind == "num":
+            p.next()
+            args.append(["num", -float(p.next().text)])
+        elif _is(t, "op", "("):
+            args.append(_primary(p))
+        else:
+            raise ParseError(f"nieoczekiwany argument {t.text!r}")
     return ["call", ref, name, args]
 
 
@@ -296,7 +409,7 @@ def compile_script(src: str, name: str = "") -> dict:
         toks = tokenize(line)
         if not toks:
             continue
-        p = _P(toks, used=used)
+        p = _P(toks, used=used, locals=locals_, warnings=[])
         first = toks[0]
         kw = first.text.lower() if first.kind == "id" else ""
         cur = _stmts_ref(stack[-1])
@@ -379,6 +492,9 @@ def compile_script(src: str, name: str = "") -> dict:
                 if f is None or f.kind != "id":
                     raise ParseError("brak funkcji po ->")
                 cur.append(_stmt_call(p, t0.text.lower(), f.text.lower()))
+            elif t0.kind == "id" and t0.text.lower() in locals_ and t0.text.lower() not in SIG:
+                # wiersz zaczynający się od zmiennej bez „set” – OpenMW: błąd, wiersz pominięty
+                warnings.append(f"{sname or name}:{ln}: zmienna bez „set” – wiersz pominięty")
             elif t0.kind == "id":
                 cur.append(_stmt_call(p, None, t0.text.lower()))
             elif _is(t0, "op", "("):
@@ -387,6 +503,8 @@ def compile_script(src: str, name: str = "") -> dict:
                 raise ParseError(f"nieznana instrukcja {t0.text!r}")
         except ParseError as e:
             errors.append(f"{sname or name}:{ln}: {e} | {raw.strip()[:80]}")
+        finally:
+            warnings.extend(f"{sname or name}:{ln}: {w}" for w in p.warnings)
     if len(stack) > 1:
         errors.append(f"{sname or name}: niezamknięte bloki ({len(stack) - 1})")
     return {"name": sname or name, "locals": locals_, "body": root, "errors": errors, "warnings": warnings,

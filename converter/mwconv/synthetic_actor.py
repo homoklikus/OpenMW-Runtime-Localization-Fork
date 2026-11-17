@@ -668,8 +668,10 @@ End""",
     "synth_paper": """Begin synth_paper
 short state
 short OnPCEquip
+short OnPCAdd
 if ( OnPCAdd == 1 )
   set state to state + 1
+  set OnPCAdd to 0
 endif
 if ( OnPCEquip == 1 )
   set state to 10
