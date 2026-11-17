@@ -106,9 +106,12 @@ func _run() -> void:
 	var half: float = main.fader.alpha
 	await _wait_s(0.7)
 	check(half > 0.2 and half < 0.8 and main.fader.alpha < 0.01, "fadeScreenIn(1): w połowie %.2f, po sekundzie %.2f" % [half, main.fader.alpha])
-	if main.chargen.visible:
+	for i in 8:                                   # kreator: imię, rasa, klasa, znak, przegląd (osobne okna)
+		if not main.chargen.visible:
+			break
 		main.chargen._create()
-		await _frames(3)
+		await _frames(1)
+	await _frames(2)
 	main.scripts.set_global("chargenstate", -1.0)
 	await _frames(5)
 	# HUD wg dozwolonych okien (WindowManager::updateVisible): paski – statystyki, minimapa – mapa

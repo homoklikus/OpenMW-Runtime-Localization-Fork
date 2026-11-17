@@ -365,7 +365,8 @@ func build_npc(npc_id: String, seed: int = 0, sid := "") -> Node3D:
 
 ## Postać z rekordu NPC (także zmienionego – wygląd gracza: rasa, płeć, głowa, włosy z kreatora); items – lista
 ## {"id","count"} zamiast inwentarza albo słownik gotowych miejsc {slot: {"kind","rec"}} (założone rzeczy gracza).
-func build_npc_rec(npc: Dictionary, npc_id: String, seed: int = 0, sid := "", items = null) -> Node3D:
+## head_only – NpcAnimation::VM_HeadOnly (podgląd rasy w tworzeniu postaci): tylko głowa i włosy.
+func build_npc_rec(npc: Dictionary, npc_id: String, seed: int = 0, sid := "", items = null, head_only := false) -> Node3D:
 	var race := record("race", String(npc.get("race", "")))
 	var female := bool(npc.get("female", false))
 	var beast := bool(race.get("beast", false))
@@ -387,6 +388,10 @@ func build_npc_rec(npc: Dictionary, npc_id: String, seed: int = 0, sid := "", it
 	root.add_child(sk)
 	# części: ekwipunek (priorytety), głowa i włosy z NPC, rasa (szyja…ogon) tam, gdzie nic nie zajęło miejsca
 	var parts := npc_parts(npc, female, sid, items)
+	if head_only:
+		for prt in parts.keys():
+			if int(prt) != 0 and int(prt) != 1:
+				parts.erase(prt)
 	var keys := parts.keys()
 	keys.sort()
 	for prt in keys:

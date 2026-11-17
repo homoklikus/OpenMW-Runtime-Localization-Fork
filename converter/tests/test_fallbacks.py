@@ -35,3 +35,13 @@ def test_movies_from_ini_and_cfg(tmp_path):
     cfg = tmp_path / "openmw.cfg"
     cfg.write_text("fallback=Movies_New_Game,mw_intro.bik\n", encoding="utf-8")
     assert fallbacks._from_openmw_cfg(cfg) == {"Movies_New_Game": "mw_intro.bik"}
+
+
+def test_inventory_light_from_ini_and_cfg(tmp_path):
+    """Światło podglądu postaci (okno rasy, CharacterPreview): [Inventory] → Inventory_DirectionalDiffuseR…"""
+    ini = tmp_path / "Morrowind.ini"
+    ini.write_bytes(b"[Inventory]\r\nDirectionalDiffuseR=1.0\r\nDirectionalRotationX=110\r\n")
+    assert fallbacks._from_ini(ini) == {"Inventory_DirectionalDiffuseR": "1.0", "Inventory_DirectionalRotationX": "110"}
+    cfg = tmp_path / "openmw.cfg"
+    cfg.write_text("fallback=Inventory_DirectionalAmbientR,0.0\n", encoding="utf-8")
+    assert fallbacks._from_openmw_cfg(cfg) == {"Inventory_DirectionalAmbientR": "0.0"}

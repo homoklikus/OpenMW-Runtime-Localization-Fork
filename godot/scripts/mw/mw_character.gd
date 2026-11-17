@@ -60,6 +60,9 @@ func playable(file: String) -> Array:
 	out.sort()
 	return out
 
+## RaceDialog::getBodyParts: części grywalne (bez BPF_NotPlayable), typu „skóra”, danej części (głowa/włosy), płci
+## i rasy, bez części pierwszoosobowych (id kończące się na „1st”); kolejność jak w magazynie rekordów OpenMW
+## (kolejność wczytania), bez sortowania.
 func heads_hairs(race: String, female: bool) -> Dictionary:
 	var heads := []
 	var hairs := []
@@ -68,15 +71,120 @@ func heads_hairs(race: String, female: bool) -> Dictionary:
 		var bp: Dictionary = all[id]
 		if String(bp.get("race", "")).to_lower() != race.to_lower() or bool(bp.get("female", false)) != female:
 			continue
-		if not bool(bp.get("playable", true)) or bool(bp.get("vampire", false)) or int(bp.get("mesh_type", 0)) != 0:
+		if not bool(bp.get("playable", true)) or int(bp.get("mesh_type", 0)) != 0 or String(id).to_lower().ends_with("1st"):
 			continue
 		if int(bp.get("part", -1)) == 0:
 			heads.append(id)
 		elif int(bp.get("part", -1)) == 1:
 			hairs.append(id)
-	heads.sort()
-	hairs.sort()
 	return {"heads": heads, "hairs": hairs}
+
+## Koszt czaru (calcSpellCost) – z modułu magii; bez niego koszt z rekordu.
+func _spell_cost(sp: Dictionary) -> int:
+	if magic != null:
+		return magic.spell_cost(sp)
+	return int(sp.get("cost", 0))
+
+## calcWeakestSchool (autocalcspell.cpp): szkoła efektu o najmniejszej szansie (2 × umiejętność − koszt wg wzoru
+## Morrowinda) → [skillTerm].
+func _weakest_school_term(sp: Dictionary, skills: Array) -> float:
+	var min_chance := INF
+	var term := 0.0
+	var mult := _gmst("feffectcostmult", 0.5)
+	for e in sp.get("effects", []):
+		var mg: Dictionary = records.record("magiceffect", str(int(e.get("effect", -1))))
+		if mg.is_empty():
+			continue
+		var mn := 1
+		var mx := 1
+		if not bool(mg.get("no_magnitude", false)):
+			mn = int(e.get("min", 0))
+			mx = int(e.get("max", 0))
+		var dur := 0
+		if not bool(mg.get("no_duration", false)):
+			dur = int(e.get("duration", 0))
+		if not bool(mg.get("applied_once", false)):
+			dur = maxi(1, dur)
+		var base := float(mg.get("base_cost", 0.0))
+		var x := 0.5 * (maxi(1, mn) + maxi(1, mx))
+		x *= 0.1 * base
+		x *= 1 + dur
+		x += 0.05 * maxi(1, int(e.get("area", 0))) * base
+		x *= mult
+		if int(e.get("range", 0)) == 2:
+			x *= 1.5
+		var school := int(mg.get("school_skill", -1))
+		var s := 2.0 * float(skills[school]) if school >= 0 and school < skills.size() else 0.0
+		if s - x < min_chance:
+			min_chance = s - x
+			term = s
+	return term
+
+## calcAutoCastChance (bez wskazanej szkoły).
+func _auto_cast_chance(sp: Dictionary, skills: Array, attrs: Array) -> float:
+	if int(sp.get("spell_type", 0)) != 0 or bool(sp.get("always_succeeds", false)):
+		return 100.0
+	return _weakest_school_term(sp, skills) - _spell_cost(sp) + 0.2 * float(attrs[ATTR_WILLPOWER]) + 0.1 * float(attrs[ATTR_LUCK])
+
+## attrSkillCheck: efekty na umiejętność/atrybut wymagają wartości bazowej ≥ iAutoSpellAttSkillMin.
+func _attr_skill_check(sp: Dictionary, skills: Array, attrs: Array) -> bool:
+	var need := _gmst("iautospellattskillmin", 70.0)
+	for e in sp.get("effects", []):
+		var mg: Dictionary = records.record("magiceffect", str(int(e.get("effect", -1))))
+		if bool(mg.get("target_skill", false)):
+			var k := int(e.get("skill", -1))
+			if k < 0 or k >= skills.size() or float(skills[k]) < need:
+				return false
+		if bool(mg.get("target_attribute", false)):
+			var a := int(e.get("attribute", -1))
+			if a < 0 or a >= attrs.size() or float(attrs[a]) < need:
+				return false
+	return true
+
+## autoCalcPlayerSpells (autocalcspell.cpp): czary początkowe gracza – zaklęcia z flagą PCStart (kolejność rekordów),
+## bez mocy rasy, na które starcza magii bazowej (fPCbaseMagickaMult × inteligencja), z szansą ≥ fAutoPCSpellChance
+## i spełnionym attrSkillCheck; najwyżej iAutoPCSpellMax – po osiągnięciu limitu nowy czar wypiera najsłabszy.
+func auto_player_spells(attrs: Array, skills: Array, race: Dictionary) -> Array:
+	var base_magicka := _gmst("fpcbasemagickamult", 1.0) * float(attrs[ATTR_INTELLIGENCE])
+	var chance_min := _gmst("fautopcspellchance", 80.0)
+	var max_count := int(_gmst("iautopcspellmax", 100.0))
+	var powers: Array = (race.get("powers", []) as Array).map(func(x): return String(x).to_lower())
+	var reached := false
+	var weakest := ""
+	var min_cost := 1 << 30
+	var out := []
+	var all: Dictionary = records._all("spell")
+	for id in all:
+		var sp: Dictionary = all[id]
+		if int(sp.get("spell_type", 0)) != 0 or not bool(sp.get("pc_start", false)):
+			continue
+		var cost := _spell_cost(sp)
+		if reached and cost <= min_cost:
+			continue
+		if String(id).to_lower() in powers:
+			continue
+		if base_magicka < cost:
+			continue
+		if _auto_cast_chance(sp, skills, attrs) < chance_min:
+			continue
+		if not _attr_skill_check(sp, skills, attrs):
+			continue
+		out.append(String(id).to_lower())
+		if reached:
+			out.erase(weakest)
+			min_cost = 1 << 30
+			for t in out:
+				var tc := _spell_cost(records.record("spell", t))
+				if tc < min_cost:
+					min_cost = tc
+					weakest = t
+		else:
+			if cost < min_cost:
+				weakest = String(id).to_lower()
+				min_cost = cost
+			if out.size() == max_count:
+				reached = true
+	return out
 
 ## buildPlayer: rasa (atrybuty wg płci, umiejętności 5 + premia, moce), znak (czary), klasa (+10 ulubionym atrybutom,
 ## +25 główne, +10 drugorzędne, +5 umiejętnościom specjalizacji). Wartości bieżące = maksymalne.
@@ -128,6 +236,10 @@ func build(choice: Dictionary) -> Dictionary:
 			var srec: Dictionary = records.record("skill", String(names[i]) if i < names.size() else "")
 			if not srec.is_empty() and int(srec.get("specialization", -2)) == spec:
 				skills[i] += 5.0
+	# czary początkowe gracza (F_PCStart) według statystyk bazowych po rasie, znaku i klasie
+	for sid in auto_player_spells(attrs, skills, race):
+		if not sid in spells:
+			spells.append(sid)
 	var st := {"name": String(choice.get("name", "")), "race": String(choice.get("race", "")).to_lower(),
 		"female": female, "class": String(choice.get("class", "")).to_lower(),
 		"birthsign": String(choice.get("birthsign", "")).to_lower(),

@@ -76,7 +76,8 @@ def _converter_ok(prev_conv: str, converter: str, vfs, key: str) -> bool:
     chk = COMPAT_CONVERTERS.get(prev_conv)
     return converter == MODEL_CONVERTER and chk is not None and chk(vfs, key)
 TEXTURE_CONVERTER = "tex2png-0.1.0"
-WORLD_EXPORT_VERSION = 17         # 17: filmy (video/*.ogv – lokalnie przez ffmpeg), ekrany ładowania (splash/), fallback Movies_*;
+WORLD_EXPORT_VERSION = 18         # 18: części ciała wszystkich grywalnych ras (okno rasy tworzenia postaci);
+                                  # 17: filmy (video/*.ogv – lokalnie przez ffmpeg), ekrany ładowania (splash/), fallback Movies_*;
 # 16: tekstury interfejsu i ikony (icons/), FontColor; 15: tekstury wody (textures/water); 14: fallbacki pogody/wody/księżyców, tekstury nieba i słońca; 13: SNDG (generatory dźwięków stworzeń); 12: world/fallbacks.json (pytania o klasę, awans); 11: mapa świata (world/map/); 10: głosy (sound/vo), muzyka (music/), szanse dźwięków regionów (etap 10); 9: stworzenia z punktów LEVC i znaczniki (etap 8); 8: siatki ścieżek PGRD w komórkach (etap 8); 2: world/records/ (etap 1); 3: rekordy etapu 3, dźwięki (sound/); 4: SPEL (etap 4); 5: skrypty; 6: dialogi (etap 6); 7: MGEF, ENCH (etap 7)
 
 _VFS: Optional[Vfs] = None
@@ -567,8 +568,8 @@ def _leveled_creatures(world, keys) -> set:
 
 
 def _actor_models(world, keys, vfs) -> set:
-    """Modele NPC w wybranych komórkach (etap 2): szkielety, głowy, włosy, części ciała ras (BODY, typ skóra),
-    własne modele NPC. Animacje .kf dochodzą jako pliki sąsiednie (xname.kf)."""
+    """Modele NPC w wybranych komórkach (etap 2): szkielety, głowy, włosy, części ciała ras (BODY, typ skóra) – ras
+    NPC z komórek i wszystkich ras grywalnych (tworzenie postaci), własne modele NPC. Animacje .kf dochodzą jako pliki sąsiednie (xname.kf)."""
     npcs = world.records.get("NPC_", {})
     bodies = world.records.get("BODY", {})
     out, races = set(), set()
@@ -602,6 +603,10 @@ def _actor_models(world, keys, vfs) -> set:
                             if bp:
                                 add(bp.get("model"))
     if races:
+        # tworzenie postaci (okno rasy, postać gracza po wyborze): części ciała wszystkich grywalnych ras
+        for rid, r in world.records.get("RACE", {}).items():
+            if r.get("playable"):
+                races.add(rid.lower())
         for m in ACTOR_SKELETONS.values():
             if vfs.exists(m):
                 out.add(m)

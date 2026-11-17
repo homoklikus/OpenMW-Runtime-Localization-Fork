@@ -1,6 +1,6 @@
 # Inwentaryzacja zgodności OpenMWGodot z OpenMW
 
-Stan na 2026-11-17 (po etapie „pełny start gry”). Cel: wierne odtworzenie OpenMW, zanim
+Stan na 2026-11-17 (po etapach „pełny start gry” i „pięć okien tworzenia postaci”). Cel: wierne odtworzenie OpenMW, zanim
 zajmiemy się remasterem. OpenMW jest źródłem prawdy (fork `apps/openmw`, ten sam kod co oficjalne 0.51).
 
 ## Statusy
@@ -72,11 +72,49 @@ z bliska tylko przy odblokowanym sterowaniu, zamyka okna jak gracz): **15/15 spr
 | Sellus Gravius: powitanie zabiera arkusz (`state` −1), temat „duties” (znany z tematu „morrowind”) → dziennik `A1_1_FindSpymaster` 1, paczka, wskazówki, 87 sztuk złota | Zweryfikowane | tematy dopisywane z hiperłączy jak w OpenMW |
 | Wyjście (`chargendoorexitcaptain`): `CharGenState` −1, odblokowanie okien, teleport do Seyda Neen | Zweryfikowane | po wyjściu brak blokad sterowania i okien |
 | Blokady okien w trakcie tworzenia postaci (disallowAll) – także odpoczynek | Zweryfikowane | **naprawione:** odpoczynek był dozwolony; teraz zablokowany do `EnableRest` albo `CharGenState` −1 (getRestEnabled) |
-| Okna kreatora jak w OpenMW: imię, rasa (podgląd 3D, płeć, twarz, włosy), klasa (wybór/pytania/własna), znak, przegląd z „Wstecz” | Częściowo zgodne | u nas jeden wspólny formularz – etap roadmapy 2 | P1 |
+| Okna kreatora jak w OpenMW: imię, rasa (podgląd 3D, płeć, twarz, włosy), klasa (wybór/pytania/własna), znak, przegląd z „Wstecz” | Zweryfikowane | osobne okna jak OpenMW – szczegóły w punkcie 2a; sonda nowej gry 15/15 po zmianie | – |
 | Wstęp wideo i zaciemnienie po starcie | Zweryfikowane | punkt 1 | – |
 
 Odchylenie sondy od gracza: aktywacja z odległości 64 j. w poziomie od obiektu (w OpenMW – promień z kamery
 do obiektu ≤ iMaxActivateDist 192); odległości 3D od oczu zapisuje dziennik sondy (63–136 j.).
+
+## 2a. Tworzenie postaci – pięć okien (etap 2026-11-17)
+
+Wspólny formularz zastąpiony oknami odwzorowującymi OpenMW (`apps/openmw/mwgui/charactercreation.cpp`, `race.cpp`,
+`class.cpp`, `birth.cpp`, `review.cpp`, `textinput.cpp`; układy `files/data/mygui/openmw_chargen_*.layout`,
+`openmw_text_input.layout`, `openmw_infobox.layout`): pozycje i rozmiary z plików układu × skala interfejsu,
+skórki MW_Dialog / MW_DialogNoTransp / MW_Box / MW_List / MW_Button / SandText / HeaderText, strzałki
+`omw_menu_scroll_*` (tekstury OpenMW). Jedna implementacja zasad: każdy wybór trafia od razu do postaci
+(`step_done` → `MWCharacter.build` od zera), więc powroty nie dublują premii. Kod: `mw_chargen_window.gd`
+(przebieg CSE, imię, rasa, znak, przegląd), `mw_chargen_class.gd` (okna klas), `mw_chargen_ui.gd` (elementy układów).
+
+Porównanie z oficjalnym OpenMW 0.51.0 na Xvfb (1280×720, skala 1,0 w obu silnikach, te same dane, okna otwierane
+`--script-run` z EnableNameMenu/EnableRaceMenu/EnableClassMenu/EnableBirthMenu/EnableStatReviewMenu) – zrzuty
+obu silników w `OpenMW RLF/Raporty/xvfb-2026-11-17/chargen/{openmw,godot}` (lokalnie). Testy: `test_chargen_windows.gd`
+(70), `test_chargen_class.gd` (29), `test_character.gd` (20), `test_chargen.gd` (21); sonda na prawdziwych danych
+`probe_chargen.gd` (8 sprawdzeń zbiorczych: 10 ras × 2 płcie – wszystkie twarze i włosy z zawijaniem i podglądem,
+21 klas – obraz i statystyki, 13 znaków – obraz i czary, wszystkie 66 kombinacji odpowiedzi pytań → istniejąca
+klasa, statystyki po 9 powrotach = buildPlayer od zera) i `probe_newgame.gd` (15/15, statek → Seyda Neen w 125 s).
+
+| Element | Status | Wynik / różnice | Prio |
+|---|---|---|---|
+| Przebieg CharacterCreation: etapy CSE, handleDialogDone (okno ze skryptu zamyka się, gdy etap nieosiągnięty), „Dalej” zamiast OK po przejściu etapu, Wstecz (rasa → imię, klasa/znak → wybór sposobu, przegląd → znak → przegląd), przyciski przeglądu (ReviewNext) | Zweryfikowane | kod OpenMW + test_chargen_windows + sonda nowej gry | – |
+| Okno imienia (320×97): etykieta sName, pole, OK/sNext, Enter, puste imię → komunikat sNotifyMessage37 i okno zostaje | Zweryfikowane | układ zgodny ze zrzutem OpenMW | – |
+| Okno rasy (640×433): lista grywalnych ras według nazwy, podgląd 3D głowy (VM_HeadOnly, kamera 125 j. przed kością „Bip01 Head”, 12,3°, pochylenie 6°, obrót suwakiem 0–999 od 600, kółko myszy ±50), płeć/twarz/włosy ze strzałkami (zawijanie, reset do pierwszej przy zmianie rasy/płci, części w kolejności rekordów, bez BPF_NotPlayable i „1st”), premie umiejętności, moce | Zweryfikowane | zrzut: układ, czcionka, kolory, lista i podgląd jak w OpenMW; oświetlenie z Inventory_Directional* | – |
+| Atrybuty rasy w oknie rasy | Zweryfikowane (brak jak w OpenMW) | OpenMW **nie pokazuje** atrybutów w oknie rasy (tylko premie i moce); atrybuty widać w przeglądzie – tak samo u nas | – |
+| ClassChoiceDialog (InfoBox: pytania, lista, własna, Wstecz → rasa) | Zweryfikowane | rozmiar i układ przycisków jak na zrzucie (±4 px) | – |
+| PickClassDialog (491×316): lista grywalnych klas bez własnych, obraz textures/levelup (brak – warrior), specjalizacja, atrybuty, umiejętności | Zweryfikowane | zrzut zgodny | – |
+| Pytania (InfoBox z losową kolejnością odpowiedzi, głos chargen qaN, tabela showClassQuestionDialog) i GenerateClassResultDialog | Zweryfikowane | zrzuty zgodne (zawijanie długich odpowiedzi jak MW_Button); bez tekstów pytań w danych gracza opcja pytań jest ukryta (OpenMW ma je zawsze w openmw.cfg) | – |
+| CreateClassDialog (498×198) z oknami wyboru specjalizacji/atrybutu/umiejętności (zamiana duplikatów) i opisu; okno pamięta wybory; bez nazwy OK nie działa | Zweryfikowane | zrzuty zgodne; rekord klasy dynamiczny w zapisie | – |
+| Okno znaku (527×378): lista według nazwy, obraz TNAM, zdolności (efekty stałe bez czasu i zasięgu), moce, czary z ikonami i opisem efektu jak MWSpellEffect | Zweryfikowane | zrzut zgodny | – |
+| Przegląd (541×428): imię/rasa/klasa/znak z przyciskami, zdrowie/magia/kondycja, atrybuty i umiejętności z kolorami zmian, umiejętności główne/drugorzędne/pozostałe, zdolności/moce/czary | Zweryfikowane | zrzut zgodny | – |
+| Czary początkowe gracza (autoCalcPlayerSpells: PCStart, magia bazowa, fAutoPCSpellChance, attrSkillCheck, iAutoPCSpellMax) | Zaimplementowane | **naprawione:** wcześniej brak; teraz w MWCharacter.build (test_character, przegląd) – nie porównano listy czarów z działającym OpenMW | P2 |
+| Konwersja: części ciała wszystkich grywalnych ras | Zweryfikowane | **naprawione:** przy konwersji wybranych komórek brakowało modeli ras bez NPC w tych komórkach (pusty podgląd orka/khajiitki i brak ciała po wyborze) | – |
+| Podpowiedzi (tooltipy) ras, klas, umiejętności, atrybutów jak ToolTips OpenMW (ikona, opis) | Częściowo zgodne | u nas zwykły tekst (nazwa i efekty czarów); brak okienek z ikoną i opisem | P3 |
+| Teksty „Anuluj”/„OK” w oknach wyboru (Interface:Cancel/OK) | Częściowo zgodne | po polsku jak reszta interfejsu silnika; GMST z danych gracza bez zmian | P3 |
+| Paski przewijania MW_VScroll/MW_HScroll | Częściowo zgodne | strzałki OpenMW, tor i suwak rysowane kolorem (bez tekstur suwaka) | P3 |
+| Sterowanie padem (controller menus) | Brakujące | | P3 |
+| Porównanie zrzutów piksel w piksel | Nieprzetestowane | tło za oknami różni się (inna pozycja startowa świata), czcionka rysowana przez inny rasteryzator – porównanie wzrokowe, nie automatyczne | – |
 
 ## 3. Interfejs
 
@@ -218,7 +256,7 @@ potrzebne są `GetPCSleep`/`WakeUpPC` (sny wątku głównego), `PlayBink`/`Fade*
 ## Kolejność dalszych prac (roadmapa użytkownika)
 
 1. ~~Start gry~~ – wykonane 2026-11-17 (punkt 1); pozostało: autozapis, `WakeUpPC`/`GetPCSleep`, czas animacji śmierci.
-2. Pięć okien kreatora postaci jak w OpenMW.
+2. ~~Pięć okien kreatora postaci jak w OpenMW~~ – wykonane 2026-11-17 (punkt 2a); pozostało: podpowiedzi z ikonami, tekstury pasków przewijania, pad.
 3. MWScript – najpierw stałe zera, potem nieobsłużone wg mapy z punktu 4.
 4. Efekty magii z punktu 5.
 5. Interfejs z punktu 3.

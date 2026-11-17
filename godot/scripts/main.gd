@@ -300,6 +300,8 @@ func _start_scripted_chargen() -> void:
 	if book_window != null:
 		book_window.set_inventory_allowed(false)
 	state.player["chargen_choice"] = default_choice()
+	if chargen != null:
+		chargen.reset()
 	scripts.set_global("chargenstate", 1.0)
 	scripts.start_new_game()
 	for i in 5:

@@ -165,6 +165,7 @@ run_gd test_map.gd --data="$WORK/actors_out" --project="$WORK/project_map" --pos
 run_gd test_weather.gd --data="$WORK/actors_out" --project="$WORK/project_weather" --pos=2300,2400,900 --scripts=0
 run_gd test_menu_mode.gd --data="$WORK/actors_out" --project="$WORK/project_menu_mode" --pos=2300,2400,900 --scripts=0
 run_gd test_chargen_class.gd --data="$WORK/actors_out" --project="$WORK/project_chargen_class" --pos=2300,2400,900 --scripts=0
+run_gd test_chargen_windows.gd --data="$WORK/actors_out" --project="$WORK/project_chargen_windows" --pos=2300,2400,900 --scripts=0
 run_gd test_settings.gd --data="$WORK/actors_out" --project="$WORK/project_settings" --settings="$WORK/settings_cfg/runtime_settings.json" --pos=2300,2400,900 --scripts=0
 run_gd test_anim_sounds.gd --data="$WORK/actors_out" --project="$WORK/project_anim_sounds" --pos=2300,2400,900 --scripts=0
 

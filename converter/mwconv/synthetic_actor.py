@@ -166,6 +166,7 @@ MODELS = {
     "meshes/b/b_n_synth_m_forearm.nif": lambda: make_rigid("B_N_Synth_M_Forearm", (25, 8, 8), (12.5, 0, 0)),
     "meshes/b/b_n_synth_m_head_01.nif": lambda: make_rigid("B_N_Synth_M_Head_01", (18, 18, 22), (0, 0, 11)),
     "meshes/b/b_n_synth_m_hair_01.nif": lambda: make_rigid("B_N_Synth_M_Hair_01", (20, 20, 6), (0, 0, 24)),
+    "meshes/b/b_n_synth_m_head_02.nif": lambda: make_rigid("B_N_Synth_M_Head_02", (16, 20, 24), (0, 0, 12)),
     # ekwipunek (etap 2c)
     "meshes/a/a_synth_helm.nif": lambda: make_rigid("A_Synth_Helm", (26, 26, 14), (0, 0, 22)),
     "meshes/a/a_synth_cuirass.nif": lambda: make_rigid("A_Synth_Cuirass", (46, 30, 50), (0, 0, 0)),
@@ -193,6 +194,10 @@ BODYPARTS = {
     "b_n_synth_m_hair_01": (1, "b\\b_n_synth_m_hair_01.nif", False),
     "b_n_synth_m_hand.1st": (5, "b\\b_n_synth_m_forearm.nif", False),   # 1. osoba – w 3. osobie pomijana
     "b_n_synth_f_chest": (3, "b\\b_n_synth_f_chest.nif", True),
+    # tworzenie postaci (okno rasy): druga głowa męska, głowa i włosy kobiece
+    "b_n_synth_m_head_02": (0, "b\\b_n_synth_m_head_02.nif", False),
+    "b_n_synth_f_head_01": (0, "b\\b_n_synth_m_head_01.nif", True),
+    "b_n_synth_f_hair_01": (1, "b\\b_n_synth_m_hair_01.nif", True),
 }
 # części ciała przedmiotów: id → (MP_*, model, typ 1 ubranie / 2 zbroja)
 ITEM_BODYPARTS = {
@@ -729,6 +734,26 @@ End"""),
             W.info("hello_walker", "", "", "Witaj, wedrowcze.", actor="synth_walker", sound="Vo\\synth\\hello.wav")]
 
 
+def _stage11_records() -> list:
+    """Tworzenie postaci w pięciu oknach: druga rasa (inne atrybuty kobiet, premie, moc rasy), drugi znak urodzenia
+    z obrazem (textures/birthsigns) i zaklęciem, zaklęcie początkowe gracza (flaga PCStart, autoCalcPlayerSpells)."""
+    bon = [10, 15, 16, 5]                            # Zniszczenie +15, Alchemia +5
+    for i in range(5):
+        bon += [-1, 0]
+    attrs = [50, 40, 30, 45, 40, 40, 40, 40, 40, 40, 50, 35, 30, 40, 40, 40]   # pary (mężczyzna, kobieta)
+    radt = struct.pack("<14i", *bon) + struct.pack("<16i", *attrs) + struct.pack("<4f", 1.0, 1.0, 1.0, 1.0) \
+        + struct.pack("<i", 1)
+    orc = W.record("RACE", [W.sub("NAME", W.zs("Synth Orc")), W.sub("FNAM", W.zs("Ork testowy")), W.sub("RADT", radt),
+                            W.sub("NPCS", b"synth_power".ljust(32, b"\0"))])
+    star = W.record("BSGN", [W.sub("NAME", W.zs("Synth Star")), W.sub("FNAM", W.zs("Gwiazda testowa")),
+                             W.sub("TNAM", W.zs("birthsigns\\synth_star.tga")), W.sub("DESC", W.zs("Znak testowy 2.")),
+                             W.sub("NPCS", b"synth_strength".ljust(32, b"\0"))])
+    spark = W.record("SPEL", [W.sub("NAME", W.zs("synth_spark")), W.sub("FNAM", W.zs("Iskra testowa")),
+                              W.sub("SPDT", struct.pack("<iii", 0, 1, 0x2 | 0x4)),        # PCStart, zawsze się udaje
+                              _enam(75, 0, 1, 1, 1)])
+    return [orc, star, spark]
+
+
 def _stage8_records() -> list:
     """Przestępstwa i Security: wytrych, sonda, znacznik więzienia, GMST."""
     pick = W.record("LOCK", [W.sub("NAME", W.zs("synth_lockpick")), W.sub("FNAM", W.zs("Wytrych testowy")),
@@ -833,6 +858,10 @@ def write_actors(data_dir: Path) -> dict:
                            f"AnswerTwo=Magia {n}\nAnswerThree=Skradanie {n}" for n in range(1, 11)]
     # start gry: filmy z [Movies] (pliki .ogv tworzy osobno run_tests.sh – syntetycznego Binka nie da się zakodować)
     ini += ["[Movies]\nCompany Logo=synth_logo.bik\nMorrowind Logo=synth_mwlogo.bik\nNew Game=synth_intro.bik"]
+    # światło podglądu postaci (okno rasy) – wartości testowe
+    ini += ["[Inventory]\nDirectionalDiffuseR=1.0\nDirectionalDiffuseG=0.9\nDirectionalDiffuseB=0.8\n"
+            "DirectionalAmbientR=0.3\nDirectionalAmbientG=0.3\nDirectionalAmbientB=0.3\n"
+            "DirectionalRotationX=110\nDirectionalRotationY=90"]
     (data_dir.parent / "Morrowind.ini").write_text("\n".join(ini) + "\n", encoding="cp1252")
     from PIL import Image
     (data_dir / "BookArt").mkdir(parents=True, exist_ok=True)
@@ -841,6 +870,11 @@ def write_actors(data_dir: Path) -> dict:
     (data_dir / "Splash").mkdir(parents=True, exist_ok=True)
     Image.new("RGB", (64, 64), (40, 60, 120)).save(data_dir / "Splash" / "Splash_SynthA.tga")
     Image.new("RGB", (64, 64), (120, 100, 40)).save(data_dir / "Splash" / "Splash_SynthB.tga")
+    # obrazy klas (textures/levelup/<id>) i znaku urodzenia (TNAM) – wzory testowe
+    for rel, col in (("Textures/levelup/synth warrior.tga", (90, 70, 40)), ("Textures/levelup/warrior.tga", (70, 50, 30)),
+                     ("Textures/birthsigns/synth_star.tga", (20, 20, 80))):
+        (data_dir / rel).parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGB", (128, 64), col).save(data_dir / rel)
     recs = [_race()] + [_body(k, *v) for k, v in BODYPARTS.items()]
     recs += [_item_body(k, *v) for k, v in ITEM_BODYPARTS.items()]
     recs += [_armor(k, *v) for k, v in ARMORS.items()] + [_clothing(k, *v) for k, v in CLOTHES.items()] + [_weapon()]
@@ -851,7 +885,7 @@ def write_actors(data_dir: Path) -> dict:
              _npc("synth_traveler", True, ai=[_aidt(), _ai_travel(3000.0, 2800.0, height_at(3000, 2800))]),
              _npc("synth_watchman", False, ai=[_aidt(fight=30, alarm=100)], cls="Guard")]
     recs += _stage8_records()
-    recs += _stage9_records() + _stage10_records()
+    recs += _stage9_records() + _stage10_records() + _stage11_records()
     recs += _stage6_records() + _stage7_records() + _stage7d_records()
     refs = []
     for rn, (base, x, y, rz) in ACTOR_REFS.items():

@@ -39,52 +39,78 @@ func _run() -> void:
 	root.add_child(main)
 	await _frames(8)
 	var cg = main.chargen
-	cg.open({})
-	await _frames(2)
+	cg.open(main.default_choice())
+	cg.name_edit.text = "Testowa"
+	cg.accept()
+	cg.accept()                                   # rasa → okno wyboru sposobu klasy
 	var dlg = cg.class_dialog
-	check(cg.questions_button.visible, "pytania dostępne (teksty z Morrowind.ini w danych)")
-	dlg.start_questions()
+	check(cg.mode == "class" and dlg.choice_buttons.size() == 4, "ClassChoiceDialog: 3 sposoby i „Wstecz”")
+	check(dlg.questions_available(), "teksty pytań z Morrowind.ini w danych")
+	dlg.choice_selected(0)
 	await _frames(1)
-	check(dlg.visible and dlg.step == 0, "pierwsze pytanie")
-	var texts := []
-	for b in dlg._box.get_children():
-		if b is Label:
-			texts.append(b.text)
-	check("Pytanie testowe 1?" in texts, "tekst pytania z danych (%s)" % str(texts))
+	check(cg.mode == "class_generate" and dlg.step == 0 and dlg.answer_buttons.size() == 3, "pierwsze pytanie (3 odpowiedzi)")
+	check(dlg.question_text == "Pytanie testowe 1?", "tekst pytania z danych (%s)" % dlg.question_text)
+	var labels: Array = dlg.answer_buttons.map(func(b): return b.get_meta("label").text if b.has_meta("label") else b.text)
+	labels.sort()
+	check(labels == ["Magia 1", "Skradanie 1", "Walka 1"], "odpowiedzi z danych (%s)" % [labels])
 	for q in 10:
 		var i: int = dlg._answers.find(0)      # odpowiedź „walka”, niezależnie od losowej kolejności
 		dlg.answer(i)
 		await _frames(1)
 	check(dlg.step == 10 and dlg.result_class == "warrior", "10 × walka → Wojownik (%s)" % dlg.result_class)
-	dlg.accept_result()
+	check(dlg.class_image != null and dlg.class_image.texture != null, "obraz klasy z textures/levelup")
+	dlg.generate_ok()
 	await _frames(1)
-	check(not dlg.visible and cg.choice()["class"] == "warrior", "klasa z pytań wybrana w kreatorze (%s)" % cg.choice()["class"])
-	# własna klasa
-	dlg.start_custom()
+	check(cg.mode == "birth" and cg.choice()["class"] == "warrior", "klasa z pytań przyjęta, dalej znak (%s, %s)" % [cg.mode, cg.choice()["class"]])
+	check(String(main.player_stats().get("class", "")) == "warrior", "klasa od razu w postaci (setPlayerClass)")
+	# „Wstecz” w oknie znaku → wybór sposobu klasy → własna klasa
+	cg.back()
+	check(cg.mode == "class", "znak: Wstecz → wybór sposobu klasy")
+	dlg.choice_selected(2)
 	await _frames(1)
-	check(not dlg.accept_custom(), "bez nazwy nie można zatwierdzić")
+	check(cg.mode == "class_create" and dlg.c_name.text == main.dialogue.gmst_text("sCustomClassName", "Poszukiwacz przygód"),
+		"nazwa domyślna sCustomClassName (%s)" % dlg.c_name.text)
+	check(dlg.create_state.attributes == [0, 3] and dlg.create_state.major_skills == [0, 1, 2, 3, 4] \
+		and dlg.create_state.minor_skills == [5, 6, 7, 8, 9] and dlg.create_state.specialization == 0, "wartości domyślne jak OpenMW")
+	dlg.c_name.text = ""
+	dlg.c_name.text_changed.emit("")
+	check(not dlg.create_ok(), "bez nazwy nie można zatwierdzić")
 	dlg.c_name.text = "Łowca testowy"
-	var minor0: int = dlg.c_minor[0].selected
-	var major0: int = dlg.c_major[0].selected
-	dlg.c_major[0].select(minor0)
-	dlg._skill_changed(minor0, dlg.c_major[0])
-	check(dlg.c_major[0].selected == minor0 and dlg.c_minor[0].selected == major0, "ta sama umiejętność – zamiana pól")
-	dlg.c_attr[1].select(dlg.c_attr[0].selected)
-	dlg._attr_changed(dlg.c_attr[0].selected, 1)
-	check(dlg.c_attr[0].selected != dlg.c_attr[1].selected, "ulubione atrybuty bez powtórzeń")
-	dlg.c_spec.select(2)
+	dlg.c_name.text_changed.emit("Łowca testowy")
+	# okna wyboru jak w OpenMW: specjalizacja, atrybut, umiejętność (przyciski)
+	dlg.spec_button.pressed.emit()
+	check(dlg.sub_kind == "specialization", "okno wyboru specjalizacji")
+	(dlg.sub.find_child("Specialization2", true, false) as Button).pressed.emit()
+	check(dlg.sub == null and dlg.create_state.specialization == 2, "specjalizacja: skradanie")
+	dlg.attr_buttons[1].pressed.emit()
+	check(dlg.sub_kind == "attribute", "okno wyboru atrybutu")
+	(dlg.sub.find_child("Attribute0", true, false) as Button).pressed.emit()
+	check(dlg.create_state.attributes == [3, 0], "ten sam atrybut w drugim polu – zamiana (%s)" % [dlg.create_state.attributes])
+	dlg.major_buttons[0].pressed.emit()
+	check(dlg.sub_kind == "skill", "okno wyboru umiejętności (3 kolumny według specjalizacji)")
+	(dlg.sub.find_child("Skill5", true, false) as Button).pressed.emit()
+	check(dlg.create_state.major_skills[0] == 5 and dlg.create_state.minor_skills[0] == 0, "ta sama umiejętność – zamiana pól")
+	(cg.win.find_child("DescriptionButton", true, false) as Button).pressed.emit()
+	check(dlg.sub_kind == "description", "okno opisu")
+	dlg.desc_edit.text = "Opis testowy"
+	(dlg.sub.find_child("OKButton", true, false) as Button).pressed.emit()
+	check(dlg.create_state.description == "Opis testowy", "opis zapamiętany")
 	var rec: Dictionary = dlg.custom_record()
-	var all_sk: Array = rec.major_skills + rec.minor_skills
 	var uniq := {}
-	for x in all_sk:
+	for x in rec.major_skills + rec.minor_skills:
 		uniq[x] = true
-	check(uniq.size() == 10, "10 różnych umiejętności (%s)" % str(all_sk))
-	check(dlg.accept_custom(), "zatwierdzenie własnej klasy")
+	check(uniq.size() == 10, "10 różnych umiejętności (%s)" % str(rec.major_skills + rec.minor_skills))
+	check(dlg.create_ok(), "zatwierdzenie własnej klasy")
 	await _frames(1)
-	check(cg.choice()["class"] == ClassDlg.CUSTOM_ID, "własna klasa wybrana")
+	check(cg.choice()["class"] == ClassDlg.CUSTOM_ID and cg.mode == "birth", "własna klasa wybrana, dalej znak")
 	check((main.state.created.get("class", {}) as Dictionary).has(ClassDlg.CUSTOM_ID), "rekord klasy w stanie gry (zapis)")
-	var st: Dictionary = main.character.build(cg.choice())
-	var base: Dictionary = main.character.build(cg.choice().merged({"class": "warrior"}, true))
+	# okno pamięta wybory (Wstecz → własna klasa ponownie)
+	cg.back()
+	dlg.choice_selected(2)
+	check(dlg.c_name.text == "Łowca testowy" and dlg.create_state.specialization == 2, "okno własnej klasy pamięta wybory")
+	dlg.create_ok()
+	var st: Dictionary = main.player_stats()
+	var base: Dictionary = main.character.build(cg.choice().merged({"class": "synth warrior"}, true))
 	var maj: int = int(rec.major_skills[1])
 	check(float(st.skills[maj]) >= 30.0, "umiejętność główna własnej klasy podniesiona (+25) (%s)" % st.skills[maj])
 	check(st.skills != base.skills, "statystyki liczone z własnej klasy")
