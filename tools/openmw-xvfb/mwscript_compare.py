@@ -61,7 +61,10 @@ local util = require('openmw.util')
 local LOOK = __LOOK__
 local CTRL = __CONTROLS__
 local KEYS = __KEYS__
+local CAST = __CAST__
+local types = require('openmw.types')
 local t = -1
+local casted = {}
 local jumped = {}
 local keyed = {}
 return {
@@ -81,6 +84,28 @@ return {
         self.controls.yawChange = dy
         self.controls.pitchChange = pitch - camera.getPitch()
         if __FRAMELOG__ then print(string.format('MWCAM %.2f %.2f %.2f', camera.getPosition().x, camera.getPosition().y, camera.getPosition().z)) end
+      end
+      -- rzucenie czaru gracza: [t, id] – wybór czaru, postawa magii, „use” od t+1 s przez 0,8 s
+      for i, c in ipairs(CAST) do
+        if t >= c[1] and not casted[i] then
+          casted[i] = true
+          I.Controls.overrideCombatControls(true)
+          types.Actor.setSelectedSpell(self, c[2])
+        end
+        if t >= c[1] and t < c[1] + 1.0 and types.Actor.getStance(self) ~= types.Actor.STANCE.Spell then
+          types.Actor.setStance(self, types.Actor.STANCE.Spell)
+        end
+        if t >= c[1] + 1.0 and t < c[1] + 1.8 then
+          I.Controls.overrideCombatControls(true)
+          self.controls.use = 1
+        elseif t >= c[1] + 1.8 and t < c[1] + 2.2 then
+          self.controls.use = 0
+        end
+        if __FRAMELOG__ and t >= c[1] and t < c[1] + 2.5 then
+          local ss = types.Actor.getSelectedSpell(self)
+          print(string.format('MWCAST t=%.2f stance=%s spell=%s use=%s', t, tostring(types.Actor.getStance(self)),
+            ss and ss.id or 'nil', tostring(self.controls.use)))
+        end
       end
       if t >= 0 and __FRAMELOG__ then print(string.format('MWFRAME %.4f %.4f %.2f %.2f %.2f', t, dt, self.position.x, self.position.y, self.position.z)) end
       if t < 0 or #CTRL == 0 then return end
@@ -196,10 +221,12 @@ local function actor(o)
     s.dynamic[n] = {d.base, d.current, d.base + d.modifier}
   end
   local ae = A.activeEffects(o)
+  -- static_cast<int> jak w MWScript (OpGetMagicEffect) – obcięcie w stronę zera, nie floor
+  local function trunc(v) if v < 0 then return math.ceil(v) end return math.floor(v) end
   s.effects = {}
   for name, ids in pairs(EFFECTS) do
     local v = effect(ae, ids[1]) - effect(ae, ids[2]) + effect(ae, ids[3])
-    s.effects[name] = math.floor(v)
+    s.effects[name] = trunc(v)
   end
   -- pełna mapa efektów (MagicEffects): "indeks" albo "indeks:atrybut/umiejętność" → wielkość (bez zerowych)
   s.fx = {}
@@ -208,17 +235,26 @@ local function actor(o)
   for i, n in ipairs(SKILLS) do SIDX[n] = i - 1 end
   for _, e in pairs(ae) do
     local idx = EFFECT_IDS[string.lower(e.id)]
-    if idx and e.magnitude and math.floor(e.magnitude) ~= 0 then
+    if idx and e.magnitude and trunc(e.magnitude) ~= 0 then
       local key = tostring(idx)
       if e.affectedAttribute then key = key .. ':' .. tostring(AIDX[string.lower(e.affectedAttribute)])
       elseif e.affectedSkill then key = key .. ':' .. tostring(SIDX[string.lower(e.affectedSkill)]) end
-      s.fx[key] = (s.fx[key] or 0) + math.floor(e.magnitude)
+      s.fx[key] = (s.fx[key] or 0) + trunc(e.magnitude)
     end
   end
   local okq, eq = pcall(function() return A.getEquipment(o) end)
   s.equipment = {}
   if okq and eq then
     for slot, item in pairs(eq) do s.equipment[tostring(slot)] = item.recordId end
+  end
+  s.condition = {}                         -- stan (CellRef charge) broni i pancerza w slotach
+  if okq and eq then
+    for slot, item in pairs(eq) do
+      local okc, c = pcall(function() return types.Item.itemData(item).condition end)
+      if okc and c and (types.Weapon.objectIsInstance(item) or types.Armor.objectIsInstance(item)) then
+        s.condition[tostring(slot)] = math.floor(c)
+      end
+    end
   end
   local ai = A.stats.ai
   s.ai = {ai.fight(o).modified, ai.hello(o).modified, ai.flee(o).modified, ai.alarm(o).modified}
@@ -425,6 +461,14 @@ def probe_script(case: dict) -> str:
     # polecenia w kolejnych klatkach: "after": [[klatka_po_poleceniach, polecenie], …]
     for d, c in case.get("after", []):
         lines += [f"if ( mwprobe_f == {int(case.get('delay', DELAY)) + int(d)} )", "  " + c, "endif"]
+    # polecenia po czasie (s) od chwili poleceń – niezależnie od fps: "after_s": [[sekundy, polecenie], …]
+    if case.get("after_s"):
+        lines[2:2] = ["float mwprobe_t"] + [f"short mwprobe_d{i}" for i in range(len(case["after_s"]))]
+        lines += [f"if ( mwprobe_f > {int(case.get('delay', DELAY))} )", "  set mwprobe_t to mwprobe_t + GetSecondsPassed",
+                  "endif"]
+        for i, (t, c) in enumerate(case["after_s"]):
+            lines += [f"if ( mwprobe_t >= {float(t)} )", f"  if ( mwprobe_d{i} == 0 )", "    " + c,
+                      f"    set mwprobe_d{i} to 1", "  endif", "endif"]
     lines += ["end"]
     return "\n".join(lines) + "\n"
 
@@ -474,6 +518,7 @@ def run_openmw(case: dict, omw_dir: Path, cfg_src: Path, work: Path, display: in
         PLAYER_LUA.replace("__CONTROLS__", lua_table(case.get("controls", [])))
         .replace("__FRAMELOG__", "true" if case.get("framelog") else "false")
         .replace("__KEYS__", lua_table(case.get("keys", [])))
+        .replace("__CAST__", lua_table(case.get("cast", [])))
         .replace("__LOOK__", lua_table(case.get("look_at", []))), encoding="utf-8")
     (probe / "mwprobe.omwscripts").write_text("GLOBAL: scripts/mwprobe/global.lua\nPLAYER: scripts/mwprobe/player.lua\n",
                                               encoding="utf-8")

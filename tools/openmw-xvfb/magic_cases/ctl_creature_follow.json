@@ -1,0 +1,55 @@
+{
+ "name": "ctl_creature_follow",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player",
+  "scamp_summon"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".actors",
+  ".track"
+ ],
+ "setup": [
+  "player->Position -12288 -69632 160 0",
+  "PlaceAtPC \"scamp_summon\" 1 150 2",
+  "player->SetSpeed 50",
+  "player->SetAthletics 30"
+ ],
+ "spells": [
+  [
+   0,
+   "scamp_summon",
+   "command creature",
+   "player",
+   0.2
+  ]
+ ],
+ "controls": [
+  [
+   1.0,
+   5.0,
+   {
+    "forward": 1
+   }
+  ]
+ ],
+ "track": [
+  "player",
+  "scamp_summon"
+ ],
+ "samples": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9
+ ],
+ "seconds": 9.5
+}

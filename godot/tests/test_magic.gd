@@ -179,6 +179,11 @@ func _run() -> void:
 	var gem := "misc_soulgem_synth@synth_creature"
 	check(inv.count_of("player", {}, gem) == 1 and inv.count_of("player", {}, "misc_soulgem_synth") == 0 and mg.gem_charge(gem) == 5, "dusza w kamieniu (ładunek 5)")
 	check(main.interaction.item_name("misc", gem, inv.item(gem).rec).contains("("), "nazwa kamienia z duszą")
+	# GetItemCount po RefId (ContainerStore::count): kamień z duszą liczony jako ten sam przedmiot co pusty
+	var vctx = main.scripts.Ctx.new()
+	vctx.scr = "console"
+	var gic = main.scripts._call("player", "getitemcount", [["str", "misc_soulgem_synth"]], vctx)
+	check(float(gic) == 1.0, "GetItemCount liczy kamień z duszą (%s)" % [gic])
 	# zaklinanie: ((5+5) × 10 + 1) × 1 × 0,5 × 0,05 = 2,525; szansa (50 − 7,575 + 8 + 4) × 1,25 = 68
 	st.fatigue = main.character.derived(st).fatigue.modified
 	var fx := [{"effect": 75, "skill": -1, "attribute": -1, "range": 0, "area": 0, "duration": 10, "min": 5, "max": 5}]

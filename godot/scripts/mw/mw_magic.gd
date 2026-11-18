@@ -1390,6 +1390,11 @@ func _purge_permanent(f: Dictionary, spell_type: int) -> void:
 	st["spells"] = (st.get("spells", []) as Array).filter(func(s):
 		return int(records.record("spell", String(s)).get("spell_type", 0)) != spell_type)
 
+## disintegrateSlot: stan przedmiotu całkowity (CellRef charge), ułamek wielkości zbierany jak
+## applyChargeRemainderToBeSubtracted; przedmiot o stanie 0 pomijany (następny slot pancerza), zniszczony –
+## gracz zdejmuje (NPC: stan trzymany per slot, bez ponownego autoEquip – zależność od stanu przedmiotów NPC).
+var _charge_rem := {}
+
 func _disintegrate(f: Dictionary, weapon: bool, amount: float) -> void:
 	var cb = _combat()
 	var eq: Dictionary = cb.equipment(f)
@@ -1398,13 +1403,23 @@ func _disintegrate(f: Dictionary, weapon: bool, amount: float) -> void:
 		cb.EQ.SLOT_HELMET, cb.EQ.SLOT_GREAVES, cb.EQ.SLOT_BOOTS]
 	for s in slots:
 		var it: Dictionary = eq.get(s, {})
-		if it.is_empty() or float(it.rec.get("health", 0)) <= 0.0 or (weapon and it.kind != "weapon") or (not weapon and it.kind != "armor"):
+		if it.is_empty() or float(it.rec.get("health", 0)) <= 0.0 or not (it.kind == "weapon" or it.kind == "armor"):
 			continue
-		var h: float = cb.item_health(it) - amount
-		cb._set_item_health(f, s, maxf(0.0, h))
-		if h <= 0.0 and f.kind == "player":
+		var charge := int(cb.item_health(it))
+		if charge == 0:
+			continue
+		var key := "%s:%d" % [String(f.get("sid", "player")) if f.kind != "player" else "player", s]
+		var rem: float = float(_charge_rem.get(key, 0.0)) - absf(amount - floorf(amount))
+		if rem <= -1.0:
+			var whole := ceilf(rem)                  # modf: część całkowita (ujemna)
+			charge = maxi(0, charge + int(whole))
+			rem -= whole
+		_charge_rem[key] = rem
+		charge -= mini(int(amount), charge)
+		cb._set_item_health(f, s, float(charge))
+		if charge == 0 and f.kind == "player":
 			main.unequip_slot(s)
-		break
+		return
 
 func _bound_item(f: Dictionary, id: int, add: bool) -> void:
 	var inv = main.interaction.inventory

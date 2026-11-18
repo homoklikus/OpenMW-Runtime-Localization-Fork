@@ -1,0 +1,36 @@
+{
+ "name": "fx_creature_command",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player",
+  "scamp_summon"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track",
+  ".actors.scamp_summon.dynamic"
+ ],
+ "setup": [
+  "player->Position -12288 -69632 160 0",
+  "PlaceAtPC \"scamp_summon\" 1 400 0"
+ ],
+ "spells": [
+  [
+   0,
+   "scamp_summon",
+   "frenzy creature",
+   "player",
+   0.5
+  ],
+  [
+   0,
+   "scamp_summon",
+   "command creature",
+   "player",
+   0.5
+  ]
+ ],
+ "seconds": 3
+}

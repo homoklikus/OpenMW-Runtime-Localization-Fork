@@ -1,0 +1,194 @@
+{
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects"
+ ],
+ "setup": [
+  "player->SetHealth 1000"
+ ],
+ "stackable": true,
+ "seconds": 3,
+ "name": "fx_resist_elements",
+ "spells": [
+  [
+   0,
+   "player",
+   "great resist fire",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "great resist fire",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "great resist fire",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "great resist fire",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "great resist frost",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "great resist frost",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "great resist frost",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "great resist frost",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "great resist shock",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "great resist shock",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "great resist shock",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "great resist shock",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "greater resist poison",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "greater resist poison",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "greater resist poison",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "greater resist poison",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "great resist magicka",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "great resist magicka",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "great resist magicka",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "great resist magicka",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "fire bite",
+   "",
+   1.0
+  ],
+  [
+   0,
+   "player",
+   "frostbite",
+   "",
+   1.0
+  ],
+  [
+   0,
+   "player",
+   "shocking touch",
+   "",
+   1.0
+  ],
+  [
+   0,
+   "player",
+   "poisonous touch",
+   "",
+   1.0
+  ],
+  [
+   0,
+   "player",
+   "test_spell",
+   "",
+   1.0
+  ]
+ ]
+}

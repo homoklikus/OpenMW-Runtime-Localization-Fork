@@ -69,8 +69,11 @@ func _actor(id: String) -> Dictionary:
 			s.fx[ks] = v
 	s["equipment"] = {}
 	var eqd: Dictionary = main.combat.equipment(f)
+	s["condition"] = {}
 	for sl in eqd:
 		s.equipment[str(sl)] = String(eqd[sl].id)
+		if String(eqd[sl].kind) in ["weapon", "armor"] and float(eqd[sl].rec.get("health", 0)) > 0.0:
+			s.condition[str(sl)] = int(floor(main.combat.item_health(eqd[sl])))
 	s["ai"] = [_q(id, "getfight"), _q(id, "gethello"), _q(id, "getflee"), _q(id, "getalarm")]
 	if f.kind == "npc":
 		var d = main.dialogue
@@ -157,6 +160,21 @@ func _look_at(p: Array) -> void:
 	var d: Vector3 = MWCoords.mw_to_godot(Vector3(float(p[0]), float(p[1]), float(p[2]))) - cam.global_position
 	main.player.rotation.y = atan2(-d.x, -d.z)
 	cam.rotation.x = atan2(d.y, Vector2(d.x, d.z).length())
+
+## Rzucenie czaru gracza [[t, id]] – jak w sondzie OpenMW: wybór i gotowa magia w t, rzut (lewy przycisk) w t+1 s.
+var _cast_done := {}
+
+func _apply_cast(casts: Array, t: float) -> void:
+	for i in casts.size():
+		var c: Array = casts[i]
+		if t >= float(c[0]) and not _cast_done.has(i):
+			_cast_done[i] = 1
+			main.select_magic("spell", String(c[1]))
+			main.magic_ready = true
+			main.weapon_drawn = false
+		if t >= float(c[0]) + 1.0 and int(_cast_done.get(i, 0)) == 1:
+			_cast_done[i] = 2
+			main.player_cast()
 
 ## Klawisze [[t, keysym X]] – jak naciśnięcia XTest w OpenMW: akcja wejścia przez 3 klatki.
 const KEY_ACTIONS := {"space": "activate"}
@@ -268,6 +286,7 @@ func _run() -> void:
 		_apply_controls(case.get("controls", []), t_after)
 		_apply_keys(case.get("keys", []), t_after)
 		_look_at(case.get("look_at", []))
+		_apply_cast(case.get("cast", []), t_after)
 		if bool(case.get("disable_creatures", false)) and frame == delay:
 			for an in main.ai.actor_nodes():
 				if String(an.get_meta("mw_actor", "")) == "creature":

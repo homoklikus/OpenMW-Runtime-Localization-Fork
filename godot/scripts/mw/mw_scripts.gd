@@ -960,14 +960,29 @@ func _call(ref, fname: String, args: Array, c: Ctx):
 			var rec := _inv_record(t8)
 			var item := _str(args, 0).to_lower()
 			var inv = game.interaction.inventory
+			# ContainerStore::count/remove po RefId: kamień dusz z duszą („id@stworzenie” w Godocie) to ten sam
+			# przedmiot co pusty – liczony i usuwany razem z nim
+			var variants: Array = [item] + (inv.contents(who, rec).map(func(e): return String(e.id)).filter(
+					func(i): return i.get_slice("@", 0) == item and i != item) if not item.contains("@") else [])
 			if fname == "getitemcount":
-				return float(inv.count_of(who, rec, item))
+				var total := 0
+				for vid in variants:
+					total += inv.count_of(who, rec, vid)
+				return float(total)
 			var n := int(_num(args, 1, c, 1))
 			var g: Array = game.interaction.normalize_gold(item, n)
 			if fname == "additem":
 				inv.add(who, rec, g[0], g[1])
 			else:
-				inv.remove(who, rec, g[0], g[1])
+				var left: int = g[1]
+				for vid in ([g[0]] + variants.slice(1)):
+					var have: int = inv.count_of(who, rec, vid)
+					var k := mini(have, left)
+					if k > 0:
+						inv.remove(who, rec, vid, k)
+						left -= k
+					if left <= 0:
+						break
 			return null
 		"placeatpc", "placeatme", "placeitem":
 			game.script_place(fname, _str(args, 0), int(_num(args, 1, c, 1)), _target(ref, c), args, c, self)

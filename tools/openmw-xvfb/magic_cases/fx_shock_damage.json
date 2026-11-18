@@ -1,0 +1,118 @@
+{
+ "name": "fx_shock_damage",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".actors.player.dynamic.health[1]"
+ ],
+ "setup": [
+  "player->SetHealth 1000"
+ ],
+ "stackable": true,
+ "seconds": 3,
+ "spells": [
+  [
+   0,
+   "player",
+   "dire shockball",
+   "",
+   1.0
+  ],
+  [
+   0,
+   "player",
+   "dire shockball",
+   "",
+   1.0
+  ],
+  [
+   0,
+   "player",
+   "dire shockball",
+   "",
+   1.0
+  ],
+  [
+   0,
+   "player",
+   "dire shockball",
+   "",
+   1.0
+  ],
+  [
+   0,
+   "player",
+   "weakness to shock",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "weakness to shock",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "weakness to shock",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "weakness to shock",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "weakness to shock",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "weakness to shock",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "weakness to shock",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "weakness to shock",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "weakness to shock",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "weakness to shock",
+   "",
+   0.1
+  ]
+ ]
+}

@@ -531,9 +531,9 @@ _remove_effect → removeMagicEffect, _should_remove → shouldRemoveEffect), sk
 (apply_movement co klatkę), walka w `mw_combat.gd`, AI w `mw_ai.gd`/`mw_dialogue.gd`.
 
 **Stan przed etapem:** 0 zweryfikowanych porównaniem, 79 zaimplementowanych (testy syntetyczne), 14 częściowo,
-50 brakujących. **Po etapie:** 90 zweryfikowanych porównaniem z OpenMW (59 przypadków porównawczych, w tym statystyczne:
+50 brakujących. **Po etapie:** 118 zweryfikowanych porównaniem z OpenMW (74 przypadków porównawczych, w tym statystyczne:
 40 nałożeń tego samego czaru – odporność, paraliż, odbicie, pochłonięcie, usuwanie, wysysanie umiejętności,
-uszkadzanie magii/kondycji, pochłanianie magii – i 9 przypadków ze sterowaniem postacią), 48 zaimplementowanych
+uszkadzanie magii/kondycji, pochłanianie magii – i 10 przypadków ze sterowaniem postacią), 20 zaimplementowanych
 zgodnie z kodem OpenMW, 5 częściowo zgodnych, 0 brakujących.
 
 Dodatkowo w tej części: trwałe czary (choroby, zaraza, klątwy) nakładają efekty jednorazowe na pule (Wyssanie i
@@ -558,6 +558,14 @@ w obu silnikach; `framelog` – klatki OpenMW (dt, położenie) do `physics_fit.
 Wyniki: chód/bieg (Wzmocnienie szybkości, Ciężar, Lekkość, przeciążenie), lot (Lewitacja), skok, pływanie (Szybkie
 pływanie), bieg po wodzie, Telekineza (podniesienie z 400 j.; poza zasięgiem 725 j. – nic) – zgodne.
 
+**Część 5 (2026-11-18): odporności, słabości, żywioły, rzucanie czarów przez gracza.** Pole `cast` ([[t, czar]]):
+w OpenMW wybór czaru i postawa magii z Lua (`setSelectedSpell`, `setStance` przy `overrideCombatControls`) i „use”,
+w Godocie `player_cast` (lewy przycisk przy gotowej magii); `after_s` – polecenia MWScript po czasie (GetSecondsPassed)
+zamiast po klatkach (OpenMW 5–7 kl./s); stan broni i pancerza w migawce (`condition`). Przypadki deterministyczne
+tam, gdzie wzór na to pozwala: odporność ≥ 100 – pełne odparcie bez rzutu, słabość 100 – obrażenia × 2 (część
+odporności z rzutu < 1 %), czary o stałej wielkości (1 pkt × 20), Oślepienie/Schronienie poza zakresem szansy
+trafienia (0 %), tarcze żywiołów bez obrony atakującego (2,4 pkt na trafienie).
+
 | # | Efekt | Przed etapem | Po etapie | Działanie | Test / porównanie z OpenMW |
 |---|---|---|---|---|---|
 | 0 | WaterBreathing | Brakujące | Zweryfikowane | tonięcie (fHoldBreathTime 20 s, fSuffocationDamage 3/s) wyłączone; gracz i NPC | fx_drown/fx_breathe: −12 zdrowia po 24 s / 0 – jak OpenMW |
@@ -565,8 +573,8 @@ pływanie), bieg po wodzie, Telekineza (podniesienie z 400 j.; poza zasięgiem 7
 | 2 | WaterWalking | Brakujące | Zweryfikowane | kolizja z powierzchnią wody (bieg po wodzie), przeniesienie na powierzchnię, castable, usuwane po teleporcie | fx_waterwalk (z = 0), ctl_waterwalk_run: bieg po wodzie 477/466 j., z = 0 w obu |
 | 3 | Shield | Częściowo zgodne | Zaimplementowane | pancerz +wielkość (Npc::getArmorRating), GetArmorBonus | fx_player_map |
 | 4 | FireShield | Częściowo zgodne | Zweryfikowane | odporność na ogień + rani atakującego wręcz (applyElementalShields: 0,1 × wielkość × (1 − 0,01 × x), przed blokiem) | fx_shield_attack: 2 pkt na trafienie w obu (liczba trafień zależy od AI walki) |
-| 5 | LightningShield | Częściowo zgodne | Zaimplementowane | odporność na żywioł + rani atakującego wręcz (applyElementalShields, przed blokiem) | mapa zgodna; obrażenia atakującego – test syntetyczny brak porównania |
-| 6 | FrostShield | Częściowo zgodne | Zaimplementowane | odporność na żywioł + rani atakującego wręcz (applyElementalShields, przed blokiem) | mapa zgodna; obrażenia atakującego – test syntetyczny brak porównania |
+| 5 | LightningShield | Częściowo zgodne | Zweryfikowane | odporność na żywioł + rani atakującego wręcz (applyElementalShields: wielkość × fElementalShieldMult, rzut obrony atakującego) | fx_shock_frost_shield: atakujący bez obrony – 2,4 pkt na trafienie w obu (3 trafienia OpenMW, 5 Godot) |
+| 6 | FrostShield | Częściowo zgodne | Zweryfikowane | odporność na żywioł + rani atakującego wręcz (applyElementalShields: wielkość × fElementalShieldMult, rzut obrony atakującego) | fx_shock_frost_shield: atakujący bez obrony – 2,4 pkt na trafienie w obu (3 trafienia OpenMW, 5 Godot) |
 | 7 | Burden | Częściowo zgodne | Zweryfikowane | obciążenie: prędkość × (1 − fEncumberedMoveEffect × obciążenie), przeciążony (> 1) stoi i nie skacze (getMaxSpeed) | ctl_walk_burden: 0 różnic (bez ruchu w obu; baza 158/152 j./s) |
 | 8 | Feather | Częściowo zgodne | Zweryfikowane | lekkość odejmowana od obciążenia (przeciążony → może biec) | ctl_run_feather: bieg 222 j./s OpenMW / 219 j./s Godot, baza – stoi w obu |
 | 9 | Jump | Zaimplementowane | Zweryfikowane | prędkość skoku getJump (+64 × wielkość przed mnożnikami) | ctl_jump + physics_fit.py: v0 498 OpenMW / 496 Godot (baza 308/298); wysokość w Xvfb zawyżona przez kroki fizyki przy niskim fps |
@@ -574,9 +582,9 @@ pływanie), bieg po wodzie, Telekineza (podniesienie z 400 j.; poza zasięgiem 7
 | 11 | SlowFall | Brakujące | Częściowo zgodne | inercja w dół × (1 − 0,005 × wielkość) na krok fizyki, brak obrażeń od upadku | fx_slowfall: bez obrażeń w obu; prędkość graniczna Godot 59 j./s = wzór przy 60 Hz, OpenMW w Xvfb ~70 j./s (2–5 kl./s) |
 | 12 | Lock | Zaimplementowane | Zweryfikowane | zamki drzwi i pojemników nieorganicznych (applyMagicEffect: Zamknięcie, gdy poziom < wielkość; Otwarcie przy poziomie ≤ wielkość, unlockAttempted), także z MWScript Cast/ExplodeSpell obiektu | fx_lock_open: 5 obiektów (otwarcie, nieudane otwarcie, zamknięcie, bez podwyższenia, ExplodeSpell) – 0 różnic |
 | 13 | Open | Zaimplementowane | Zweryfikowane | zamki drzwi i pojemników nieorganicznych (applyMagicEffect: Zamknięcie, gdy poziom < wielkość; Otwarcie przy poziomie ≤ wielkość, unlockAttempted), także z MWScript Cast/ExplodeSpell obiektu | fx_lock_open: 5 obiektów (otwarcie, nieudane otwarcie, zamknięcie, bez podwyższenia, ExplodeSpell) – 0 różnic |
-| 14 | FireDamage | Zaimplementowane | Zaimplementowane | obrażenia zdrowia co sekundę, śmierć, odporności/słabości | test_magic |
-| 15 | ShockDamage | Zaimplementowane | Zaimplementowane | obrażenia zdrowia co sekundę, śmierć, odporności/słabości | test_magic |
-| 16 | FrostDamage | Zaimplementowane | Zaimplementowane | obrażenia zdrowia co sekundę, śmierć, odporności/słabości | test_magic |
+| 14 | FireDamage | Zaimplementowane | Zweryfikowane | obrażenia zdrowia (co sekundę przy czasie trwania), odporność/słabość na żywioł | fx_weakness_elements: utrata zdrowia 104,9 / 104,9 (słabość do ognia i mrozu); fx_resist_elements: 0 przy odporności 120 |
+| 15 | ShockDamage | Zaimplementowane | Zweryfikowane | obrażenia zdrowia od porażenia, odporność/słabość | fx_shock_damage: 4 × (40–50) × 1,99 – utrata 381 / 365 (przedział 318–398); fx_resist_elements: 0 |
+| 16 | FrostDamage | Zaimplementowane | Zweryfikowane | obrażenia zdrowia (co sekundę przy czasie trwania), odporność/słabość na żywioł | fx_weakness_elements: utrata zdrowia 104,9 / 104,9 (słabość do ognia i mrozu); fx_resist_elements: 0 przy odporności 120 |
 | 17 | DrainAttribute | Zaimplementowane | Zweryfikowane | ubytki atrybutów, przywracanie po wygaśnięciu i wyleczeniu | fx_corprus, fx_disease_cure: wartości stałe zgodne (bez rzutu odporności) |
 | 18 | DrainHealth | Zaimplementowane | Zweryfikowane | wyssanie zdrowia/kondycji | fx_npc_dynamic (różnica 0,6 zdrowia – czas próbki) |
 | 19 | DrainMagicka | Zaimplementowane | Zweryfikowane | wyssanie magii | fx_potions_restore (rzut odporności) |
@@ -588,37 +596,37 @@ pływanie), bieg po wodzie, Telekineza (podniesienie z 400 j.; poza zasięgiem 7
 | 25 | DamageFatigue | Zaimplementowane | Zweryfikowane | uszkadzanie magii/kondycji co sekundę | porównanie statystyczne 2×20 czarów: sumy 57/66 i 294/290, magia i kondycja do zera w obu |
 | 26 | DamageSkill | Zaimplementowane | Częściowo zgodne | ubytki atrybutów/umiejętności, przywracanie po wygaśnięciu (Drain) | fx_player_damage/fx_npc_stats: wartości zgodne do rzutu odporności (losowe) |
 | 27 | Poison | Zaimplementowane | Zweryfikowane | trucizna, paraliż i ich leczenie | fx_cures: 0 różnic |
-| 28 | WeaknessToFire | Zaimplementowane | Zaimplementowane | słabości w odpornościach i obrażeniach | wielkość w mapie zgodna (fx_player_damage: Fire, Poison – rzut odporności) |
-| 29 | WeaknessToFrost | Zaimplementowane | Zaimplementowane | słabości w odpornościach i obrażeniach | wielkość w mapie zgodna (fx_player_damage: Fire, Poison – rzut odporności) |
-| 30 | WeaknessToShock | Zaimplementowane | Zaimplementowane | słabości w odpornościach i obrażeniach | wielkość w mapie zgodna (fx_player_damage: Fire, Poison – rzut odporności) |
-| 31 | WeaknessToMagicka | Zaimplementowane | Zaimplementowane | słabości w odpornościach i obrażeniach | wielkość w mapie zgodna (fx_player_damage: Fire, Poison – rzut odporności) |
+| 28 | WeaknessToFire | Częściowo zgodne | Zweryfikowane | ujemna odporność w getEffectResistance (obrażenia × (1 + słabość/100)), znosi się z odpornością | fx_weakness_elements: 0 różnic, utrata zdrowia ±0,04 pkt |
+| 29 | WeaknessToFrost | Częściowo zgodne | Zweryfikowane | ujemna odporność w getEffectResistance (obrażenia × (1 + słabość/100)), znosi się z odpornością | fx_weakness_elements: 0 różnic, utrata zdrowia ±0,04 pkt |
+| 30 | WeaknessToShock | Częściowo zgodne | Zweryfikowane | słabość do porażenia | fx_shock_damage: 0 różnic (słabość 99, obrażenia w przedziale wzoru) |
+| 31 | WeaknessToMagicka | Częściowo zgodne | Zweryfikowane | słabość do magii – obrażenia bez własnej odporności i kolejne czary szkodliwe (narastająco) | fx_weakness_magicka_poison: słabość 159 w obu (kolejne nałożenia wzmacniane), utrata zdrowia 211 / 213 |
 | 32 | WeaknessToCommonDisease | Zaimplementowane | Zaimplementowane | słabości w odpornościach i obrażeniach | wielkość w mapie zgodna (fx_player_damage: Fire, Poison – rzut odporności) |
 | 33 | WeaknessToBlightDisease | Zaimplementowane | Zaimplementowane | słabości w odpornościach i obrażeniach | wielkość w mapie zgodna (fx_player_damage: Fire, Poison – rzut odporności) |
 | 34 | WeaknessToCorprusDisease | Zaimplementowane | Zaimplementowane | słabości w odpornościach i obrażeniach | wielkość w mapie zgodna (fx_player_damage: Fire, Poison – rzut odporności) |
-| 35 | WeaknessToPoison | Zaimplementowane | Zaimplementowane | słabości w odpornościach i obrażeniach | wielkość w mapie zgodna (fx_player_damage: Fire, Poison – rzut odporności) |
+| 35 | WeaknessToPoison | Częściowo zgodne | Zweryfikowane | słabość do trucizny | fx_weakness_magicka_poison: słabość 99, utrata w przedziale wzoru w obu |
 | 36 | WeaknessToNormalWeapons | Zaimplementowane | Zaimplementowane | słabości w odpornościach i obrażeniach | wielkość w mapie zgodna (fx_player_damage: Fire, Poison – rzut odporności) |
-| 37 | DisintegrateWeapon | Zaimplementowane | Zaimplementowane | zużycie broni/pancerza wg slotów (kolejność OpenMW) | test_magic |
-| 38 | DisintegrateArmor | Zaimplementowane | Zaimplementowane | zużycie broni/pancerza wg slotów (kolejność OpenMW) | test_magic |
+| 37 | DisintegrateWeapon | Częściowo zgodne | Zweryfikowane | stan broni w prawej ręce / pierwszego pancerza wg kolejności slotów (tarcza, kirys, …): stan całkowity, ułamek zbierany (applyChargeRemainderToBeSubtracted), przedmiot o stanie 0 pomijany, zniszczony zdejmowany u gracza | fx_disintegrate: sztylet −15 / −15, tarcza −33 / −32 (losowe wielkości 6–25), kirys bez zmian w obu |
+| 38 | DisintegrateArmor | Częściowo zgodne | Zweryfikowane | stan broni w prawej ręce / pierwszego pancerza wg kolejności slotów (tarcza, kirys, …): stan całkowity, ułamek zbierany (applyChargeRemainderToBeSubtracted), przedmiot o stanie 0 pomijany, zniszczony zdejmowany u gracza | fx_disintegrate: sztylet −15 / −15, tarcza −33 / −32 (losowe wielkości 6–25), kirys bez zmian w obu |
 | 39 | Invisibility | Częściowo zgodne | Zweryfikowane | wykrywanie, trafienie; zdejmowana przy ataku, czarze, przedmiocie, wypiciu, alchemii; od pierwszej klatki; czar z tej samej klatki (kolejka ActiveSpells) nie jest zdejmowany | fx_invis_break, fx_invis_break2: 0 różnic |
 | 40 | Chameleon | Zaimplementowane | Zweryfikowane | spostrzegawczość (awarenessCheck: + wielkość) z rzutem obserwatora trzymanym 5 s; obrona w walce (fCombatInvisoMult) | fx_stat_chameleon: GetDetected 40× – 0/40 z Kameleonem 300, 40/40 bez, w obu |
 | 41 | Light | Brakujące | Częściowo zgodne | światło przy aktorze (promień 22 j. × wielkość × 3) | bez porównania obrazu; tylko światło otoczenia w OpenMW – tu OmniLight |
 | 42 | Sanctuary | Zaimplementowane | Zweryfikowane | unik (getEvasion: + min(100, wielkość)), pomijany przy powaleniu, paraliżu i nieświadomości ofiary | fx_sanctuary_combat: brak trafień z Schronieniem 120, trafienia bez niego (Fargoth, walka wręcz) w obu |
 | 43 | NightEye | Brakujące | Częściowo zgodne | światło otoczenia + 0,7 × min(1, wielkość/100) dla gracza | bez porównania obrazu |
-| 44 | Charm | Brakujące | Zaimplementowane | postawa NPC + wielkość (getDerivedDisposition) | fx_npc_ai: Urok zgodny; postawa różna przez grzywnę (patrz różnice) |
+| 44 | Charm | Zaimplementowane | Zweryfikowane | postawa + wielkość (getDerivedDisposition) | fx_charm_misc: GetDisposition 70 z Urokiem 30, 40 bez – w obu |
 | 45 | Paralyze | Zaimplementowane | Zweryfikowane | bez ruchu i ataku (sparaliżowany NPC nie zadaje ciosów); Leczenie paraliżu | fx_paralyze_combat (gracz bez strat), fx_cures |
-| 46 | Silence | Zaimplementowane | Zaimplementowane | blokada czarów / kara do szansy; Dźwięk: pętla „magic sound” gracza | test_magic |
-| 47 | Blind | Zaimplementowane | Zaimplementowane | wykrywanie/obrona/atak (combat.cpp) | wielkość w mapie zgodna (fx_player_map) |
-| 48 | Sound | Zaimplementowane | Zaimplementowane | blokada czarów / kara do szansy; Dźwięk: pętla „magic sound” gracza | test_magic |
+| 46 | Silence | Zaimplementowane | Zweryfikowane | szansa rzucenia 0 (getSpellSuccessChance), magia zużyta przy nieudanym rzucie | fx_cast_silence: rzut czaru przez gracza (postawa magii + „use”) – nieudany z Ciszą, udany bez; magia −5 w obu |
+| 47 | Blind | Zaimplementowane | Zweryfikowane | szansa trafienia atakującego − wielkość (getHitChance) | fx_blind_combat: Fargoth z Oślepieniem 199 nie trafia gracza w obu |
+| 48 | Sound | Zaimplementowane | Zweryfikowane | szansa rzucenia − wielkość | fx_cast_sound: Dźwięk 249–266 – rzut nieudany, magia −5 w obu |
 | 49 | CalmHumanoid | Brakujące | Zweryfikowane | Fight − wielkość i stopCombat | fx_npc_ai, fx_calm_combat: GetTarget player 0 po Uspokojeniu w obu |
 | 50 | CalmCreature | Brakujące | Zweryfikowane | modyfikator Fight/Flee stworzeń | fx_creature_ai: ustawienia AI zgodne |
 | 51 | FrenzyHumanoid | Brakujące | Zweryfikowane | modyfikator Fight/Flee | fx_npc_command: 0 różnic |
-| 52 | FrenzyCreature | Brakujące | Zaimplementowane | modyfikator Fight/Flee (modifyAiSetting), wariant ludzi/stworzeń | fx_npc_ai: Szał stworzeń na NPC – nieprawidłowy w obu |
+| 52 | FrenzyCreature | Brakujące | Zweryfikowane | modyfikator Fight stworzenia (modifyAiSetting), na NPC nieprawidłowy | fx_creature_command: skamp Fight 50 → 54 w obu; fx_npc_ai: na NPC nieprawidłowy w obu |
 | 53 | DemoralizeHumanoid | Brakujące | Zweryfikowane | modyfikator Fight/Flee (modifyAiSetting), Uspokojenie zatrzymuje walkę, wariant ludzi/stworzeń | fx_npc_ai: Fight 0 / Flee 34 jak OpenMW |
 | 54 | DemoralizeCreature | Brakujące | Zweryfikowane | modyfikator Fight/Flee stworzeń | fx_creature_ai: ustawienia AI zgodne |
 | 55 | RallyHumanoid | Brakujące | Zweryfikowane | modyfikator Fight/Flee | fx_npc_command: 0 różnic |
 | 56 | RallyCreature | Brakujące | Zweryfikowane | modyfikator Fight/Flee stworzeń | fx_creature_ai: ustawienia AI zgodne |
 | 57 | Dispel | Zaimplementowane | Zweryfikowane | usuwanie czarów tymczasowych z szansą wielkości (każdy osobno) | porównanie statystyczne 40 czarów: usunięte 9/40 OpenMW, 5–13/40 Godot (oczekiwane 20%) |
-| 58 | Soultrap | Zaimplementowane | Zaimplementowane | dusza do kamienia (soulTrap) | test_magic |
+| 58 | Soultrap | Zaimplementowane | Zweryfikowane | dusza zabitego stworzenia do najmniejszego pasującego pustego kamienia rzucającego (soulTrap) | fx_soultrap: skamp zabity czarem pod Pułapką dusz – HasSoulGem 1, kamień liczony przez GetItemCount w obu |
 | 59 | Telekinesis | Brakujące | Zweryfikowane | zasięg aktywacji + wielkość × 21,33 j., bez aktorów i otwartych drzwi teleportujących | ctl_telekinesis: podniesienie przedmiotu z 400 j. (klawisz aktywacji przez XTest / akcję wejścia) – z Telekinezą 1, bez 0, w obu |
 | 60 | Mark | Częściowo zgodne | Zweryfikowane | Znak z obrotem, Przywołanie, DisableTeleporting, zapis | fx_markrecall: 0 różnic |
 | 61 | Recall | Częściowo zgodne | Zweryfikowane | Znak z obrotem, Przywołanie, DisableTeleporting, zapis | fx_markrecall: 0 różnic |
@@ -641,7 +649,7 @@ pływanie), bieg po wodzie, Telekineza (podniesienie z 400 j.; poza zasięgiem 7
 | 78 | RestoreSkill | Zaimplementowane | Zaimplementowane | przywracanie | test_magic |
 | 79 | FortifyAttribute | Zaimplementowane | Zweryfikowane | wzmocnienia (czasowe zdrowie/magia/kondycja – tylko bieżąca, w mapie efektów) | fx_player_map, fx_npc_stats |
 | 80 | FortifyHealth | Zaimplementowane | Zweryfikowane | wzmocnienia (czasowe zdrowie/magia/kondycja – tylko bieżąca, w mapie efektów) | fx_player_map, fx_npc_stats |
-| 81 | FortifyMagicka | Zaimplementowane | Zaimplementowane | wzmocnienie magii (bieżąca) | test_magic |
+| 81 | FortifyMagicka | Zaimplementowane | Zweryfikowane | modyfikator magii (Wzmocnienie magii) | fx_charm_misc: magia +15 (10 + 5) w obu |
 | 82 | FortifyFatigue | Zaimplementowane | Zweryfikowane | wzmocnienia (czasowe zdrowie/magia/kondycja – tylko bieżąca, w mapie efektów) | fx_player_map, fx_npc_stats |
 | 83 | FortifySkill | Zaimplementowane | Zweryfikowane | wzmocnienia (czasowe zdrowie/magia/kondycja – tylko bieżąca, w mapie efektów) | fx_player_map, fx_npc_stats |
 | 84 | FortifyMaximumMagicka | Zaimplementowane | Zweryfikowane | maks. magia (recalculateMagicka) – NPC | fx_npc_maxmagicka (Fargoth, zdolność): 0 różnic; gracz – stan startowy OpenMW nieprzeliczony |
@@ -650,16 +658,16 @@ pływanie), bieg po wodzie, Telekineza (podniesienie z 400 j.; poza zasięgiem 7
 | 87 | AbsorbMagicka | Zaimplementowane | Zweryfikowane | pochłanianie magii do rzucającego | porównanie 10 czarów: suma 109/110, magia celu 0 i rzucającego pełna w obu |
 | 88 | AbsorbFatigue | Zaimplementowane | Zweryfikowane | pochłanianie kondycji do rzucającego | fx_absorb: ~20/s w obu (różnica – długość okna czasu) |
 | 89 | AbsorbSkill | Zaimplementowane | Zaimplementowane | pochłanianie do rzucającego | test_magic |
-| 90 | ResistFire | Zaimplementowane | Zaimplementowane | odporności (getEffectResistance – zawsze, także bez rzucającego) | wielkość w mapie zgodna (fx_player_map) |
-| 91 | ResistFrost | Zaimplementowane | Zaimplementowane | odporności (getEffectResistance – zawsze, także bez rzucającego) | wielkość w mapie zgodna (fx_player_map) |
-| 92 | ResistShock | Zaimplementowane | Zaimplementowane | odporności (getEffectResistance – zawsze, także bez rzucającego) | wielkość w mapie zgodna (fx_player_map) |
-| 93 | ResistMagicka | Zaimplementowane | Zaimplementowane | odporności (getEffectResistance – zawsze, także bez rzucającego) | wielkość w mapie zgodna (fx_player_map) |
+| 90 | ResistFire | Częściowo zgodne | Zweryfikowane | odporność w getEffectResistance (≥ 100 – pełne odparcie bez rzutu) | fx_resist_elements: odporności 120 – zero obrażeń od ognia, mrozu, porażenia, trucizny i obrażeń zdrowia w obu (0 różnic) |
+| 91 | ResistFrost | Częściowo zgodne | Zweryfikowane | odporność w getEffectResistance (≥ 100 – pełne odparcie bez rzutu) | fx_resist_elements: odporności 120 – zero obrażeń od ognia, mrozu, porażenia, trucizny i obrażeń zdrowia w obu (0 różnic) |
+| 92 | ResistShock | Częściowo zgodne | Zweryfikowane | odporność w getEffectResistance (≥ 100 – pełne odparcie bez rzutu) | fx_resist_elements: odporności 120 – zero obrażeń od ognia, mrozu, porażenia, trucizny i obrażeń zdrowia w obu (0 różnic) |
+| 93 | ResistMagicka | Częściowo zgodne | Zweryfikowane | odporność w getEffectResistance (≥ 100 – pełne odparcie bez rzutu) | fx_resist_elements: odporności 120 – zero obrażeń od ognia, mrozu, porażenia, trucizny i obrażeń zdrowia w obu (0 różnic) |
 | 94 | ResistCommonDisease | Zaimplementowane | Zaimplementowane | odporności (getEffectResistance – zawsze, także bez rzucającego) | wielkość w mapie zgodna (fx_player_map) |
 | 95 | ResistBlightDisease | Zaimplementowane | Zaimplementowane | odporności (getEffectResistance – zawsze, także bez rzucającego) | wielkość w mapie zgodna (fx_player_map) |
 | 96 | ResistCorprusDisease | Zaimplementowane | Zaimplementowane | odporności (getEffectResistance – zawsze, także bez rzucającego) | wielkość w mapie zgodna (fx_player_map) |
-| 97 | ResistPoison | Zaimplementowane | Zaimplementowane | odporności (getEffectResistance – zawsze, także bez rzucającego) | wielkość w mapie zgodna (fx_player_map) |
-| 98 | ResistNormalWeapons | Zaimplementowane | Zaimplementowane | odporności (getEffectResistance – zawsze, także bez rzucającego) | wielkość w mapie zgodna (fx_player_map) |
-| 99 | ResistParalysis | Zaimplementowane | Zaimplementowane | odporności (getEffectResistance – zawsze, także bez rzucającego) | wielkość w mapie zgodna (fx_player_map) |
+| 97 | ResistPoison | Częściowo zgodne | Zweryfikowane | odporność w getEffectResistance (≥ 100 – pełne odparcie bez rzutu) | fx_resist_elements: odporności 120 – zero obrażeń od ognia, mrozu, porażenia, trucizny i obrażeń zdrowia w obu (0 różnic) |
+| 98 | ResistNormalWeapons | Częściowo zgodne | Zweryfikowane | obrażenia od broni niemagicznej (nie srebrnej) × (1 − odporność/100) | fx_resist_normal_weapons: zdolność „immune to normal weapons” – sztylet Fargotha bez obrażeń, bez niej −14…−16 w obu |
+| 99 | ResistParalysis | Częściowo zgodne | Zweryfikowane | odporność na paraliż – 100 odpiera paraliż | fx_charm_misc: Spojrzenie meduzy bez paraliżu przy odporności 100 w obu |
 | 100 | RemoveCurse | Zaimplementowane | Zaimplementowane | usuwanie chorób/trucizn/paraliżu/klątw (także NPC) | test_magic |
 | 101 | TurnUndead | Brakujące | Zweryfikowane | Flee + wielkość dla nieumarłych (Creature::Undead) | fx_turnundead: ucieczka przywołanego szkieletu zgodna |
 | 102 | SummonScamp | Brakujące | Zweryfikowane | pełny aktor (statystyki, ekwipunek, AI follow, pomoc w walce, koniec, śmierć, przez drzwi z graczem, zapis) | fx_summon (0 różnic), fx_summon_end (znika po 10 s) |
@@ -677,8 +685,8 @@ pływanie), bieg po wodzie, Telekineza (podniesienie z 400 j.; poza zasięgiem 7
 | 114 | SummonFlameAtronach | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
 | 115 | SummonFrostAtronach | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
 | 116 | SummonStormAtronach | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
-| 117 | FortifyAttack | Zaimplementowane | Zaimplementowane | wykrywanie/obrona/atak (combat.cpp) | wielkość w mapie zgodna (fx_player_map) |
-| 118 | CommandCreature | Brakujące | Zaimplementowane | AiFollow (rozkaz) dla stworzeń | fx_creature_ai: wielkość zgodna; pakiet – niejednoznaczny obiekt „mudcrab” w skrypcie |
+| 117 | FortifyAttack | Zaimplementowane | Zweryfikowane | szansa trafienia + wielkość (getHitChance) | fx_fortify_attack: Oślepienie 200 + Wzmocnienie ataku 200 – Fargoth znów trafia w obu |
+| 118 | CommandCreature | Brakujące | Zweryfikowane | AiFollow za rzucającym, gdy poziom stworzenia ≤ wielkość | fx_creature_command: mapa efektów i Fight zgodne (skamp poziom 5, wielkość 5); ctl_creature_follow: skamp idzie za oddalającym się graczem w obu (prędkość: OpenMW ruch z animacji – poza magią) |
 | 119 | CommandHumanoid | Brakujące | Zweryfikowane | AiFollow (rozkaz), gdy wielkość ≥ poziom | fx_npc_command: GetCurrentAIPackage = 3 w obu |
 | 120 | BoundDagger | Zaimplementowane | Zweryfikowane | przedmiot w ekwipunku na czas efektu | fx_bound: ekwipunek zgodny |
 | 121 | BoundLongsword | Zaimplementowane | Zweryfikowane | przedmiot przywołany: ActionEquip bez zdejmowania broni dwuręcznej/tarczy | fx_bound_weapons: 0 różnic |
@@ -745,6 +753,16 @@ pływanie), bieg po wodzie, Telekineza (podniesienie z 400 j.; poza zasięgiem 7
   getHitChance pomija unik przy paraliżu ofiary i nieświadomości ofiary ataku gracza, Otwarcie wywołuje
   unlockAttempted, Zamknięcie/Otwarcie nie działają na pojemnikach organicznych, MWScript Cast/ExplodeSpell
   z obiektu (nie aktora) – efekty dotyku na obiekt-cel (OpCast z mAlwaysSucceed).
+- **Poprawki z porównań części 5:** GetItemCount/RemoveItem liczą kamień z duszą jako ten sam przedmiot co pusty
+  (ContainerStore po RefId); Rozpad broni/pancerza na całkowitym stanie przedmiotu z ułamkiem zbieranym jak
+  applyChargeRemainderToBeSubtracted, przedmiot o stanie 0 pomijany (następny slot); w sondzie OpenMW wartości efektów
+  obcinane w stronę zera jak static_cast w MWScript (wcześniej floor – różnica −25/−24 przy słabościach).
+- **Śmierć bez animacji w Godocie:** OpenMW liczy GetDeadCount i czyści czary trupa po animacji śmierci
+  (Result_DeathAnimJustFinished), Godot od razu (animacja śmierci – etap 10, poza magią) – fx_soultrap.
+- **Ruch stworzeń:** OpenMW przesuwa część stworzeń ruchem z animacji (skamp ~250 j./s zamiast 22,7 j./s ze wzoru
+  getWalkSpeed); Godot – wzór. Poza magią (Rozkaz stworzeniu: podążanie zgodne).
+- **Stworzenia spoza przekonwertowanych komórek** (np. „scamp”) nie mają obiektu w objects.json – PlaceAtPC
+  w Godocie tworzy obiekt bez aktora; testy używają stworzeń z konwersji (zależność od zakresu konwersji).
 - **Zależności:** Wampiryzm (reakcje NPC, sen, wygląd), znaczniki Wykrywania jako proste kwadraty (bez ikon
   detect_*_icon), przenoszenie stałych referencji NPC między komórkami
   (towarzysze przez drzwi – działa dla przywołań i obiektów dynamicznych), AiCast (Cast/ExplodeSpell NPC działa

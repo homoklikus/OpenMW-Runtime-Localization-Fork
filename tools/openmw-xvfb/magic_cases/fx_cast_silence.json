@@ -1,0 +1,40 @@
+{
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects"
+ ],
+ "setup": [
+  "EnablePlayerMagic",
+  "EnablePlayerFighting",
+  "player->AddSpell \"resist fire\"",
+  "player->SetRestoration 60",
+  "player->SetWillpower 0",
+  "player->SetLuck 0",
+  "player->SetMagicka 200",
+  "player->ModCurrentFatigue 1000"
+ ],
+ "cast": [
+  [
+   1.0,
+   "resist fire"
+  ]
+ ],
+ "stackable": true,
+ "seconds": 4.5,
+ "name": "fx_cast_silence",
+ "spells": [
+  [
+   0,
+   "player",
+   "silence",
+   "",
+   0.1
+  ]
+ ],
+ "framelog": true
+}

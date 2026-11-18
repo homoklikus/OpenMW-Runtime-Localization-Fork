@@ -1,0 +1,75 @@
+{
+ "name": "fx_charm_misc",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player",
+  "fargoth"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".actors.fargoth.dynamic"
+ ],
+ "vars": [
+  [
+   "short",
+   "mwdisp"
+  ]
+ ],
+ "setup": [
+  "player->Position -10450 -71150 300 0"
+ ],
+ "stackable": true,
+ "spells": [
+  [
+   0,
+   "fargoth",
+   "charming touch",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "veloth's indwelling",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "soul of sotha sil",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "resist paralysis",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "resist paralysis",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "medusa's gaze",
+   "",
+   1.0
+  ]
+ ],
+ "after": [
+  [
+   25,
+   "set mwdisp to \"fargoth\"->GetDisposition"
+  ]
+ ],
+ "seconds": 6
+}

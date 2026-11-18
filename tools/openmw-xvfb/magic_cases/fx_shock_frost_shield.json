@@ -1,0 +1,47 @@
+{
+ "name": "fx_shock_frost_shield",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player",
+  "fargoth"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track",
+  ".actors.fargoth.dynamic",
+  ".actors.player.dynamic.fatigue[1]",
+  ".actors.fargoth.attributes",
+  ".actors.fargoth.skills"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -10450 -71150 300 0",
+  "player->SetHealth 500",
+  "fargoth->SetDestruction 0",
+  "fargoth->SetWillpower 0",
+  "fargoth->SetLuck 0",
+  "fargoth->SetHandToHand 60",
+  "fargoth->SetHealth 300",
+  "fargoth->StartCombat player"
+ ],
+ "stackable": true,
+ "spells": [
+  [
+   0,
+   "player",
+   "strong shock shield",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "strong frost shield",
+   "",
+   0.1
+  ]
+ ],
+ "seconds": 12
+}

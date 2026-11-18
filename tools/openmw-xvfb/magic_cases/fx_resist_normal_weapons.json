@@ -1,0 +1,29 @@
+{
+ "name": "fx_resist_normal_weapons",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player",
+  "fargoth"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -10450 -71150 300 0",
+  "player->SetHealth 500",
+  "fargoth->AddItem \"iron dagger\" 1",
+  "fargoth->Equip \"iron dagger\"",
+  "fargoth->SetShortBlade 80",
+  "fargoth->SetAgility 50",
+  "fargoth->StartCombat player"
+ ],
+ "stackable": true,
+ "seconds": 10,
+ "commands": [
+  "player->AddSpell \"immune to normal weapons\""
+ ]
+}

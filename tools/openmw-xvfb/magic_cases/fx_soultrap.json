@@ -1,0 +1,67 @@
+{
+ "name": "fx_soultrap",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player",
+  "scamp_summon"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects"
+ ],
+ "vars": [
+  [
+   "short",
+   "mwgem"
+  ],
+  [
+   "short",
+   "mwdead"
+  ]
+ ],
+ "items": [
+  "misc_soulgem_petty",
+  "misc_soulgem_common"
+ ],
+ "setup": [
+  "player->Position -12288 -69632 160 0",
+  "player->AddItem \"misc_soulgem_common\" 1",
+  "PlaceAtPC \"scamp_summon\" 1 300 0"
+ ],
+ "spells": [
+  [
+   0,
+   "scamp_summon",
+   "soul trap",
+   "player",
+   0.5
+  ],
+  [
+   0,
+   "scamp_summon",
+   "daedric bite",
+   "",
+   2.0
+  ],
+  [
+   0,
+   "scamp_summon",
+   "daedric bite",
+   "",
+   2.0
+  ]
+ ],
+ "seconds": 4,
+ "after_s": [
+  [
+   3.0,
+   "set mwgem to player->HasSoulGem \"scamp_summon\""
+  ],
+  [
+   3.0,
+   "set mwdead to GetDeadCount \"scamp_summon\""
+  ]
+ ],
+ "stackable": true
+}

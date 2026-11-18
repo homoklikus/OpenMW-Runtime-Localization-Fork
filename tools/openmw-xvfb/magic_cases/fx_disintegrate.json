@@ -1,0 +1,45 @@
+{
+ "name": "fx_disintegrate",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects"
+ ],
+ "setup": [
+  "player->AddItem \"iron dagger\" 1",
+  "player->Equip \"iron dagger\"",
+  "player->AddItem \"iron_cuirass\" 1",
+  "player->Equip \"iron_cuirass\"",
+  "player->AddItem \"iron_shield\" 1",
+  "player->Equip \"iron_shield\""
+ ],
+ "stackable": true,
+ "seconds": 4,
+ "spells": [
+  [
+   0,
+   "player",
+   "weapon eater",
+   "",
+   0.5
+  ],
+  [
+   0,
+   "player",
+   "disintegrate armor",
+   "",
+   0.5
+  ],
+  [
+   0,
+   "player",
+   "disintegrate armor",
+   "",
+   0.5
+  ]
+ ]
+}

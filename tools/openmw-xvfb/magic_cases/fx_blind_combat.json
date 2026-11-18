@@ -1,0 +1,96 @@
+{
+ "name": "fx_blind_combat",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player",
+  "fargoth"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -10450 -71150 300 0",
+  "player->SetHealth 500",
+  "fargoth->SetHandToHand 60",
+  "fargoth->SetAgility 50",
+  "fargoth->StartCombat player"
+ ],
+ "stackable": true,
+ "spells": [
+  [
+   0,
+   "fargoth",
+   "blind",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "fargoth",
+   "blind",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "fargoth",
+   "blind",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "fargoth",
+   "blind",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "fargoth",
+   "blind",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "fargoth",
+   "blind",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "fargoth",
+   "blind",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "fargoth",
+   "blind",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "fargoth",
+   "blind",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "fargoth",
+   "blind",
+   "",
+   0.1
+  ]
+ ],
+ "seconds": 10
+}
