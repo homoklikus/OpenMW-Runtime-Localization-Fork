@@ -1,0 +1,93 @@
+{
+ "name": "fx_stat_absorbmagicka",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player",
+  "fargoth"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -10400 -71000 300 180",
+  "player->ModCurrentMagicka -40"
+ ],
+ "stackable": true,
+ "spells": [
+  [
+   0,
+   "fargoth",
+   "absorb spell points",
+   "player",
+   1.0
+  ],
+  [
+   0,
+   "fargoth",
+   "absorb spell points",
+   "player",
+   1.0
+  ],
+  [
+   0,
+   "fargoth",
+   "absorb spell points",
+   "player",
+   1.0
+  ],
+  [
+   0,
+   "fargoth",
+   "absorb spell points",
+   "player",
+   1.0
+  ],
+  [
+   0,
+   "fargoth",
+   "absorb spell points",
+   "player",
+   1.0
+  ],
+  [
+   0,
+   "fargoth",
+   "absorb spell points",
+   "player",
+   1.0
+  ],
+  [
+   0,
+   "fargoth",
+   "absorb spell points",
+   "player",
+   1.0
+  ],
+  [
+   0,
+   "fargoth",
+   "absorb spell points",
+   "player",
+   1.0
+  ],
+  [
+   0,
+   "fargoth",
+   "absorb spell points",
+   "player",
+   1.0
+  ],
+  [
+   0,
+   "fargoth",
+   "absorb spell points",
+   "player",
+   1.0
+  ]
+ ],
+ "seconds": 2.5
+}

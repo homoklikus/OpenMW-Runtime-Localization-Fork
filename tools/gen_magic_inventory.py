@@ -97,6 +97,8 @@ s([24,25],I,Z,"uszkadzanie magii/kondycji co sekundę","porównanie statystyczne
 s([84],I,Z,"maks. magia (recalculateMagicka) – NPC","fx_npc_maxmagicka (Fargoth, zdolność): 0 różnic; gracz – stan startowy OpenMW nieprzeliczony")
 s([85],I,Z,"Pochłanianie atrybutu: uszkodzenie celu, modyfikator rzucającego poza mapą efektów, cofnięcie obu po wygaśnięciu","fx_absorb_health: atrybut gracza +wielkość, brak wpisu w mapie w obu")
 s([86],I,Z,"pochłanianie zdrowia do rzucającego","fx_absorb_health: zdrowie zgodne")
+s([22],I,Z,"uszkodzenie atrybutu co sekundę (do zera)","porównanie statystyczne 40 czarów: szybkość Fargotha 0 w obu")
+s([87],I,Z,"pochłanianie magii do rzucającego","porównanie 10 czarów: suma 109/110, magia celu 0 i rzucającego pełna w obu")
 rows=["| # | Efekt | Przed etapem | Po etapie | Działanie | Test / porównanie z OpenMW |","|---|---|---|---|---|---|"]
 from collections import Counter
 cb,ca=Counter(),Counter()
