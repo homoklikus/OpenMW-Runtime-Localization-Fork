@@ -1,0 +1,237 @@
+{
+ "name": "fx_stat_chameleon",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player",
+  "fargoth"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track",
+  ".actors"
+ ],
+ "vars": [
+  [
+   "short",
+   "mwdet"
+  ]
+ ],
+ "setup": [
+  "player->Position -12288 -69632 160 0",
+  "\"fargoth\"->SetPos x -12288",
+  "\"fargoth\"->SetPos y -69482",
+  "\"fargoth\"->SetPos z 100",
+  "\"fargoth\"->SetAngle z 180",
+  "\"fargoth\"->AiWander 0 0 0"
+ ],
+ "stackable": true,
+ "spells": [
+  [
+   0,
+   "player",
+   "skillmephala_sp",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "skillmephala_sp",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "skillmephala_sp",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "skillmephala_sp",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "skillmephala_sp",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "skillmephala_sp",
+   "",
+   0.1
+  ]
+ ],
+ "after": [
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ],
+  [
+   15,
+   "set mwdet to mwdet + ( \"fargoth\"->GetDetected \"player\" )"
+  ]
+ ],
+ "seconds": 4
+}

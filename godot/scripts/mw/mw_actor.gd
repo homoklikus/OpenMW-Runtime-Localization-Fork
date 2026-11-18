@@ -138,7 +138,8 @@ func step(delta: float) -> void:
 		var d := look_basis() * Vector3(move_input.x, 0, move_input.y)
 		if want_jump:
 			d += Vector3.UP
-		velocity = d.normalized() * swim_speed * (1.5 if want_run else 1.0) if d.length() > 0.01 else Vector3.ZERO
+		# getSwimSpeedImpl: swim_speed już uwzględnia bieg (getRunSpeed przy biegu) – bez dodatkowego mnożnika
+		velocity = d.normalized() * swim_speed if d.length() > 0.01 else Vector3.ZERO
 		var max_y := water_level - height * swim_height_scale - 0.01     # przy powierzchni nadal pływa
 		if global_position.y + velocity.y * delta > max_y and velocity.y > 0.0:
 			velocity.y = maxf(0.0, (max_y - global_position.y) / maxf(delta, 1e-4))

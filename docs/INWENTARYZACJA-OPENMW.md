@@ -531,9 +531,10 @@ _remove_effect → removeMagicEffect, _should_remove → shouldRemoveEffect), sk
 (apply_movement co klatkę), walka w `mw_combat.gd`, AI w `mw_ai.gd`/`mw_dialogue.gd`.
 
 **Stan przed etapem:** 0 zweryfikowanych porównaniem, 79 zaimplementowanych (testy syntetyczne), 14 częściowo,
-50 brakujących. **Po etapie:** 81 zweryfikowanych porównaniem z OpenMW (48 przypadków porównawczych, w tym statystyczne:
+50 brakujących. **Po etapie:** 90 zweryfikowanych porównaniem z OpenMW (59 przypadków porównawczych, w tym statystyczne:
 40 nałożeń tego samego czaru – odporność, paraliż, odbicie, pochłonięcie, usuwanie, wysysanie umiejętności,
-uszkadzanie magii/kondycji, pochłanianie magii), 57 zaimplementowanych zgodnie z kodem OpenMW, 5 częściowo zgodnych, 0 brakujących.
+uszkadzanie magii/kondycji, pochłanianie magii – i 9 przypadków ze sterowaniem postacią), 48 zaimplementowanych
+zgodnie z kodem OpenMW, 5 częściowo zgodnych, 0 brakujących.
 
 Dodatkowo w tej części: trwałe czary (choroby, zaraza, klątwy) nakładają efekty jednorazowe na pule (Wyssanie i
 Uszkodzenie atrybutów/umiejętności) i Korpus pogarsza się co 24 h; wielkości zdolności losowane raz i zapisywane;
@@ -547,22 +548,32 @@ Porównania: `tools/openmw-xvfb/magic_run.sh tools/openmw-xvfb/magic_cases/*.jso
 silnikach jak `ActiveSpells:add` (Lua po stronie OpenMW), migawka pełnej mapy efektów („fx”), statystyk, AI,
 ekwipunku i położeń (próbki w czasie).
 
+**Sterowanie postacią w porównaniach (część 4, 2026-11-18):** przypadki `ctl_*` sterują graczem w obu silnikach
+tak samo – pole `controls` ([[od, do, {forward, back, left, right, run, sneak, jump, yaw, pitch}]]): w OpenMW skrypt
+gracza Lua (`I.Controls.overrideMovementControls`, `self.controls`), w Godocie akcje wejścia kontrolera gracza;
+`keys` ([[t, keysym]]) – klawisze niedostępne z Lua (aktywacja) naciskane w OpenMW przez XTest w oknie Xvfb
+(python-xlib w `OMW/pylib`), w Godocie jako zdarzenia akcji; `look_at` [x, y, z] – wycelowanie kamery w punkt
+w obu silnikach; `framelog` – klatki OpenMW (dt, położenie) do `physics_fit.py`; obiekty z zamkami w migawce
+(`lock`), wyszukiwanie obiektów w siatce 3 × 3 komórek. `track_summary.py` – prędkość, wysokość i położenie końcowe.
+Wyniki: chód/bieg (Wzmocnienie szybkości, Ciężar, Lekkość, przeciążenie), lot (Lewitacja), skok, pływanie (Szybkie
+pływanie), bieg po wodzie, Telekineza (podniesienie z 400 j.; poza zasięgiem 725 j. – nic) – zgodne.
+
 | # | Efekt | Przed etapem | Po etapie | Działanie | Test / porównanie z OpenMW |
 |---|---|---|---|---|---|
 | 0 | WaterBreathing | Brakujące | Zweryfikowane | tonięcie (fHoldBreathTime 20 s, fSuffocationDamage 3/s) wyłączone; gracz i NPC | fx_drown/fx_breathe: −12 zdrowia po 24 s / 0 – jak OpenMW |
-| 1 | SwiftSwim | Częściowo zgodne | Zaimplementowane | prędkość pływania gracza i NPC × (1 + 0,01 × wielkość) | mapa efektów zgodna (fx_player_map) |
-| 2 | WaterWalking | Brakujące | Zweryfikowane | kolizja z powierzchnią wody, przeniesienie na powierzchnię, castable (za głęboko), usuwane po teleporcie | fx_waterwalk: z = 0 w obu silnikach |
+| 1 | SwiftSwim | Częściowo zgodne | Zweryfikowane | prędkość pływania gracza i NPC × (1 + 0,01 × wielkość), bieg bez dodatkowego mnożnika | ctl_swim (30 × Pływanie): droga 326/312 j., baza 252/243 j. (stosunek 1,29/1,28) |
+| 2 | WaterWalking | Brakujące | Zweryfikowane | kolizja z powierzchnią wody (bieg po wodzie), przeniesienie na powierzchnię, castable, usuwane po teleporcie | fx_waterwalk (z = 0), ctl_waterwalk_run: bieg po wodzie 477/466 j., z = 0 w obu |
 | 3 | Shield | Częściowo zgodne | Zaimplementowane | pancerz +wielkość (Npc::getArmorRating), GetArmorBonus | fx_player_map |
 | 4 | FireShield | Częściowo zgodne | Zweryfikowane | odporność na ogień + rani atakującego wręcz (applyElementalShields: 0,1 × wielkość × (1 − 0,01 × x), przed blokiem) | fx_shield_attack: 2 pkt na trafienie w obu (liczba trafień zależy od AI walki) |
 | 5 | LightningShield | Częściowo zgodne | Zaimplementowane | odporność na żywioł + rani atakującego wręcz (applyElementalShields, przed blokiem) | mapa zgodna; obrażenia atakującego – test syntetyczny brak porównania |
 | 6 | FrostShield | Częściowo zgodne | Zaimplementowane | odporność na żywioł + rani atakującego wręcz (applyElementalShields, przed blokiem) | mapa zgodna; obrażenia atakującego – test syntetyczny brak porównania |
-| 7 | Burden | Częściowo zgodne | Zaimplementowane | obciążenie gracza i NPC (prędkość, lot, skok, przeciążenie) | fx_player_map, fx_npc_stats (Ciężar: rzut odporności) |
-| 8 | Feather | Częściowo zgodne | Zaimplementowane | obciążenie gracza i NPC (prędkość, lot, skok, przeciążenie) | fx_player_map, fx_npc_stats (Ciężar: rzut odporności) |
-| 9 | Jump | Zaimplementowane | Zaimplementowane | wysokość skoku (+64 j. × wielkość) | mapa zgodna; wzór getJump |
-| 10 | Levitate | Brakujące | Zweryfikowane | lot bez grawitacji, prędkość fMin/MaxFlySpeed, DisableLevitation usuwa (sLevitateDisabled) | fx_levitate: utrzymanie wysokości 900 j. |
+| 7 | Burden | Częściowo zgodne | Zweryfikowane | obciążenie: prędkość × (1 − fEncumberedMoveEffect × obciążenie), przeciążony (> 1) stoi i nie skacze (getMaxSpeed) | ctl_walk_burden: 0 różnic (bez ruchu w obu; baza 158/152 j./s) |
+| 8 | Feather | Częściowo zgodne | Zweryfikowane | lekkość odejmowana od obciążenia (przeciążony → może biec) | ctl_run_feather: bieg 222 j./s OpenMW / 219 j./s Godot, baza – stoi w obu |
+| 9 | Jump | Zaimplementowane | Zweryfikowane | prędkość skoku getJump (+64 × wielkość przed mnożnikami) | ctl_jump + physics_fit.py: v0 498 OpenMW / 496 Godot (baza 308/298); wysokość w Xvfb zawyżona przez kroki fizyki przy niskim fps |
+| 10 | Levitate | Brakujące | Zweryfikowane | lot bez grawitacji, prędkość fMin/MaxFlySpeed, DisableLevitation usuwa (sLevitateDisabled) | fx_levitate (wysokość 900 j.), ctl_levitate_fly: lot w przód i w górę, położenie końcowe ±8 j. |
 | 11 | SlowFall | Brakujące | Częściowo zgodne | inercja w dół × (1 − 0,005 × wielkość) na krok fizyki, brak obrażeń od upadku | fx_slowfall: bez obrażeń w obu; prędkość graniczna Godot 59 j./s = wzór przy 60 Hz, OpenMW w Xvfb ~70 j./s (2–5 kl./s) |
-| 12 | Lock | Zaimplementowane | Zaimplementowane | zamki drzwi/pojemników dotykiem (Open: unlockAttempted) | test syntetyczny |
-| 13 | Open | Zaimplementowane | Zaimplementowane | zamki drzwi/pojemników dotykiem (Open: unlockAttempted) | test syntetyczny |
+| 12 | Lock | Zaimplementowane | Zweryfikowane | zamki drzwi i pojemników nieorganicznych (applyMagicEffect: Zamknięcie, gdy poziom < wielkość; Otwarcie przy poziomie ≤ wielkość, unlockAttempted), także z MWScript Cast/ExplodeSpell obiektu | fx_lock_open: 5 obiektów (otwarcie, nieudane otwarcie, zamknięcie, bez podwyższenia, ExplodeSpell) – 0 różnic |
+| 13 | Open | Zaimplementowane | Zweryfikowane | zamki drzwi i pojemników nieorganicznych (applyMagicEffect: Zamknięcie, gdy poziom < wielkość; Otwarcie przy poziomie ≤ wielkość, unlockAttempted), także z MWScript Cast/ExplodeSpell obiektu | fx_lock_open: 5 obiektów (otwarcie, nieudane otwarcie, zamknięcie, bez podwyższenia, ExplodeSpell) – 0 różnic |
 | 14 | FireDamage | Zaimplementowane | Zaimplementowane | obrażenia zdrowia co sekundę, śmierć, odporności/słabości | test_magic |
 | 15 | ShockDamage | Zaimplementowane | Zaimplementowane | obrażenia zdrowia co sekundę, śmierć, odporności/słabości | test_magic |
 | 16 | FrostDamage | Zaimplementowane | Zaimplementowane | obrażenia zdrowia co sekundę, śmierć, odporności/słabości | test_magic |
@@ -589,9 +600,9 @@ ekwipunku i położeń (próbki w czasie).
 | 37 | DisintegrateWeapon | Zaimplementowane | Zaimplementowane | zużycie broni/pancerza wg slotów (kolejność OpenMW) | test_magic |
 | 38 | DisintegrateArmor | Zaimplementowane | Zaimplementowane | zużycie broni/pancerza wg slotów (kolejność OpenMW) | test_magic |
 | 39 | Invisibility | Częściowo zgodne | Zweryfikowane | wykrywanie, trafienie; zdejmowana przy ataku, czarze, przedmiocie, wypiciu, alchemii; od pierwszej klatki; czar z tej samej klatki (kolejka ActiveSpells) nie jest zdejmowany | fx_invis_break, fx_invis_break2: 0 różnic |
-| 40 | Chameleon | Zaimplementowane | Zaimplementowane | wykrywanie/obrona/atak (combat.cpp) | wielkość w mapie zgodna (fx_player_map) |
+| 40 | Chameleon | Zaimplementowane | Zweryfikowane | spostrzegawczość (awarenessCheck: + wielkość) z rzutem obserwatora trzymanym 5 s; obrona w walce (fCombatInvisoMult) | fx_stat_chameleon: GetDetected 40× – 0/40 z Kameleonem 300, 40/40 bez, w obu |
 | 41 | Light | Brakujące | Częściowo zgodne | światło przy aktorze (promień 22 j. × wielkość × 3) | bez porównania obrazu; tylko światło otoczenia w OpenMW – tu OmniLight |
-| 42 | Sanctuary | Zaimplementowane | Zaimplementowane | wykrywanie/obrona/atak (combat.cpp) | wielkość w mapie zgodna (fx_player_map) |
+| 42 | Sanctuary | Zaimplementowane | Zweryfikowane | unik (getEvasion: + min(100, wielkość)), pomijany przy powaleniu, paraliżu i nieświadomości ofiary | fx_sanctuary_combat: brak trafień z Schronieniem 120, trafienia bez niego (Fargoth, walka wręcz) w obu |
 | 43 | NightEye | Brakujące | Częściowo zgodne | światło otoczenia + 0,7 × min(1, wielkość/100) dla gracza | bez porównania obrazu |
 | 44 | Charm | Brakujące | Zaimplementowane | postawa NPC + wielkość (getDerivedDisposition) | fx_npc_ai: Urok zgodny; postawa różna przez grzywnę (patrz różnice) |
 | 45 | Paralyze | Zaimplementowane | Zweryfikowane | bez ruchu i ataku (sparaliżowany NPC nie zadaje ciosów); Leczenie paraliżu | fx_paralyze_combat (gracz bez strat), fx_cures |
@@ -608,7 +619,7 @@ ekwipunku i położeń (próbki w czasie).
 | 56 | RallyCreature | Brakujące | Zweryfikowane | modyfikator Fight/Flee stworzeń | fx_creature_ai: ustawienia AI zgodne |
 | 57 | Dispel | Zaimplementowane | Zweryfikowane | usuwanie czarów tymczasowych z szansą wielkości (każdy osobno) | porównanie statystyczne 40 czarów: usunięte 9/40 OpenMW, 5–13/40 Godot (oczekiwane 20%) |
 | 58 | Soultrap | Zaimplementowane | Zaimplementowane | dusza do kamienia (soulTrap) | test_magic |
-| 59 | Telekinesis | Brakujące | Zaimplementowane | zasięg aktywacji + wielkość × 21,33 j., bez aktorów i otwartych drzwi teleportujących | bez porównania |
+| 59 | Telekinesis | Brakujące | Zweryfikowane | zasięg aktywacji + wielkość × 21,33 j., bez aktorów i otwartych drzwi teleportujących | ctl_telekinesis: podniesienie przedmiotu z 400 j. (klawisz aktywacji przez XTest / akcję wejścia) – z Telekinezą 1, bez 0, w obu |
 | 60 | Mark | Częściowo zgodne | Zweryfikowane | Znak z obrotem, Przywołanie, DisableTeleporting, zapis | fx_markrecall: 0 różnic |
 | 61 | Recall | Częściowo zgodne | Zweryfikowane | Znak z obrotem, Przywołanie, DisableTeleporting, zapis | fx_markrecall: 0 różnic |
 | 62 | DivineIntervention | Brakujące | Zweryfikowane | teleportToClosestMarker (siatka komórek, wnętrza przez drzwi) | fx_divine → Pelagiad, fx_almsivi → Vivec (x, y zgodne) |
@@ -718,6 +729,22 @@ ekwipunku i położeń (próbki w czasie).
   – sprawdzone 3 razy; przypadek opadania zbudowany bez tego.
 - Stan startowy gracza OpenMW (--skip-menu) ma nieprzeliczone magię/kondycję (przeliczane przy zmianie
   atrybutu) – różnice „(zmiana)” magii/kondycji w fx_player_map/fx_bound/fx_player_damage.
+- **Skok i niski fps OpenMW:** w Xvfb (5–7 kl./s) OpenMW wykonuje w klatce kilka kroków fizyki 1/60 s, a
+  MovementSolver po oderwaniu od ziemi w każdym kroku dodaje ruch klatki do bezwładności – skok jest wyższy niż
+  przy 60 kl./s (122 j. zamiast ~71). Porównanie przez dopasowanie v0 do zapisanych klatek (`physics_fit.py`,
+  odtworzenie calculateStepConfig i interpolacji): v0 498 OpenMW / 496 Godot z Skokiem, 308 / 298 bez.
+- **Wpadanie do wody z wysokości:** OpenMW przy niskim fps zanurza gracza głębiej (−137 zamiast −116, ostatni krok
+  opadania przed zerowaniem bezwładności pod poziomem pływania); Godot zatrzymuje na poziomie pływania. Poza magią.
+- **Opóźnienie wejścia w OpenMW:** sterowanie z Lua działa od następnej klatki (0,15–0,2 s w Xvfb) – próbki
+  położenia w czasie przesunięte o ~50 j. przy biegu; porównywane są prędkość i droga (`track_summary.py`).
+- **Wysokość kamery pierwszoosobowej:** OpenMW – węzeł „Camera” szkieletu (124,6 j. nad stopami gracza w teście),
+  Godot – 1,65 m (115,5 j.); poza magią, test Telekinezy celuje kamerą w punkt w obu silnikach.
+- **Poprawki z porównań części 4:** przeciążony (obciążenie > 1) nie porusza się (getMaxSpeed – wcześniej Godot
+  tylko zwalniał), pływanie bez dodatkowego mnożnika × 1,5 przy biegu (bieg już w getSwimSpeed), rzut
+  spostrzegawczości obserwatora trzymany przez 5 s (getAwarenessRoll; wcześniej każde sprawdzenie losowało),
+  getHitChance pomija unik przy paraliżu ofiary i nieświadomości ofiary ataku gracza, Otwarcie wywołuje
+  unlockAttempted, Zamknięcie/Otwarcie nie działają na pojemnikach organicznych, MWScript Cast/ExplodeSpell
+  z obiektu (nie aktora) – efekty dotyku na obiekt-cel (OpCast z mAlwaysSucceed).
 - **Zależności:** Wampiryzm (reakcje NPC, sen, wygląd), znaczniki Wykrywania jako proste kwadraty (bez ikon
   detect_*_icon), przenoszenie stałych referencji NPC między komórkami
   (towarzysze przez drzwi – działa dla przywołań i obiektów dynamicznych), AiCast (Cast/ExplodeSpell NPC działa

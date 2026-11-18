@@ -1116,24 +1116,39 @@ func _touch_object(r: Dictionary) -> void:
 	for e in magic.by_range(list, magic.RT_TOUCH):
 		_lock_effect(node, e)
 
-func _lock_effect(node: Node, e: Dictionary) -> void:
+## applyMagicEffect (spelleffects.cpp) dla obiektu: Zamknięcie – gdy poziom < wielkość, zamyka na wielkość;
+## Otwarcie – unlockAttempted (przestępstwo na rzecz gracza), otwiera przy poziomie ≤ wielkość. Tylko canLock
+## (drzwi, pojemniki nieorganiczne); inne obiekty – efekt nieprawidłowy. Zwraca true, gdy efekt zadziałał.
+func _lock_effect(node: Node, e: Dictionary, caster_is_player := true) -> bool:
 	var id := int(e.get("effect", -1))
 	if id != magic.FX_OPEN and id != magic.FX_LOCK:
-		return
+		return false
+	var k := String(interaction.kind_of(node))
+	if not (k == "door" or (k == "container" and not bool(interaction.container_record(
+			String(node.get_meta("mw_base", ""))).get("organic", false)))):
+		return false
 	var sid: String = interaction.sid_of(node)
 	var lvl: int = interaction.lock_level(node)
 	var mag := int(magic._roll_magnitude({"min": float(e.get("min", 0)), "max": float(e.get("max", 0))}))
 	if id == magic.FX_OPEN:
-		if lvl > 0 and lvl <= mag:
-			state.set_lock(sid, 0)
-			_toast(dialogue.gmst_text("sMagicOpenSuccess", "Zamek otwarty."), 2.0)
-			if audio != null:
-				audio.play("Open Lock")
-		elif lvl > 0 and audio != null:
+		if crime != null:
+			crime.unlock_attempted(interaction.extra_of(node), lvl > 0 or not interaction.trap(node).is_empty())
+		if lvl <= mag:
+			if lvl > 0:
+				state.set_lock(sid, 0)
+				if caster_is_player:
+					_toast(dialogue.gmst_text("sMagicOpenSuccess", "Zamek otwarty."), 2.0)
+				if audio != null:
+					audio.play("Open Lock")
+		elif audio != null:
 			audio.play("Open Lock Fail")
-	elif lvl < mag and String(interaction.kind_of(node)) in ["door", "container"]:
+	elif lvl < mag:
 		state.set_lock(sid, mag)
-		_toast(dialogue.gmst_text("sMagicLockSuccess", "Zamek zamknięty."), 2.0)
+		if caster_is_player:
+			_toast(dialogue.gmst_text("sMagicLockSuccess", "Zamek zamknięty."), 2.0)
+		if audio != null:
+			audio.play("Open Lock")
+	return true
 
 ## Pocisk czaru (ProjectileManager::launchMagicBolt): prędkość fTargetSpellMaxSpeed × szybkość efektu, bez grawitacji.
 func launch_bolt(caster: Dictionary, list: Array, source: Dictionary, spell := {}) -> void:

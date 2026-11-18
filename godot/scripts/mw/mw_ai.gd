@@ -160,6 +160,8 @@ func speeds(n: Node) -> Vector2:
 		walk = maxf(0.0, walk * (1.0 - float(_gmst("fEncumberedMoveEffect", 0.3)) * enc))
 	var run := walk if creature else walk * (0.01 * float(main.combat.skill(f, 8)) * float(_gmst("fAthleticsRunBonus", 1.0)) + float(_gmst("fBaseRunMultiplier", 1.75)))
 	if enc > 1.0:
+		if "swim_speed" in n:
+			n.swim_speed = 0.0
 		return Vector2.ZERO
 	# getSwimSpeedImpl: (bieg albo chód) × (1 + 0,01 × Szybkie pływanie) × (fSwimRunBase + 0,01 × atletyka ×
 	# fSwimRunAthleticsMult) – prędkość pływania aktora (m/s)
@@ -533,6 +535,7 @@ func _alive(n: Node) -> bool:
 	return not f.is_empty() and not main.combat.is_dead(f)
 
 func update_actor(n: CharacterBody3D, dt: float) -> void:
+	_update_awareness(n, dt)
 	if not _alive(n):
 		_stop(n)
 		return
@@ -1093,11 +1096,34 @@ var test_roll := -1                     # testy: stały rzut 0..99
 func _roll100() -> int:
 	return test_roll if test_roll >= 0 else rng.randi() % 100
 
+## CreatureStats::getAwarenessRoll/updateAwareness: rzut spostrzegawczości obserwatora losowany raz i trzymany,
+## dopóki licznik (co klatkę aktora) nie dojdzie do 5 s – wiele sprawdzeń w tym czasie daje ten sam wynik.
+var _aw := {}
+
+func _update_awareness(n: Node, dt: float) -> void:
+	var sid := String(n.get_meta("mw_sid", ""))
+	var a: Dictionary = _aw.get(sid, {})
+	if a.is_empty():
+		return
+	a.timer = float(a.get("timer", 0.0)) + dt
+	if float(a.timer) >= 5.0:
+		a.timer = 0.0
+		a.roll = -1
+
+func awareness_roll(observer: Node) -> int:
+	var sid := String(observer.get_meta("mw_sid", ""))
+	if not _aw.has(sid):
+		_aw[sid] = {"timer": 0.0, "roll": -1}
+	var a: Dictionary = _aw[sid]
+	if int(a.roll) < 0:
+		a.roll = _roll100()
+	return int(a.roll)
+
 ## Czy obserwator zauważa aktora (ptr): skradanie (fSneakSkillMult × skradanie + 0,2 zręczność + 0,1 szczęście +
 ## waga butów × fSneakBootMult) × (fSneakDistanceBase + fSneakDistanceMultiplier × odległość) × zmęczenie
 ## + kameleon (+100 niewidzialność) wobec (skradanie + 0,2 zręczność + 0,1 szczęście − ślepota obserwatora) ×
 ## zmęczenie × fSneakViewMult (przodem) / fSneakNoViewMult (tyłem); rzut 0..99 ≥ różnica.
-func awareness(ptr: Node3D, observer: Node3D, roll := -1) -> bool:
+func awareness(ptr: Node3D, observer: Node3D, roll := -1, use_cache := true) -> bool:
 	var cb = main.combat
 	var of: Dictionary = cb.fighter_of(observer)
 	var pf: Dictionary = cb.fighter_of(ptr)
@@ -1124,7 +1150,9 @@ func awareness(ptr: Node3D, observer: Node3D, roll := -1) -> bool:
 	var v := Vector2(p1.x - p2.x, p1.y - p2.y)
 	var behind := v.length() > 0.001 and odir.dot(v.normalized()) < 0.0      # kąt > 90° od kierunku patrzenia
 	var y := obs * float(cb.fatigue_term(of)) * float(_gmst("fSneakNoViewMult" if behind else "fSneakViewMult", 0.5 if behind else 1.5))
-	return float(roll if roll >= 0 else _roll100()) >= x - y
+	if roll < 0:
+		roll = awareness_roll(observer) if use_cache else _roll100()
+	return float(roll) >= x - y
 
 # --- walka (Actors::engageCombat, AiCombat, aicombataction) ------------------------------------------------
 

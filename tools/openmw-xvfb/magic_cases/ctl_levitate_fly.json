@@ -1,0 +1,68 @@
+{
+ "name": "ctl_levitate_fly",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects.player.rotz",
+  ".actors"
+ ],
+ "tol": {
+  "track": 15,
+  "pos": 15
+ },
+ "track": [
+  "player"
+ ],
+ "samples": [
+  0.5,
+  1.0,
+  1.5,
+  2.0,
+  2.5,
+  3.0
+ ],
+ "setup": [
+  "player->Position -12288 -69632 160 0",
+  "player->SetStrength 50",
+  "player->SetAgility 50",
+  "player->SetSpeed 50",
+  "player->SetEndurance 50",
+  "player->SetWillpower 50",
+  "player->SetAthletics 30",
+  "player->SetAcrobatics 30",
+  "player->SetLuck 40",
+  "player->ModCurrentFatigue 1000"
+ ],
+ "spells": [
+  [
+   0,
+   "player",
+   "great levitate",
+   "",
+   0.1
+  ]
+ ],
+ "teleport": [
+  [
+   3,
+   "player",
+   -12288,
+   -69632,
+   500
+  ]
+ ],
+ "controls": [
+  [
+   0.5,
+   2.5,
+   {
+    "forward": 1
+   }
+  ]
+ ],
+ "seconds": 3
+}

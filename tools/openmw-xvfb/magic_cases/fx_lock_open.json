@@ -1,0 +1,21 @@
+{
+ "name": "fx_lock_open",
+ "cell": "Seyda Neen",
+ "objects": ["chargen_crate_01_misc01", "chargen_chest_02_empty", "chargen_barrel_01", "chargen door captain", "chargen_barrel_02"],
+ "ignore": [".player.cell", ".player.water", ".actors"],
+ "setup": [
+  "\"chargen_crate_01_misc01\"->Lock 30",
+  "\"chargen_chest_02_empty\"->Lock 40",
+  "\"chargen_barrel_01\"->Unlock",
+  "\"chargen door captain\"->Lock 60",
+  "\"chargen_barrel_02\"->Lock 3"
+ ],
+ "commands": [
+  "\"chargen_crate_01_misc01\"->Cast \"open\" \"chargen_crate_01_misc01\"",
+  "\"chargen_chest_02_empty\"->Cast \"great open\" \"chargen_chest_02_empty\"",
+  "\"chargen_barrel_01\"->Cast \"fenrick's doorjam\" \"chargen_barrel_01\"",
+  "\"chargen door captain\"->Cast \"lock\" \"chargen door captain\"",
+  "\"chargen_barrel_02\"->ExplodeSpell \"fenrick's doorjam\""
+ ],
+ "seconds": 1.5
+}

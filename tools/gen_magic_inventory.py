@@ -99,6 +99,18 @@ s([85],I,Z,"Pochłanianie atrybutu: uszkodzenie celu, modyfikator rzucającego p
 s([86],I,Z,"pochłanianie zdrowia do rzucającego","fx_absorb_health: zdrowie zgodne")
 s([22],I,Z,"uszkodzenie atrybutu co sekundę (do zera)","porównanie statystyczne 40 czarów: szybkość Fargotha 0 w obu")
 s([87],I,Z,"pochłanianie magii do rzucającego","porównanie 10 czarów: suma 109/110, magia celu 0 i rzucającego pełna w obu")
+
+# --- etap 4 (2026-11-18): sterowanie postacią w obu silnikach (controls: ruch, bieg, skok) ---
+s([7],C,Z,"obciążenie: prędkość × (1 − fEncumberedMoveEffect × obciążenie), przeciążony (> 1) stoi i nie skacze (getMaxSpeed)","ctl_walk_burden: 0 różnic (bez ruchu w obu; baza 158/152 j./s)")
+s([8],C,Z,"lekkość odejmowana od obciążenia (przeciążony → może biec)","ctl_run_feather: bieg 222 j./s OpenMW / 219 j./s Godot, baza – stoi w obu")
+s([9],I,Z,"prędkość skoku getJump (+64 × wielkość przed mnożnikami)","ctl_jump + physics_fit.py: v0 498 OpenMW / 496 Godot (baza 308/298); wysokość w Xvfb zawyżona przez kroki fizyki przy niskim fps")
+s([10],B,Z,"lot bez grawitacji, prędkość fMin/MaxFlySpeed, DisableLevitation usuwa (sLevitateDisabled)","fx_levitate (wysokość 900 j.), ctl_levitate_fly: lot w przód i w górę, położenie końcowe ±8 j.")
+s([1],C,Z,"prędkość pływania gracza i NPC × (1 + 0,01 × wielkość), bieg bez dodatkowego mnożnika","ctl_swim (30 × Pływanie): droga 326/312 j., baza 252/243 j. (stosunek 1,29/1,28)")
+s([2],B,Z,"kolizja z powierzchnią wody (bieg po wodzie), przeniesienie na powierzchnię, castable, usuwane po teleporcie","fx_waterwalk (z = 0), ctl_waterwalk_run: bieg po wodzie 477/466 j., z = 0 w obu")
+s([12,13],I,Z,"zamki drzwi i pojemników nieorganicznych (applyMagicEffect: Zamknięcie, gdy poziom < wielkość; Otwarcie przy poziomie ≤ wielkość, unlockAttempted), także z MWScript Cast/ExplodeSpell obiektu","fx_lock_open: 5 obiektów (otwarcie, nieudane otwarcie, zamknięcie, bez podwyższenia, ExplodeSpell) – 0 różnic")
+s([40],I,Z,"spostrzegawczość (awarenessCheck: + wielkość) z rzutem obserwatora trzymanym 5 s; obrona w walce (fCombatInvisoMult)","fx_stat_chameleon: GetDetected 40× – 0/40 z Kameleonem 300, 40/40 bez, w obu")
+s([42],I,Z,"unik (getEvasion: + min(100, wielkość)), pomijany przy powaleniu, paraliżu i nieświadomości ofiary","fx_sanctuary_combat: brak trafień z Schronieniem 120, trafienia bez niego (Fargoth, walka wręcz) w obu")
+s([59],B,Z,"zasięg aktywacji + wielkość × 21,33 j., bez aktorów i otwartych drzwi teleportujących","ctl_telekinesis: podniesienie przedmiotu z 400 j. (klawisz aktywacji przez XTest / akcję wejścia) – z Telekinezą 1, bez 0, w obu")
 rows=["| # | Efekt | Przed etapem | Po etapie | Działanie | Test / porównanie z OpenMW |","|---|---|---|---|---|---|"]
 from collections import Counter
 cb,ca=Counter(),Counter()

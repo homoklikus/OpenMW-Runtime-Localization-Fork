@@ -1,0 +1,49 @@
+{
+ "name": "ctl_telekinesis",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "items": [
+  "misc_com_bucket_01"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".actors",
+  ".objects.player.rotz"
+ ],
+ "tol": {
+  "pos": 15
+ },
+ "setup": [
+  "player->Position -12288 -69632 160 0",
+  "PlaceItem \"misc_com_bucket_01\" -12288 -69232 150 0"
+ ],
+ "spells": [
+  [
+   0,
+   "player",
+   "telekinesis",
+   "",
+   0.1
+  ]
+ ],
+ "keys": [
+  [
+   1.0,
+   "space"
+  ]
+ ],
+ "seconds": 2.5,
+ "objects": [
+  "misc_com_bucket_01"
+ ],
+ "key_shots": true,
+ "look_at": [
+  -12288,
+  -69232,
+  162
+ ],
+ "framelog": true
+}

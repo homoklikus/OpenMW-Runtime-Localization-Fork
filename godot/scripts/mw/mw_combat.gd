@@ -27,6 +27,7 @@ const FX_FORTIFY_ATTACK := 117
 const FX_BLIND := 47
 const FX_CHAMELEON := 40
 const FX_INVISIBILITY := 39
+const FX_PARALYZE := 45
 # miejsca pancerza i wagi do oceny (getArmorRating)
 const ARMOR_WEIGHTS := {EQ.SLOT_CUIRASS: 0.3, EQ.SLOT_CARRIED_LEFT: 0.1, EQ.SLOT_HELMET: 0.1, EQ.SLOT_GREAVES: 0.1,
 	EQ.SLOT_BOOTS: 0.1, EQ.SLOT_LEFT_PAULDRON: 0.1, EQ.SLOT_RIGHT_PAULDRON: 0.1, EQ.SLOT_LEFT_GAUNTLET: 0.05,
@@ -340,11 +341,19 @@ func evasion(f: Dictionary) -> float:
 	var at := attributes(f)
 	return (float(at[A_AGILITY]) / 5.0 + float(at[A_LUCK]) / 10.0) * fatigue_term(f) + minf(100.0, magic_effect(f, FX_SANCTUARY))
 
-## getHitChance (gracz: obrona zawsze liczona – nieświadomość ofiary wymaga skradania, etap 8).
+## getHitChance: unik ofiary (zręczność, szczęście, Schronienie) pomijany, gdy ofiara jest powalona,
+## sparaliżowana albo nieświadoma ataku gracza (nie walczy i awarenessCheck(gracz, ofiara) zawodzi).
 func hit_chance(att: Dictionary, vic: Dictionary, skill_value: float, victim_helpless := false) -> float:
 	var defense := 0.0
 	if fatigue(vic) >= 0.0:
-		if not victim_helpless:
+		var helpless := victim_helpless
+		if not helpless and vic.has("sid"):
+			helpless = bool(_actor_state(vic).get("knocked_down", false)) or magic_effect(vic, FX_PARALYZE) > 0.0
+		if not helpless and att.get("kind", "") == "player" and vic.get("kind", "") != "player" \
+				and main.get("ai") != null and main.ai != null and vic.get("node") != null \
+				and is_instance_valid(vic.node) and not main.ai.in_combat(vic.node):
+			helpless = not main.ai.awareness(main.player, vic.node)
+		if not helpless:
 			defense = evasion(vic)
 		var inviso := float(_gmst("fCombatInvisoMult", 0.2))
 		defense += minf(100.0, inviso * magic_effect(vic, FX_CHAMELEON))

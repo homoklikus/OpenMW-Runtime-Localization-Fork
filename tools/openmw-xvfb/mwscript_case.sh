@@ -24,7 +24,7 @@ case "$STEP" in
     INT="$(python3 -c 'import json,sys; print(1 if json.load(open(sys.argv[1])).get("interior") else 0)' "$C")"
     WHERE=(--start="$CELL"); [ "$INT" = 1 ] && WHERE=(--cell="$CELL")
     "$GODOT" --headless --path "$REPO/godot" -s res://tests/probe_mwscript.gd -- --data="$DATA" \
-      --project="$OUT/proj_$N" "${WHERE[@]}" --case="$C" --out="$S" 2>&1 | grep -E "^RESULT|MWGODOT_SCRIPT|SCRIPT ERROR|Parse Error" || true
+      --project="$OUT/proj_$N" "${WHERE[@]}" --case="$C" --out="$S" 2>&1 | grep -E "^RESULT|^MWDBG|MWGODOT_SCRIPT|SCRIPT ERROR|Parse Error" || true
     test -s "$S" ;;
   all)
     "$0" "$CASE" compile && "$0" "$CASE" omw "$DISP" && "$0" "$CASE" omw-base "$((DISP + 1))" \

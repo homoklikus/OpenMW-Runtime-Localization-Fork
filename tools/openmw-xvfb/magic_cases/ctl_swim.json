@@ -1,0 +1,275 @@
+{
+ "name": "ctl_swim",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects.player.rotz",
+  ".actors"
+ ],
+ "tol": {
+  "track": 40,
+  "pos": 25
+ },
+ "track": [
+  "player"
+ ],
+ "samples": [
+  1.2,
+  1.5,
+  2.0,
+  2.5,
+  2.7,
+  3.0,
+  3.3
+ ],
+ "setup": [
+  "player->Position -12288 -69632 160 0",
+  "player->SetStrength 50",
+  "player->SetAgility 50",
+  "player->SetSpeed 50",
+  "player->SetEndurance 50",
+  "player->SetWillpower 50",
+  "player->SetAthletics 30",
+  "player->SetAcrobatics 30",
+  "player->SetLuck 40",
+  "player->ModCurrentFatigue 1000"
+ ],
+ "spells": [
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ],
+  [
+   0,
+   "player",
+   "buoyancy",
+   "",
+   0.1
+  ]
+ ],
+ "teleport": [
+  [
+   3,
+   "player",
+   -16000,
+   -73600,
+   -130
+  ]
+ ],
+ "controls": [
+  [
+   1.2,
+   2.7,
+   {
+    "forward": 1,
+    "run": true
+   }
+  ]
+ ],
+ "seconds": 3.5,
+ "disable_creatures": true,
+ "stackable": true
+}

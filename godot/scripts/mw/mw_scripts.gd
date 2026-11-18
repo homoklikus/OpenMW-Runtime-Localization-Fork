@@ -535,6 +535,8 @@ func _effect_index(name: String) -> int:
 func _magic_function(fname: String, t: Dictionary, args: Array, c: Ctx):
 	var m = game.main
 	var f := _fighter(t)
+	if m.get("magic") != null and f.is_empty() and fname in ["cast", "explodespell"] and _node_of(t) != null:
+		return _object_cast(fname, t, args, c)
 	if m.get("magic") == null or (f.is_empty() and fname != "hassoulgem"):
 		return 0.0 if fname.begins_with("get") or fname.begins_with("has") else null
 	var mg = m.magic
@@ -1122,6 +1124,34 @@ func _actor_holder(t: Dictionary) -> Dictionary:
 	if f.is_empty():
 		return {}
 	return game.main.player_stats() if f.kind == "player" else game.main.combat._actor_state(f)
+
+## OpCast/OpExplodeSpell dla obiektu (nie aktora): CastSpell z mAlwaysSucceed – efekty „na siebie” na obiekt,
+## „dotyk” na cel (Cast: obiekt o podanym ID, ExplodeSpell: on sam); na obiekcie działa tylko Zamknięcie/Otwarcie
+## (applyMagicEffect), aktor dostaje efekty bez rzucającego. Pocisk (zasięg „cel”) z obiektu – nie (brak w Godocie).
+func _object_cast(fname: String, t: Dictionary, args: Array, c: Ctx):
+	var m = game.main
+	var spid := _str(args, 0).to_lower()
+	var sp: Dictionary = records.record("spell", spid)
+	if sp.is_empty():
+		return null
+	var tgt := t
+	if fname == "cast":
+		tgt = resolve(_str(args, 1))
+		if tgt.is_empty():
+			return null
+	var src := {"id": spid, "name": String(sp.get("name", spid)), "kind": "spell"}
+	for pair in [[t, 0], [tgt, 1]]:
+		var who: Dictionary = pair[0]
+		var list: Array = m.magic.by_range(sp.get("effects", []), int(pair[1]))
+		if list.is_empty():
+			continue
+		var wf := _fighter(who)
+		if not wf.is_empty():
+			m.magic.inflict(wf, {}, src, list, sp)
+		elif _node_of(who) != null and m.has_method("_lock_effect"):
+			for e in list:
+				m._lock_effect(_node_of(who), e, false)
+	return null
 
 func _node_of(t: Dictionary) -> Node3D:
 	if String(t.get("sid", "")) == "player":

@@ -136,6 +136,19 @@ func _run() -> void:
 	await _frames(2)
 	chest = _ref(main, "synth_chest", "lock_level")
 	check(bool(r3.ok) and main.interaction.lock_level(chest) == 0, "wytrych otwiera zamek (%s)" % [r3])
+	# czar na zamek (applyMagicEffect): Zamknięcie 30 → poziom 30; Otwarcie 20 – bez zmian; Otwarcie 40 – otwiera;
+	# Zamknięcie 10 nie obniża poziomu 30
+	check(main._lock_effect(chest, {"effect": 12, "min": 30, "max": 30}, false), "Zamknięcie działa na skrzynię")
+	chest = _ref(main, "synth_chest", "lock_level")
+	check(main.interaction.lock_level(chest) == 30, "Zamknięcie 30 (%d)" % main.interaction.lock_level(chest))
+	main._lock_effect(chest, {"effect": 12, "min": 10, "max": 10}, false)
+	main._lock_effect(chest, {"effect": 13, "min": 20, "max": 20}, false)
+	chest = _ref(main, "synth_chest", "lock_level")
+	check(main.interaction.lock_level(chest) == 30, "Zamknięcie 10 i Otwarcie 20 – poziom 30 bez zmian")
+	main._lock_effect(chest, {"effect": 13, "min": 40, "max": 40}, false)
+	chest = _ref(main, "synth_chest", "lock_level")
+	check(main.interaction.lock_level(chest) == 0, "Otwarcie 40 otwiera zamek 30")
+	check(not main._lock_effect(vill, {"effect": 12, "min": 30, "max": 30}, false), "Zamknięcie na aktorze – efekt nieprawidłowy")
 	cr.pay_fine(false)
 	await _frames(30)
 	# napaść: strażnik widzi – grzywna iCrimeAttack, ofiara walczy

@@ -582,6 +582,10 @@ func movement(st: Dictionary, weight := 0.0, running := false) -> Dictionary:
 		x -= -GRAVITY_UNITS
 		x /= 3.0
 		jump = x
+	if enc > 1.0:                              # Npc::getMaxSpeed: przeciążony stoi (chód, bieg, pływanie)
+		walk = 0.0
+		run = 0.0
+		swim = 0.0
 	var air := minf(1.0, _gmst("fjumpmovebase", 0.5) + _gmst("fjumpmovemult", 0.5) * float(d.skills[SK_ACROBATICS]) / 100.0)
 	return {"walk": walk, "run": run, "swim": swim, "jump": jump, "air_factor": air, "encumbrance": enc,
 		"overburdened": enc > 1.0}

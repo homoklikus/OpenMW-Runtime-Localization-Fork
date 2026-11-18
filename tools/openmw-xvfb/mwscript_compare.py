@@ -51,6 +51,64 @@ EFFECTS = {"resistmagicka": ("resistmagicka", "weaknesstomagicka", None),
 # identyfikatory efektów OpenMW (ESM::MagicEffect, kolejność indeksów 0–142) – klucze pełnej mapy efektów „fx”
 EFFECT_IDS = {n.lower(): i for i, n in enumerate(['WaterBreathing', 'SwiftSwim', 'WaterWalking', 'Shield', 'FireShield', 'LightningShield', 'FrostShield', 'Burden', 'Feather', 'Jump', 'Levitate', 'SlowFall', 'Lock', 'Open', 'FireDamage', 'ShockDamage', 'FrostDamage', 'DrainAttribute', 'DrainHealth', 'DrainMagicka', 'DrainFatigue', 'DrainSkill', 'DamageAttribute', 'DamageHealth', 'DamageMagicka', 'DamageFatigue', 'DamageSkill', 'Poison', 'WeaknessToFire', 'WeaknessToFrost', 'WeaknessToShock', 'WeaknessToMagicka', 'WeaknessToCommonDisease', 'WeaknessToBlightDisease', 'WeaknessToCorprusDisease', 'WeaknessToPoison', 'WeaknessToNormalWeapons', 'DisintegrateWeapon', 'DisintegrateArmor', 'Invisibility', 'Chameleon', 'Light', 'Sanctuary', 'NightEye', 'Charm', 'Paralyze', 'Silence', 'Blind', 'Sound', 'CalmHumanoid', 'CalmCreature', 'FrenzyHumanoid', 'FrenzyCreature', 'DemoralizeHumanoid', 'DemoralizeCreature', 'RallyHumanoid', 'RallyCreature', 'Dispel', 'Soultrap', 'Telekinesis', 'Mark', 'Recall', 'DivineIntervention', 'AlmsiviIntervention', 'DetectAnimal', 'DetectEnchantment', 'DetectKey', 'SpellAbsorption', 'Reflect', 'CureCommonDisease', 'CureBlightDisease', 'CureCorprusDisease', 'CurePoison', 'CureParalyzation', 'RestoreAttribute', 'RestoreHealth', 'RestoreMagicka', 'RestoreFatigue', 'RestoreSkill', 'FortifyAttribute', 'FortifyHealth', 'FortifyMagicka', 'FortifyFatigue', 'FortifySkill', 'FortifyMaximumMagicka', 'AbsorbAttribute', 'AbsorbHealth', 'AbsorbMagicka', 'AbsorbFatigue', 'AbsorbSkill', 'ResistFire', 'ResistFrost', 'ResistShock', 'ResistMagicka', 'ResistCommonDisease', 'ResistBlightDisease', 'ResistCorprusDisease', 'ResistPoison', 'ResistNormalWeapons', 'ResistParalysis', 'RemoveCurse', 'TurnUndead', 'SummonScamp', 'SummonClannfear', 'SummonDaedroth', 'SummonDremora', 'SummonAncestralGhost', 'SummonSkeletalMinion', 'SummonBonewalker', 'SummonGreaterBonewalker', 'SummonBonelord', 'SummonWingedTwilight', 'SummonHunger', 'SummonGoldenSaint', 'SummonFlameAtronach', 'SummonFrostAtronach', 'SummonStormAtronach', 'FortifyAttack', 'CommandCreature', 'CommandHumanoid', 'BoundDagger', 'BoundLongsword', 'BoundMace', 'BoundBattleAxe', 'BoundSpear', 'BoundLongbow', 'ExtraSpell', 'BoundCuirass', 'BoundHelm', 'BoundBoots', 'BoundShield', 'BoundGloves', 'Corprus', 'Vampirism', 'SummonCenturionSphere', 'SunDamage', 'StuntedMagicka', 'SummonFabricant', 'SummonWolf', 'SummonBear', 'SummonBonewolf', 'SummonCreature04', 'SummonCreature05'])}
 
+# Sterowanie graczem (skrypt PLAYER): odcinki [t0, t1, {forward, back, left, right, run, jump, sneak, yaw, pitch}]
+# w sekundach od chwili poleceń; nadpisuje sterowanie wejściem (I.Controls) tylko na czas przypadku.
+PLAYER_LUA = r'''
+local self = require('openmw.self')
+local I = require('openmw.interfaces')
+local camera = require('openmw.camera')
+local util = require('openmw.util')
+local LOOK = __LOOK__
+local CTRL = __CONTROLS__
+local KEYS = __KEYS__
+local t = -1
+local jumped = {}
+local keyed = {}
+return {
+  eventHandlers = { mwprobe_start = function() t = 0 end },
+  engineHandlers = {
+    onFrame = function(dt)
+      for i, k in ipairs(KEYS) do
+        if t >= 0 and t >= k[1] and not keyed[i] then keyed[i] = true; print('MWKEY ' .. k[2]) end
+      end
+      if t >= 0 and LOOK[1] then          -- wycelowanie kamery w punkt (obrót i pochylenie)
+        local d = util.vector3(LOOK[1], LOOK[2], LOOK[3]) - camera.getPosition()
+        local yaw = math.atan2(d.x, d.y)
+        local pitch = -math.atan2(d.z, math.sqrt(d.x * d.x + d.y * d.y))
+        local dy = yaw - camera.getYaw()
+        while dy > math.pi do dy = dy - 2 * math.pi end
+        while dy < -math.pi do dy = dy + 2 * math.pi end
+        self.controls.yawChange = dy
+        self.controls.pitchChange = pitch - camera.getPitch()
+        if __FRAMELOG__ then print(string.format('MWCAM %.2f %.2f %.2f', camera.getPosition().x, camera.getPosition().y, camera.getPosition().z)) end
+      end
+      if t >= 0 and __FRAMELOG__ then print(string.format('MWFRAME %.4f %.4f %.2f %.2f %.2f', t, dt, self.position.x, self.position.y, self.position.z)) end
+      if t < 0 or #CTRL == 0 then return end
+      I.Controls.overrideMovementControls(true)
+      local mv, side, run, jump, sneak = 0, 0, false, false, false
+      for i, c in ipairs(CTRL) do
+        if t >= c[1] and t < c[2] then
+          local o = c[3]
+          mv = mv + (o.forward or 0) - (o.back or 0)
+          side = side + (o.right or 0) - (o.left or 0)
+          run = run or (o.run or false)
+          sneak = sneak or (o.sneak or false)
+          if o.jump and not jumped[i] then jumped[i] = true; jump = true end
+          if o.yaw then self.controls.yawChange = o.yaw * dt end
+          if o.pitch then self.controls.pitchChange = o.pitch * dt end
+        end
+      end
+      self.controls.movement = mv
+      self.controls.sideMovement = side
+      self.controls.run = run
+      self.controls.sneak = sneak
+      self.controls.jump = jump
+    end,
+    onUpdate = function(dt) if t >= 0 then t = t + dt end end,
+  },
+}
+'''
+
 LUA = r'''
 local world = require('openmw.world')
 local types = require('openmw.types')
@@ -93,6 +151,16 @@ local function find(id)
   end
   for _, o in ipairs(player.cell:getAll()) do
     if o.recordId == id then return o end
+  end
+  if player.cell.isExterior then          -- sąsiednie komórki aktywnej siatki 3 × 3
+    for dx = -1, 1 do
+      for dy = -1, 1 do
+        local c = world.getExteriorCell(player.cell.gridX + dx, player.cell.gridY + dy)
+        for _, o in ipairs(c and c:getAll() or {}) do
+          if o.recordId == id then return o end
+        end
+      end
+    end
   end
   return nil
 end
@@ -168,6 +236,9 @@ local function object(o)
   s.scale = o.scale
   s.enabled = o.enabled
   s.cell = o.cell and o.cell.name or ''
+  if types.Lockable.objectIsInstance(o) then
+    s.lock = types.Lockable.isLocked(o) and types.Lockable.getLockLevel(o) or 0
+  end
   return s
 end
 
@@ -263,6 +334,9 @@ return {
           if types.Creature.objectIsInstance(a) then a.enabled = false end
         end
       end
+      if frame == CFG.delay then
+        for _, pl in ipairs(world.players) do pl:sendEvent('mwprobe_start', {}) end
+      end
       if frame == CFG.delay then t_after = 0 elseif t_after >= 0 then t_after = t_after + dt end
       -- próbki położenia w czasie (sekundy od chwili poleceń): track[id] = [[t, x, y, z], …]
       for i, t in ipairs(CFG.samples or {}) do
@@ -298,6 +372,28 @@ return {
   },
 }
 '''
+
+
+class KeySender:
+    """Naciśnięcia klawiszy w oknie OpenMW na Xvfb (XTest, python-xlib z OMW/pylib albo systemowy).
+    Aktywacja (A_Activate) i inne akcje wejścia nie są dostępne z Lua – tylko z klawiatury."""
+
+    def __init__(self, display, omw_dir=""):
+        for d in (str(omw_dir), "/tmp/omwx"):
+            if d and (Path(d) / "pylib").is_dir() and str(Path(d) / "pylib") not in sys.path:
+                sys.path.insert(0, str(Path(d) / "pylib"))
+        from Xlib import X, XK, display as xdisplay
+        from Xlib.ext import xtest
+        self.X, self.XK, self.xtest = X, XK, xtest
+        self.d = xdisplay.Display(f":{display}")
+
+    def press(self, name):
+        kc = self.d.keysym_to_keycode(self.XK.string_to_keysym(name))
+        self.xtest.fake_input(self.d, self.X.KeyPress, kc)
+        self.d.sync()
+        time.sleep(0.25)                 # kilka klatek OpenMW (2–7 kl./s)
+        self.xtest.fake_input(self.d, self.X.KeyRelease, kc)
+        self.d.sync()
 
 
 def lua_table(v):
@@ -374,7 +470,13 @@ def run_openmw(case: dict, omw_dir: Path, cfg_src: Path, work: Path, display: in
            .replace("__SKILLS__", lua_table(SKILLS)).replace("__EFFECTS__", lua_table({k: list(v) for k, v in EFFECTS.items()}))
            .replace("__EFFECT_IDS__", lua_table(EFFECT_IDS)))
     (probe / "scripts" / "mwprobe" / "global.lua").write_text(lua, encoding="utf-8")
-    (probe / "mwprobe.omwscripts").write_text("GLOBAL: scripts/mwprobe/global.lua\n", encoding="utf-8")
+    (probe / "scripts" / "mwprobe" / "player.lua").write_text(
+        PLAYER_LUA.replace("__CONTROLS__", lua_table(case.get("controls", [])))
+        .replace("__FRAMELOG__", "true" if case.get("framelog") else "false")
+        .replace("__KEYS__", lua_table(case.get("keys", [])))
+        .replace("__LOOK__", lua_table(case.get("look_at", []))), encoding="utf-8")
+    (probe / "mwprobe.omwscripts").write_text("GLOBAL: scripts/mwprobe/global.lua\nPLAYER: scripts/mwprobe/player.lua\n",
+                                              encoding="utf-8")
     (probe / "mwprobe.esp").write_bytes(probe_esp(case))
     with open(cfg_dir / "openmw" / "openmw.cfg", "a", encoding="utf-8") as f:
         f.write(f'\ndata="{probe}"\ncontent=mwprobe.esp\ncontent=mwprobe.omwscripts\n')
@@ -391,9 +493,21 @@ def run_openmw(case: dict, omw_dir: Path, cfg_src: Path, work: Path, display: in
         with open(log, "w") as out:
             p = subprocess.Popen(args, stdout=out, stderr=subprocess.STDOUT, env=env)
             t0 = time.time()
+            keys = KeySender(display, omw_dir) if case.get("keys") else None
+            sent = 0
             while p.poll() is None and time.time() - t0 < timeout:
-                time.sleep(1)
-                if "Quitting peacefully" in log.read_text(errors="replace"):
+                time.sleep(0.05 if keys else 1)
+                text = log.read_text(errors="replace")
+                if keys:                         # MWKEY z gracza (Lua) → naciśnięcie klawisza przez XTest
+                    names = re.findall(r"MWKEY (\S+)", text)
+                    for name in names[sent:]:
+                        if case.get("key_shots"):    # zrzut przed klawiszem – tylko lokalnie (obraz gry)
+                            subprocess.run(["import", "-display", f":{display}", "-window", "root",
+                                            str(work / f"key{sent}.png")], stdout=subprocess.DEVNULL,
+                                           stderr=subprocess.DEVNULL, timeout=20)
+                        keys.press(name)
+                    sent = len(names)
+                if "Quitting peacefully" in text:
                     time.sleep(1)
                     break
             if p.poll() is None:

@@ -74,6 +74,29 @@ func _run() -> void:
 	v.rotation.y -= PI
 	main.player.want_sneak = false
 	check(seen_back <= seen_front, "skradanie: od tyłu trudniej zauważyć (%d ≤ %d)" % [seen_back, seen_front])
+	# getAwarenessRoll: bez podanego rzutu obserwator trzyma jeden rzut przez 5 s (wiele sprawdzeń – ten sam wynik)
+	main.player.want_sneak = true
+	var first: bool = ai.awareness(main.player, v)
+	var roll0: int = ai.awareness_roll(v)
+	var same := true
+	for i in 30:
+		same = same and ai.awareness(main.player, v) == first
+	check(same and ai.awareness_roll(v) == roll0, "rzut spostrzegawczości trzymany (rzut %d)" % roll0)
+	ai._update_awareness(v, 5.0)
+	check(int(ai._aw[String(v.get_meta("mw_sid"))].roll) == -1, "po 5 s rzut losowany od nowa")
+	main.player.want_sneak = false
+	# getHitChance: unik ofiary (tu Schronienie 50) pomijany przy paraliżu ofiary
+	var vf0: Dictionary = cb.fighter_of(v)
+	main.magic.inflict(vf0, {}, {"id": "sanct", "name": "sanct", "kind": "potion"}, [{"effect": 42, "min": 50, "max": 50, "duration": 60}])
+	await _frames(1)
+	var hc_s: float = cb.hit_chance(cb.player_fighter(), vf0, 50.0, false)
+	main.magic.inflict(vf0, {}, {"id": "para", "name": "para", "kind": "potion"}, [{"effect": 45, "min": 1, "max": 1, "duration": 60}])
+	await _frames(1)
+	var hc_p: float = cb.hit_chance(cb.player_fighter(), vf0, 50.0, false)
+	check(main.builder.actors.record("magiceffect", "45").is_empty() or hc_p >= hc_s + 50.0,
+			"paraliż ofiary: bez uniku i Schronienia (%s → %s)" % [hc_s, hc_p])
+	main.magic.active(vf0).clear()
+	main.magic.tick(vf0, 0.0)
 	# agresja: Fight 100 → walka i atak wręcz (kondycja/zdrowie gracza spada)
 	var a: Dictionary = dl.make_actor(v)
 	check(ai.fight_term(v, main.player) < 100.0, "spokojny NPC (Fight %.0f)" % ai.fight_term(v, main.player))

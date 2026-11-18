@@ -177,7 +177,7 @@ func commit(victim, type: String, faction := "", arg := 0, victim_aware := false
 		if not _can_report(n, victim):
 			continue
 		if (n == victim and victim_aware) or (type == MURDER and n != victim) \
-				or (main.ai._los(main.player, n) and main.ai.awareness(main.player, n, _roll())):
+				or (main.ai._los(main.player, n) and main.ai.awareness(main.player, n, test_roll)):
 			if type in [THEFT, PICKPOCKET] and main.dialogue != null:
 				main.dialogue.say_voice(n, "thief")     # narzeka na kradzież, nawet jeśli nic nie zrobi
 			seen = true
@@ -384,7 +384,7 @@ func tick(dt: float) -> void:
 			continue
 		if main.magic.magnitude_of(main.combat.fighter_of(n), 49) > 0.0:
 			continue
-		if not (main.ai._los(n, main.player) and main.ai.awareness(main.player, n, _roll())):
+		if not (main.ai._los(n, main.player) and main.ai.awareness(main.player, n, test_roll)):
 			continue
 		if b >= cut * int(_gmst("iCrimeThresholdMultiplier", 10)):
 			main.ai.start_combat(n, main.player)

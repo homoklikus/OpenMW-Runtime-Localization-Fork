@@ -66,6 +66,13 @@ func _run() -> void:
 	var dd: Dictionary = ch.derived(st)
 	var exp_jump: float = ((128.0 + pow(6.0 / 15.0, 4.0)) * 1.0 * ch.fatigue_term(st, dd) + 9.8 * 64.0) / 3.0
 	check(near(mv.jump, exp_jump, 0.01), "prędkość skoku jak getJump (%s ≈ %s)" % [mv.jump, exp_jump])
+	# Npc::getMaxSpeed: przeciążony (obciążenie > 1) stoi – chód, bieg, pływanie i skok = 0; tuż poniżej – rusza się
+	var cap: float = ch.capacity(st)
+	var ov: Dictionary = ch.movement(st, cap * 1.01, true)
+	check(ov.overburdened and ov.walk == 0.0 and ov.run == 0.0 and ov.swim == 0.0 and ov.jump == 0.0,
+			"przeciążony: bez ruchu i skoku (%s)" % [ov])
+	var un: Dictionary = ch.movement(st, cap, true)
+	check(not un.overburdened and un.walk > 0.0 and un.run > un.walk, "obciążenie = 1: ruch spowolniony, nie zatrzymany (%s)" % [un.walk])
 	# kondycja: bieg 1 s zużywa 5 (bez obciążenia), odnowa 2,5 + 0,02 × wytrzymałość
 	st["fatigue"] = 50.0
 	main.player.move_input = Vector2(0, -1)

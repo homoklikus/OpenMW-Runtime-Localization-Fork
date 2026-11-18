@@ -82,9 +82,13 @@ func _actor(id: String) -> Dictionary:
 
 func _object(id: String) -> Dictionary:
 	var ax := func(fn: String, a: String) -> float: return _q(id, fn, [["str", a]])
-	return {"pos": [ax.call("getpos", "x"), ax.call("getpos", "y"), ax.call("getpos", "z")],
+	var o := {"pos": [ax.call("getpos", "x"), ax.call("getpos", "y"), ax.call("getpos", "z")],
 		"rotz": deg_to_rad(ax.call("getangle", "z")), "scale": _q(id, "getscale"),
 		"enabled": _q(id, "getdisabled") == 0.0}
+	var n = vm.resolve(id).get("node")
+	if n != null and is_instance_valid(n) and String(main.interaction.kind_of(n)) in ["door", "container"]:
+		o["lock"] = main.interaction.lock_level(n)          # Lockable: poziom zamka, gdy zamknięty, inaczej 0
+	return o
 
 func _snapshot(case: Dictionary) -> Dictionary:
 	var out := {"actors": {}, "objects": {}, "items": {}, "globals": {}, "locals": {}, "player": {}}
@@ -136,6 +140,86 @@ func _apply_spell(sp: Array) -> void:
 	main.magic.inflict(t, c, {"id": String(sp[2]).to_lower(), "name": String(rec.get("name", "")), "kind": "spell",
 		"stackable": bool(_case.get("stackable", false))}, rec.get("effects", []), rec)
 
+## Sterowanie graczem jak skrypt PLAYER sondy OpenMW: odcinki [t0, t1, {forward, back, left, right, run, jump,
+## sneak, yaw, pitch}] (sekundy od poleceń) → akcje wejścia kontrolera gracza.
+var _jumped := {}
+var _pressed := {}
+
+## Wycelowanie kamery gracza w punkt MW (x, y, z) – jak MWCAM/LOOK w sondzie OpenMW.
+func _look_at(p: Array) -> void:
+	if p.size() < 3 or main.player == null:
+		return
+	var cam := main.player.get_node_or_null("PlayerController/Camera3D") as Camera3D
+	if cam == null:
+		cam = main.player.find_child("Camera3D", true, false) as Camera3D
+	if cam == null:
+		return
+	var d: Vector3 = MWCoords.mw_to_godot(Vector3(float(p[0]), float(p[1]), float(p[2]))) - cam.global_position
+	main.player.rotation.y = atan2(-d.x, -d.z)
+	cam.rotation.x = atan2(d.y, Vector2(d.x, d.z).length())
+
+## Klawisze [[t, keysym X]] – jak naciśnięcia XTest w OpenMW: akcja wejścia przez 3 klatki.
+const KEY_ACTIONS := {"space": "activate"}
+var _keyed := {}
+var _key_release := {}
+
+func _apply_keys(keys: Array, t: float) -> void:
+	for a in _key_release.keys():
+		_key_release[a] = int(_key_release[a]) - 1
+		if int(_key_release[a]) <= 0:
+			_key_event(a, false)
+			_key_release.erase(a)
+	for i in keys.size():
+		var k: Array = keys[i]
+		var a := String(KEY_ACTIONS.get(String(k[1]).to_lower(), ""))
+		if t >= float(k[0]) and not _keyed.has(i) and InputMap.has_action(a):
+			_keyed[i] = true
+			_key_event(a, true)
+			_key_release[a] = 3
+
+## Zdarzenie akcji (jak z klawiatury – _unhandled_input, nie tylko stan Input).
+func _key_event(a: String, pressed: bool) -> void:
+	var ev := InputEventAction.new()
+	ev.action = a
+	ev.pressed = pressed
+	Input.parse_input_event(ev)
+
+func _apply_controls(ctrl: Array, t: float) -> void:
+	if ctrl.is_empty():
+		return
+	var want := {"move_forward": false, "move_back": false, "move_left": false, "move_right": false, "run": false,
+		"sneak": false, "jump": false}
+	var dt: float = main.get_process_delta_time()
+	for i in ctrl.size():
+		var c: Array = ctrl[i]
+		if t < float(c[0]) or t >= float(c[1]):
+			continue
+		var o: Dictionary = c[2]
+		if float(o.get("forward", 0)) > 0: want.move_forward = true
+		if float(o.get("back", 0)) > 0: want.move_back = true
+		if float(o.get("left", 0)) > 0: want.move_left = true
+		if float(o.get("right", 0)) > 0: want.move_right = true
+		if bool(o.get("run", false)): want.run = true
+		if bool(o.get("sneak", false)): want.sneak = true
+		if bool(o.get("jump", false)) and not _jumped.has(i):
+			_jumped[i] = true
+			want.jump = true
+		if o.has("yaw") and main.player != null:
+			main.player.rotate_y(-float(o.yaw) * dt)
+		if o.has("pitch") and main.player != null:
+			var cam := main.player.get_node_or_null("Camera3D") as Camera3D
+			if cam != null:
+				cam.rotation.x = clampf(cam.rotation.x - float(o.pitch) * dt, -1.5, 1.5)
+	for a in want:
+		if not InputMap.has_action(a):
+			continue
+		if bool(want[a]) and not _pressed.get(a, false):
+			Input.action_press(a)
+			_pressed[a] = true
+		elif not bool(want[a]) and _pressed.get(a, false):
+			Input.action_release(a)
+			_pressed[a] = false
+
 func _sample(case: Dictionary, t: float) -> void:
 	for id in case.get("track", []):
 		if vm.resolve(String(id)).is_empty():
@@ -144,6 +228,11 @@ func _sample(case: Dictionary, t: float) -> void:
 		if not _track.has(id):
 			_track[id] = []
 		_track[id].append([t, o.pos[0], o.pos[1], o.pos[2]])
+	if (bool(case.get("debug", false)) or bool(case.get("framelog", false))) and main.player != null:
+		var st: Dictionary = main.player_stats()
+		var mv: Dictionary = main.character.movement(st, main.player_weight(), main.player.want_run)
+		print("MWDBG t=%.2f jump=%.1f walk=%.1f run=%.1f acro=%s fat=%s vel=%s" % [t, mv.jump, mv.walk, mv.run,
+			str(main.character.derived(st).skills[main.character.SK_ACROBATICS]), str(st.get("fatigue")), str(main.player.velocity)])
 
 func _run() -> void:
 	var case = JSON.parse_string(FileAccess.get_file_as_string(_arg("case")))
@@ -176,6 +265,9 @@ func _run() -> void:
 			if due:
 				_spells_done[si] = true
 				_apply_spell(sp)
+		_apply_controls(case.get("controls", []), t_after)
+		_apply_keys(case.get("keys", []), t_after)
+		_look_at(case.get("look_at", []))
 		if bool(case.get("disable_creatures", false)) and frame == delay:
 			for an in main.ai.actor_nodes():
 				if String(an.get_meta("mw_actor", "")) == "creature":
