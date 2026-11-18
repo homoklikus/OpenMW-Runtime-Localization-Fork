@@ -62,12 +62,17 @@ func menus_open() -> bool:
 		or (main.menu_mode != null and main.menu_mode.visible) or (main.book_window != null and main.book_window.visible)
 
 ## Ruch gracza do punktu MW (navmesh; bez niego – prosto). true, gdy w promieniu (jednostki MW, 2D).
+var path_dbg_n := 0
 func walk_to(dest: Vector3, radius: float) -> bool:
 	var here := ppos()
 	if Vector2(dest.x - here.x, dest.y - here.y).length() <= radius:
 		Input.action_release("move_forward")
 		return true
 	if not main.control_allowed("controls") or menus_open():
+		if OS.has_environment("MWDBG_PATH") and int(t * 10) % 50 == 0:
+			print("MWDBG blocked ctl=%s dlg=%s cg=%s msg=%s mm=%s book=%s" % [main.control_allowed("controls"), main.dialogue_window.visible,
+				main.chargen != null and main.chargen.visible, main.msgbox != null and is_instance_valid(main.msgbox) and main.msgbox.visible,
+				main.menu_mode != null and main.menu_mode.visible, main.book_window != null and main.book_window.visible])
 		Input.action_release("move_forward")
 		return false
 	if t - path_t > 1.0 or path.is_empty():
@@ -75,8 +80,24 @@ func walk_to(dest: Vector3, radius: float) -> bool:
 		var key: String = main.ai.cell_key_at(here)
 		var r: Dictionary = main.navmesh.find_path(key, here, dest)
 		path = (r.path as Array).duplicate() if not (r.path as Array).is_empty() else [dest]
+		if OS.has_environment("MWDBG_PATH") and key.begins_with("ext:") and (path_dbg_n < 8 or OS.get_environment("MWDBG_PATH") == "all"):
+			path_dbg_n += 1
+			print("MWDBG path key=%s status=%s here=%s n=%d %s" % [key, r.status, str(here.round()), path.size(), str(path.map(func(v): return v.round()))])
 	while path.size() > 1 and Vector2((path[0] as Vector3).x - here.x, (path[0] as Vector3).y - here.y).length() < 24.0:
 		path.pop_front()
+	if OS.has_environment("MWDBG_PATH") and int(t * 10) % 30 == 0 and main.player is CharacterBody3D:
+		var cols := []
+		for i in main.player.get_slide_collision_count():
+			var c = main.player.get_slide_collision(i).get_collider()
+			var nm := ""
+			var n: Node = c as Node
+			while n != null and nm.length() < 200:
+				nm = String(n.name) + "<" + nm
+				n = n.get_parent()
+				if n != null and n.name == "Refs":
+					break
+			cols.append(nm + " meta=" + (str(c.get_meta("mw_base", "")) if c is Node else ""))
+		print("MWDBG stuck here=%s cols=%s" % [str(here.round()), str(cols)])
 	var wp: Vector3 = path[0]
 	var to: Vector3 = MWCoords.mw_to_godot(wp) - main.player.global_position
 	to.y = 0
@@ -284,7 +305,11 @@ func _run():
 		_handle_windows()
 		_agent()
 		if i % 300 == 0:
-			print("PROBE t=%.0f cel=%s pl=%s cell=%s" % [t, goal_name(), str(ppos().snapped(Vector3(1, 1, 1))), main.interior])
+			var gd := find("chargen dock guard") if main.interior.is_empty() else null
+			var gtxt := ""
+			if gd != null:
+				gtxt = " straznik=%s ai=%s" % [str(main.ai.mw_pos(gd).snapped(Vector3(1, 1, 1))), str(main.ai.current_package(gd).get("type", "-"))]
+			print("PROBE t=%.0f cel=%s pl=%s cell=%s%s" % [t, goal_name(), str(ppos().snapped(Vector3(1, 1, 1))), main.interior, gtxt])
 		if goal_name() == "koniec":
 			break
 		if t - goal_t > 60.0:
