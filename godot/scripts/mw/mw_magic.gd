@@ -176,6 +176,12 @@ func _permanent_spells(f: Dictionary) -> Array:
 		return main.player_stats().get("spells", [])
 	return actor_spells(f)
 
+## Trwały czar z Korpusem wyleczony (CureCorprusDisease → removeMagicEffect(Corprus)): efekty czaru usunięte,
+## czar zostaje na liście (GetSpell 1) bez efektów i bez dalszego pogarszania.
+static func spell_store_cured(h: Dictionary, sid: String) -> bool:
+	var st = h.get("spell_store")
+	return st is Dictionary and (st as Dictionary).has(sid.to_lower()) and bool(st[sid.to_lower()].get("cured", false))
+
 func has_spell_store(f: Dictionary) -> bool:
 	if f.is_empty():
 		return false
@@ -221,7 +227,7 @@ func _sync_spell_store(f: Dictionary) -> void:
 				rec["worsen"] = 0
 				rec["next"] = now + 24.0
 			store[sid] = rec
-		elif store[sid].has("next") and now >= float(store[sid].next):
+		elif store[sid].has("next") and not bool(store[sid].get("cured", false)) and now >= float(store[sid].next):
 			var r: Dictionary = store[sid]
 			r["worsen"] = int(r.worsen) + 1
 			r["next"] = float(r.next) + 24.0
@@ -234,6 +240,10 @@ func _sync_spell_store(f: Dictionary) -> void:
 				var wm := _roll_magnitude(we)
 				if id2 in SPELL_STORE_POOL:
 					_actor_effect(f, {"caster": ""}, we, wm)
+					we["magnitude"] = wm
+					var wl: Array = r.get("worse_applied", [])
+					wl.append(we)
+					r["worse_applied"] = wl
 				elif id2 in [FX_FORTIFY_ATTRIBUTE, FX_FORTIFY_SKILL]:
 					_mod_adjust(f, "attributes" if id2 == FX_FORTIFY_ATTRIBUTE else "skills",
 						int(we.attribute) if id2 == FX_FORTIFY_ATTRIBUTE else int(we.skill), wm)
@@ -241,6 +251,9 @@ func _sync_spell_store(f: Dictionary) -> void:
 				main._toast(_text("sMagicCorprusWorsens", "Korpus postępuje."), 3.0)
 	for sid in store.keys():
 		if have.has(sid):
+			continue
+		if bool(store[sid].get("cured", false)):
+			store.erase(sid)
 			continue
 		for ae in store[sid].get("applied", []):
 			var id3 := int(ae.effect)
@@ -451,7 +464,8 @@ func effects(f: Dictionary) -> Dictionary:
 	var hold: Dictionary = _combat()._actor_state(f)
 	for sid in own:
 		var sp: Dictionary = records.record("spell", String(sid))
-		if not sp.is_empty() and int(sp.get("spell_type", 0)) in main.character.CONSTANT_TYPES:
+		if not sp.is_empty() and int(sp.get("spell_type", 0)) in main.character.CONSTANT_TYPES \
+				and not spell_store_cured(hold, String(sid)):
 			var ei := 0
 			for e in sp.get("effects", []):
 				main.character.add_effect(fx, e, spell_store_magnitude(hold, String(sid), ei, e))
@@ -1055,6 +1069,7 @@ func _actor_effect(f: Dictionary, entry: Dictionary, e: Dictionary, amount: floa
 				adjust_dynamic(f, 0, -amount * scale)
 		FX_CURE_CORPRUS:
 			_purge_effect(f, FX_CORPRUS)
+			_cure_corprus_store(f)
 		FX_CURE_POISON:
 			_purge_effect(f, FX_POISON)
 		FX_CURE_PARALYZATION:
@@ -1376,6 +1391,23 @@ func _purge_effect(f: Dictionary, fx_id: int) -> void:
 			if int(x.effect) == fx_id:
 				x.time_left = 0.0
 
+## removeMagicEffect(Corprus) dla trwałego czaru: pogorszenia efektów szkodliwych cofnięte (tyle razy, ile było),
+## potem wszystkie efekty czaru usunięte raz (Wyssanie wraca; Uszkodzenie i nadwyżka Wzmocnień z pogorszeń
+## zostają – jak w OpenMW), czar zostaje bez efektów.
+func _cure_corprus_store(f: Dictionary) -> void:
+	_sync_spell_store(f)
+	var h := holder(f)
+	var store: Dictionary = h.get("spell_store", {}) if h.get("spell_store") is Dictionary else {}
+	for sid in store.keys():
+		var rec: Dictionary = store[sid]
+		if not rec.has("worsen") or bool(rec.get("cured", false)):
+			continue
+		for ae in rec.get("worse_applied", []) + rec.get("applied", []):
+			if int(ae.effect) in [17, 18, 19, 20, 21]:
+				ae["applied"] = true
+				_remove_effect(f, ae)
+		rec["cured"] = true
+
 ## Leczenie chorób i klątw: usuwa z listy czarów gracza rodzaje 2 (zaraza), 3 (choroba), 4 (klątwa).
 func _purge_permanent(f: Dictionary, spell_type: int) -> void:
 	if f.kind != "player":
@@ -1540,7 +1572,8 @@ func _tick_constant(f: Dictionary, dt: float) -> void:
 	var spells: Array = main.player_stats().get("spells", []) if f.kind == "player" else actor_spells(f)
 	for sid in spells:
 		var sp: Dictionary = records.record("spell", String(sid))
-		if not sp.is_empty() and int(sp.get("spell_type", 0)) in main.character.CONSTANT_TYPES:
+		if not sp.is_empty() and int(sp.get("spell_type", 0)) in main.character.CONSTANT_TYPES \
+				and not spell_store_cured(hold, String(sid)):
 			var ei := 0
 			for e in sp.get("effects", []):
 				src.append(e)

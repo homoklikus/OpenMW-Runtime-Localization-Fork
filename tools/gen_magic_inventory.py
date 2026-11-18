@@ -132,6 +132,7 @@ s([46],I,Z,"szansa rzucenia 0 (getSpellSuccessChance), magia zużyta przy nieuda
 s([48],I,Z,"szansa rzucenia − wielkość","fx_cast_sound: Dźwięk 249–266 – rzut nieudany, magia −5 w obu")
 s([52],B,Z,"modyfikator Fight stworzenia (modifyAiSetting), na NPC nieprawidłowy","fx_creature_command: skamp Fight 50 → 54 w obu; fx_npc_ai: na NPC nieprawidłowy w obu")
 s([118],B,Z,"AiFollow za rzucającym, gdy poziom stworzenia ≤ wielkość","fx_creature_command: mapa efektów i Fight zgodne (skamp poziom 5, wielkość 5); ctl_creature_follow: skamp idzie za oddalającym się graczem w obu (prędkość: OpenMW ruch z animacji – poza magią)")
+s([71],I,Z,"usuwa efekt Korpusu: dla trwałego czaru – removeMagicEffect(Corprus) cofa pogorszenia i usuwa wszystkie efekty czaru, czar zostaje (GetSpell 1)","fx_cure_corprus: po leczeniu brak efektów Korpusu, atrybuty bez wyssań, GetSpell 1 – 0 różnic")
 rows=["| # | Efekt | Przed etapem | Po etapie | Działanie | Test / porównanie z OpenMW |","|---|---|---|---|---|---|"]
 from collections import Counter
 cb,ca=Counter(),Counter()

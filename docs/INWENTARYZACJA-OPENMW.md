@@ -531,9 +531,9 @@ _remove_effect → removeMagicEffect, _should_remove → shouldRemoveEffect), sk
 (apply_movement co klatkę), walka w `mw_combat.gd`, AI w `mw_ai.gd`/`mw_dialogue.gd`.
 
 **Stan przed etapem:** 0 zweryfikowanych porównaniem, 79 zaimplementowanych (testy syntetyczne), 14 częściowo,
-50 brakujących. **Po etapie:** 118 zweryfikowanych porównaniem z OpenMW (74 przypadków porównawczych, w tym statystyczne:
+50 brakujących. **Po etapie:** 119 zweryfikowanych porównaniem z OpenMW (75 przypadków porównawczych, w tym statystyczne:
 40 nałożeń tego samego czaru – odporność, paraliż, odbicie, pochłonięcie, usuwanie, wysysanie umiejętności,
-uszkadzanie magii/kondycji, pochłanianie magii – i 10 przypadków ze sterowaniem postacią), 20 zaimplementowanych
+uszkadzanie magii/kondycji, pochłanianie magii – i 10 przypadków ze sterowaniem postacią), 19 zaimplementowanych
 zgodnie z kodem OpenMW, 5 częściowo zgodnych, 0 brakujących.
 
 Dodatkowo w tej części: trwałe czary (choroby, zaraza, klątwy) nakładają efekty jednorazowe na pule (Wyssanie i
@@ -639,7 +639,7 @@ trafienia (0 %), tarcze żywiołów bez obrony atakującego (2,4 pkt na trafieni
 | 68 | Reflect | Częściowo zgodne | Zweryfikowane | dla każdego efektu osobno: rzut dla każdego aktywnego efektu Odbicia/Pochłonięcia, absorbSpell (+koszt) | porównanie statystyczne 40 czarów: odbite 9/40 OpenMW, 4–10/40 Godot; pochłonięte 4/40 i 8/40 (oczekiwane 20%) |
 | 69 | CureCommonDisease | Zaimplementowane | Zweryfikowane | usuwanie chorób i zarazy z listy czarów (także NPC), cofnięcie Wyssania | fx_disease_cure: GetSpell/GetCommonDisease/GetBlightDisease 0, atrybuty wracają |
 | 70 | CureBlightDisease | Zaimplementowane | Zweryfikowane | usuwanie chorób i zarazy z listy czarów (także NPC), cofnięcie Wyssania | fx_disease_cure: GetSpell/GetCommonDisease/GetBlightDisease 0, atrybuty wracają |
-| 71 | CureCorprusDisease | Brakujące | Zaimplementowane | usuwa efekt Korpus | bez porównania |
+| 71 | CureCorprusDisease | Zaimplementowane | Zweryfikowane | usuwa efekt Korpusu: dla trwałego czaru – removeMagicEffect(Corprus) cofa pogorszenia i usuwa wszystkie efekty czaru, czar zostaje (GetSpell 1) | fx_cure_corprus: po leczeniu brak efektów Korpusu, atrybuty bez wyssań, GetSpell 1 – 0 różnic |
 | 72 | CurePoison | Zaimplementowane | Zweryfikowane | trucizna, paraliż i ich leczenie | fx_cures: 0 różnic |
 | 73 | CureParalyzation | Zaimplementowane | Zweryfikowane | trucizna, paraliż i ich leczenie | fx_cures: 0 różnic |
 | 74 | RestoreAttribute | Zaimplementowane | Zweryfikowane | przywracanie | fx_player_map (Restore Health), fx_player_damage (Restore Attribute) |
@@ -756,7 +756,10 @@ trafienia (0 %), tarcze żywiołów bez obrony atakującego (2,4 pkt na trafieni
 - **Poprawki z porównań części 5:** GetItemCount/RemoveItem liczą kamień z duszą jako ten sam przedmiot co pusty
   (ContainerStore po RefId); Rozpad broni/pancerza na całkowitym stanie przedmiotu z ułamkiem zbieranym jak
   applyChargeRemainderToBeSubtracted, przedmiot o stanie 0 pomijany (następny slot); w sondzie OpenMW wartości efektów
-  obcinane w stronę zera jak static_cast w MWScript (wcześniej floor – różnica −25/−24 przy słabościach).
+  obcinane w stronę zera jak static_cast w MWScript (wcześniej floor – różnica −25/−24 przy słabościach);
+  Leczenie Korpusu na trwałym czarze (choroba z listy czarów) – jak removeMagicEffect(Corprus): pogorszenia
+  cofnięte, wszystkie efekty czaru usunięte, czar zostaje bez efektów i bez dalszego pogarszania (wcześniej
+  Godot usuwał tylko efekt Korpusu z czarów tymczasowych).
 - **Śmierć bez animacji w Godocie:** OpenMW liczy GetDeadCount i czyści czary trupa po animacji śmierci
   (Result_DeathAnimJustFinished), Godot od razu (animacja śmierci – etap 10, poza magią) – fx_soultrap.
 - **Ruch stworzeń:** OpenMW przesuwa część stworzeń ruchem z animacji (skamp ~250 j./s zamiast 22,7 j./s ze wzoru

@@ -1,0 +1,38 @@
+{
+ "name": "fx_cure_corprus",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects"
+ ],
+ "vars": [
+  [
+   "short",
+   "mwcorp"
+  ]
+ ],
+ "setup": [
+  "player->AddSpell \"corprus\""
+ ],
+ "spells": [
+  [
+   0,
+   "player",
+   "cure corprus disease",
+   "",
+   1.0
+  ]
+ ],
+ "after_s": [
+  [
+   2.0,
+   "set mwcorp to player->GetSpell \"corprus\""
+  ]
+ ],
+ "seconds": 6,
+ "track": []
+}
