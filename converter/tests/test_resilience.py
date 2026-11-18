@@ -75,7 +75,8 @@ def test_lock_prevents_parallel_runs(tmp_path):
     out = tmp_path / "o"
     lock = out / ".mwconv" / "convert.lock"
     lock.parent.mkdir(parents=True)
-    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    # proces podobny do konwertera (w wierszu poleceń „mwconv”)
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)  # mwconv"])
     try:
         lock.write_text(json.dumps({"pid": child.pid, "started": time.time()}))
         with pytest.raises(ConversionLocked):
@@ -85,6 +86,22 @@ def test_lock_prevents_parallel_runs(tmp_path):
         child.wait()
     acquire_lock(out)  # martwa blokada przejęta
     assert json.loads(lock.read_text())["pid"] == os.getpid()
+
+
+@pytest.mark.skipif(not os.path.isdir("/proc/self"), reason="wymaga /proc (Linux)")
+def test_lock_with_reused_pid_is_taken_over(tmp_path):
+    """PID z blokady należy teraz do innego programu (nowa przestrzeń PID, restart) – blokada martwa."""
+    out = tmp_path / "o"
+    lock = out / ".mwconv" / "convert.lock"
+    lock.parent.mkdir(parents=True)
+    other = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        lock.write_text(json.dumps({"pid": other.pid, "started": time.time()}))
+        acquire_lock(out)
+        assert json.loads(lock.read_text())["pid"] == os.getpid()
+    finally:
+        other.kill()
+        other.wait()
 
 
 def test_corrupt_cache_and_outputs_repair(synth_data, tmp_path):

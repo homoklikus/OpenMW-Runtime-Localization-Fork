@@ -180,12 +180,20 @@ func _apply_cast(casts: Array, t: float) -> void:
 var _rest_done := {}
 
 func _apply_rest(rests: Array, t: float) -> void:
+	if bool(_case.get("debug", false)) and not rests.is_empty() and t >= float(rests[0][0]) and t < float(rests[0][0]) + 1.0 \
+			and Engine.get_process_frames() % 6 == 0:
+		print("MWDBG t=%.3f rest=%s hour=%.2f vis=%s" % [t, str(main.rest_window._rest), float(main.envr.game_hour), main.rest_window.visible])
 	for i in rests.size():
 		var r: Array = rests[i]
 		if t >= float(r[0]) and not _rest_done.has(i) and main.rest_window != null:
 			_rest_done[i] = true
-			if main.rest_window.open():
-				main.rest_window.rest(int(r[1]))
+			var ok: bool = main.rest_window.open()
+			# godziny < 0: „Do wyleczenia” (domyślny przycisk okna OpenMW pod Enterem, gdy można spać)
+			var h: int = int(r[1]) if int(r[1]) > 0 else main.rest_window.hours_until_healed()
+			if bool(_case.get("debug", false)):
+				print("MWDBG rest open=%s sleep=%s hours=%d" % [ok, main.rest_window.sleeping, h])
+			if ok:
+				main.rest_window.rest(h)
 
 ## Klawisze [[t, keysym X]] – jak naciśnięcia XTest w OpenMW: akcja wejścia przez 3 klatki.
 const KEY_ACTIONS := {"space": "activate"}

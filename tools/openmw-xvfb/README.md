@@ -31,3 +31,22 @@ globalnym (bez danych gry) i skrypt Lua zapisujący migawkę do dziennika (wiers
 `godot/tests/probe_mwscript.gd` z tym samym skryptem skompilowanym konwerterem. Migawki zawierają tylko liczby
 i identyfikatory. Przebieg bazowy (`*-base`: tylko `setup`) pozwala porównać zmiany, gdy wartości wyjściowe obu
 silników się różnią (np. gracz bez kreatora postaci). Oryginalne pliki gry ani profil OpenMW nie są zmieniane.
+
+### Przypadki magii i sterowania (`magic_run.sh`, `magic_cases/`)
+
+```
+tools/openmw-xvfb/magic_run.sh tools/openmw-xvfb/magic_cases/fx_*.json   # wynik: $OUT/<przypadek>.diff.txt
+python3 tools/openmw-xvfb/track_summary.py $OUT ctl_walk_speed           # prędkość, wysokość, położenie końcowe
+python3 tools/openmw-xvfb/physics_fit.py [--slowfall WIELKOŚĆ] <work>/openmw.out   # kroki fizyki OpenMW
+```
+
+Dodatkowe pola: `spells` ([klatka, cel, czar, rzucający, (sekundy)] – `ActiveSpells:add` w Lua / `inflict`),
+`stackable`, `remove`, `teleport`, `disable_creatures`, `seconds` (migawka po czasie), `samples` + `track`,
+`after_s` ([sekundy, wiersz MWScript] – po czasie gry, nie po klatkach), sterowanie graczem: `controls`
+([od, do, {forward, back, left, right, run, sneak, jump, yaw, pitch}]), `keys` ([czas rzeczywisty, keysym] – XTest
+w oknie Xvfb, python-xlib w `OMW/pylib`; `key_shots` – zrzut przed klawiszem, tylko lokalnie), `look_at`
+[x, y, z], `cast` ([t, czar] – postawa magii i „use”), `ui_mode` ([czas, tryb] – `I.UI.setMode`, np. "Rest"),
+`rest` ([t, godziny; < 0 – do wyleczenia] – okno odpoczynku w Godocie), `framelog` (klatki OpenMW: dt, położenie).
+Dane Godota: konwersja trzech komórek startu i dziczy obok Seyda Neen (sen jest tam dozwolony):
+`python3 -m mwconv convert --openmw-cfg … --cell "Imperial Prison Ship" --cell "Seyda Neen"
+--cell "Seyda Neen, Census and Excise Office" --grid=-3,-9 --grid=-1,-9 --out <katalog poza repozytorium>`.

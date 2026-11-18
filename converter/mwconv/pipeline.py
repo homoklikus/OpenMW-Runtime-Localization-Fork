@@ -783,11 +783,19 @@ class ConversionLocked(Exception):
 def _pid_alive(pid: int) -> bool:
     try:
         os.kill(pid, 0)
-        return True
     except ProcessLookupError:
         return False
     except PermissionError:
-        return True
+        pass
+    # PID z blokady może należeć do innego procesu (nowa przestrzeń PID, restart): na Linuksie sprawdź, czy to
+    # nadal konwerter – inaczej martwa blokada blokowałaby kolejne uruchomienia
+    cmd = Path(f"/proc/{pid}/cmdline")
+    if cmd.exists():
+        try:
+            return b"mwconv" in cmd.read_bytes()
+        except OSError:
+            return True
+    return True
 
 
 def _guard_gitignore(out: Path) -> None:

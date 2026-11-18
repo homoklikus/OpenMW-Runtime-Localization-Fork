@@ -134,6 +134,7 @@ s([52],B,Z,"modyfikator Fight stworzenia (modifyAiSetting), na NPC nieprawidłow
 s([118],B,Z,"AiFollow za rzucającym, gdy poziom stworzenia ≤ wielkość","fx_creature_command: mapa efektów i Fight zgodne (skamp poziom 5, wielkość 5); ctl_creature_follow: skamp idzie za oddalającym się graczem w obu (prędkość: OpenMW ruch z animacji – poza magią)")
 s([71],I,Z,"usuwa efekt Korpusu: dla trwałego czaru – removeMagicEffect(Corprus) cofa pogorszenia i usuwa wszystkie efekty czaru, czar zostaje (GetSpell 1)","fx_cure_corprus: po leczeniu brak efektów Korpusu, atrybuty bez wyssań, GetSpell 1 – 0 różnic")
 s([11],C,Z,"opadanie: mInertia.z × (1 − 0,005 × wielkość) w każdym kroku fizyki, bez obrażeń od upadku","ctl_slowfall + physics_fit.py --slowfall: OpenMW 14,21 j./klatkę = model kroków (max 10 kroków, dt 0,2 s); przy 60 Hz model 59,2 j./s, Godot 59,5 j./s")
+s([136],I,Z,"brak odnowy magii we śnie (restoreDynamicStats), „do wyleczenia” bez magii (getHoursToRest)","ctl_rest_stunted (komórka -3,-9 – można spać): sen „do wyleczenia” 3 h z Zahamowaniem (magia bez zmian), 5 h bez (magia pełna) – 0 różnic")
 rows=["| # | Efekt | Przed etapem | Po etapie | Działanie | Test / porównanie z OpenMW |","|---|---|---|---|---|---|"]
 from collections import Counter
 cb,ca=Counter(),Counter()

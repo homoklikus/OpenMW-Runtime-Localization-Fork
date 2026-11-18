@@ -1,0 +1,59 @@
+{
+ "name": "ctl_rest_stunted",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".globals"
+ ],
+ "vars": [
+  [
+   "float",
+   "mwhour"
+  ]
+ ],
+ "disable_creatures": true,
+ "setup": [
+  "Journal \"TR_DBAttack\" 50",
+  "player->Position -19400 -67450 180 0",
+  "player->SetEndurance 40",
+  "player->SetIntelligence 40",
+  "player->SetHealth 60",
+  "player->SetMagicka 80",
+  "player->ModCurrentMagicka -30",
+  "player->ModCurrentHealth -10"
+ ],
+ "commands": [
+  "player->AddSpell \"wombburn\""
+ ],
+ "ui_mode": [
+  [
+   2.0,
+   "Rest"
+  ]
+ ],
+ "keys": [
+  [
+   3.0,
+   "Return"
+  ]
+ ],
+ "rest": [
+  [
+   2.0,
+   -1
+  ]
+ ],
+ "after_s": [
+  [
+   4.5,
+   "set mwhour to GameHour"
+  ]
+ ],
+ "seconds": 5,
+ "_note": "Journal TR_DBAttack 50: skrypt Tribunalu dbattackscript budzi \u015bpi\u0105cego gracza losowo (20 %) i stawia zab\u00f3jc\u0119 \u2013 wy\u0142\u0105czony dla powtarzalno\u015bci"
+}

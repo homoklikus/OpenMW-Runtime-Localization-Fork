@@ -531,9 +531,9 @@ _remove_effect → removeMagicEffect, _should_remove → shouldRemoveEffect), sk
 (apply_movement co klatkę), walka w `mw_combat.gd`, AI w `mw_ai.gd`/`mw_dialogue.gd`.
 
 **Stan przed etapem:** 0 zweryfikowanych porównaniem, 79 zaimplementowanych (testy syntetyczne), 14 częściowo,
-50 brakujących. **Po etapie:** 120 zweryfikowanych porównaniem z OpenMW (77 przypadków porównawczych, w tym statystyczne:
+50 brakujących. **Po etapie:** 121 zweryfikowanych porównaniem z OpenMW (78 przypadków porównawczych, w tym statystyczne:
 40 nałożeń tego samego czaru – odporność, paraliż, odbicie, pochłonięcie, usuwanie, wysysanie umiejętności,
-uszkadzanie magii/kondycji, pochłanianie magii – i 12 przypadków ze sterowaniem postacią), 19 zaimplementowanych
+uszkadzanie magii/kondycji, pochłanianie magii – i 13 przypadków ze sterowaniem postacią), 18 zaimplementowanych
 zgodnie z kodem OpenMW, 4 częściowo zgodne, 0 brakujących.
 
 Dodatkowo w tej części: trwałe czary (choroby, zaraza, klątwy) nakładają efekty jednorazowe na pule (Wyssanie i
@@ -704,7 +704,7 @@ trafienia (0 %), tarcze żywiołów bez obrony atakującego (2,4 pkt na trafieni
 | 133 | Vampirism | Częściowo zgodne | Częściowo zgodne | dialogi, Obrażenia od słońca i Słabość na ogień ze zdolności, brak przestępstwa przy napaści na wampira (canCommitCrimeAgainst), wielkość zostaje po śmierci; wygląd głowy wampira – brak (obraz) | fx_sun, fx_vampire_crime: grzywna 0 w obu |
 | 134 | SummonCenturionSphere | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
 | 135 | SunDamage | Brakujące | Zweryfikowane | zdrowie na zewnątrz × widoczność słońca | fx_sun: ~5/s w obu (Wampir: obrażenia od słońca) |
-| 136 | StuntedMagicka | Brakujące | Zaimplementowane | bez odnowy magii przy odpoczynku (pozostały czas), getHoursToRest | bez porównania |
+| 136 | StuntedMagicka | Zaimplementowane | Zweryfikowane | brak odnowy magii we śnie (restoreDynamicStats), „do wyleczenia” bez magii (getHoursToRest) | ctl_rest_stunted (komórka -3,-9 – można spać): sen „do wyleczenia” 3 h z Zahamowaniem (magia bez zmian), 5 h bez (magia pełna) – 0 różnic |
 | 137 | SummonFabricant | Brakujące | Zaimplementowane | jak inne przywołania (Fabrykant bez czaru w danych; Creature04/05 – GMST bez stworzenia) | bez porównania |
 | 138 | SummonWolf | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
 | 139 | SummonBear | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
@@ -769,10 +769,12 @@ trafienia (0 %), tarcze żywiołów bez obrony atakującego (2,4 pkt na trafieni
 - **Stworzenia spoza przekonwertowanych komórek** (np. „scamp”) nie mają obiektu w objects.json – PlaceAtPC
   w Godocie tworzy obiekt bez aktora; testy używają stworzeń z konwersji (zależność od zakresu konwersji).
 - **Bez porównania (brak źródła albo dostępu):** Tarcza (wynik zależy od losowych obrażeń broni, OpenMW nie
-  udostępnia pancerza z Lua/MWScript), Zahamowanie magii (odnowa tylko we śnie – przekonwertowane komórki do
-  spania to statek więzienny z oknami tworzenia postaci), odporność/słabość na choroby (zarażenie od stworzeń
+  udostępnia pancerza z Lua/MWScript), odporność/słabość na choroby (zarażenie od stworzeń
   z małą szansą), Wykrywanie (znaczniki mapy niedostępne z Lua), przywołania Fabrykanta/Creature04/05, Przywrócenie
   i Pochłonięcie umiejętności, Zdjęcie klątwy, ExtraSpell, Uszkodzenie umiejętności (brak czarów z tymi efektami).
+- **Sen i skrypty gry:** skrypt Tribunalu `dbattackscript` budzi śpiącego gracza losowo (20 % na poziomie 1)
+  i stawia zabójcę – w obu silnikach; ctl_rest_stunted ustawia `Journal TR_DBAttack 50`, żeby wynik był
+  powtarzalny. Do testów snu konwersja obejmuje dodatkowo komórki dziczy -3,-9 i -1,-9 (`--grid`).
 - **Zależności:** Wampiryzm (reakcje NPC, sen, wygląd), znaczniki Wykrywania jako proste kwadraty (bez ikon
   detect_*_icon), przenoszenie stałych referencji NPC między komórkami
   (towarzysze przez drzwi – działa dla przywołań i obiektów dynamicznych), AiCast (Cast/ExplodeSpell NPC działa
