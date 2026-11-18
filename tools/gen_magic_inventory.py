@@ -92,6 +92,11 @@ s([45],I,Z,"bez ruchu i ataku (sparaliżowany NPC nie zadaje ciosów); Leczenie 
 s([49],B,Z,"Fight − wielkość i stopCombat","fx_npc_ai, fx_calm_combat: GetTarget player 0 po Uspokojeniu w obu")
 s([67,68],C,Z,"dla każdego efektu osobno: rzut dla każdego aktywnego efektu Odbicia/Pochłonięcia, absorbSpell (+koszt)","porównanie statystyczne 40 czarów: odbite 9/40 OpenMW, 4–10/40 Godot; pochłonięte 4/40 i 8/40 (oczekiwane 20%)")
 s([57],I,Z,"usuwanie czarów tymczasowych z szansą wielkości (każdy osobno)","porównanie statystyczne 40 czarów: usunięte 9/40 OpenMW, 5–13/40 Godot (oczekiwane 20%)")
+s([21],I,Z,"ubytki umiejętności","porównanie statystyczne 40 czarów: suma 473 OpenMW / 452 Godot (rzuty wielkości i odporności)")
+s([24,25],I,Z,"uszkadzanie magii/kondycji co sekundę","porównanie statystyczne 2×20 czarów: sumy 57/66 i 294/290, magia i kondycja do zera w obu")
+s([84],I,Z,"maks. magia (recalculateMagicka) – NPC","fx_npc_maxmagicka (Fargoth, zdolność): 0 różnic; gracz – stan startowy OpenMW nieprzeliczony")
+s([85],I,Z,"Pochłanianie atrybutu: uszkodzenie celu, modyfikator rzucającego poza mapą efektów, cofnięcie obu po wygaśnięciu","fx_absorb_health: atrybut gracza +wielkość, brak wpisu w mapie w obu")
+s([86],I,Z,"pochłanianie zdrowia do rzucającego","fx_absorb_health: zdrowie zgodne")
 rows=["| # | Efekt | Przed etapem | Po etapie | Działanie | Test / porównanie z OpenMW |","|---|---|---|---|---|---|"]
 from collections import Counter
 cb,ca=Counter(),Counter()

@@ -1,0 +1,36 @@
+{
+ "name": "fx_absorb_health",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player",
+  "fargoth"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -10400 -71000 300 180",
+  "player->ModCurrentHealth -20"
+ ],
+ "spells": [
+  [
+   0,
+   "fargoth",
+   "righteousness",
+   "player",
+   1.0
+  ],
+  [
+   0,
+   "fargoth",
+   "absorb agility",
+   "player",
+   1.0
+  ]
+ ],
+ "seconds": 3
+}

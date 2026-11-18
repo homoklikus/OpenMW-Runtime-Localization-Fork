@@ -531,8 +531,9 @@ _remove_effect → removeMagicEffect, _should_remove → shouldRemoveEffect), sk
 (apply_movement co klatkę), walka w `mw_combat.gd`, AI w `mw_ai.gd`/`mw_dialogue.gd`.
 
 **Stan przed etapem:** 0 zweryfikowanych porównaniem, 79 zaimplementowanych (testy syntetyczne), 14 częściowo,
-50 brakujących. **Po etapie:** 73 zweryfikowane porównaniem z OpenMW (42 przypadki porównawcze, w tym statystyczne:
-40 nałożeń tego samego czaru – odporność, paraliż, odbicie, pochłonięcie, usuwanie), 62 zaimplementowane zgodnie z kodem OpenMW, 8 częściowo zgodnych, 0 brakujących.
+50 brakujących. **Po etapie:** 79 zweryfikowanych porównaniem z OpenMW (46 przypadków porównawczych, w tym statystyczne:
+40 nałożeń tego samego czaru – odporność, paraliż, odbicie, pochłonięcie, usuwanie, wysysanie umiejętności,
+uszkadzanie magii/kondycji), 58 zaimplementowanych zgodnie z kodem OpenMW, 6 częściowo zgodnych, 0 brakujących.
 
 Dodatkowo w tej części: trwałe czary (choroby, zaraza, klątwy) nakładają efekty jednorazowe na pule (Wyssanie i
 Uszkodzenie atrybutów/umiejętności) i Korpus pogarsza się co 24 h; wielkości zdolności losowane raz i zapisywane;
@@ -569,11 +570,11 @@ ekwipunku i położeń (próbki w czasie).
 | 18 | DrainHealth | Zaimplementowane | Zweryfikowane | wyssanie zdrowia/kondycji | fx_npc_dynamic (różnica 0,6 zdrowia – czas próbki) |
 | 19 | DrainMagicka | Zaimplementowane | Zweryfikowane | wyssanie magii | fx_potions_restore (rzut odporności) |
 | 20 | DrainFatigue | Zaimplementowane | Zweryfikowane | wyssanie zdrowia/kondycji | fx_npc_dynamic (różnica 0,6 zdrowia – czas próbki) |
-| 21 | DrainSkill | Zaimplementowane | Częściowo zgodne | ubytki atrybutów/umiejętności, przywracanie po wygaśnięciu (Drain) | fx_player_damage/fx_npc_stats: wartości zgodne do rzutu odporności (losowe) |
+| 21 | DrainSkill | Zaimplementowane | Zweryfikowane | ubytki umiejętności | porównanie statystyczne 40 czarów: suma 473 OpenMW / 452 Godot (rzuty wielkości i odporności) |
 | 22 | DamageAttribute | Zaimplementowane | Częściowo zgodne | ubytki atrybutów/umiejętności, przywracanie po wygaśnięciu (Drain) | fx_player_damage/fx_npc_stats: wartości zgodne do rzutu odporności (losowe) |
 | 23 | DamageHealth | Zaimplementowane | Zweryfikowane | obrażenia zdrowia co sekundę, śmierć | fx_player_damage |
-| 24 | DamageMagicka | Zaimplementowane | Zaimplementowane | zdrowie/magia/kondycja, Drain poniżej zera | test_magic |
-| 25 | DamageFatigue | Zaimplementowane | Zaimplementowane | zdrowie/magia/kondycja, Drain poniżej zera | test_magic |
+| 24 | DamageMagicka | Zaimplementowane | Zweryfikowane | uszkadzanie magii/kondycji co sekundę | porównanie statystyczne 2×20 czarów: sumy 57/66 i 294/290, magia i kondycja do zera w obu |
+| 25 | DamageFatigue | Zaimplementowane | Zweryfikowane | uszkadzanie magii/kondycji co sekundę | porównanie statystyczne 2×20 czarów: sumy 57/66 i 294/290, magia i kondycja do zera w obu |
 | 26 | DamageSkill | Zaimplementowane | Częściowo zgodne | ubytki atrybutów/umiejętności, przywracanie po wygaśnięciu (Drain) | fx_player_damage/fx_npc_stats: wartości zgodne do rzutu odporności (losowe) |
 | 27 | Poison | Zaimplementowane | Zweryfikowane | trucizna, paraliż i ich leczenie | fx_cures: 0 różnic |
 | 28 | WeaknessToFire | Zaimplementowane | Zaimplementowane | słabości w odpornościach i obrażeniach | wielkość w mapie zgodna (fx_player_damage: Fire, Poison – rzut odporności) |
@@ -632,9 +633,9 @@ ekwipunku i położeń (próbki w czasie).
 | 81 | FortifyMagicka | Zaimplementowane | Zaimplementowane | wzmocnienie magii (bieżąca) | test_magic |
 | 82 | FortifyFatigue | Zaimplementowane | Zweryfikowane | wzmocnienia (czasowe zdrowie/magia/kondycja – tylko bieżąca, w mapie efektów) | fx_player_map, fx_npc_stats |
 | 83 | FortifySkill | Zaimplementowane | Zweryfikowane | wzmocnienia (czasowe zdrowie/magia/kondycja – tylko bieżąca, w mapie efektów) | fx_player_map, fx_npc_stats |
-| 84 | FortifyMaximumMagicka | Zaimplementowane | Częściowo zgodne | maks. magia (recalculateMagicka) | OpenMW przelicza stan startowy przy wygaśnięciu – różnica stanu bazowego |
-| 85 | AbsorbAttribute | Zaimplementowane | Zaimplementowane | pochłanianie do rzucającego | test_magic |
-| 86 | AbsorbHealth | Zaimplementowane | Zaimplementowane | pochłanianie do rzucającego | test_magic |
+| 84 | FortifyMaximumMagicka | Zaimplementowane | Zweryfikowane | maks. magia (recalculateMagicka) – NPC | fx_npc_maxmagicka (Fargoth, zdolność): 0 różnic; gracz – stan startowy OpenMW nieprzeliczony |
+| 85 | AbsorbAttribute | Zaimplementowane | Zweryfikowane | Pochłanianie atrybutu: uszkodzenie celu, modyfikator rzucającego poza mapą efektów, cofnięcie obu po wygaśnięciu | fx_absorb_health: atrybut gracza +wielkość, brak wpisu w mapie w obu |
+| 86 | AbsorbHealth | Zaimplementowane | Zweryfikowane | pochłanianie zdrowia do rzucającego | fx_absorb_health: zdrowie zgodne |
 | 87 | AbsorbMagicka | Zaimplementowane | Zaimplementowane | pochłanianie do rzucającego | test_magic |
 | 88 | AbsorbFatigue | Zaimplementowane | Zweryfikowane | pochłanianie kondycji do rzucającego | fx_absorb: ~20/s w obu (różnica – długość okna czasu) |
 | 89 | AbsorbSkill | Zaimplementowane | Zaimplementowane | pochłanianie do rzucającego | test_magic |
@@ -694,6 +695,8 @@ ekwipunku i położeń (próbki w czasie).
 
 ### Różnice i zależności (magia)
 
+- **Pochłanianie atrybutu/umiejętności:** zysk rzucającego to modyfikator (fortifyAttribute), nie wpis w mapie
+  efektów; po wygaśnięciu cel odzyskuje wartość (wcześniej w Godocie zostawała uszkodzona).
 - **Kumulowanie czarów** (ActiveSpells::addToSpells): ten sam czar/zaklęcie od tego samego rzucającego zastępuje
   poprzednie wystąpienie albo dołącza efekty o innych indeksach; kumulują się tylko mikstury i składniki
   (fx_recast). Wcześniej Godot kumulował każdy czar.

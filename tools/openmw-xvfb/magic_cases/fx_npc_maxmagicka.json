@@ -1,0 +1,22 @@
+{
+ "name": "fx_npc_maxmagicka",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player",
+  "fargoth"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -10400 -71000 300 180"
+ ],
+ "commands": [
+  "fargoth->AddSpell \"wombburn\""
+ ],
+ "seconds": 2
+}

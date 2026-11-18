@@ -1043,11 +1043,9 @@ func _actor_effect(f: Dictionary, entry: Dictionary, e: Dictionary, amount: floa
 			if idx >= 0 and idx < (p[key] as Array).size():
 				p[key][idx] = float(p[key][idx]) + amount
 				var c2 := _caster_of(entry)
-				if not c2.is_empty():           # rzucający: wzmocnienie na czas efektu
-					var fe := FX_FORTIFY_ATTRIBUTE if id == FX_ABSORB_ATTRIBUTE else FX_FORTIFY_SKILL
-					active(c2).append({"id": entry.id, "name": entry.name, "kind": "absorb", "caster": "", "effects": [
-						{"effect": fe, "skill": int(e.skill), "attribute": int(e.attribute), "min": amount, "max": amount,
-						"duration": e.duration, "time_left": e.time_left, "magnitude": amount, "applied": true}]})
+				if not c2.is_empty():           # fortifyAttribute/Skill rzucającego: modyfikator (poza mapą efektów)
+					_mod_adjust(c2, key, idx, amount)
+					e["caster_sid"] = String(c2.sid) if c2.kind != "player" else "player"
 		FX_SUN_DAMAGE:
 			# tylko na zewnątrz: wielkość × clamp(max(widoczność słońca × wschód, fMagicSunBlockedMult × wschód))
 			if main.interior.is_empty() or (main.envr != null and not bool(main.envr.interior)):
@@ -1158,6 +1156,18 @@ func _remove_effect(f: Dictionary, e: Dictionary) -> void:
 			var s := int(e.skill)
 			if s >= 0 and s < 27:
 				p2.skills[s] = maxf(0.0, float(p2.skills[s]) - m)
+		FX_ABSORB_ATTRIBUTE, FX_ABSORB_SKILL:
+			# removeMagicEffect: przywrócenie celu i cofnięcie modyfikatora rzucającego
+			var key3 := "attributes" if id == FX_ABSORB_ATTRIBUTE else "skills"
+			var i3 := int(e.attribute) if id == FX_ABSORB_ATTRIBUTE else int(e.skill)
+			var p3 := pools(f)
+			if i3 >= 0 and i3 < (p3[key3] as Array).size():
+				p3[key3][i3] = maxf(0.0, float(p3[key3][i3]) - m)
+			var csid := String(e.get("caster_sid", ""))
+			if not csid.is_empty():
+				var cf: Dictionary = _combat().player_fighter() if csid == "player" else _combat().fighter_of(_node_by_sid(csid))
+				if not cf.is_empty():
+					_mod_adjust(cf, key3, i3, -m)
 		49, 50, 51, 52, 53, 54, 55, 56:
 			var spec: Array = AI_EFFECTS[id]
 			_ai_mod(f, String(spec[0]), -float(spec[1]) * m)
