@@ -176,6 +176,17 @@ func _apply_cast(casts: Array, t: float) -> void:
 			_cast_done[i] = 2
 			main.player_cast()
 
+## Odpoczynek [[t, godziny]] – w OpenMW klawisze okna odpoczynku (T, Enter) przez XTest; tu okno i rest(godziny).
+var _rest_done := {}
+
+func _apply_rest(rests: Array, t: float) -> void:
+	for i in rests.size():
+		var r: Array = rests[i]
+		if t >= float(r[0]) and not _rest_done.has(i) and main.rest_window != null:
+			_rest_done[i] = true
+			if main.rest_window.open():
+				main.rest_window.rest(int(r[1]))
+
 ## Klawisze [[t, keysym X]] – jak naciśnięcia XTest w OpenMW: akcja wejścia przez 3 klatki.
 const KEY_ACTIONS := {"space": "activate"}
 var _keyed := {}
@@ -287,6 +298,7 @@ func _run() -> void:
 		_apply_keys(case.get("keys", []), t_after)
 		_look_at(case.get("look_at", []))
 		_apply_cast(case.get("cast", []), t_after)
+		_apply_rest(case.get("rest", []), t_after)
 		if bool(case.get("disable_creatures", false)) and frame == delay:
 			for an in main.ai.actor_nodes():
 				if String(an.get_meta("mw_actor", "")) == "creature":

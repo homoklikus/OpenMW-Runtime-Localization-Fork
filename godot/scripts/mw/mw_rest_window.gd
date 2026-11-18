@@ -103,9 +103,11 @@ func rest_state() -> Dictionary:
 	if p.swimming or (not p.is_on_floor() and p.collide) or p.fly:
 		return {"ok": false, "message": _t("sNotifyMessage1", "Nie możesz tu odpoczywać.")}
 	var can_sleep := not bool(main.player_stats().get("werewolf", false))     # WaitDialog::setCanRest – wilkołak czeka
-	if not main.interior.is_empty():
-		var c: Dictionary = main.db.get_cell("int:" + main.interior.to_lower())
-		can_sleep = can_sleep and (int(c.get("flags", 0)) & 0x4) == 0
+	# World::canRest: flaga komórki NoSleep (0x4) – także komórki zewnętrzne (np. miasta: Seyda Neen)
+	var key: String = ("int:" + main.interior.to_lower()) if not main.interior.is_empty() \
+			else String(main.db.exterior_key(MWCoords.cell_of(p.global_position)))
+	var c: Dictionary = main.db.get_cell(key)
+	can_sleep = can_sleep and (int(c.get("flags", 0)) & 0x4) == 0
 	return {"ok": true, "sleep": can_sleep}
 
 func open() -> bool:

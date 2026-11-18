@@ -133,6 +133,7 @@ s([48],I,Z,"szansa rzucenia − wielkość","fx_cast_sound: Dźwięk 249–266 �
 s([52],B,Z,"modyfikator Fight stworzenia (modifyAiSetting), na NPC nieprawidłowy","fx_creature_command: skamp Fight 50 → 54 w obu; fx_npc_ai: na NPC nieprawidłowy w obu")
 s([118],B,Z,"AiFollow za rzucającym, gdy poziom stworzenia ≤ wielkość","fx_creature_command: mapa efektów i Fight zgodne (skamp poziom 5, wielkość 5); ctl_creature_follow: skamp idzie za oddalającym się graczem w obu (prędkość: OpenMW ruch z animacji – poza magią)")
 s([71],I,Z,"usuwa efekt Korpusu: dla trwałego czaru – removeMagicEffect(Corprus) cofa pogorszenia i usuwa wszystkie efekty czaru, czar zostaje (GetSpell 1)","fx_cure_corprus: po leczeniu brak efektów Korpusu, atrybuty bez wyssań, GetSpell 1 – 0 różnic")
+s([11],C,Z,"opadanie: mInertia.z × (1 − 0,005 × wielkość) w każdym kroku fizyki, bez obrażeń od upadku","ctl_slowfall + physics_fit.py --slowfall: OpenMW 14,21 j./klatkę = model kroków (max 10 kroków, dt 0,2 s); przy 60 Hz model 59,2 j./s, Godot 59,5 j./s")
 rows=["| # | Efekt | Przed etapem | Po etapie | Działanie | Test / porównanie z OpenMW |","|---|---|---|---|---|---|"]
 from collections import Counter
 cb,ca=Counter(),Counter()

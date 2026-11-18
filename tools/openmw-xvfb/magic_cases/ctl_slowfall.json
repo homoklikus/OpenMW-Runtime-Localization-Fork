@@ -1,0 +1,49 @@
+{
+ "name": "ctl_slowfall",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track",
+  ".actors.player.dynamic"
+ ],
+ "setup": [
+  "player->Position -12288 -69632 160 0"
+ ],
+ "spells": [
+  [
+   0,
+   "player",
+   "slowfall",
+   ""
+  ]
+ ],
+ "teleport": [
+  [
+   3,
+   "player",
+   -12288,
+   -69632,
+   600
+  ]
+ ],
+ "framelog": true,
+ "track": [
+  "player"
+ ],
+ "samples": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8
+ ],
+ "seconds": 8.5
+}

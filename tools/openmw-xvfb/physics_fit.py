@@ -6,7 +6,10 @@ dodaje ruch klatki do bezwładności (velocity = movement + inertia). Wysokość
 i nie da się jej porównać bezpośrednio z Godotem (krok 1/60 s). Skrypt odtwarza ten schemat kroków
 (wraz z interpolacją położenia) i szuka v0 (jednostki/s), które najlepiej odtwarza zapisane wysokości;
 v0 jest wartością Npc::getJump, porównywalną z Godotem (mw_character.movement().jump).
-Użycie: python3 physics_fit.py openmw.out [openmw.out…]"""
+Użycie: python3 physics_fit.py openmw.out [openmw.out…]
+        python3 physics_fit.py --slowfall WIELKOŚĆ openmw.out – ustalona prędkość opadania (Powolne opadanie:
+        mInertia.z *= 1 − 0,005 × wielkość w każdym kroku fizyki): model kroków OpenMW dla zapisanych dt
+        (najlepsze max_steps) wobec pomiaru i wartość przy 60 Hz (krok Godota)."""
 import re
 import sys
 
@@ -73,7 +76,50 @@ def fit(fr):
             "peak": round(max(obs) - ground, 1)}
 
 
+def slowfall_steady(dt, s, maxs, frames=300):
+    """Średnie przesunięcie na klatkę w stanie ustalonym (kroki jak calculateStepConfig)."""
+    acc, v, disp = 0.0, 0.0, []
+    for _ in range(frames):
+        acc += dt
+        n, d = int(acc / H), H
+        if n > maxs:
+            n = maxs
+            d = max(acc / (n + 1), H)
+        acc -= n * d
+        dz = 0.0
+        for _ in range(n):
+            dz += v * d
+            v -= G * d
+            if v < 0:
+                v *= s
+        disp.append(dz)
+    return sum(disp[-50:]) / 50
+
+
+def slowfall_report(path, mag):
+    s = 1.0 - min(max(mag * 0.005, 0.0), 1.0)
+    fr = [f for f in frames(path) if f[0] > 0]
+    drops = [(fr[i][1] - fr[i + 1][1], fr[i + 1][0]) for i in range(len(fr) - 1)]
+    steady = [(dz, dt) for dz, dt in drops if dz > 0.5]
+    steady = steady[len(steady) // 3: -2] if len(steady) > 6 else steady   # bez rozbiegu i lądowania
+    if not steady:
+        return {"error": "brak opadania"}
+    dt = sum(d for _, d in steady) / len(steady)
+    obs = sum(z for z, _ in steady) / len(steady)
+    best = min(range(1, 13), key=lambda m: abs(-slowfall_steady(dt, s, m) - obs))
+    v60 = 0.0
+    for _ in range(2000):
+        v60 = (v60 - G * H) * s
+    return {"dt": round(dt, 4), "drop_per_frame": round(obs, 2), "model_max_steps": best,
+            "model_drop": round(-slowfall_steady(dt, s, best), 2), "v_omw": round(obs / dt, 1),
+            "v_60hz": round(-v60, 1)}
+
+
 if __name__ == "__main__":
+    if len(sys.argv) > 2 and sys.argv[1] == "--slowfall":
+        for p in sys.argv[3:]:
+            print(p, slowfall_report(p, float(sys.argv[2])))
+        sys.exit(0)
     for p in sys.argv[1:]:
         fr = [f for f in frames(p) if f[0] > 0]
         obs = [z for _, z in fr]

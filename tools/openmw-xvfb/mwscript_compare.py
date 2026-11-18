@@ -62,17 +62,27 @@ local LOOK = __LOOK__
 local CTRL = __CONTROLS__
 local KEYS = __KEYS__
 local CAST = __CAST__
+local UIMODE = __UIMODE__
+local uidone = {}
 local types = require('openmw.types')
 local t = -1
 local casted = {}
+local core = require('openmw.core')
+local rt, rt0 = 0, nil
 local jumped = {}
 local keyed = {}
 return {
   eventHandlers = { mwprobe_start = function() t = 0 end },
   engineHandlers = {
     onFrame = function(dt)
+      -- klawisze wg czasu rzeczywistego (onFrame): okna (np. odpoczynek) wstrzymują czas symulacji
+      if t >= 0 then
+        local now = core.getRealTime()
+        if rt0 == nil then rt0 = now end
+        rt = now - rt0
+      end
       for i, k in ipairs(KEYS) do
-        if t >= 0 and t >= k[1] and not keyed[i] then keyed[i] = true; print('MWKEY ' .. k[2]) end
+        if t >= 0 and rt >= k[1] and not keyed[i] then keyed[i] = true; print('MWKEY ' .. k[2]) end
       end
       if t >= 0 and LOOK[1] then          -- wycelowanie kamery w punkt (obrót i pochylenie)
         local d = util.vector3(LOOK[1], LOOK[2], LOOK[3]) - camera.getPosition()
@@ -106,6 +116,10 @@ return {
           print(string.format('MWCAST t=%.2f stance=%s spell=%s use=%s', t, tostring(types.Actor.getStance(self)),
             ss and ss.id or 'nil', tostring(self.controls.use)))
         end
+      end
+      -- okno interfejsu (I.UI.setMode), np. odpoczynek: [czas rzeczywisty, tryb]
+      for i, u in ipairs(UIMODE) do
+        if t >= 0 and rt >= u[1] and not uidone[i] then uidone[i] = true; I.UI.setMode(u[2]) end
       end
       if t >= 0 and __FRAMELOG__ then print(string.format('MWFRAME %.4f %.4f %.2f %.2f %.2f', t, dt, self.position.x, self.position.y, self.position.z)) end
       if t < 0 or #CTRL == 0 then return end
@@ -519,6 +533,7 @@ def run_openmw(case: dict, omw_dir: Path, cfg_src: Path, work: Path, display: in
         .replace("__FRAMELOG__", "true" if case.get("framelog") else "false")
         .replace("__KEYS__", lua_table(case.get("keys", [])))
         .replace("__CAST__", lua_table(case.get("cast", [])))
+        .replace("__UIMODE__", lua_table(case.get("ui_mode", [])))
         .replace("__LOOK__", lua_table(case.get("look_at", []))), encoding="utf-8")
     (probe / "mwprobe.omwscripts").write_text("GLOBAL: scripts/mwprobe/global.lua\nPLAYER: scripts/mwprobe/player.lua\n",
                                               encoding="utf-8")

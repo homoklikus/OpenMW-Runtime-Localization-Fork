@@ -1,0 +1,48 @@
+{
+ "name": "ctl_rest_nosleep",
+ "cell": "Seyda Neen",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects"
+ ],
+ "vars": [
+  [
+   "float",
+   "mwhour"
+  ]
+ ],
+ "setup": [
+  "player->Position -12288 -69632 160 0",
+  "player->ModCurrentMagicka -30",
+  "player->ModCurrentHealth -10"
+ ],
+ "ui_mode": [
+  [
+   1.0,
+   "Rest"
+  ]
+ ],
+ "keys": [
+  [
+   2.0,
+   "Return"
+  ]
+ ],
+ "rest": [
+  [
+   1.0,
+   1
+  ]
+ ],
+ "after_s": [
+  [
+   4.0,
+   "set mwhour to GameHour"
+  ]
+ ],
+ "seconds": 4.5
+}

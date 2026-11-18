@@ -531,10 +531,10 @@ _remove_effect → removeMagicEffect, _should_remove → shouldRemoveEffect), sk
 (apply_movement co klatkę), walka w `mw_combat.gd`, AI w `mw_ai.gd`/`mw_dialogue.gd`.
 
 **Stan przed etapem:** 0 zweryfikowanych porównaniem, 79 zaimplementowanych (testy syntetyczne), 14 częściowo,
-50 brakujących. **Po etapie:** 119 zweryfikowanych porównaniem z OpenMW (75 przypadków porównawczych, w tym statystyczne:
+50 brakujących. **Po etapie:** 120 zweryfikowanych porównaniem z OpenMW (77 przypadków porównawczych, w tym statystyczne:
 40 nałożeń tego samego czaru – odporność, paraliż, odbicie, pochłonięcie, usuwanie, wysysanie umiejętności,
-uszkadzanie magii/kondycji, pochłanianie magii – i 10 przypadków ze sterowaniem postacią), 19 zaimplementowanych
-zgodnie z kodem OpenMW, 5 częściowo zgodnych, 0 brakujących.
+uszkadzanie magii/kondycji, pochłanianie magii – i 12 przypadków ze sterowaniem postacią), 19 zaimplementowanych
+zgodnie z kodem OpenMW, 4 częściowo zgodne, 0 brakujących.
 
 Dodatkowo w tej części: trwałe czary (choroby, zaraza, klątwy) nakładają efekty jednorazowe na pule (Wyssanie i
 Uszkodzenie atrybutów/umiejętności) i Korpus pogarsza się co 24 h; wielkości zdolności losowane raz i zapisywane;
@@ -579,7 +579,7 @@ trafienia (0 %), tarcze żywiołów bez obrony atakującego (2,4 pkt na trafieni
 | 8 | Feather | Częściowo zgodne | Zweryfikowane | lekkość odejmowana od obciążenia (przeciążony → może biec) | ctl_run_feather: bieg 222 j./s OpenMW / 219 j./s Godot, baza – stoi w obu |
 | 9 | Jump | Zaimplementowane | Zweryfikowane | prędkość skoku getJump (+64 × wielkość przed mnożnikami) | ctl_jump + physics_fit.py: v0 498 OpenMW / 496 Godot (baza 308/298); wysokość w Xvfb zawyżona przez kroki fizyki przy niskim fps |
 | 10 | Levitate | Brakujące | Zweryfikowane | lot bez grawitacji, prędkość fMin/MaxFlySpeed, DisableLevitation usuwa (sLevitateDisabled) | fx_levitate (wysokość 900 j.), ctl_levitate_fly: lot w przód i w górę, położenie końcowe ±8 j. |
-| 11 | SlowFall | Brakujące | Częściowo zgodne | inercja w dół × (1 − 0,005 × wielkość) na krok fizyki, brak obrażeń od upadku | fx_slowfall: bez obrażeń w obu; prędkość graniczna Godot 59 j./s = wzór przy 60 Hz, OpenMW w Xvfb ~70 j./s (2–5 kl./s) |
+| 11 | SlowFall | Częściowo zgodne | Zweryfikowane | opadanie: mInertia.z × (1 − 0,005 × wielkość) w każdym kroku fizyki, bez obrażeń od upadku | ctl_slowfall + physics_fit.py --slowfall: OpenMW 14,21 j./klatkę = model kroków (max 10 kroków, dt 0,2 s); przy 60 Hz model 59,2 j./s, Godot 59,5 j./s |
 | 12 | Lock | Zaimplementowane | Zweryfikowane | zamki drzwi i pojemników nieorganicznych (applyMagicEffect: Zamknięcie, gdy poziom < wielkość; Otwarcie przy poziomie ≤ wielkość, unlockAttempted), także z MWScript Cast/ExplodeSpell obiektu | fx_lock_open: 5 obiektów (otwarcie, nieudane otwarcie, zamknięcie, bez podwyższenia, ExplodeSpell) – 0 różnic |
 | 13 | Open | Zaimplementowane | Zweryfikowane | zamki drzwi i pojemników nieorganicznych (applyMagicEffect: Zamknięcie, gdy poziom < wielkość; Otwarcie przy poziomie ≤ wielkość, unlockAttempted), także z MWScript Cast/ExplodeSpell obiektu | fx_lock_open: 5 obiektów (otwarcie, nieudane otwarcie, zamknięcie, bez podwyższenia, ExplodeSpell) – 0 różnic |
 | 14 | FireDamage | Zaimplementowane | Zweryfikowane | obrażenia zdrowia (co sekundę przy czasie trwania), odporność/słabość na żywioł | fx_weakness_elements: utrata zdrowia 104,9 / 104,9 (słabość do ognia i mrozu); fx_resist_elements: 0 przy odporności 120 |
@@ -729,8 +729,10 @@ trafienia (0 %), tarcze żywiołów bez obrony atakującego (2,4 pkt na trafieni
   ekwipunek z list poziomowanych i wielkości zdolności (np. regeneracja) są losowane w obu silnikach.
 - **Pogarszanie Korpusu** liczy się od znacznika czasu (DaysPassed), nie od kalendarza: `set GameHour to GameHour + 25`
   przesuwa tylko kalendarz (DateTimeManager::setHour) – w obu silnikach bez pogorszenia; `DaysPassed + 2` – dwa.
-- **Powolne opadanie:** w Xvfb OpenMW działa z 2–5 kl./s i większym krokiem fizyki – prędkość graniczna różni
-  się od wzoru przy 60 Hz; brak obrażeń od upadku zgodny.
+- **Powolne opadanie:** w Xvfb OpenMW działa z 5 kl./s (dt 0,2 s) i przy limicie 10 kroków fizyki na klatkę
+  liczy kroki dłuższe niż 1/60 s – prędkość graniczna 71 j./s zamiast 59,2 przy 60 Hz. `physics_fit.py --slowfall`
+  odtwarza kroki OpenMW: model 14,21 j./klatkę = pomiar 14,21; przy 60 Hz model 59,2 j./s, Godot 59,5 j./s.
+  W pierwszej sekundzie po teleporcie Lua OpenMW opada szybciej (rozbieg), potem stan ustalony.
 - **SetPos/Position gracza w OpenMW stawia go na podłożu**, gdy nie lewituje (Godot nie) – różnica MWScript,
   poza magią; testy używają teleportu Lua bez stawiania na podłożu.
 - **OpenMW zawiesza się w Xvfb**, gdy lewitacja kończy się wysoko (RemoveSpellEffects albo ActiveSpells:remove)
@@ -766,6 +768,11 @@ trafienia (0 %), tarcze żywiołów bez obrony atakującego (2,4 pkt na trafieni
   getWalkSpeed); Godot – wzór. Poza magią (Rozkaz stworzeniu: podążanie zgodne).
 - **Stworzenia spoza przekonwertowanych komórek** (np. „scamp”) nie mają obiektu w objects.json – PlaceAtPC
   w Godocie tworzy obiekt bez aktora; testy używają stworzeń z konwersji (zależność od zakresu konwersji).
+- **Bez porównania (brak źródła albo dostępu):** Tarcza (wynik zależy od losowych obrażeń broni, OpenMW nie
+  udostępnia pancerza z Lua/MWScript), Zahamowanie magii (odnowa tylko we śnie – przekonwertowane komórki do
+  spania to statek więzienny z oknami tworzenia postaci), odporność/słabość na choroby (zarażenie od stworzeń
+  z małą szansą), Wykrywanie (znaczniki mapy niedostępne z Lua), przywołania Fabrykanta/Creature04/05, Przywrócenie
+  i Pochłonięcie umiejętności, Zdjęcie klątwy, ExtraSpell, Uszkodzenie umiejętności (brak czarów z tymi efektami).
 - **Zależności:** Wampiryzm (reakcje NPC, sen, wygląd), znaczniki Wykrywania jako proste kwadraty (bez ikon
   detect_*_icon), przenoszenie stałych referencji NPC między komórkami
   (towarzysze przez drzwi – działa dla przywołań i obiektów dynamicznych), AiCast (Cast/ExplodeSpell NPC działa
@@ -803,7 +810,8 @@ trafienia (0 %), tarcze żywiołów bez obrony atakującego (2,4 pkt na trafieni
 | Czas świata a zmienne skryptów (GameHour, DaysPassed, Day/Month/Year – DateTimeManager) | Zweryfikowane | fx_corprus, fx_sun: GameHour i DaysPassed jak OpenMW; kalendarz o północy |
 | Zmiana postawy świadków i ofiary za przestępstwo (reportCrime: trwała / modyfikator do spłaty, getFightDispositionBias) | Zweryfikowane | napaść czarem: fx_npc_ai (grzywna 40, postawa −10 jak OpenMW) |
 | Wilkołactwo (Bloodmoon) | Częściowo zgodne | od etapu MWScript: statystyki z GMST, szata, świadkowie i grzywna, brak rozmów/ekwipunku/snu, agresja NPC – porównane z OpenMW; brak modelu, nakładki ekranu i pazurów (punkt 4a) |
-| Choroby, wampiryzm | Częściowo zgodne | leczenie chorób NPC, Obrażenia od słońca; Korpus bez pogarszania (punkt 5) |
+| Choroby, wampiryzm | Częściowo zgodne | leczenie chorób NPC, Obrażenia od słońca, pogarszanie i Leczenie Korpusu (punkt 5); zarażanie od stworzeń bez porównania |
+| Odpoczynek: World::canRest – flaga NoSleep komórki także na zewnątrz (miasta), w takiej komórce tylko czekanie bez odnowy | Zweryfikowane | ctl_rest_nosleep (okno odpoczynku przez I.UI.setMode + Enter): Seyda Neen – „tylko czekanie”, zdrowie i magia bez zmian, GameHour +1 w obu; **naprawione:** Godot sprawdzał flagę tylko we wnętrzach |
 
 ### Odchylenia od OpenMW (świadome, udokumentowane)
 
