@@ -89,7 +89,9 @@ local CTRL = __CONTROLS__
 local KEYS = __KEYS__
 local CAST = __CAST__
 local UIMODE = __UIMODE__
+local UISTEPS = __UISTEPS__
 local uidone = {}
+local uistep = {}
 local types = require('openmw.types')
 local t = -1
 local casted = {}
@@ -147,6 +149,17 @@ return {
           local ss = types.Actor.getSelectedSpell(self)
           print(string.format('MWCAST t=%.2f stance=%s spell=%s use=%s', t, tostring(types.Actor.getStance(self)),
             ss and ss.id or 'nil', tostring(self.controls.use)))
+        end
+      end
+      -- porównania wizualne: [czas rzeczywisty, "mode" | "clear" | "shot", argument] – okno (I.UI.setMode, tryb
+      -- albo {tryb, okna}), zamknięcie wszystkich okien, zrzut ekranu (MWSHOT → import po stronie Pythona)
+      for i, u in ipairs(UISTEPS) do
+        if t >= 0 and rt >= u[1] and not uistep[i] then
+          uistep[i] = true
+          if u[2] == 'mode' then
+            if type(u[3]) == 'table' then I.UI.setMode(u[3][1], {windows = u[3][2]}) else I.UI.setMode(u[3]) end
+          elseif u[2] == 'clear' then I.UI.setMode()
+          elseif u[2] == 'shot' then print('MWSHOT ' .. u[3]) end
         end
       end
       -- okno interfejsu (I.UI.setMode), np. odpoczynek: [czas rzeczywisty, tryb]
@@ -585,6 +598,13 @@ def run_openmw(case: dict, omw_dir: Path, cfg_src: Path, work: Path, display: in
     if cfg_dir.exists():
         shutil.rmtree(cfg_dir)
     shutil.copytree(cfg_src, cfg_dir / "openmw")
+    res = case.get("resolution")
+    if res:                                  # porównania wizualne: rozdzielczość okna OpenMW (kopia ustawień)
+        st = cfg_dir / "openmw" / "settings.cfg"
+        txt = st.read_text(encoding="utf-8") if st.exists() else "[Video]\n"
+        txt = re.sub(r"resolution x = \d+", f"resolution x = {int(res[0])}", txt)
+        txt = re.sub(r"resolution y = \d+", f"resolution y = {int(res[1])}", txt)
+        st.write_text(txt, encoding="utf-8")
     probe = work / "probe"
     (probe / "scripts" / "mwprobe").mkdir(parents=True, exist_ok=True)
     cfg = {"actors": case.get("actors", []), "objects": case.get("objects", []), "items": case.get("items", []),
@@ -606,6 +626,7 @@ def run_openmw(case: dict, omw_dir: Path, cfg_src: Path, work: Path, display: in
         .replace("__KEYS__", lua_table(case.get("keys", [])))
         .replace("__CAST__", lua_table(case.get("cast", [])))
         .replace("__UIMODE__", lua_table(case.get("ui_mode", [])))
+        .replace("__UISTEPS__", lua_table(case.get("ui", [])))
         .replace("__LOOK__", lua_table(case.get("look_at", []))), encoding="utf-8")
     (probe / "scripts" / "mwprobe" / "menu.lua").write_text(MENU_LUA, encoding="utf-8")
     (probe / "mwprobe.omwscripts").write_text("GLOBAL: scripts/mwprobe/global.lua\nPLAYER: scripts/mwprobe/player.lua\n"
@@ -617,7 +638,9 @@ def run_openmw(case: dict, omw_dir: Path, cfg_src: Path, work: Path, display: in
     cmds.write_text("startscript mwprobe_run\n", encoding="utf-8")
     log = work / "openmw.out"
     env = dict(os.environ, DISPLAY=f":{display}")
-    xvfb = subprocess.Popen(["Xvfb", f":{display}", "-screen", "0", "1024x768x24", "+extension", "GLX", "-nolisten", "tcp"],
+    # ekran dokładnie w rozdzielczości przypadku – na większym SDL wyśrodkowuje okno i zrzut od (0, 0) byłby przesunięty
+    scr = f"{int(res[0])}x{int(res[1])}x24" if res else "1024x768x24"
+    xvfb = subprocess.Popen(["Xvfb", f":{display}", "-screen", "0", scr, "+extension", "GLX", "-nolisten", "tcp"],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(2)
     try:
@@ -628,9 +651,19 @@ def run_openmw(case: dict, omw_dir: Path, cfg_src: Path, work: Path, display: in
             t0 = time.time()
             keys = KeySender(display, omw_dir) if case.get("keys") else None
             sent = 0
+            shots_done = 0
+            shot_dir = work / "shots"
             while p.poll() is None and time.time() - t0 < timeout:
-                time.sleep(0.05 if keys else 1)
+                time.sleep(0.05 if keys or case.get("ui") else 1)
                 text = log.read_text(errors="replace")
+                shots = re.findall(r"MWSHOT (\S+)", text)
+                for name in shots[shots_done:]:      # zrzut okna OpenMW (obraz gry – tylko lokalnie)
+                    shot_dir.mkdir(exist_ok=True)
+                    geo = f"{int(res[0])}x{int(res[1])}+0+0" if res else None
+                    cmd = ["import", "-display", f":{display}", "-window", "root"] + (["-crop", geo, "+repage"] if geo else []) \
+                        + [str(shot_dir / f"{name}.png")]
+                    subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
+                shots_done = len(shots)
                 if keys:                         # MWKEY z gracza (Lua) → naciśnięcie klawisza przez XTest
                     names = re.findall(r"MWKEY (\S+)", text)
                     for name in names[sent:]:

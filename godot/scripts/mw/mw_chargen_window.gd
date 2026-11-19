@@ -88,7 +88,7 @@ func _ready() -> void:
 
 func _scale() -> float:
 	var vp := get_viewport().get_visible_rect().size if is_inside_tree() else Vector2(1280, 720)
-	return clampf(vp.y / 720.0, 1.0, 3.0)
+	return UI.ui_scale()
 
 func _make_ui() -> void:
 	ui = CUI.new(main, _scale())

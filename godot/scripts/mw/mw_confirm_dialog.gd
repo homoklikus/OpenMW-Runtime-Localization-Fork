@@ -22,7 +22,7 @@ func ask(text: String, on_ok := Callable(), on_cancel := Callable()) -> void:
 	_cancel_cb = on_cancel
 	if _root != null:
 		_root.queue_free()
-	var sc := clampf(get_viewport().get_visible_rect().size.y / 720.0, 1.0, 3.0)
+	var sc := UI.ui_scale()
 	_root = Control.new()
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_root.mouse_filter = Control.MOUSE_FILTER_STOP

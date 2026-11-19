@@ -46,6 +46,10 @@ var _enc_bar: ProgressBar = null
 var _enc_label: Label = null
 var _cat_buttons := {}
 var item_ids: Array = []         # testy: id w kolejności siatki
+var _inv_left: Control = null
+var inv_filter: LineEdit
+var spell_filter: LineEdit
+var spell_delete: Button
 var spell_rows: Array = []       # testy: [rodzaj, id]
 
 func _ready() -> void:
@@ -70,7 +74,7 @@ func open() -> void:
 	if visible:
 		return
 	var vp := get_viewport().get_visible_rect().size
-	scale_ui = clampf(vp.y / 720.0, 1.0, 3.0)
+	scale_ui = UI.ui_scale()
 	UI.setup(String(main.data_dir) if main != null and main.get("data_dir") != null else "")
 	_root = _Backdrop.new()
 	_root.name = "MenuMode"
@@ -117,6 +121,7 @@ func close() -> void:
 	_stat_left = null
 	_spell_list = null
 	_doll_vp = null
+	_inv_left = null
 	_doll = null
 	get_tree().paused = false
 	if DisplayServer.get_name() != "headless":
@@ -155,17 +160,12 @@ func _window(name: String, rect: Rect2) -> PanelContainer:
 	var box := VBoxContainer.new()
 	box.name = "Box"
 	w.add_child(box)
-	var head := PanelContainer.new()
-	head.name = "Title"
-	head.add_theme_stylebox_override("panel", UI.head_box())
-	head.mouse_filter = Control.MOUSE_FILTER_STOP
-	head.gui_input.connect(_drag_window.bind(w))
-	box.add_child(head)
 	var tl := Label.new()
 	tl.name = "Text"
-	tl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	tl.add_theme_color_override("font_color", UI.color("header"))
-	head.add_child(tl)
+	var head := UI.make_head(tl, scale_ui)
+	head.name = "Title"
+	head.gui_input.connect(_drag_window.bind(w))
+	box.add_child(head)
 	var body := VBoxContainer.new()
 	body.name = "Body"
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -181,7 +181,7 @@ func _window(name: String, rect: Rect2) -> PanelContainer:
 
 func _title(name: String, text: String) -> void:
 	if windows.has(name):
-		(windows[name].get_node("Box/Title/Text") as Label).text = text
+		(windows[name].get_node("Box/Title/Client/Text") as Label).text = text
 
 func _body(name: String) -> VBoxContainer:
 	return windows[name].get_node("Box/Body") as VBoxContainer
@@ -215,38 +215,72 @@ func _unhandled_input(e: InputEvent) -> void:
 # --- statystyki -----------------------------------------------------------------------------------------
 
 var _stat_bars := {}
+var _stat_boxes: Array = []
 var _stat_left: VBoxContainer
 var _stat_right: VBoxContainer
 
+## openmw_stats_window.layout + StatsWindow::onWindowResize: lewa część 0,44 szerokości okna z trzema polami MW_Box
+## (paski 62 px, poziom/rasa/klasa 62 px, atrybuty do dołu; odstępy 8 px), prawa – pole umiejętności z przewijaniem.
+## Zawartość nie narzuca szerokości (napisy przycinane), więc okno ma rozmiar z ustawień OpenMW.
 func _build_stats() -> void:
 	var body := _body("stats")
 	var cols := HBoxContainer.new()
 	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	cols.add_theme_constant_override("separation", int(8 * scale_ui))
 	body.add_child(cols)
-	var lp := PanelContainer.new()
-	lp.add_theme_stylebox_override("panel", UI.inner_box())
-	lp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lp.size_flags_stretch_ratio = 0.85
-	cols.add_child(lp)
-	var ls := ScrollContainer.new()
-	ls.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	lp.add_child(ls)
 	_stat_left = VBoxContainer.new()
 	_stat_left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	ls.add_child(_stat_left)
+	_stat_left.size_flags_stretch_ratio = 0.44
+	_stat_left.add_theme_constant_override("separation", int(8 * scale_ui))
+	cols.add_child(_stat_left)
+	_stat_boxes = []
+	for i in 3:
+		var bp := PanelContainer.new()
+		var sb: StyleBox = UI.inner_box().duplicate()
+		for side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
+			sb.set_content_margin(side, 4 * scale_ui)
+		bp.add_theme_stylebox_override("panel", sb)
+		bp.clip_contents = true
+		if i < 2:
+			bp.custom_minimum_size.y = 62 * scale_ui
+		else:
+			bp.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		_stat_left.add_child(bp)
+		var v := VBoxContainer.new()
+		v.add_theme_constant_override("separation", 0)
+		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if i < 2:
+			bp.add_child(v)
+		else:
+			# AttributeView: przewijany widok bez paska – lista nie narzuca wysokości okna
+			var sc := ScrollContainer.new()
+			sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+			sc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
+			bp.add_child(sc)
+			sc.add_child(v)
+		_stat_boxes.append(v)
 	var rp := PanelContainer.new()
 	rp.add_theme_stylebox_override("panel", UI.inner_box())
 	rp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	rp.size_flags_stretch_ratio = 0.56
 	cols.add_child(rp)
 	var rs := ScrollContainer.new()
 	rs.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	rp.add_child(rs)
 	_stat_right = VBoxContainer.new()
 	_stat_right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_stat_right.add_theme_constant_override("separation", 0)     # wiersze co 18 px (fontSize + 2)
 	rs.add_child(_stat_right)
 
-func _row(parent: Control, left: String, right: String, tip := "", col := Color(0, 0, 0, 0)) -> HBoxContainer:
+## Wiersz nazwa–wartość. indent/right_pad – StatsWindow::addValueItem (nazwa od x = 10, wartość przy prawej krawędzi
+## z miejscem na pasek przewijania), wysokość wiersza = rozmiar czcionki + 2.
+func _row(parent: Control, left: String, right: String, tip := "", col := Color(0, 0, 0, 0), indent := 0.0, right_pad := 0.0) -> HBoxContainer:
 	var h := HBoxContainer.new()
+	h.custom_minimum_size.y = 18 * scale_ui
+	if indent > 0.0:
+		var sp := Control.new()
+		sp.custom_minimum_size.x = indent * scale_ui
+		h.add_child(sp)
 	var a := Label.new()
 	a.text = left
 	a.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -257,6 +291,10 @@ func _row(parent: Control, left: String, right: String, tip := "", col := Color(
 	if col.a > 0.0:
 		b.add_theme_color_override("font_color", col)
 	h.add_child(b)
+	if right_pad > 0.0:
+		var rp := Control.new()
+		rp.custom_minimum_size.x = right_pad * scale_ui
+		h.add_child(rp)
 	if not tip.is_empty():
 		h.tooltip_text = tip
 		h.mouse_filter = Control.MOUSE_FILTER_PASS
@@ -268,11 +306,11 @@ func _bar_row(parent: Control, label: String, kind: String, cur: float, mx: floa
 	var h := HBoxContainer.new()
 	var a := Label.new()
 	a.text = label
-	a.custom_minimum_size.x = 80 * scale_ui
+	a.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	a.clip_text = true
 	h.add_child(a)
 	var holder := Control.new()
-	holder.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	holder.custom_minimum_size.y = 18 * scale_ui
+	holder.custom_minimum_size = Vector2(130, 18) * scale_ui      # ProgressBar 130 × 18 przy prawej krawędzi
 	h.add_child(holder)
 	var pb := UI.progress_bar(kind, scale_ui)
 	pb.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -289,6 +327,16 @@ func _bar_row(parent: Control, label: String, kind: String, cur: float, mx: floa
 	parent.add_child(h)
 	_stat_bars[kind] = pb
 
+## MW_HLine w liście umiejętności: od x = 10, wysokość wiersza 18.
+func _hline() -> Control:
+	var m := MarginContainer.new()
+	m.add_theme_constant_override("margin_left", int(10 * scale_ui))
+	m.custom_minimum_size.y = 18 * scale_ui
+	var hs := HSeparator.new()
+	hs.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	m.add_child(hs)
+	return m
+
 func _val_color(base: float, mod: float) -> Color:
 	if mod > base + 0.01:
 		return UI.color("positive")
@@ -299,31 +347,33 @@ func _val_color(base: float, mod: float) -> Color:
 func _refresh_stats() -> void:
 	if _stat_left == null or main == null:
 		return
-	for c in _stat_left.get_children() + _stat_right.get_children():
+	for c in _stat_boxes[0].get_children() + _stat_boxes[1].get_children() + _stat_boxes[2].get_children() + _stat_right.get_children():
 		c.queue_free()
 	var st: Dictionary = main.player_stats()
-	_title("stats", String(st.get("name", "")) if not String(st.get("name", "")).is_empty() else _t("sStats", "Statystyki"))
+	# StatsWindow: tytuł – imię postaci (bez kreatora: nazwa rekordu NPC „player”)
+	var pname := String(st.get("name", ""))
+	if pname.is_empty() and main.builder != null and main.builder.actors != null:
+		pname = String(main.builder.actors.record("npc", "player").get("name", ""))
+	_title("stats", pname if not pname.is_empty() else _t("sStats", "Stats"))
 	if st.is_empty() or main.character == null:
 		return
 	var ch = main.character
 	var d: Dictionary = ch.derived(st)
-	_bar_row(_stat_left, _t("sHealth", "Zdrowie"), "health", float(st.get("health", 0)), float(d.health.modified))
-	_bar_row(_stat_left, _t("sMagic", "Magia"), "magic", float(st.get("magicka", 0)), float(d.magicka.modified))
-	_bar_row(_stat_left, _t("sFatigue", "Kondycja"), "fatigue", float(st.get("fatigue", 0)), float(d.fatigue.modified))
-	_stat_left.add_child(HSeparator.new())
+	_bar_row(_stat_boxes[0], _t("sHealth", "Zdrowie"), "health", float(st.get("health", 0)), float(d.health.modified))
+	_bar_row(_stat_boxes[0], _t("sMagic", "Magia"), "magic", float(st.get("magicka", 0)), float(d.magicka.modified))
+	_bar_row(_stat_boxes[0], _t("sFatigue", "Kondycja"), "fatigue", float(st.get("fatigue", 0)), float(d.fatigue.modified))
 	var prog: Dictionary = st.get("progress", {})
 	var lvl_tip := "%s: %d/10" % [_t("sLevelProgress", "Postęp do awansu"), int(prog.get("level", 0))]
-	_row(_stat_left, _t("sLevel", "Poziom"), str(int(st.get("level", 1))), lvl_tip)
+	_row(_stat_boxes[1], _t("sLevel", "Poziom"), str(int(st.get("level", 1))), lvl_tip)
 	var race: Dictionary = main.builder.actors.record("race", String(st.get("race", "")))
-	_row(_stat_left, _t("sRace", "Rasa"), String(race.get("name", st.get("race", ""))))
+	_row(_stat_boxes[1], _t("sRace", "Rasa"), String(race.get("name", st.get("race", ""))))
 	var cls: Dictionary = ch._class_of(st)
-	_row(_stat_left, _t("sClass", "Klasa"), String(cls.get("name", st.get("class", ""))))
-	_stat_left.add_child(HSeparator.new())
+	_row(_stat_boxes[1], _t("sClass", "Klasa"), String(cls.get("name", st.get("class", ""))))
 	var base_a: Array = st.get("attributes", [])
 	for i in 8:
 		var b := float(base_a[i]) if i < base_a.size() else 0.0
 		var m := float(d.attributes[i])
-		_row(_stat_left, _t(ATTR_GMST[i], ATTR_PL[i]), str(int(m)), "", _val_color(b, m))
+		_row(_stat_boxes[2], _t(ATTR_GMST[i], ATTR_PL[i]), str(int(m)), "", _val_color(b, m))
 	# umiejętności
 	var names: Array = main.builder.actors.records_index().get("skills", [])
 	var major: Array = cls.get("major_skills", [])
@@ -347,8 +397,8 @@ func _refresh_stats() -> void:
 			var m2 := float(d.skills[i])
 			var req: float = ch.skill_requirement(st, i)
 			var tip := "%s: %d/%d" % [_t("sSkillProgress", "Postęp"), int(float(sprog[i]) if i < sprog.size() else 0.0), int(req)]
-			_row(_stat_right, _t("sSkill" + sid.capitalize().replace(" ", ""), sid.capitalize()), str(int(m2)), tip, _val_color(b2, m2))
-		_stat_right.add_child(HSeparator.new())
+			_row(_stat_right, _t("sSkill" + sid.capitalize().replace(" ", ""), sid.capitalize()), str(int(m2)), tip, _val_color(b2, m2), 10.0, 12.0)
+		_stat_right.add_child(_hline())
 	var facs: Dictionary = st.get("factions", {})
 	if not facs.is_empty():
 		_stat_right.add_child(UI.header(_t("sFaction", "Frakcje")))
@@ -361,13 +411,13 @@ func _refresh_stats() -> void:
 			var rname := String(ranks[rank]) if rank >= 0 and rank < ranks.size() and ranks[rank] is String else ""
 			if rank >= 0 and rank < ranks.size() and ranks[rank] is Dictionary:
 				rname = String((ranks[rank] as Dictionary).get("name", ""))
-			_row(_stat_right, String(fr.get("name", fid)), rname)
-		_stat_right.add_child(HSeparator.new())
+			_row(_stat_right, String(fr.get("name", fid)), rname, "", Color(0, 0, 0, 0), 10.0, 12.0)
+		_stat_right.add_child(_hline())
 	var sign: Dictionary = main.builder.actors.record("birthsign", String(st.get("birthsign", "")))
 	if not sign.is_empty():
-		_row(_stat_right, _t("sBirthSign", "Znak urodzenia"), String(sign.get("name", "")))
-	_row(_stat_right, _t("sReputation", "Reputacja"), str(int(st.get("reputation", 0))))
-	_row(_stat_right, _t("sBounty", "Grzywna"), str(int(st.get("bounty", 0))))
+		_row(_stat_right, _t("sBirthSign", "Znak urodzenia"), String(sign.get("name", "")), "", Color(0, 0, 0, 0), 10.0, 12.0)
+	_row(_stat_right, _t("sReputation", "Reputacja"), str(int(st.get("reputation", 0))), "", Color(0, 0, 0, 0), 10.0, 12.0)
+	_row(_stat_right, _t("sBounty", "Grzywna"), str(int(st.get("bounty", 0))), "", Color(0, 0, 0, 0), 10.0, 12.0)
 
 # --- ekwipunek ------------------------------------------------------------------------------------------
 
@@ -376,11 +426,29 @@ func _build_inventory() -> void:
 	var cols := HBoxContainer.new()
 	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	body.add_child(cols)
-	# lewa część: postać, pancerz, obciążenie
+	# lewa część (openmw_inventory_window.layout, LeftPane 224 px): pasek obciążenia 212 × 24 (MW_ChargeBar_Blue),
+	# odstęp 6, ramka postaci (MW_Box) z wartością pancerza w dolnych 24 px (ProgressText)
 	var left := VBoxContainer.new()
-	left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left.size_flags_stretch_ratio = 0.42
+	left.size_flags_horizontal = 0
+	_inv_left = left
+	var iw: Control = windows["inventory"]
+	iw.resized.connect(_adjust_inv_panes)
+	_adjust_inv_panes()
+	left.add_theme_constant_override("separation", roundi(6 * scale_ui))
 	cols.add_child(left)
+	var enc := Control.new()
+	enc.name = "EncumbranceBar"
+	enc.custom_minimum_size.y = 24 * scale_ui
+	left.add_child(enc)
+	_enc_bar = UI.progress_bar("magic", scale_ui)
+	_enc_bar.set_anchors_preset(Control.PRESET_FULL_RECT)
+	enc.add_child(_enc_bar)
+	_enc_label = Label.new()
+	_enc_label.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_enc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_enc_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_enc_label.add_theme_color_override("font_color", UI.color("normal"))
+	enc.add_child(_enc_label)
 	var avatar = _DollDrop.new()
 	avatar.name = "Avatar"
 	avatar.add_theme_stylebox_override("panel", UI.inner_box())
@@ -388,10 +456,15 @@ func _build_inventory() -> void:
 	avatar.menu = self
 	avatar.target = "avatar"
 	left.add_child(avatar)
+	var av_box := Control.new()
+	av_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	avatar.add_child(av_box)
 	var svc := SubViewportContainer.new()
 	svc.stretch = true
 	svc.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	avatar.add_child(svc)
+	svc.set_anchors_preset(Control.PRESET_FULL_RECT)
+	svc.offset_bottom = -24 * scale_ui
+	av_box.add_child(svc)
 	_doll_vp = SubViewport.new()
 	_doll_vp.own_world_3d = true
 	_doll_vp.transparent_bg = true
@@ -399,34 +472,51 @@ func _build_inventory() -> void:
 	svc.add_child(_doll_vp)
 	_armor_label = Label.new()
 	_armor_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	left.add_child(_armor_label)
-	var enc := Control.new()
-	enc.custom_minimum_size.y = 18 * scale_ui
-	left.add_child(enc)
-	_enc_bar = UI.progress_bar("health", scale_ui)
-	_enc_bar.set_anchors_preset(Control.PRESET_FULL_RECT)
-	enc.add_child(_enc_bar)
-	_enc_label = Label.new()
-	_enc_label.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_enc_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_enc_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_enc_label.add_theme_color_override("font_color", UI.color("normal_pressed"))
-	enc.add_child(_enc_label)
+	_armor_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_armor_label.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_armor_label.offset_top = -24 * scale_ui
+	_armor_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	av_box.add_child(_armor_label)
 	# prawa część: kategorie i siatka
 	var right := VBoxContainer.new()
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	cols.add_child(right)
+	# wiersz kategorii: przy wąskim oknie (np. 0,45 × 1280) przyciski są przycinane jak w MyGUI, a nie rozpychają okna
+	var tabs_clip := Control.new()
+	tabs_clip.clip_contents = true
+	right.add_child(tabs_clip)
 	var tabs := HBoxContainer.new()
-	right.add_child(tabs)
+	tabs.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	tabs_clip.add_child(tabs)
+	tabs.minimum_size_changed.connect(func(): tabs_clip.custom_minimum_size.y = tabs.get_combined_minimum_size().y)
 	for c in CATEGORIES:
 		var b := Button.new()
 		b.text = _t(c[1], c[2])
 		b.toggle_mode = true
 		b.button_pressed = c[0] == category
+		# zaznaczona kategoria: stany normal_checked/highlighted_checked skórki MW_Button – kolory „active”
+		b.add_theme_color_override("font_pressed_color", UI.color("active"))
+		b.add_theme_color_override("font_hover_pressed_color", UI.color("active_over"))
 		b.pressed.connect(set_category.bind(String(c[0])))
 		tabs.add_child(b)
 		_cat_buttons[c[0]] = b
+	# FilterEdit (MW_TextBoxEditWithBorder, HStretch): filtr nazw – SortFilterItemModel::setNameFilter
+	inv_filter = LineEdit.new()
+	inv_filter.name = "FilterEdit"
+	inv_filter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	inv_filter.custom_minimum_size.x = 0
+	inv_filter.text_changed.connect(func(_t2): _refresh_inventory())
+	tabs.add_child(inv_filter)
+	tabs_clip.custom_minimum_size.y = tabs.get_combined_minimum_size().y
 	_grid = _make_grid(right, "inventory")
+
+## InventoryWindow::adjustPanes: lewa część ma szerokość (wysokość okna − 44 − ArmorRating 24) × 0,5 (stały
+## stosunek boków podglądu postaci 0,5), pola w niej od x = 8 do 4 px przed prawą krawędzią; reszta – siatka.
+func _adjust_inv_panes() -> void:
+	if _inv_left == null or not is_instance_valid(_inv_left) or not windows.has("inventory"):
+		return
+	var h: float = (windows["inventory"] as Control).size.y
+	_inv_left.custom_minimum_size.x = maxf(0.0, (h - 68.0 * scale_ui) * 0.5 - 12.0 * scale_ui)
 
 func set_category(c: String) -> void:
 	category = c
@@ -562,13 +652,25 @@ func _fill_grid(grid: Control, entries: Array, source: String, owner = null) -> 
 	_layout(grid)
 	return ids
 
+## WindowManager::setSelectedWeapon / unsetSelectedWeapon: tytuł okna ekwipunku – nazwa broni w prawej ręce,
+## bez broni – sSkillHandtohand.
+func _weapon_title() -> String:
+	var eq: Dictionary = main.player_stats().get("equipment", {})
+	var we: Dictionary = eq.get(str(main.EQ.SLOT_CARRIED_RIGHT), {})
+	if not we.is_empty():
+		var it: Dictionary = main.interaction.inventory.item(String(we.id))
+		if not it.is_empty():
+			return main.interaction.item_name(String(it.get("kind", "")), String(we.id), it.get("rec", {}))
+	return _t("sSkillHandtohand", "Hand-to-hand")
+
 func _refresh_inventory() -> void:
 	if _grid == null or main == null or main.get("interaction") == null:
 		return
-	_title("inventory", _t("sInventory", "Ekwipunek"))
+	_title("inventory", _weapon_title())
 	var entries := []
+	var flt := inv_filter.text.strip_edges().to_lower() if inv_filter != null else ""
 	for e in sorted_items():
-		if in_category(e.kind, e.magic, category):
+		if in_category(e.kind, e.magic, category) and (flt.is_empty() or String(e.name).to_lower().contains(flt)):
 			entries.append(e)
 	item_ids = _fill_grid(_grid, entries, "inventory")
 	# pancerz i obciążenie
@@ -618,7 +720,7 @@ func open_container(sid: String, rec: Dictionary, name: String) -> void:
 	cont_rec = rec
 	cont_name = name
 	var vp := get_viewport().get_visible_rect().size
-	scale_ui = clampf(vp.y / 720.0, 1.0, 3.0)
+	scale_ui = UI.ui_scale()
 	UI.setup(String(main.data_dir) if main != null and main.get("data_dir") != null else "")
 	_root = _Backdrop.new()
 	_root.name = "MenuMode"
@@ -809,16 +911,24 @@ func _rebuild_doll() -> void:
 
 # --- magia ----------------------------------------------------------------------------------------------
 
-var _fx_box: HFlowContainer
+var _fx_box: HBoxContainer
 var _spell_list: VBoxContainer
 
 func _build_spells() -> void:
 	var body := _body("spells")
+	# openmw_spell_window.layout: pole efektów MW_Box 268 × 23 (ikony 16 px od 2, 1), lista, na dole pole filtra
+	# (MW_TextBoxEditWithBorder 23 px) i przycisk sDelete przy prawej krawędzi
 	var fp := PanelContainer.new()
-	fp.add_theme_stylebox_override("panel", UI.inner_box())
-	fp.custom_minimum_size.y = 30 * scale_ui
+	var fsb: StyleBox = UI.inner_box().duplicate()
+	fsb.content_margin_left = 2 * scale_ui
+	fsb.content_margin_top = 1 * scale_ui
+	fsb.content_margin_right = 2 * scale_ui
+	fsb.content_margin_bottom = 2 * scale_ui
+	fp.add_theme_stylebox_override("panel", fsb)
+	fp.custom_minimum_size.y = 23 * scale_ui
 	body.add_child(fp)
-	_fx_box = HFlowContainer.new()
+	_fx_box = HBoxContainer.new()
+	_fx_box.add_theme_constant_override("separation", 0)
 	fp.add_child(_fx_box)
 	var lp := PanelContainer.new()
 	lp.add_theme_stylebox_override("panel", UI.inner_box())
@@ -830,6 +940,40 @@ func _build_spells() -> void:
 	_spell_list = VBoxContainer.new()
 	_spell_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sc.add_child(_spell_list)
+	var bottom := HBoxContainer.new()
+	bottom.custom_minimum_size.y = 23 * scale_ui
+	body.add_child(bottom)
+	spell_filter = LineEdit.new()
+	spell_filter.name = "FilterEdit"
+	spell_filter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spell_filter.text_changed.connect(func(_t2): _refresh_spells())
+	bottom.add_child(spell_filter)
+	spell_delete = Button.new()
+	spell_delete.name = "DeleteSpellButton"
+	spell_delete.text = _t("sDelete", "Delete")
+	spell_delete.pressed.connect(_on_delete_spell)
+	bottom.add_child(spell_delete)
+
+## SpellWindow::onDeleteClicked: usunięcie wybranego czaru (nie mocy, zdolności ani przedmiotu) po potwierdzeniu
+## (sQuestionDeleteSpell z nazwą czaru).
+func _on_delete_spell() -> void:
+	var sel: Dictionary = main.selected_magic()
+	if sel.is_empty() or String(sel.get("kind")) != "spell":
+		return
+	var sp: Dictionary = main.magic.records.record("spell", String(sel.id))
+	if int(sp.get("spell_type", -1)) != main.magic.SPELL_SPELL:
+		return
+	var q := _t("sQuestionDeleteSpell", "Delete %s?").replace("%s", String(sp.get("name", sel.id)))
+	main.confirm.ask(q, func(): delete_spell(String(sel.id)))
+
+func delete_spell(spid: String) -> void:
+	var st: Dictionary = main.player_stats()
+	var list: Array = st.get("spells", [])
+	list.erase(spid)
+	st["spells"] = list
+	if String(main.selected_magic().get("id", "")) == spid:
+		main.select_magic("", "")
+	_refresh_spells()
 
 func _spell_button(text: String, right: String, kind: String, id: String, selected: bool, tip := "") -> void:
 	var h := HBoxContainer.new()
@@ -866,20 +1010,19 @@ func _refresh_spells() -> void:
 		c.queue_free()
 	spell_rows = []
 	var sel: Dictionary = main.selected_magic()
-	_title("spells", main.selected_magic_name() if not sel.is_empty() else _t("sMagicMenu", "Magia"))
+	# WindowManager::setSelectedSpell / unsetSelectedSpell: tytuł – nazwa wybranego czaru albo „None”
+	_title("spells", main.selected_magic_name() if not sel.is_empty() else _t("sNone", "None"))
 	var me: Dictionary = main.combat.player_fighter()
-	# działające efekty – ikony z czasem pozostałym w podpowiedzi
-	for sp2 in magic.active(me):
-		for x in sp2.effects:
-			var mg: Dictionary = magic.effect(int(x.effect))
-			var ic := TextureRect.new()
-			ic.texture = UI.icon(String(mg.get("icon", "")))
-			ic.custom_minimum_size = Vector2(16, 16) * scale_ui
-			ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-			var n := String(mg.get("name", ""))
-			ic.tooltip_text = "%s\n%s%s" % [_t("sEffect" + n, n), String(sp2.get("name", sp2.id)),
-				("\n%d s" % ceili(float(x.time_left))) if float(x.duration) > 0.0 else ""]
-			_fx_box.add_child(ic)
+	# ikony efektów jak w HUD (SpellIcons) – także zdolności i inne stałe źródła
+	for e in magic.effect_icon_list(me):
+		var mg: Dictionary = magic.effect(int(e.id))
+		var ic := TextureRect.new()
+		ic.texture = UI.icon(String(mg.get("icon", "")))
+		ic.custom_minimum_size = Vector2(16, 16) * scale_ui
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		var n := String(mg.get("name", ""))
+		ic.tooltip_text = "%s\n%s%s" % [n, ", ".join(e.names), ("\n%d s" % ceili(float(e.left))) if float(e.left) >= 0.0 else ""]
+		_fx_box.add_child(ic)
 	var st: Dictionary = main.player_stats()
 	var powers := []
 	var spells := []
@@ -890,6 +1033,10 @@ func _refresh_spells() -> void:
 			powers.append([String(sid), sp])
 		elif typ == magic.SPELL_SPELL:
 			spells.append([String(sid), sp])
+	var flt := spell_filter.text.strip_edges().to_lower() if spell_filter != null else ""
+	if not flt.is_empty():
+		powers = powers.filter(func(x): return String(x[1].get("name", x[0])).to_lower().contains(flt))
+		spells = spells.filter(func(x): return String(x[1].get("name", x[0])).to_lower().contains(flt))
 	var by_name := func(a, b): return String(a[1].get("name", a[0])).to_lower() < String(b[1].get("name", b[0])).to_lower()
 	powers.sort_custom(by_name)
 	spells.sort_custom(by_name)
@@ -917,6 +1064,8 @@ func _refresh_spells() -> void:
 		else:
 			right = "×%d" % int(e.count)
 		items.append([String(e.id), main.interaction.item_name(String(it.kind), String(e.id), it.rec), right])
+	if not flt.is_empty():
+		items = items.filter(func(x): return String(x[1]).to_lower().contains(flt))
 	if not items.is_empty():
 		_spell_list.add_child(UI.header(_t("sMagicItem", "Przedmioty magiczne")))
 		for x in items:

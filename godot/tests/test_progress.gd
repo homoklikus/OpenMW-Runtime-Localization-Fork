@@ -58,10 +58,11 @@ func _run() -> void:
 	check(ch.can_level_up(st) and r.any(func(m): return m.kind == "levelup_ready"), "10. – gotowość do awansu (komunikat)")
 	check(ch.levelup_multiplier(st, 0) == 3 and ch.levelup_multiplier(st, 4) == 2 and ch.levelup_multiplier(st, 1) == 1,
 			"mnożniki: siła 5 pkt → ×3, szybkość 1 → ×2, inteligencja 0 → ×1 (%d)" % ch.levelup_multiplier(st, 0))
-	# ruch wg statystyk: szybkość 40 → chód 140, bieg 140 × (0,01 × atletyka + 1,75) jedn./s
+	# ruch wg statystyk: szybkość 40 → chód 140, bieg 140 × (0,01 × atletyka + 1,75) jedn./s; prędkość gracza
+	# z obciążeniem (ubranie startowe z rekordu „player”)
 	await _frames(30)
 	var mv: Dictionary = ch.movement(st, 0.0, false)
-	check(near(mv.walk, 140.0) and near(mv.run, 140.0 * (0.01 * float(st.skills[8]) + 1.75)) and near(main.player.walk_speed, 140.0 / MWCoords.UNITS_PER_METER),
+	check(near(mv.walk, 140.0) and near(mv.run, 140.0 * (0.01 * float(st.skills[8]) + 1.75)) and near(main.player.walk_speed, float(ch.movement(st, main.player_weight(), false).walk) / MWCoords.UNITS_PER_METER),
 			"prędkość chodu i biegu (%s, %s)" % [mv.walk, mv.run])
 	var dd: Dictionary = ch.derived(st)
 	var exp_jump: float = ((128.0 + pow(6.0 / 15.0, 4.0)) * 1.0 * ch.fatigue_term(st, dd) + 9.8 * 64.0) / 3.0

@@ -50,6 +50,9 @@ func _run() -> void:
 	check(hud.sneak_box.visible, "HUD: ikona skradania")
 	main.player.want_sneak = false
 	var inv = main.interaction.inventory
+	# Npc::getNpcData dla gracza: ekwipunek rekordu „player” (ContainerStore::fill) i autoEquip
+	check(inv.count_of("player", {}, "synth_shirt_rag") == 1 and main.equipped_slot_of("synth_shirt_rag") >= 0,
+		"ubranie startowe z rekordu gracza założone (%d, slot %d)" % [inv.count_of("player", {}, "synth_shirt_rag"), main.equipped_slot_of("synth_shirt_rag")])
 	inv.add("player", {}, "synth_dagger_fire", 1)
 	main.equip_item("synth_dagger_fire")
 	await _frames(2)
@@ -70,6 +73,8 @@ func _run() -> void:
 		mm.open()
 	await _frames(3)
 	check(mm.visible and paused, "tryb menu otwarty, gra wstrzymana")
+	hud.update_focus()
+	check(not hud.focus_panel.visible, "w trybie GUI bez podpowiedzi obiektu w świecie (ToolTips::onFrame)")
 	check(mm.windows.has("stats") and mm.windows.has("inventory") and mm.windows.has("spells"), "okna: statystyki, ekwipunek, magia")
 	check(main.map_window.visible and main.map_window.embedded, "mapa jako okno trybu menu")
 	var vp: Vector2 = root.get_visible_rect().size
@@ -86,6 +91,13 @@ func _run() -> void:
 	check(mm.item_ids.has("synth_potion") and mm.item_ids.has("synth_dagger_fire") and mm.item_ids.has("synth_ring") and not mm.item_ids.has("synth_cuirass"),
 		"kategoria Magia: mikstury i zaklęte przedmioty")
 	mm.set_category("all")
+	# FilterEdit: filtr nazw (podciąg, bez wielkości liter) – SortFilterItemModel::setNameFilter
+	var spoon_name: String = main.interaction.item_name("misc", "misc_synth_spoon", inv.item("misc_synth_spoon").rec)
+	mm.inv_filter.text = spoon_name.substr(1, 3).to_upper()
+	mm._refresh_inventory()
+	check(mm.item_ids == ["misc_synth_spoon"], "filtr nazw ekwipunku (%s)" % [mm.item_ids])
+	mm.inv_filter.text = ""
+	mm._refresh_inventory()
 	await _frames(2)
 	# siatka kolumnami
 	var cells: Array = mm._grid.get_children().filter(func(c): return not c.is_queued_for_deletion())
@@ -129,6 +141,18 @@ func _run() -> void:
 		var r0: Array = mm.spell_rows[0]
 		mm.select_spell(String(r0[0]), String(r0[1]))
 		check(main.selected_magic().get("id") == r0[1], "wybór magii z listy")
+	# filtr nazw (SpellModel) i usunięcie czaru (SpellWindow::onDeleteClicked)
+	mm.spell_filter.text = "zzz_brak_takiego"
+	mm._refresh_spells()
+	check(mm.spell_rows.is_empty(), "filtr ukrywa niepasujące czary")
+	mm.spell_filter.text = ""
+	mm._refresh_spells()
+	check(mm.spell_rows.size() == spells_n, "pusty filtr przywraca listę")
+	var sp_ids: Array = mm.spell_rows.filter(func(r): return String(r[0]) == "spell").map(func(r): return String(r[1]))
+	report["deletable"] = sp_ids.size()
+	if not sp_ids.is_empty():
+		mm.delete_spell(String(sp_ids[0]))
+		check(not (main.player_stats().get("spells", []) as Array).has(sp_ids[0]) and mm.spell_rows.size() == spells_n - 1, "usunięcie czaru")
 	# przesunięcie okna i zapamiętanie układu
 	inv_w.position = Vector2(100, 120)
 	mm.close()

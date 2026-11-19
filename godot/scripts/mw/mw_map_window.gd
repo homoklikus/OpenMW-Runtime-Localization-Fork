@@ -59,13 +59,13 @@ func open(rect := Rect2()) -> void:
 	_load_world()
 	embedded = rect.size != Vector2.ZERO
 	var vp := get_viewport().get_visible_rect().size if get_viewport() != null else Vector2(1280, 720)
-	scale_ui = clampf(vp.y / 600.0, 1.0, 3.0)
+	scale_ui = UI.ui_scale()
 	if _root != null:
 		_root.queue_free()
 	_root = Control.new()
 	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE if embedded else Control.MOUSE_FILTER_STOP
-	_root.theme = UI.theme(clampf(vp.y / 720.0, 1.0, 3.0))
+	_root.theme = UI.theme(UI.ui_scale())
 	add_child(_root)
 	_win = PanelContainer.new()
 	var wsize: Vector2 = rect.size if embedded else WIN * scale_ui

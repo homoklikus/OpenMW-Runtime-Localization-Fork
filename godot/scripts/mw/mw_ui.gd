@@ -12,6 +12,19 @@ static var data_root := ""
 static var _fb = null                     # MWWeather (dostęp do fallbacków)
 static var _tex := {}
 static var _themes := {}
+## Skala klasycznego interfejsu jak w OpenMW (WindowManager: mScalingFactor = [GUI] scaling factor × stosunek
+## rozmiaru bufora do rozmiaru okna, czyli HiDPI). Układy w pikselach – niezależnie od rozdzielczości: większy ekran
+## mieści więcej, elementy się nie powiększają. Ustawienie gry „gui_scaling_factor” (domyślnie 1,0).
+static var gui_scaling := 1.0
+
+static func ui_scale() -> float:
+	return gui_scaling * maxf(1.0, DisplayServer.screen_get_scale())
+
+## Warstwa ScalingLayer „JournalBooks” (openmw_layers.xml, Size 600 520): książki i zwoje skalowane tak, żeby obszar
+## 600 × 520 mieścił się na ekranie – min(szerokość/600, wysokość/520), bez skali GUI.
+static func book_scale(vp: Vector2) -> float:
+	return minf(vp.x / 600.0, vp.y / 520.0)
+
 static var _font: Font = null
 
 static func setup(root: String) -> void:
@@ -199,8 +212,11 @@ static func head_box() -> StyleBox:
 	return sb
 
 ## Pasek energii (MW_Progress_*): wypełnienie menu_bar_gray w kolorze FontColor_color_<kind>, ramka cienka.
-static func bar_fill(kind: String) -> StyleBox:
-	var key := "bar|" + kind
+## Wypełnienie paska (MW_BarTrack_*, openmw_hud_energybar.skin.xml): menu_bar_gray – tylko obszar 16 × 8 (paski
+## zdrowia/magii/kondycji) albo 16 × 2 (stan broni, szansa czaru), rozciągnięty i barwiony kolorem FontColor_color_<kind>;
+## rysowany w obszarze „Client” wsuniętym o 2 px w ramkę (inset × skala).
+static func bar_fill(kind: String, inset := 0.0) -> StyleBox:
+	var key := "bar|%s|%.2f" % [kind, inset]
 	if _themes.has(key):
 		return _themes[key]
 	var c := color(kind)
@@ -209,22 +225,41 @@ static func bar_fill(kind: String) -> StyleBox:
 	if t != null:
 		var st := StyleBoxTexture.new()
 		st.texture = t
+		st.region_rect = Rect2(0, 0, 16, 2 if kind in ["weapon_fill", "magic_fill"] else 8)
 		st.modulate_color = c
 		sb = st
 	else:
 		var f := StyleBoxFlat.new()
 		f.bg_color = c
 		sb = f
+	sb.expand_margin_left = -inset
+	sb.expand_margin_right = -inset
+	sb.expand_margin_top = -inset
+	sb.expand_margin_bottom = -inset
 	_themes[key] = sb
 	return sb
 
+## Pasek energii (MW_EnergyBar_*): ramka MW_Box (menu_thin_border, 2 px), czarne tło (BlackBG), wypełnienie wsunięte
+## o 2 px (Client 2 2 w–4 h–4).
 static func progress_bar(kind: String, scale := 1.0) -> ProgressBar:
 	var pb := ProgressBar.new()
 	pb.show_percentage = false
-	pb.custom_minimum_size = Vector2(0, 14 * scale)
-	pb.add_theme_stylebox_override("fill", bar_fill(kind))
-	pb.add_theme_stylebox_override("background", inner_box(Color(0, 0, 0, 1)))
+	pb.custom_minimum_size = Vector2(0, 12 * scale)
+	pb.add_theme_stylebox_override("fill", bar_fill(kind, 2.0 * scale))
+	pb.add_theme_stylebox_override("background", bar_back())
 	return pb
+
+## Tło paska: ramka MW_Box z czarnym wnętrzem, bez marginesów zawartości (pasek 36 × 6 jak stan broni w HUD).
+static func bar_back() -> StyleBox:
+	if _themes.has("bar_back"):
+		return _themes["bar_back"]
+	var sb: StyleBox = inner_box(Color(0, 0, 0, 1)).duplicate()
+	sb.content_margin_left = 0
+	sb.content_margin_right = 0
+	sb.content_margin_top = 0
+	sb.content_margin_bottom = 0
+	_themes["bar_back"] = sb
+	return sb
 
 ## Motyw Godota dla okien w stylu Morrowinda (rozmiar czcionki wg skali interfejsu).
 static func theme(scale := 1.0) -> Theme:
@@ -291,14 +326,37 @@ static func header(text: String) -> Label:
 	l.add_theme_color_override("font_color", color("header"))
 	return l
 
-## Pasek tytułu okna (menu_head_block) z etykietą tytułu – jak nagłówki okien OpenMW.
-static func make_head(title: Label) -> PanelContainer:
-	var head := PanelContainer.new()
+## Pasek tytułu okna – skórka MW_Caption i WindowCaption::align (OpenMW): pasek 20 px, tekst (SandText) w przerwie
+## o szerokości tekstu + 24 px, po obu stronach równe bloki HB_ALL (menu_head_block). Zwraca kontener „Head”
+## (HBox: lewy blok, etykieta z marginesem 12 px, prawy blok); s – skala GUI.
+static func make_head(title: Label, s := -1.0) -> HBoxContainer:
+	if s <= 0.0:
+		s = ui_scale()
+	var head := HBoxContainer.new()
 	head.name = "Head"
-	head.add_theme_stylebox_override("panel", head_box())
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.add_theme_color_override("font_color", color("header"))
-	head.add_child(title)
+	head.add_theme_constant_override("separation", 0)
+	head.custom_minimum_size.y = 20 * s
+	head.mouse_filter = Control.MOUSE_FILTER_STOP
+	for side in 2:
+		var bar := Panel.new()
+		bar.name = "Left" if side == 0 else "Right"
+		bar.add_theme_stylebox_override("panel", head_box())
+		bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		bar.custom_minimum_size = Vector2(4, 20) * s
+		bar.mouse_filter = Control.MOUSE_FILTER_PASS
+		if side == 1:
+			var m := MarginContainer.new()
+			m.name = "Client"
+			m.add_theme_constant_override("margin_left", roundi(12 * s))
+			m.add_theme_constant_override("margin_right", roundi(12 * s))
+			m.mouse_filter = Control.MOUSE_FILTER_PASS
+			title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			title.add_theme_color_override("font_color", color("normal"))
+			title.mouse_filter = Control.MOUSE_FILTER_PASS
+			m.add_child(title)
+			head.add_child(m)
+		head.add_child(bar)
 	return head
 
 ## Ramka wewnętrzna (menu_thin_border) wokół kontrolki – zwraca opakowanie do wstawienia w miejsce kontrolki.

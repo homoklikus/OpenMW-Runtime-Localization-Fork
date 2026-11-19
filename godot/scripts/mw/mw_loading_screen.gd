@@ -80,7 +80,7 @@ func _build() -> void:
 	_splash_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_splash_rect.stretch_mode = TextureRect.STRETCH_SCALE
 	_root.add_child(_splash_rect)
-	var sc := clampf(get_viewport().get_visible_rect().size.y / 720.0, 1.0, 3.0)
+	var sc := UI.ui_scale()
 	_box = PanelContainer.new()
 	_box.name = "LoadingBox"
 	_box.theme = UI.theme(sc)
@@ -182,7 +182,7 @@ func _layout() -> void:
 	var s := Vector2(vp.y * aspect, vp.y) if vp.x / vp.y > aspect else Vector2(vp.x, vp.x / aspect)
 	_splash_rect.size = s.floor()
 	_splash_rect.position = ((vp - s) / 2.0).floor()
-	var sc := clampf(vp.y / 720.0, 1.0, 3.0)
+	var sc := UI.ui_scale()
 	_box.custom_minimum_size = Vector2(maxf(300.0 * sc, _label.get_combined_minimum_size().x + 40 * sc), 0)
 	_box.reset_size()
 	var bs := _box.get_combined_minimum_size()

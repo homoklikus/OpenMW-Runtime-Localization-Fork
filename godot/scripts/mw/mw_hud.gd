@@ -27,6 +27,9 @@ var minimap_tiles: Control
 var compass: TextureRect
 var flash_label: Label            # nazwa broni/czaru
 var cell_label: Label             # nazwa miejsca
+var effects_frame: Panel
+var _effects_right := 0.0
+var _effects_y := 0.0
 var blind_fader: ColorRect        # WindowManager::setBlindness – warstwa FadeToBlack pod HUD-em
 var _blind_layer: CanvasLayer
 var crosshair: Control
@@ -51,7 +54,7 @@ func _ready() -> void:
 
 func build() -> void:
 	var vp := get_viewport().get_visible_rect().size
-	scale_ui = clampf(vp.y / 720.0, 1.0, 3.0)
+	scale_ui = UI.ui_scale()
 	UI.setup(String(main.data_dir))
 	if root != null:
 		root.queue_free()
@@ -62,7 +65,7 @@ func build() -> void:
 	root.theme = UI.theme(scale_ui)
 	add_child(root)
 	var s := scale_ui
-	var m := 13.0 * s
+	var m := 12.0 * s                          # openmw_hud.layout: paski x = 12
 	# paski (od dołu: kondycja, magia, zdrowie)
 	var kinds := [["health", "icons/k/health"], ["magic", "icons/k/magicka"], ["fatigue", "icons/k/fatigue"]]
 	for i in 3:
@@ -70,7 +73,7 @@ func build() -> void:
 		pb.name = "Bar_" + kinds[i][0]
 		pb.custom_minimum_size = Vector2(65, 12) * s
 		pb.size = pb.custom_minimum_size
-		pb.position = Vector2(m, vp.y - (54.0 - 15.0 * i) * s)
+		pb.position = Vector2(m, vp.y - (53.0 - 15.0 * i) * s)   # y 147/162/177 w układzie 300 × 200 (od dołu)
 		pb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		root.add_child(pb)
 		bars[kinds[i][0]] = pb
@@ -78,36 +81,36 @@ func build() -> void:
 	cell_label = _sand_label(Vector2(0, vp.y - 111 * s), vp.x)
 	cell_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	# pola broni i czaru
-	var wb := _box(Vector2(82 * s, vp.y - 54 * s))
+	var wb := _box(Vector2(81 * s, vp.y - 53 * s))
 	weap_box = wb
 	weap_frame = _icon_rect(wb, true)
 	weap_icon = _icon_rect(wb, false)
 	weap_bar = UI.progress_bar("weapon_fill", s)
 	weap_bar.custom_minimum_size = Vector2(36, 6) * s
-	weap_bar.position = Vector2(82 * s, vp.y - 18 * s)
+	weap_bar.position = Vector2(81 * s, vp.y - 17 * s)
 	weap_bar.size = weap_bar.custom_minimum_size
 	weap_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(weap_bar)
-	var sb := _box(Vector2(122 * s, vp.y - 54 * s))
+	var sb := _box(Vector2(121 * s, vp.y - 53 * s))
 	spell_box = sb
 	spell_frame = _icon_rect(sb, true)
 	spell_icon = _icon_rect(sb, false)
 	spell_bar = UI.progress_bar("magic_fill", s)
 	spell_bar.custom_minimum_size = Vector2(36, 6) * s
-	spell_bar.position = Vector2(122 * s, vp.y - 18 * s)
+	spell_bar.position = Vector2(121 * s, vp.y - 17 * s)
 	spell_bar.size = spell_bar.custom_minimum_size
 	spell_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(spell_bar)
-	sneak_box = _box(Vector2(162 * s, vp.y - 54 * s))
+	sneak_box = _box(Vector2(161 * s, vp.y - 53 * s))
 	var si := _icon_rect(sneak_box, false)
 	si.texture = UI.texture("icons/k/stealth_sneak")
 	sneak_box.visible = false
 	# minimapa z kompasem
 	minimap = Panel.new()
 	minimap.name = "MiniMap"
-	minimap.add_theme_stylebox_override("panel", UI.inner_box(Color(0, 0, 0, 0.6)))
+	minimap.add_theme_stylebox_override("panel", UI.inner_box(Color(0, 0, 0, 1)))
 	minimap.size = Vector2(MINIMAP, MINIMAP) * s
-	minimap.position = Vector2(vp.x - (12 + MINIMAP) * s, vp.y - (12 + MINIMAP) * s)
+	minimap.position = Vector2(vp.x - (12 + MINIMAP) * s, vp.y - (11 + MINIMAP) * s)   # 223 124 65 65
 	minimap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(minimap)
 	var clip := Control.new()
@@ -134,13 +137,20 @@ func build() -> void:
 		arrow.color = Color(1.0, 0.85, 0.3)
 		arrow.position = compass.size / 2.0
 		compass.add_child(arrow)
+	# EffectBox (HUD_Box_Transparent 20 × 20, prawy dolny róg 81 × 11 od krawędzi): ikony 16 px od (2, 2), szerokość
+	# rośnie w lewo – SpellIcons::updateWidgets(adjustSize)
+	effects_frame = Panel.new()
+	effects_frame.name = "EffectBox"
+	effects_frame.add_theme_stylebox_override("panel", UI.inner_box(Color(0, 0, 0, 0)))
+	effects_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(effects_frame)
 	effects_box = HBoxContainer.new()
-	effects_box.alignment = BoxContainer.ALIGNMENT_END
-	effects_box.add_theme_constant_override("separation", roundi(2 * s))
-	effects_box.size = Vector2(300, 20) * s
-	effects_box.position = Vector2(vp.x - (12 + MINIMAP + 4 + 300) * s, vp.y - (12 + 20) * s)
+	effects_box.add_theme_constant_override("separation", 0)
+	effects_box.position = Vector2(2, 2) * s
 	effects_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	root.add_child(effects_box)
+	effects_frame.add_child(effects_box)
+	_effects_right = vp.x - 81.0 * s
+	_effects_y = vp.y - 31.0 * s
 	# celownik i podpowiedź nad celem
 	crosshair = TextureRect.new()
 	(crosshair as TextureRect).texture = UI.texture("textures/target")
@@ -178,7 +188,7 @@ func _sand_label(pos: Vector2, w: float) -> Label:
 
 func _box(pos: Vector2) -> Panel:
 	var p := Panel.new()
-	p.add_theme_stylebox_override("panel", UI.inner_box(Color(0, 0, 0, 0.6)))
+	p.add_theme_stylebox_override("panel", UI.inner_box(Color(0, 0, 0, 1)))   # HUD_Box: BlackBG + MW_Box
 	p.position = pos
 	p.size = Vector2(36, 36) * scale_ui
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -318,8 +328,10 @@ func update_weapon_spell() -> void:
 		if weap_icon.texture == null:
 			weap_icon.texture = UI.texture("icons/handtohand")
 		weap_frame.texture = null
-		weap_bar.visible = false
-		wname = _t("sSkillHandtohand", "Walka wręcz")
+		weap_bar.visible = true                  # HUD::unsetSelectedWeapon: pasek 0 z ramką
+		weap_bar.max_value = 100.0
+		weap_bar.value = 0.0
+		wname = _t("sSkillHandtohand", "Hand-to-hand")
 	if wname != _last_weap:
 		if not _last_weap.is_empty():
 			flash(wname)
@@ -328,11 +340,13 @@ func update_weapon_spell() -> void:
 	var sel: Dictionary = main.selected_magic()
 	var sname := ""
 	if sel.is_empty() or main.get("magic") == null:
-		spell_icon.texture = UI.texture("icons/k/magic_none_selected")
-		if spell_icon.texture == null:
-			spell_icon.texture = UI.texture("icons/magic_none_selected")
+		# HUD::unsetSelectedSpell: puste pole, pasek szansy 0 (ramka paska widoczna)
+		spell_icon.texture = null
 		spell_frame.texture = null
-		spell_bar.visible = false
+		spell_bar.visible = true
+		spell_bar.max_value = 100.0
+		spell_bar.value = 0.0
+		sname = _t("sNone", "None")
 	elif String(sel.get("kind")) == "spell":
 		var sp: Dictionary = main.magic.records.record("spell", String(sel.id))
 		var effs: Array = sp.get("effects", [])
@@ -409,24 +423,27 @@ func update_minimap() -> void:
 	compass.rotation = Vector2(0, -1).angle_to(q.normalized()) if q.length() > 0.001 else 0.0
 
 ## Ikony działających efektów (HUD EffectBox): po jednej na rodzaj efektu, podpowiedź – nazwa i czas.
+## SpellIcons::updateWidgets: ikona każdego efektu z działających czarów gracza – także zdolności, chorób, klątw i stałych
+## zaklęć przedmiotów (w OpenMW wszystkie są w ActiveSpells); kolejność pierwszego wystąpienia; zanikanie ikony
+## w ostatnich fMagicStartIconBlink sekundach; podpowiedź: nazwa źródła, wielkość, czas.
 func update_effects() -> void:
-	if main.get("magic") == null:
+	if main.get("magic") == null or effects_frame == null:
 		return
-	var seen := {}
 	var me: Dictionary = main.combat.player_fighter()
-	for sp in main.magic.active(me):
-		for x in sp.effects:
-			var id := int(x.effect)
-			if seen.has(id):
-				continue
-			seen[id] = [sp, x]
+	var order := []
+	var info := {}
+	for e in main.magic.effect_icon_list(me):
+		order.append(int(e.id))
+		info[int(e.id)] = e
+	var blink := float(main.magic._gmst("fMagicStartIconBlink", 3.0))
 	var have := {}
 	for c in effects_box.get_children():
 		have[int(c.get_meta("fx", -1))] = c
 	for id in have:
-		if not seen.has(id):
+		if not info.has(id):
 			have[id].queue_free()
-	for id in seen:
+	var n := 0
+	for id in order:
 		var mg: Dictionary = main.magic.effect(id)
 		var ic: TextureRect = have.get(id)
 		if ic == null:
@@ -437,13 +454,24 @@ func update_effects() -> void:
 			ic.texture = UI.icon(String(mg.get("icon", "")))
 			ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			effects_box.add_child(ic)
-		var x2 = seen[id][1]
-		ic.tooltip_text = "%s%s" % [String(mg.get("name", "")), ("\n%d s" % ceili(float(x2.time_left))) if float(x2.duration) > 0.0 else ""]
+		effects_box.move_child(ic, n)
+		n += 1
+		var left2 := float(info[id].left)
+		ic.modulate.a = minf(left2 / blink, 1.0) if left2 >= 0.0 and blink > 0.0 else 1.0
+		ic.tooltip_text = "%s\n%s%s" % [String(mg.get("name", "")), ", ".join(info[id].names),
+			("\n%d s" % ceili(left2)) if left2 >= 0.0 else ""]
+	var w := (n * 16.0 + 4.0) * scale_ui if n > 0 else 0.0
+	effects_frame.visible = n > 0
+	effects_frame.size = Vector2(w, 20.0 * scale_ui)
+	effects_frame.position = Vector2(_effects_right - w, _effects_y)
 
 ## Podpowiedź nad celem (ToolTips::getFocusObject): nazwa obiektu albo osoby; przedmiot – waga i wartość;
 ## klawisz aktywacji w drugiej linii (zamiast paska tekstowego).
 func update_focus() -> void:
 	var text: String = main.focus_text() if main.has_method("focus_text") else ""
+	# ToolTips::onFrame: obiekt w świecie tylko poza trybem GUI (okna, tryb menu, rozmowa – podpowiedzi okien)
+	if main.has_method("_no_window_open") and not main._no_window_open():
+		text = ""
 	focus_panel.visible = not text.is_empty()
 	if focus_panel.visible:
 		focus_label.text = text

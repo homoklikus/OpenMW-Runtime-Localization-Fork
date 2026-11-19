@@ -37,6 +37,11 @@ static func sanitize(text: String) -> String:
 	return out
 
 ## Nagłówek slotu (z pliku, z pamięcią podręczną według czasu modyfikacji); null – plik nieczytelny/obcej gry.
+## Po zapisie do pliku: nagłówek z pamięci podręcznej nieaktualny (czas pliku ma rozdzielczość sekundy – nadpisanie
+## w tej samej sekundzie nie zmienia klucza).
+func forget(path: String) -> void:
+	_cache.erase(path)
+
 func read_header(path: String):
 	var mt := FileAccess.get_modified_time(path)
 	if _cache.has(path) and int(_cache[path][0]) == mt:
@@ -74,8 +79,16 @@ func _slots_in(dir: String) -> Array:
 		if h == null:
 			continue
 		out.append({"path": p, "mtime": FileAccess.get_modified_time(p), "header": h})
-	out.sort_custom(func(a, b): return int(a.mtime) > int(b.mtime) or (int(a.mtime) == int(b.mtime) \
-		and String(a.header.get("created", "")) > String(b.header.get("created", ""))))
+	# najnowszy pierwszy (OpenMW: last_write_time z dokładnością do nanosekund); czas pliku w Godocie ma sekundy –
+	# remis rozstrzyga czas zapisu z nagłówka z ułamkami sekund (created_unix), potem napis „created”
+	out.sort_custom(func(a, b):
+		if int(a.mtime) != int(b.mtime):
+			return int(a.mtime) > int(b.mtime)
+		var ua := float(a.header.get("created_unix", 0.0))
+		var ub := float(b.header.get("created_unix", 0.0))
+		if ua != ub:
+			return ua > ub
+		return String(a.header.get("created", "")) > String(b.header.get("created", "")))
 	return out
 
 ## CharacterManager: katalogi postaci (i zapisy z katalogu głównego jako postacie „legacy”).

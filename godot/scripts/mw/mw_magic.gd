@@ -497,6 +497,31 @@ func disease_contact(actor: Dictionary, carrier: Dictionary) -> Array:
 				main.call("_toast", msg.replace("%s", String(sp.get("name", spid))))
 	return got
 
+## SpellIcons::updateWidgets: efekty gracza do ikon (HUD, okno magii) – z działających czarów, także stałych źródeł
+## (zdolności, choroby, klątwy, stałe zaklęcia przedmiotów – w OpenMW wszystkie w ActiveSpells), w kolejności
+## pierwszego wystąpienia. → [{"id", "left" (−1: stały), "names": [źródła]}]
+func effect_icon_list(f: Dictionary) -> Array:
+	var order := []
+	var info := {}
+	for sp in active(f):
+		for x in sp.effects:
+			var id := int(x.effect)
+			if not info.has(id):
+				info[id] = {"id": id, "left": -2.0, "names": []}
+				order.append(id)
+			var left := float(x.time_left) if float(x.get("duration", 0.0)) > 0.0 else -1.0
+			if float(info[id].left) != -1.0:
+				info[id].left = -1.0 if left < 0.0 else maxf(float(info[id].left), left)
+			info[id].names.append(String(sp.get("name", "")))
+	var fxmap: Dictionary = effects(f)
+	for k in fxmap:
+		var id2 := int(String(k).split(":")[0])
+		if float(fxmap[k]) == 0.0 or info.has(id2) or effect(id2).is_empty():
+			continue
+		info[id2] = {"id": id2, "left": -1.0, "names": []}
+		order.append(id2)
+	return order.map(func(i): return info[i])
+
 ## Zaklęcia aktora (Spells): po AddSpell/RemoveSpell lista w stanie aktora, inaczej z rekordu.
 func actor_spells(f: Dictionary) -> Array:
 	var st = main.state.actors.get(String(f.get("sid", ""))) if main != null and main.state.get("actors") is Dictionary else null

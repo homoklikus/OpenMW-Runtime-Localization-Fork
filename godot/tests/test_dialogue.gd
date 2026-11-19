@@ -135,12 +135,27 @@ func _run() -> void:
 	# okno dziennika
 	var jw = main.journal_window
 	jw.open()
-	check(jw.visible and jw.all_text.text.contains("Zadanie zakonczone"), "okno dziennika: wszystkie wpisy")
-	check(jw._quests.is_empty(), "zakończone zadania ukryte domyślnie")
-	jw.show_finished.button_pressed = true
-	check(jw._quests.size() == 1 and String(jw._quests[0].name) == "Zadanie testowe", "zadanie z nazwą (QSTN) po włączeniu zakończonych")
-	check(jw._topics.has("synth lore"), "dziennik tematów w oknie")
+	check(jw.visible and (jw.visible_text(0) + jw.visible_text(1)).contains("Zadanie zakonczone"), "dziennik (księga): wpisy na stronach")
+	check(jw._btn.close.visible and not jw._btn.journal.visible, "księga główna: przycisk Close, bez Journal")
+	jw._on_options()
+	check(jw._overlay.visible and jw._index[0].visible, "opcje: nakładka z indeksem tematów")
+	jw._on_quests()
+	check(jw._quests.is_empty(), "zakończone zadania ukryte domyślnie (aktywne)")
+	jw._on_show_all()
+	check(jw._quests.size() == 1 and String(jw._quests[0].name) == "Zadanie testowe", "zadanie z nazwą (QSTN) po Show All")
+	jw._on_quest(jw._quests[0])
+	check(jw._states.size() == 2 and jw._btn.journal.visible and not jw._btn.close.visible and jw.visible_text(0).contains("Zadanie testowe"),
+		"księga zadania na stosie: przycisk Journal zamiast Close")
+	jw._on_journal()
+	check(jw._states.size() == 1 and jw._btn.close.visible, "Journal: powrót do księgi głównej")
+	jw._on_options()
+	jw._on_topics()
+	jw._on_index("S")
+	check(jw._topics.has("synth lore"), "indeks tematów: litera S → temat")
+	jw._on_topic("synth lore")
+	check(jw.visible_text(0).to_lower().contains("synth lore"), "księga tematu")
 	jw.close()
+	check(not jw.visible, "zamknięcie dziennika")
 	# zapis i odczyt
 	var path := ProjectSettings.globalize_path("user://test_saves/dialogi.mwsave")
 	check(main.save_game(path) == "", "zapis")

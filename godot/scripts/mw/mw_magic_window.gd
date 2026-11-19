@@ -275,7 +275,7 @@ func _slot(parent: Control) -> Panel:
 	return p
 
 func _scale() -> float:
-	return clampf(get_viewport().get_visible_rect().size.y / 720.0, 1.0, 3.0) if get_viewport() != null else 1.0
+	return UI.ui_scale() if get_viewport() != null else 1.0
 
 func _build_alchemy(row: Control) -> void:
 	alch_box = VBoxContainer.new()

@@ -193,6 +193,69 @@ func _apply_cast(casts: Array, t: float) -> void:
 ## Odpoczynek [[t, godziny]] – w OpenMW klawisze okna odpoczynku (T, Enter) przez XTest; tu okno i rest(godziny).
 var _rest_done := {}
 
+## Porównania wizualne (para do UISTEPS skryptu gracza OpenMW): [czas rzeczywisty od poleceń, "mode" | "clear" |
+## "shot", argument] – tryby GuiMode OpenMW (I.UI.setMode) na okna Godota; zrzut do --shots=KATALOG (tylko lokalnie).
+const UI_CHARGEN := {"ChargenName": "name", "ChargenRace": "race", "ChargenClass": "class",
+	"ChargenClassPick": "class_pick", "ChargenClassCreate": "class_create", "ChargenClassGenerate": "class_generate",
+	"ChargenBirth": "birth", "ChargenClassReview": "review"}
+var _ui_done := {}
+var _ui_t0 := -1
+
+func _ui_clear() -> void:
+	if main.chargen != null and main.chargen.is_open():
+		main.chargen._pop()
+		main.chargen.visible = false
+	for w in [main.menu_mode, main.journal_window, main.rest_window]:
+		if w != null and w.visible:
+			w.close()
+	if main.main_menu != null and main.main_menu.is_open():
+		main.close_main_menu()
+	root.get_tree().paused = false
+
+func _ui_mode(m) -> void:
+	var name := String(m[0]) if m is Array else String(m)
+	_ui_clear()
+	if UI_CHARGEN.has(name):
+		main.open_chargen_step(UI_CHARGEN[name])
+	match name:
+		"Interface":
+			main.menu_mode.open()
+		"Journal":
+			main.journal_window.open()
+		"Rest":
+			main.rest_window.open()
+		"MainMenu":
+			main.open_main_menu()
+
+func _apply_ui(steps: Array, started: bool) -> void:
+	if not started or steps.is_empty():
+		return
+	if _ui_t0 < 0:
+		_ui_t0 = Time.get_ticks_msec()
+	var rt := (Time.get_ticks_msec() - _ui_t0) / 1000.0
+	for i in steps.size():
+		var u: Array = steps[i]
+		if _ui_done.has(i) or rt < float(u[0]):
+			continue
+		_ui_done[i] = true
+		match String(u[1]):
+			"mode":
+				_ui_mode(u[2])
+			"clear":
+				_ui_clear()
+			"shot":
+				var dir := _arg("shots")
+				if dir.is_empty() or DisplayServer.get_name() == "headless":
+					continue
+				await RenderingServer.frame_post_draw
+				DirAccess.make_dir_recursive_absolute(dir)
+				root.get_texture().get_image().save_png(dir.path_join(String(u[2]) + ".png"))
+				var c3 := root.get_camera_3d()
+				var w3 := c3.get_world_3d() if c3 != null else null
+				print("MWSHOT ", u[2], " int=", main.envr.interior, " bg=", main.envr.env.background_mode, " cell=", main.interior,
+					" cam=", c3.get_path() if c3 != null else "-", " world_env=", w3.environment.background_mode if w3 != null and w3.environment != null else -1,
+					" same=", w3 != null and w3.environment == main.envr.env, " pos=", c3.global_position if c3 != null else Vector3.ZERO)
+
 func _apply_rest(rests: Array, t: float) -> void:
 	if bool(_case.get("debug", false)) and not rests.is_empty() and t >= float(rests[0][0]) and t < float(rests[0][0]) + 1.0 \
 			and Engine.get_process_frames() % 6 == 0:
@@ -330,6 +393,7 @@ func _run() -> void:
 		_look_at(case.get("look_at", []))
 		_apply_cast(case.get("cast", []), t_after)
 		_apply_rest(case.get("rest", []), t_after)
+		await _apply_ui(case.get("ui", []), t_after >= 0.0)
 		if bool(case.get("disable_creatures", false)) and frame == delay:
 			for an in main.ai.actor_nodes():
 				if String(an.get_meta("mw_actor", "")) == "creature":

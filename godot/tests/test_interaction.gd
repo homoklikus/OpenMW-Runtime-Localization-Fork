@@ -146,6 +146,17 @@ func _test_movement(main) -> void:
 			break
 	check(falls.size() == 1 and falls[0] > 200.0, "upadek: sygnał z wysokością w jednostkach MW (%s)" % [falls])
 	main.set_process(true)
+	# World::findInteriorPosition (--cell, COC): drzwi domu prowadzą do komórki 0,0, w której nie ma drzwi z celem
+	# w domu (drzwi do domu stoją w 0,1) – jak w OpenMW zostaje miejsce pierwszego obiektu statycznego
+	var first_stat := Vector3.INF
+	for r in main.db.get_cell("int:synthville, test house").refs:
+		if String(main.db.get_object(String(r.base)).get("type", "")) == "STAT":
+			first_stat = Vector3(r.godot.origin[0], r.godot.origin[1], r.godot.origin[2])
+			break
+	var ip = main.find_interior_position("Synthville, Test House")
+	check(ip is Transform3D and (ip as Transform3D).origin.is_equal_approx(first_stat),
+		"pozycja startu we wnętrzu: pierwszy obiekt statyczny (%s / %s)" % [ip.origin if ip is Transform3D else null, first_stat])
+	check(main.find_interior_position("brak takiej komórki") == null, "nieznana komórka – brak pozycji")
 
 func _finish() -> void:
 	print("RESULT ", JSON.stringify({"checks": checks, "failures": failures}))

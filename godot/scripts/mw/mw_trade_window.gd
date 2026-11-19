@@ -212,7 +212,7 @@ func _entry(it: Dictionary, count: int, src: String, merchant_side: bool, state 
 func _fill_barter_grids() -> void:
 	var mm = main.menu_mode
 	if merchant_grid == null:
-		mm.scale_ui = clampf(get_viewport().get_visible_rect().size.y / 720.0, 1.0, 3.0)
+		mm.scale_ui = UI.ui_scale()
 		merchant_grid = mm._make_grid(_grid_parents[0], "merchant", self)
 		player_grid = mm._make_grid(_grid_parents[1], "player", self)
 	merchant_head.text = main.dialogue.actor_name(actor)

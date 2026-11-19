@@ -1,0 +1,122 @@
+{
+ "name": "ui_windows_1440",
+ "cell": "Seyda Neen, Arrille's Tradehouse",
+ "resolution": [
+  2560,
+  1440
+ ],
+ "note": "porównanie wizualne klasycznych okien (te same tryby GuiMode w obu silnikach, zrzuty w tych samych chwilach) | wnętrze bez skryptów CharGen (komunikaty kreatora to różnica stanu, nie interfejsu); teleport: cel drzwi ex_common_door_01 z Seyda Neen – start z --start/--cell w OpenMW nie wczytuje komórek źródłowych drzwi i findInteriorPosition spada do pierwszego obiektu statycznego",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [],
+ "ui": [
+  [
+   2.0,
+   "clear",
+   null
+  ],
+  [
+   4.5,
+   "shot",
+   "hud"
+  ],
+  [
+   6.5,
+   "mode",
+   "Interface"
+  ],
+  [
+   9.0,
+   "shot",
+   "interface"
+  ],
+  [
+   11.0,
+   "mode",
+   "Journal"
+  ],
+  [
+   13.5,
+   "shot",
+   "journal"
+  ],
+  [
+   15.5,
+   "mode",
+   "ChargenName"
+  ],
+  [
+   18.0,
+   "shot",
+   "cg_name"
+  ],
+  [
+   20.0,
+   "mode",
+   "ChargenRace"
+  ],
+  [
+   22.5,
+   "shot",
+   "cg_race"
+  ],
+  [
+   24.5,
+   "mode",
+   "ChargenClass"
+  ],
+  [
+   27.0,
+   "shot",
+   "cg_class"
+  ],
+  [
+   29.0,
+   "mode",
+   "ChargenClassPick"
+  ],
+  [
+   31.5,
+   "shot",
+   "cg_classpick"
+  ],
+  [
+   33.5,
+   "mode",
+   "ChargenBirth"
+  ],
+  [
+   36.0,
+   "shot",
+   "cg_birth"
+  ],
+  [
+   38.0,
+   "mode",
+   "ChargenClassReview"
+  ],
+  [
+   40.5,
+   "shot",
+   "cg_review"
+  ]
+ ],
+ "seconds": 43.5,
+ "interior": true,
+ "teleport": [
+  [
+   0,
+   "player",
+   -242.27,
+   -11.77,
+   228.0
+  ]
+ ]
+}

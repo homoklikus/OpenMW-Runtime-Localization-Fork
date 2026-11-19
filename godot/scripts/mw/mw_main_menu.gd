@@ -43,7 +43,7 @@ func close() -> void:
 	_show_background(false)
 
 func _scale() -> float:
-	return clampf(get_viewport().get_visible_rect().size.y / 720.0, 1.0, 3.0)
+	return UI.ui_scale()
 
 func _tex(name: String) -> Texture2D:
 	return UI.texture("textures/" + name)

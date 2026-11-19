@@ -99,6 +99,7 @@ func _ready() -> void:
 	if not base.is_empty():
 		MWModelCache.base_roots = PackedStringArray([ProjectSettings.globalize_path(base)])
 	settings = _load_settings(arg("settings"))
+	UI.gui_scaling = clampf(float(settings.get("gui_scaling_factor", 1.0)), 0.5, 8.0)   # [GUI] scaling factor
 	settings.merge(_load_ingame_settings(), true)      # etap 10: zmiany z „Ustawienia” w grze (nowsze)
 	launched_by_launcher = not arg("profile").is_empty()
 	var project := arg("project", ProjectSettings.get_setting("mwgodot/project_root", "user://mw_project"))
@@ -179,6 +180,7 @@ func _ready() -> void:
 	journal_window = JournalWindowScript.new()
 	journal_window.dialogue = dialogue
 	journal_window.main = self
+	journal_window.data_root = data
 	add_child(journal_window)
 	book_window = preload("res://scripts/mw/mw_book_window.gd").new()
 	book_window.name = "BookWindow"
@@ -290,6 +292,31 @@ func _ready() -> void:
 		chargen.open(default_choice())
 	else:
 		state.player["character"] = character.build(default_choice())
+	if lp.is_empty():
+		_init_player_items()
+
+## Npc::getNpcData dla gracza (World::setupPlayer): ekwipunek z rekordu NPC „player” (ContainerStore::fill)
+## i InventoryStore::autoEquip – raz, przy nowej grze; stan zapisu ma już własny inwentarz.
+func _init_player_items() -> void:
+	if builder == null or not builder.actors.available():
+		return
+	var rec: Dictionary = builder.actors.record("npc", "player")
+	if rec.is_empty():
+		return
+	if not state.has_inventory("player"):
+		state.set_inventory("player", interaction.inventory.base_contents(rec, "player"))
+		_weight_cache = -1.0
+	if player_stats().is_empty() or bool(state.player.get("record_equipped", false)):
+		return
+	state.player["record_equipped"] = true
+	var eq := _equipment()
+	var av = builder.actors
+	if av.equipment == null:
+		av.equipment = av.Equipment.new(av)
+	var slots: Dictionary = av.equipment.auto_equip(rec, state.inventory("player"))
+	for sl in slots:
+		eq[str(sl)] = {"id": String(slots[sl].id).to_lower(), "health": -1.0}
+	_rebuild_player_visual()
 
 # --- nowa gra ze skryptami CharGen (etap 9) -------------------------------------------------------------------
 
@@ -347,6 +374,8 @@ func _on_chargen_step(step: String, ch: Dictionary) -> void:
 	var st: Dictionary = character.build(merged)
 	if String(st.get("name", "")).is_empty():
 		st["name"] = String(old.get("name", "")) if not String(old.get("name", "")).is_empty() else "Przybysz"
+	if old.get("equipment") is Dictionary and not st.has("equipment"):
+		st["equipment"] = old.equipment         # przebudowa postaci w kreatorze nie zdejmuje ubrań
 	state.player["character"] = st
 	_rebuild_player_visual()
 
@@ -431,7 +460,11 @@ func player_stats() -> Dictionary:
 	return state.player.get("character", {})
 
 func _on_character_created(st: Dictionary) -> void:
+	var old: Dictionary = state.player.get("character", {})
+	if old.get("equipment") is Dictionary and not st.has("equipment"):
+		st["equipment"] = old.equipment
 	state.player["character"] = st
+	_init_player_items()
 	_toast("Utworzono postać: %s" % st.get("name", ""))
 
 ## Obrażenia od upadku (OpenMW getFallDamage; w wodzie bez obrażeń). Śmierć i jej skutki – etap 7.
@@ -1367,6 +1400,10 @@ func _start_transform() -> Transform3D:
 			if t != null:
 				start_name = name
 				return t
+	if not interior.is_empty():
+		var ip = find_interior_position(interior)
+		if ip != null:
+			return ip
 	# środek pierwszej komórki zewnętrznej z indeksu, nad terenem
 	for c in db.cell_index():
 		if not c.get("interior", false) and interior.is_empty():
@@ -1382,6 +1419,45 @@ func _start_transform() -> Transform3D:
 	return Transform3D(Basis(), Vector3(0, 2, 0))
 
 var start_name := ""
+
+## World::findInteriorPosition (start w komórce wewnętrznej, COC): drzwi teleportujące z tej komórki posortowane
+## wg identyfikatora i komórki docelowej; w komórce, do której prowadzą, szukane są dowolne drzwi z celem w naszej
+## komórce – ich miejsce docelowe (bez obrotu). Bez takich drzwi – miejsce pierwszego obiektu statycznego.
+## (Znaczniki cocmarkerheading/xmarkerheading OpenMW szuka tylko wśród obiektów ESM4.) → Transform3D albo null
+func find_interior_position(name: String) -> Variant:
+	var cell := db.get_cell("int:" + name.to_lower())
+	if cell.is_empty():
+		return null
+	var doors := []
+	for r in cell.get("refs", []):
+		var ex: Dictionary = r.get("extra", {}) if r.get("extra") is Dictionary else {}
+		if ex.get("door_dest") is Dictionary:
+			doors.append(r)
+	doors.sort_custom(func(a, b):
+		var ia := String(a.base).to_lower()
+		var ib := String(b.base).to_lower()
+		if ia != ib:
+			return ia < ib
+		return String(a.extra.get("door_dest_cell", "")).to_lower() < String(b.extra.get("door_dest_cell", "")).to_lower())
+	for d in doors:
+		var dc := String(d.extra.get("door_dest_cell", ""))
+		var dd: Dictionary = d.extra.door_dest
+		var src := {}
+		if not dc.is_empty():
+			src = db.get_cell("int:" + dc.to_lower())
+		elif dd.get("godot") is Dictionary:
+			var o: Array = dd.godot.origin
+			src = db.get_cell(db.exterior_key(MWCoords.cell_of(Vector3(o[0], o[1], o[2]))))
+		for r2 in src.get("refs", []):
+			var ex2: Dictionary = r2.get("extra", {}) if r2.get("extra") is Dictionary else {}
+			if String(ex2.get("door_dest_cell", "")).to_lower() == name.to_lower() and ex2.get("door_dest") is Dictionary:
+				var o2: Array = ex2.door_dest.godot.origin
+				return Transform3D(Basis(), Vector3(o2[0], o2[1], o2[2]))
+	for r in cell.get("refs", []):
+		if String(db.get_object(String(r.base)).get("type", "")) == "STAT":
+			var o3: Array = r.godot.origin
+			return Transform3D(Basis(), Vector3(o3[0], o3[1], o3[2]))
+	return null
 
 func _named_start(name: String) -> Variant:
 	var lname := name.to_lower()
@@ -1437,7 +1513,7 @@ func _named_start(name: String) -> Variant:
 func _setup_hud() -> void:
 	# wygląd Morrowinda dla wszystkich okien gry (motyw okna głównego dziedziczą wszystkie kontrolki)
 	UI.setup(data_dir)
-	var th: Theme = UI.theme(clampf(get_viewport().get_visible_rect().size.y / 720.0, 1.0, 3.0))
+	var th: Theme = UI.theme(UI.ui_scale())
 	var dt := ThemeDB.get_default_theme()       # domyślny motyw (dziedziczą go wszystkie kontrolki, także pod CanvasLayer)
 	dt.merge_with(th)
 	dt.default_font = th.default_font
@@ -2232,7 +2308,7 @@ func save_header() -> Dictionary:
 			content.append({"name": c.get("name", ""), "sha256": c.get("sha256", "")})
 	return {"profile": arg("profile", "default"), "character": "", "content": content,
 		"base_fingerprint": JSON.stringify(content).sha256_text(), "world_format": 1,
-		"created": Time.get_datetime_string_from_system(), "game": "OpenMWGodot"}
+		"created": Time.get_datetime_string_from_system(), "created_unix": Time.get_unix_time_from_system(), "game": "OpenMWGodot"}
 
 func capture_state() -> void:
 	if ai != null:
@@ -2701,6 +2777,7 @@ func new_game() -> void:
 			chargen.open(default_choice())
 		else:
 			state.player["character"] = character.build(default_choice())
+	_init_player_items()
 	if loading != null:
 		loading.loading_off()
 	startup_log.append("new_game" + (" (z menu)" if from_menu else ""))
@@ -2801,6 +2878,7 @@ func save_to_slot(description: String, slot = null) -> String:
 		return err
 	last_savegame = path
 	_write_saves_character(String(ch.dir))
+	saves.forget(path)
 	saves.refresh()
 	var f = saves.find_slot(path)
 	if not f.is_empty():

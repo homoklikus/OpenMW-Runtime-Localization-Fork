@@ -350,7 +350,9 @@ def _stage4_records() -> list:
     player = W.record("NPC_", [W.sub("NAME", W.zs("player")), W.sub("FNAM", W.zs("Gracz")), W.sub("RNAM", W.zs(RACE)),
                                W.sub("CNAM", W.zs("Synth Warrior")), W.sub("BNAM", W.zs("b_n_synth_m_head_01")),
                                W.sub("KNAM", W.zs("b_n_synth_m_hair_01")), W.sub("NPDT", npdt),
-                               W.sub("FLAG", struct.pack("<i", 0x08))])
+                               W.sub("FLAG", struct.pack("<i", 0x08)),
+                               # ubranie startowe (jak common_shirt_01 itd. w Morrowind.esm) – ContainerStore::fill + autoEquip
+                               W.sub("NPCO", struct.pack("<i", 1) + b"synth_shirt_rag".ljust(32, b"\0"))])
     return [cls, spell, power, sign, player] + skills
 
 

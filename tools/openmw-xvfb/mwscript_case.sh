@@ -26,6 +26,21 @@ case "$STEP" in
     "$GODOT" --headless --path "$REPO/godot" -s res://tests/probe_mwscript.gd -- --data="$DATA" \
       --project="$OUT/proj_$N" "${WHERE[@]}" --case="$C" --out="$S" 2>&1 | grep -E "^RESULT|^MWDBG|MWGODOT_SCRIPT|SCRIPT ERROR|Parse Error" || true
     test -s "$S" ;;
+  godot-ui)
+    # porównania wizualne: Godot z obrazem (Xvfb, renderer zgodności) w rozdzielczości przypadku, zrzuty do $OUT/shots_$N/godot
+    C="$OUT/$N.c.json"; S="$OUT/$N.gd.json"
+    CELL="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("cell","Seyda Neen"))' "$C")"
+    INT="$(python3 -c 'import json,sys; print(1 if json.load(open(sys.argv[1])).get("interior") else 0)' "$C")"
+    WHERE=(--start="$CELL"); [ "$INT" = 1 ] && WHERE=(--cell="$CELL")
+    RES="$(python3 -c 'import json,sys; r=json.load(open(sys.argv[1])).get("resolution",[1280,720]); print("%dx%d" % (r[0], r[1]))' "$C")"
+    rm -f "/tmp/.X$DISP-lock" "/tmp/.X11-unix/X$DISP"
+    Xvfb ":$DISP" -screen 0 "${RES}x24" +extension GLX -nolisten tcp >/dev/null 2>&1 &
+    XP=$!; sleep 2
+    DISPLAY=":$DISP" "$GODOT" --rendering-method gl_compatibility --resolution "$RES" --path "$REPO/godot" \
+      -s res://tests/probe_mwscript.gd -- --data="$DATA" --project="$OUT/proj_${N}_ui" "${WHERE[@]}" --case="$C" \
+      --out="$S" --shots="$OUT/shots_$N/godot" 2>&1 | grep -E "^RESULT|MWSHOT|SCRIPT ERROR|Parse Error" || true
+    kill $XP 2>/dev/null; rm -f "/tmp/.X$DISP-lock" "/tmp/.X11-unix/X$DISP"
+    test -s "$S" ;;
   all)
     "$0" "$CASE" compile && "$0" "$CASE" omw "$DISP" && "$0" "$CASE" omw-base "$((DISP + 1))" \
       && "$0" "$CASE" godot && "$0" "$CASE" godot-base && "$0" "$CASE" diff ;;

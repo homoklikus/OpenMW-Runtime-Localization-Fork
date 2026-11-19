@@ -1,4 +1,5 @@
 extends CanvasLayer
+const UI := preload("res://scripts/mw/mw_ui.gd")
 ## Okno książki i zwoju (etap 10) jak OpenMW BookWindow/ScrollWindow (openmw_book.layout, openmw_scroll.layout):
 ## książka – dwie strony 250×328 (lewa/prawa, numery stron, poprzednia/następna, „Weź”, „Zamknij”), zwój – jedna
 ## przewijana kolumna o szerokości 390. Tła i przyciski z tekstur gry (tx_menubook*, scroll), gdy są
@@ -64,7 +65,7 @@ func open(id: String, rec: Dictionary, show_take: bool) -> void:
 	var vp := Vector2(1280, 720)
 	if get_viewport() != null:
 		vp = get_viewport().get_visible_rect().size
-	scale_ui = clampf(vp.y / 600.0, 1.0, 3.0)
+	scale_ui = UI.book_scale(vp)                # ScalingLayer „JournalBooks” (600 × 520) jak w OpenMW
 	if _root != null:
 		_root.queue_free()
 	_root = Control.new()
