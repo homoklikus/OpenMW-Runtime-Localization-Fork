@@ -6,6 +6,7 @@ extends CanvasLayer
 ## Zapis na istniejący slot – potwierdzenie nadpisania; wczytanie w trakcie gry – potwierdzenie porzucenia gry;
 ## pusta nazwa – komunikat. Wczytywanie: automatycznie zaznaczony najnowszy zapis.
 
+const L10n := preload("res://scripts/mw/mw_l10n.gd")
 const UI := preload("res://scripts/mw/mw_ui.gd")
 
 var main = null
@@ -60,7 +61,7 @@ func open(load: bool) -> void:
 		character_select.select(selected)
 	else:
 		character_select.select(-1)
-		character_select.text = "Wybierz postać..."
+		character_select.text = L10n.text("SelectCharacter", "Select Character...")
 	_fill()
 	await get_tree().process_frame
 	if is_instance_valid(_panel):
@@ -145,7 +146,7 @@ func _build() -> void:
 	v.add_child(row)
 	delete_button = Button.new()
 	delete_button.name = "DeleteButton"
-	delete_button.text = "Usuń zapis gry"
+	delete_button.text = L10n.text("DeleteGame", "Delete Game")
 	delete_button.visible = not saving
 	delete_button.focus_mode = Control.FOCUS_NONE        # „To avoid accidental deletions”
 	delete_button.pressed.connect(func():
@@ -217,22 +218,16 @@ func _on_slot_selected(pos: int) -> void:
 	var sig: Dictionary = main.saves.signature(current_character)
 	if String(h.get("player_name", "")) != String(sig.get("player_name", "")):
 		lines.append(String(h.get("player_name", "")))
-	lines.append("Poziom %d" % int(h.get("player_level", 1)))
+	lines.append("%s %d" % [L10n.text("Level", "Level"), int(h.get("player_level", 1))])
 	if int(h.get("current_day", 0)) > 0:
-		lines.append("Dzień %d" % int(h.get("current_day", 0)))
+		lines.append("%s %d" % [L10n.ctx_text("Calendar", "day", "Day"), int(h.get("current_day", 0))])
 	if float(h.get("max_health", 0)) > 0:
-		lines.append("Zdrowie %d/%d" % [int(h.get("health", 0)), int(h.get("max_health", 0))])
+		lines.append("%s %d/%d" % [L10n.text("Health", "Health"), int(h.get("health", 0)), int(h.get("max_health", 0))])
 	var t: Dictionary = h.get("game_time", {})
 	if not t.is_empty():
-		var hour := int(float(t.get("hour", 0)))
-		var pm := hour >= 12
-		if hour >= 13:
-			hour -= 12
-		if hour == 0:
-			hour = 12
-		lines.append("%d %s %d %s" % [int(t.get("day", 1)), main.month_name(int(t.get("month", 0))), hour, "po poł." if pm else "rano"])
+		lines.append("%d %s %s" % [int(t.get("day", 1)), main.month_name(int(t.get("month", 0))), L10n.time_of_day(float(t.get("hour", 0)))])
 	if float(h.get("time_played", 0)) > 0:
-		lines.append("Czas gry: " + format_time_played(float(h.get("time_played", 0))))
+		lines.append(L10n.text("TimePlayed", "Time Played") + ": " + format_time_played(float(h.get("time_played", 0))))
 	lines.append(Time.get_datetime_string_from_unix_time(int(current_slot.mtime) + _tz_offset(), true).replace("-", "."))
 	cell_label.text = String(h.get("cell_name", ""))
 	info_label.text = "\n".join(lines)
@@ -264,7 +259,7 @@ static func format_time_played(secs: float) -> String:
 	return out.strip_edges()
 
 func confirm_delete() -> void:
-	main.confirm.ask("Czy na pewno chcesz usunąć ten zapis gry?", _on_delete_confirmed, func(): save_list.grab_focus())
+	main.confirm.ask(L10n.text("DeleteGameConfirmation"), _on_delete_confirmed, func(): save_list.grab_focus())
 
 ## onDeleteSlotConfirmed.
 func _on_delete_confirmed() -> void:
@@ -293,22 +288,22 @@ func _on_delete_confirmed() -> void:
 			_on_character_selected(n)
 		else:
 			character_select.select(-1)
-			character_select.text = "Wybierz postać..."
+			character_select.text = L10n.text("SelectCharacter", "Select Character...")
 
 ## SaveGameDialog::accept.
 func accept(really_sure := false) -> void:
 	if saving:
 		if current_slot != null and not really_sure:
-			main.confirm.ask("Czy na pewno chcesz nadpisać ten zapis gry?", func(): accept(true), func(): save_list.grab_focus())
+			main.confirm.ask(L10n.text("OverwriteGameConfirmation"), func(): accept(true), func(): save_list.grab_focus())
 			return
 		if name_edit.text.is_empty():
-			main.message_box("Nie można zapisać gry bez nazwy!")
+			main.message_box(L10n.text("EmptySaveNameError"))
 			return
 	else:
 		if current_slot == null:
 			return
 		if main.game_state == "running" and not really_sure:
-			main.confirm.ask("Czy chcesz wczytać zapis gry i porzucić obecną?", func(): accept(true), func(): save_list.grab_focus())
+			main.confirm.ask(L10n.text("LoadGameConfirmation"), func(): accept(true), func(): save_list.grab_focus())
 			return
 	var slot = current_slot
 	var ch = current_character

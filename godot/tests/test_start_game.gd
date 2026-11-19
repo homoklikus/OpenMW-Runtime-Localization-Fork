@@ -10,6 +10,7 @@ extends SceneTree
 
 const GS := preload("res://scripts/mw/mw_game_state.gd")
 
+const L10n := preload("res://scripts/mw/mw_l10n.gd")   # teksty silnika OpenMW (OMWEngine)
 var failures: Array[String] = []
 var checks := 0
 var report := {}
@@ -161,7 +162,7 @@ func _run() -> void:
 	check(sd.name_edit.text == "Pierwszy zapis", "wybór slotu wpisuje jego nazwę")
 	sd.accept()
 	await _frames(2)
-	check(main.confirm.is_open() and main.confirm.text().contains("nadpisać"), "nadpisanie wymaga potwierdzenia")
+	check(main.confirm.is_open() and main.confirm.text() == L10n.text("OverwriteGameConfirmation"), "nadpisanie wymaga potwierdzenia")
 	main.confirm.press(true)
 	await _frames(3)
 	check((main.saves.current.slots as Array).size() == 1, "nadpisany ten sam slot (bez nowego pliku)")
@@ -174,10 +175,10 @@ func _run() -> void:
 	main.main_menu.on_button("loadgame")
 	await _frames(3)
 	check(sd.visible and not sd.saving and sd.character_select.visible and sd.delete_button.visible and sd.current_slot != null, "okno wczytania: postać, usuwanie, zaznaczony najnowszy zapis")
-	check(sd.info_label.text.contains("Poziom") and not sd.cell_label.text.is_empty(), "opis slotu: poziom, komórka")
+	check(sd.info_label.text.contains(L10n.text("Level")) and not sd.cell_label.text.is_empty(), "opis slotu: poziom, komórka")
 	sd.accept()
 	await _frames(2)
-	check(main.confirm.is_open() and main.confirm.text().contains("porzucić"), "wczytanie w trakcie gry wymaga potwierdzenia")
+	check(main.confirm.is_open() and main.confirm.text() == L10n.text("LoadGameConfirmation"), "wczytanie w trakcie gry wymaga potwierdzenia")
 	main.confirm.press(true)
 	await _frames(5)
 	check(main.interaction.inventory.count_of("player", {}, "gold_001") == gold0, "wczytany stan sprzed zmiany (złoto %d)" % main.interaction.inventory.count_of("player", {}, "gold_001"))
@@ -249,7 +250,7 @@ func _run() -> void:
 	var del_path := String(sd.current_slot.path)
 	sd.confirm_delete()
 	await _frames(2)
-	check(main.confirm.is_open() and main.confirm.text().contains("usunąć"), "usuwanie wymaga potwierdzenia")
+	check(main.confirm.is_open() and main.confirm.text() == L10n.text("DeleteGameConfirmation"), "usuwanie wymaga potwierdzenia")
 	main.confirm.press(false)
 	await _frames(2)
 	check(FileAccess.file_exists(del_path), "Anuluj – zapis zostaje")

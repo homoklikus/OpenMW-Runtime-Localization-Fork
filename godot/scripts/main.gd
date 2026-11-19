@@ -99,7 +99,9 @@ func _ready() -> void:
 	if not base.is_empty():
 		MWModelCache.base_roots = PackedStringArray([ProjectSettings.globalize_path(base)])
 	settings = _load_settings(arg("settings"))
-	UI.gui_scaling = clampf(float(settings.get("gui_scaling_factor", 1.0)), 0.5, 8.0)   # [GUI] scaling factor
+	UI.gui_scaling = clampf(float(settings.get("gui_scaling_factor", 1.0)), 0.5, 8.0)
+	# [General] preferred locales (OpenMW, domyślnie „en”) – teksty silnika z l10n OMWEngine/Calendar
+	preload("res://scripts/mw/mw_l10n.gd").set_locales(String(settings.get("preferred_locales", "en")))   # [GUI] scaling factor
 	settings.merge(_load_ingame_settings(), true)      # etap 10: zmiany z „Ustawienia” w grze (nowsze)
 	launched_by_launcher = not arg("profile").is_empty()
 	var project := arg("project", ProjectSettings.get_setting("mwgodot/project_root", "user://mw_project"))

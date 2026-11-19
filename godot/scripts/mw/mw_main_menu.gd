@@ -8,6 +8,7 @@ extends CanvasLayer
 ## go nie ma – OpenMW pokazuje wtedy obraz). W grze: przyciski na środku, bez tła (to samo menu = menu pauzy).
 ## Nowa gra / Wyjdź w trakcie gry – potwierdzenie. Dźwięk „Menu Click”. Esc zamyka menu tylko w trakcie gry.
 
+const L10n := preload("res://scripts/mw/mw_l10n.gd")
 const UI := preload("res://scripts/mw/mw_ui.gd")
 const BUTTONS := ["return", "newgame", "savegame", "loadgame", "options", "credits", "exitgame"]
 
@@ -168,13 +169,13 @@ func on_button(id: String) -> void:
 			if main.game_state == "nogame":
 				main.request_quit()
 			else:
-				main.confirm.ask("Wyjść z gry?", func(): main.request_quit())
+				main.confirm.ask(L10n.text("QuitGameConfirmation"), func(): main.request_quit())
 		"newgame":
 			if main.game_state == "nogame":
 				main.close_main_menu()
 				main.new_game()
 			else:
-				main.confirm.ask("Czy chcesz rozpocząć nową grę i porzucić obecną?", func():
+				main.confirm.ask(L10n.text("NewGameConfirmation"), func():
 					main.close_main_menu()
 					main.new_game())
 		"loadgame", "savegame":

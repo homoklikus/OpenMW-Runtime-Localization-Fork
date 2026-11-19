@@ -37,6 +37,13 @@ Kod napisany w sesjach 1–3 jest implementacją własną, powstałą na podstaw
 
 Przeniesiony kod OpenMW (od sesji 4): *na razie brak* — każdy przeniesiony fragment dopisujemy tutaj.
 
+Przeniesione pliki OpenMW (dane, nie kod):
+
+* `godot/l10n/OMWEngine/*.yaml`, `godot/l10n/Calendar/*.yaml` — pliki lokalizacji silnika z OpenMW 0.51
+  (`files/data/l10n/OMWEngine`, `files/data/l10n/Calendar`, GPLv3, © OpenMW contributors), bez zmian. Używane
+  przez `mw_l10n.gd` tak jak w OpenMW (ustawienie `preferred_locales` = `[General] preferred locales`).
+  To nie są zasoby Bethesdy.
+
 ## Zależności i narzędzia
 
 | Komponent | Licencja | Dystrybuowany? |

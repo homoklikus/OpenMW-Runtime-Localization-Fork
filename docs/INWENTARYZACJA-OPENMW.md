@@ -1,6 +1,6 @@
 # Inwentaryzacja zgodności OpenMWGodot z OpenMW
 
-Stan na 2026-11-17 (po etapach „pełny start gry”, „pięć okien tworzenia postaci” i „MWScript zgodny z OpenMW”). Cel: wierne odtworzenie OpenMW, zanim
+Stan na 2026-11-19 (etap 7 – interfejs: `AUDYT-ETAP7-UI.md`; wcześniej po etapach „pełny start gry”, „pięć okien tworzenia postaci” i „MWScript zgodny z OpenMW”). Cel: wierne odtworzenie OpenMW, zanim
 zajmiemy się remasterem. OpenMW jest źródłem prawdy (fork `apps/openmw`, ten sam kod co oficjalne 0.51).
 
 ## Statusy
@@ -120,11 +120,14 @@ klasa, statystyki po 9 powrotach = buildPlayer od zera) i `probe_newgame.gd` (15
 
 | Element | Status | Uwagi | Prio |
 |---|---|---|---|
-| Tryb menu (statystyki, ekwipunek, magia, mapa), HUD, pojemnik, handel, alchemia, rozmowa | Zaimplementowane | etap 10i–10k; układ z OpenMW, brak porównania zrzutami | – |
+| Skala GUI (jedna, jak `[GUI] scaling factor`; dziennik/książki – ScalingLayer 600 × 520) | Zweryfikowane | etap 7: wcześniej każde okno skalowało się `vp.y/720` (1,5× przy 1080p) – szczegóły `AUDYT-ETAP7-UI.md` | – |
+| HUD, tryb menu (statystyki, ekwipunek, magia, mapa), okna kreatora | Zweryfikowane | etap 7: porównanie zrzutami z OpenMW w 720p–2160p (IoU 0,93–1,0), test_ui_geometry | – |
+| Pojemnik, handel, alchemia, rozmowa, odpoczynek | Zaimplementowane | wspólna skala z etapu 7; porównanie zrzutami jeszcze nie | P2 |
+| Pasek przewijania w stylu Morrowinda (MW_VScroll) | Brakujące | etap 7 | P2 |
 | Pasek zdrowia wroga w HUD | Brakujące | | P2 |
 | Szybkie klawisze (F1, 1–9) | Brakujące | | P1 |
 | Okno ilości (dzielenie stosów, Shift przy przeciąganiu) | Brakujące | dziś zawsze cały stos / 1 sztuka | P2 |
-| Dziennik jak książka (zadania, indeks tematów, strony) | Brakujące | dziś lista | P2 |
+| Dziennik jak książka (zadania, indeks tematów, strony) | Zweryfikowane | etap 7: JournalWindow (tx_menubook, zakładka, indeks), zrzuty IoU ≥ 0,997 | – |
 | Okno awansu (obraz klasy, mnożniki atrybutów) | Częściowo zgodne | | P2 |
 | Odpoczynek/czekanie (układ OpenMW, „do wyleczenia”) | Częściowo zgodne | | P2 |
 | Tworzenie zaklęć (usługa) | Brakujące | | P2 |
