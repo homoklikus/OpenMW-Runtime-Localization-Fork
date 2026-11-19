@@ -104,6 +104,47 @@ func _run() -> void:
 			"%dx%d: lewa część ekwipunku %s (OpenMW %.1f)" % [vp.x, vp.y, enc.size.x if enc else -1.0, (inv_h - 68.0) * 0.5 - 12.0])
 		mm.close()
 		await _frames(1)
+	# MW_VScroll: 14 px, pola strzałek 14 × 15, krok 36, MoveToClick, suwak ≥ 14 px
+	for sc_s in [1.0, 2.0]:
+		UI.gui_scaling = sc_s / maxf(1.0, DisplayServer.screen_get_scale())
+		root.size = Vector2i(1920, 1080)
+		var holder := Control.new()
+		holder.theme = UI.theme(sc_s)
+		holder.size = Vector2(300, 300)
+		root.add_child(holder)
+		var sc := ScrollContainer.new()
+		sc.size = Vector2(200, 180) * sc_s
+		holder.add_child(sc)
+		var content := Control.new()
+		content.custom_minimum_size = Vector2(100, 2000)
+		sc.add_child(content)
+		await _frames(3)
+		var vb: VScrollBar = sc.get_v_scroll_bar()
+		check(absf(vb.get_combined_minimum_size().x - 14.0 * sc_s) < 0.6, "MW_VScroll skala %s: szerokość %s" % [sc_s, vb.get_combined_minimum_size().x])
+		var dec: Texture2D = vb.get_theme_icon("decrement")
+		check(dec != null and dec.get_size().is_equal_approx(Vector2(14, 15) * sc_s), "MW_VScroll: pole strzałki %s" % [dec.get_size() if dec else null])
+		check(is_equal_approx(sc.scroll_vertical_custom_step, 36.0 * sc_s) and is_equal_approx(vb.custom_step, 36.0 * sc_s), "MW_VScroll: krok kółka i strzałek 36 × skala")
+		var ev := InputEventMouseButton.new()
+		ev.button_index = MOUSE_BUTTON_LEFT
+		ev.pressed = true
+		ev.position = Vector2(7 * sc_s, vb.size.y - 25 * sc_s)
+		UI._scroll_move_to_click(ev, vb)
+		check(vb.value > (vb.max_value - vb.page) * 0.85, "MoveToClick: klik przy dole tła przenosi suwak (%.0f / %.0f)" % [vb.value, vb.max_value - vb.page])
+		vb.value = 0.0
+		var wh := InputEventMouseButton.new()
+		wh.button_index = MOUSE_BUTTON_WHEEL_DOWN
+		wh.pressed = true
+		wh.factor = 1.0
+		wh.position = sc.get_global_rect().get_center()
+		wh.global_position = wh.position
+		root.push_input(wh)
+		await _frames(1)
+		check(absf(vb.value - 36.0 * sc_s) < 1.0, "WheelPage: kółko przewija o 36 × skala (%.1f)" % vb.value)
+		var gmin: float = vb.get_theme_stylebox("grabber").get_minimum_size().y
+		check(absf(gmin - 14.0 * sc_s) < 0.6, "MinTrackSize 14 (%s)" % gmin)
+		holder.queue_free()
+		await _frames(1)
+	UI.gui_scaling = 1.0
 	# teksty silnika z l10n OpenMW (OMWEngine, Calendar) wg preferred locales
 	var L10n = load("res://scripts/mw/mw_l10n.gd")
 	L10n.set_locales("en")

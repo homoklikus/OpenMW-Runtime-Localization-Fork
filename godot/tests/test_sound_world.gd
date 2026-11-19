@@ -39,6 +39,7 @@ func _run() -> void:
 	var main := (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(main)
 	await _frames(8)
+	var _pc0: Dictionary = main.player_stats(); var _pc: Dictionary = main.character.build(main.default_choice()); _pc["equipment"] = _pc0.get("equipment", {}); main.state.player["character"] = _pc   # postać po kreatorze (buildPlayer z rasą i klasą)
 	var au = main.audio
 	var mu = main.music
 	check(au != null and mu != null, "dźwięk i muzyka uruchomione")
@@ -47,8 +48,17 @@ func _run() -> void:
 	var walker := _node(main, "synth_walker")
 	check(walker != null, "wędrowiec w komórce")
 	var said := []
+	# wędrowiec może już witać gracza sam (AI: powitanie po zauważeniu) – DialogueManager::say odmawia, gdy NPC
+	# mówi; na czas sprawdzenia bez AI i po zakończeniu bieżącej kwestii
+	main.ai.enabled = false
+	var wsid0 := String(walker.get_meta("mw_sid", ""))
+	for i in 600:
+		if not au.say_active(wsid0):
+			break
+		await process_frame
 	main.dialogue.voice_said.connect(func(sid, topic, iid): said.append([sid, topic, iid]))
 	var ok: bool = main.dialogue.say_voice(walker, "hello")
+	main.ai.enabled = true
 	check(ok and said.size() == 1 and said[0][2] == "hello_walker", "Hello: odpowiedź dla wędrowca (%s)" % str(said))
 	var wsid := String(walker.get_meta("mw_sid", ""))
 	check(au.say_active(wsid), "głos z pliku Vo gra")

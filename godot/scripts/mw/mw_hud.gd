@@ -275,17 +275,20 @@ func _process(delta: float) -> void:
 func _apply_allowed() -> void:
 	if not main.has_method("menu_allowed"):
 		return
-	var hms: bool = main.menu_allowed("stats")
+	# przypięte okno zastępuje swoją część HUD (setHMS/Weapon/Spell/MinimapVisibility: allowed && !pinned)
+	var mm = main.get("menu_mode")
+	var pinned := func(n: String) -> bool: return mm != null and mm.has_method("is_pinned") and mm.is_pinned(n)
+	var hms: bool = main.menu_allowed("stats") and not pinned.call("stats")
 	for k in bars:
 		bars[k].visible = hms
-	var inv: bool = main.menu_allowed("inventory")
+	var inv: bool = main.menu_allowed("inventory") and not pinned.call("inventory")
 	weap_box.visible = inv
 	weap_bar.visible = inv
-	var mag: bool = main.menu_allowed("magic")
+	var mag: bool = main.menu_allowed("magic") and not pinned.call("spells")
 	spell_box.visible = mag
 	spell_bar.visible = mag
 	effects_box.visible = mag
-	minimap.visible = main.menu_allowed("map")
+	minimap.visible = main.menu_allowed("map") and not pinned.call("map")
 
 func _fade(l: Label, delta: float, var_name: String) -> void:
 	var t: float = get(var_name)

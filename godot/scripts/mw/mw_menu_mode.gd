@@ -24,6 +24,14 @@ const DEFAULT_RECTS := {        # OpenMW files/settings-default.cfg [Windows]
 	"spells": Rect2(0.63, 0.39, 0.36, 0.51),
 	"map": Rect2(0.63, 0.015, 0.36, 0.37),
 }
+const MAX_RECTS := {            # [Windows] <okno> maximized x/y/w/h
+	"stats": Rect2(0.255, 0.275, 0.4275, 0.45),
+	"inventory": Rect2(0.015, 0.02, 0.97, 0.875),
+	"spells": Rect2(0.32, 0.02, 0.36, 0.88),
+	"map": Rect2(0.015, 0.02, 0.97, 0.875),
+}
+var _pin_layer: CanvasLayer = null      # przypięte okna poza trybem GUI (WindowManager::updateVisible)
+var _pin_t := 0.0
 const CATEGORIES := [["all", "sAllTab", "Wszystko"], ["weapon", "sWeaponTab", "Broń"], ["apparel", "sApparelTab", "Ubiór"],
 	["magic", "sMagicTab", "Magia"], ["misc", "sMiscTab", "Inne"]]
 # kolejność typów jak SortFilterItemModel::getTypeOrder
@@ -73,6 +81,10 @@ func is_open() -> bool:
 func open() -> void:
 	if visible:
 		return
+	if _pin_layer != null:                 # przypięte okna wracają do trybu menu (budowane od nowa)
+		_pin_layer.queue_free()
+		_pin_layer = null
+		_pinned_windows = []
 	var vp := get_viewport().get_visible_rect().size
 	scale_ui = UI.ui_scale()
 	UI.setup(String(main.data_dir) if main != null and main.get("data_dir") != null else "")
@@ -94,7 +106,8 @@ func open() -> void:
 	if windows.has("spells"):
 		_build_spells()
 	if main != null and main.get("map_window") != null and _allowed("map"):
-		main.map_window.open(_rect("map", vp))
+		main.map_window.open(_rect("map", vp), self)
+	_apply_shown()
 	get_tree().paused = true
 	if DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -109,20 +122,33 @@ func close() -> void:
 		return
 	_save_layout()
 	visible = false
+	var was_container := not cont_sid.is_empty()
+	barter = null
+	barter_total = null
+	barter_total_label = null
 	if main != null and main.get("map_window") != null and main.map_window.visible and main.map_window.embedded:
-		main.map_window.close()
+		if is_pinned("map") and _allowed("map") and not was_container:
+			main.map_window.set_pinned_mode(true)
+		else:
+			main.map_window.close()
+	if not was_container:
+		_keep_pinned()
 	if _root != null:
 		_root.queue_free()
 		_root = null
 	windows = {}
-	_grid = null
+	if not "inventory" in _pinned_windows:
+		_grid = null
 	_cont_grid = null
 	cont_sid = ""
-	_stat_left = null
-	_spell_list = null
-	_doll_vp = null
-	_inv_left = null
-	_doll = null
+	if not "stats" in _pinned_windows:
+		_stat_left = null
+	if not "spells" in _pinned_windows:
+		_spell_list = null
+	if not "inventory" in _pinned_windows:
+		_doll_vp = null
+		_inv_left = null
+		_doll = null
 	get_tree().paused = false
 	if DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -165,7 +191,12 @@ func _window(name: String, rect: Rect2) -> PanelContainer:
 	var head := UI.make_head(tl, scale_ui)
 	head.name = "Title"
 	head.gui_input.connect(_drag_window.bind(w))
+	head.gui_input.connect(_title_input.bind(name))
 	box.add_child(head)
+	# MW_Window_Pinnable: przycisk pinezki przy prawym końcu paska tytułu
+	var pin := UI.pin_button(scale_ui, is_pinned(name))
+	pin.gui_input.connect(_pin_input.bind(name, pin))
+	head.add_child(pin)
 	var body := VBoxContainer.new()
 	body.name = "Body"
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -178,6 +209,140 @@ func _window(name: String, rect: Rect2) -> PanelContainer:
 	grip.gui_input.connect(_resize_window.bind(w))
 	box.add_child(grip)
 	return w
+
+# --- przypinanie, ukrywanie, maksymalizacja (WindowPinnableBase, WindowManager) -----------------------------
+
+func _ui(key: String) -> Dictionary:
+	if main == null or main.get("state") == null:
+		return {}
+	if not main.state.player.get(key) is Dictionary:
+		main.state.player[key] = {}
+	return main.state.player[key]
+
+## [Windows] <okno> pin
+func is_pinned(n: String) -> bool:
+	return bool(_ui("ui_pins").get(n, false))
+
+## [Windows] <okno> hidden (WindowManager::toggleVisible)
+func is_hidden(n: String) -> bool:
+	return bool(_ui("ui_hidden").get(n, false))
+
+func _pin_input(e: InputEvent, n: String, b: Control) -> void:
+	if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+		toggle_pin(n)
+		UI.set_pin_skin(b, is_pinned(n))
+		b.accept_event()
+
+## WindowPinnableBase::onPinButtonPressed: przypięte okno zostaje poza trybem GUI, a jego część HUD się chowa.
+func toggle_pin(n: String) -> void:
+	_ui("ui_pins")[n] = not is_pinned(n)
+	if main != null and main.get("mw_hud") != null and main.mw_hud.has_method("_apply_allowed"):
+		main.mw_hud._apply_allowed()
+
+## WindowBase::onTitleDoubleClicked (Stats/Inventory/Spell/MapWindow): z Shift – maksymalizacja,
+## bez – ukrycie okna, jeśli nie jest przypięte.
+func _title_input(e: InputEvent, n: String) -> void:
+	if e is InputEventMouseButton and e.double_click and e.button_index == MOUSE_BUTTON_LEFT:
+		if e.shift_pressed:
+			toggle_maximized(n)
+		elif not is_pinned(n):
+			toggle_visible(n)
+
+## WindowManager::toggleVisible: tylko w trybie Interface; zmienia ustawienie „hidden”.
+func toggle_visible(n: String) -> void:
+	if not visible or not cont_sid.is_empty():
+		return
+	if n == "magic":
+		n = "spells"
+	_ui("ui_hidden")[n] = not is_hidden(n)
+	_apply_shown()
+
+func _apply_shown() -> void:
+	for n in windows:
+		(windows[n] as Control).visible = not is_hidden(n)
+	if main != null and main.get("map_window") != null and main.map_window.visible and main.map_window.embedded:
+		main.map_window.set_window_visible(not is_hidden("map"))
+
+## WindowManager::toggleMaximized: zamiana na prostokąt „maximized” z ustawień i z powrotem.
+func toggle_maximized(n: String) -> void:
+	var vp := get_viewport().get_visible_rect().size
+	var mx := _ui("ui_max")
+	var to_max := not bool(mx.get(n, false))
+	var r: Rect2 = MAX_RECTS[n] if to_max else _rect_frac(n)
+	var w: Control = windows.get(n) if n != "map" else (main.map_window._win if main != null and main.get("map_window") != null else null)
+	if w != null:
+		w.position = (r.position * vp).floor()
+		w.size = (r.size * vp).floor()
+		if n == "map":
+			w.custom_minimum_size = w.size
+	mx[n] = to_max
+
+## Prostokąt zwykły (zapamiętany albo domyślny) w ułamkach ekranu.
+func _rect_frac(n: String) -> Rect2:
+	var saved = _layout_store().get(n)
+	if saved is Array and saved.size() == 4:
+		return Rect2(float(saved[0]), float(saved[1]), float(saved[2]), float(saved[3]))
+	return DEFAULT_RECTS[n]
+
+## HUD::on*Clicked w trybie Interface: paski – statystyki, broń – ekwipunek, czar – magia, minimapa – mapa
+## (tło trybu menu leży nad HUD, więc kliknięcie przychodzi tutaj).
+func hud_click(pos: Vector2) -> bool:
+	if main == null or main.get("mw_hud") == null or not cont_sid.is_empty():
+		return false
+	var hud = main.mw_hud
+	var parts := [["stats", hud.bars.values()], ["inventory", [hud.weap_box]], ["magic", [hud.spell_box]], ["map", [hud.minimap]]]
+	for part in parts:
+		for c in part[1]:
+			if c != null and (c as Control).is_visible_in_tree() and (c as Control).get_global_rect().has_point(pos):
+				if part[0] in ["inventory", "magic"] and bool(main.player_stats().get("werewolf", false)):
+					main.message_box(_t("sWerewolfRefusal", "You cannot do that as a werewolf."))
+					return true
+				toggle_visible(String(part[0]))
+				return true
+	return false
+
+## Poza trybem GUI: przypięte (i dozwolone) okna na osobnej warstwie, odświeżane co 0,5 s.
+func _keep_pinned() -> void:
+	if _pin_layer != null:
+		_pin_layer.queue_free()
+		_pin_layer = null
+	var keep := []
+	for n in windows:
+		if is_pinned(n) and _allowed(n):         # updateVisible: pinned && allowed && !forceHidden
+			keep.append(n)
+	if keep.is_empty():
+		return
+	_pin_layer = CanvasLayer.new()
+	_pin_layer.name = "PinnedWindows"
+	_pin_layer.layer = 19
+	add_sibling(_pin_layer)
+	var holder := Control.new()
+	holder.set_anchors_preset(Control.PRESET_FULL_RECT)
+	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	holder.theme = UI.theme(scale_ui)
+	_pin_layer.add_child(holder)
+	for n in keep:
+		var w: Control = windows[n]
+		w.visible = true
+		w.reparent(holder)
+		w.propagate_call("set", ["mouse_filter", Control.MOUSE_FILTER_IGNORE])
+	_pinned_windows = keep
+
+var _pinned_windows: Array = []
+
+func _process(delta: float) -> void:
+	if _pin_layer == null or visible:
+		return
+	_pin_t += delta
+	if _pin_t < 0.5:
+		return
+	_pin_t = 0.0
+	if "stats" in _pinned_windows:
+		_refresh_stats()
+	if "inventory" in _pinned_windows:
+		_refresh_inventory()
+	if "spells" in _pinned_windows:
+		_refresh_spells()
 
 func _title(name: String, text: String) -> void:
 	if windows.has(name):
@@ -508,7 +673,8 @@ func _build_inventory() -> void:
 	inv_filter.text_changed.connect(func(_t2): _refresh_inventory())
 	tabs.add_child(inv_filter)
 	tabs_clip.custom_minimum_size.y = tabs.get_combined_minimum_size().y
-	_grid = _make_grid(right, "inventory")
+	# handel (GM_Barter): siatka gracza z modelem handlu – sprzedawane znikają, kupowane z tłem „barter”
+	_grid = _make_grid(right, "player", barter) if barter != null else _make_grid(right, "inventory")
 
 ## InventoryWindow::adjustPanes: lewa część ma szerokość (wysokość okna − 44 − ArmorRating 24) × 0,5 (stały
 ## stosunek boków podglądu postaci 0,5), pola w niej od x = 8 do 4 px przed prawą krawędzią; reszta – siatka.
@@ -666,6 +832,11 @@ func _weapon_title() -> String:
 func _refresh_inventory() -> void:
 	if _grid == null or main == null or main.get("interaction") == null:
 		return
+	if barter != null:
+		_title("inventory", _weapon_title())
+		barter.refresh()
+		_refresh_enc()
+		return
 	_title("inventory", _weapon_title())
 	var entries := []
 	var flt := inv_filter.text.strip_edges().to_lower() if inv_filter != null else ""
@@ -673,15 +844,20 @@ func _refresh_inventory() -> void:
 		if in_category(e.kind, e.magic, category) and (flt.is_empty() or String(e.name).to_lower().contains(flt)):
 			entries.append(e)
 	item_ids = _fill_grid(_grid, entries, "inventory")
-	# pancerz i obciążenie
+	_refresh_enc()
+
+## Pasek obciążenia, pancerz i podgląd postaci w oknie ekwipunku.
+func _refresh_enc() -> void:
+	if _enc_bar == null or not is_instance_valid(_enc_bar):
+		return
 	var st: Dictionary = main.player_stats()
 	var w: float = main.player_weight()
 	var cap: float = main.character.capacity(st) if not st.is_empty() else 0.0
 	_enc_bar.max_value = maxf(cap, 1.0)
 	_enc_bar.value = minf(w, _enc_bar.max_value)
 	_enc_label.text = "%d/%d" % [roundi(w), roundi(cap)]
-	_enc_label.get_parent().tooltip_text = _t("sEncumbrance", "Obciążenie")
-	_armor_label.text = "%s: %d" % [_t("sArmor", "Pancerz"), roundi(player_armor_rating())]
+	_enc_label.get_parent().tooltip_text = _t("sEncumbrance", "Encumbrance")
+	_armor_label.text = "%s: %d" % [_t("sArmor", "Armor"), roundi(player_armor_rating())]
 	_rebuild_doll()
 
 func _layout_grid() -> void:
@@ -750,6 +926,129 @@ func open_container(sid: String, rec: Dictionary, name: String) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_set_hud(false)
 	refresh()
+
+# --- handel (GM_Barter): okno ekwipunku gracza („inventory barter”) i okno kupca (openmw_trade_window.layout) ---
+
+var barter = null                         # mw_trade_window w trybie handlu
+var barter_total: SpinBox = null
+var barter_total_label: Label = null
+var barter_player_gold: Label = null
+var barter_merchant_gold: Label = null
+const BARTER_RECT := Rect2(0.6, 0.27, 0.38, 0.63)     # [Windows] barter
+
+func open_barter(tw) -> void:
+	if visible:
+		close()
+	barter = tw
+	var vp := get_viewport().get_visible_rect().size
+	scale_ui = UI.ui_scale()
+	UI.setup(String(main.data_dir) if main != null and main.get("data_dir") != null else "")
+	_root = _Backdrop.new()
+	_root.name = "MenuMode"
+	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_root.theme = UI.theme(scale_ui)
+	_root.menu = self
+	add_child(_root)
+	visible = true
+	cont_sid = "#barter"
+	windows["inventory"] = _window("inventory", _rect("inventory", vp))
+	_build_inventory()
+	var bw := _window("barter", Rect2(BARTER_RECT.position * vp, BARTER_RECT.size * vp))
+	windows["barter"] = bw
+	(bw.get_node("Box/Title/Pin") as Control).visible = false        # MW_Window – bez pinezki
+	var body := _body("barter")
+	body.add_theme_constant_override("separation", roundi(6 * scale_ui))
+	var cats := HBoxContainer.new()
+	body.add_child(cats)
+	for c in CATEGORIES:
+		var b := Button.new()
+		b.text = _t(c[1], c[2])
+		b.toggle_mode = true
+		b.button_pressed = c[0] == "all"
+		b.add_theme_color_override("font_pressed_color", UI.color("active"))
+		b.add_theme_color_override("font_hover_pressed_color", UI.color("active_over"))
+		var cat: String = c[0]
+		b.pressed.connect(func():
+			for x in cats.get_children():
+				if x is Button:
+					(x as Button).button_pressed = x == b
+			tw.merchant_category = cat
+			tw.refresh())
+		cats.add_child(b)
+	var flt := LineEdit.new()
+	flt.name = "FilterEdit"
+	flt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	flt.custom_minimum_size.x = 0
+	flt.text_changed.connect(func(t): tw.merchant_filter = t; tw.refresh())
+	cats.add_child(flt)
+	tw.merchant_grid = _make_grid(body, "merchant", tw)
+	tw.player_grid = _grid
+	# BottomPane: +/saldo/złoto gracza, −/kwota/złoto kupca, MaxSale … Offer Cancel
+	var r1 := HBoxContainer.new()
+	body.add_child(r1)
+	var inc := Button.new()
+	inc.text = "+"
+	inc.custom_minimum_size.x = 40 * scale_ui
+	inc.pressed.connect(func(): tw.change_balance(1))
+	r1.add_child(inc)
+	barter_total_label = Label.new()
+	r1.add_child(barter_total_label)
+	var sp1 := Control.new()
+	sp1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	r1.add_child(sp1)
+	barter_player_gold = Label.new()
+	r1.add_child(barter_player_gold)
+	var r2 := HBoxContainer.new()
+	body.add_child(r2)
+	var dec := Button.new()
+	dec.text = "-"
+	dec.custom_minimum_size.x = 40 * scale_ui
+	dec.pressed.connect(func(): tw.change_balance(-1))
+	r2.add_child(dec)
+	barter_total = SpinBox.new()
+	barter_total.min_value = 0
+	barter_total.max_value = 1000000000
+	barter_total.custom_minimum_size.x = 140 * scale_ui
+	barter_total.value_changed.connect(func(v): tw.set_balance_abs(int(v)))
+	r2.add_child(barter_total)
+	var sp2 := Control.new()
+	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	r2.add_child(sp2)
+	barter_merchant_gold = Label.new()
+	r2.add_child(barter_merchant_gold)
+	var r3 := HBoxContainer.new()
+	body.add_child(r3)
+	var mx := Button.new()
+	mx.name = "MaxSaleButton"
+	mx.text = _t("sMaxSale", "Max Sale")
+	mx.pressed.connect(func(): tw.max_sale())
+	r3.add_child(mx)
+	var sp3 := Control.new()
+	sp3.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	r3.add_child(sp3)
+	var of := Button.new()
+	of.name = "OfferButton"
+	of.text = _t("sBarterDialog8", "Offer")
+	of.pressed.connect(func(): tw.make_offer())
+	r3.add_child(of)
+	var cn := Button.new()
+	cn.name = "CancelButton"
+	cn.text = preload("res://scripts/mw/mw_l10n.gd").ctx_text("Interface", "Cancel", _t("sCancel", "Cancel"))
+	cn.pressed.connect(func(): tw.close())
+	r3.add_child(cn)
+	get_tree().paused = true
+	if DisplayServer.get_name() != "headless":
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	refresh()
+
+## TradeWindow::updateLabels: „sTotalCost” przy ujemnym saldzie (płaci gracz), „sTotalSold” przy dodatnim.
+func barter_labels(balance: int, player_gold: int, merchant_gold: int) -> void:
+	if barter_total_label == null:
+		return
+	barter_total_label.text = _t("sTotalCost", "Total Cost") if balance < 0 else _t("sTotalSold", "Total Sold")
+	barter_total.set_value_no_signal(absi(balance))
+	barter_player_gold.text = "%s %d" % [_t("sYourGold", "Your Gold"), player_gold]
+	barter_merchant_gold.text = "%s %d" % [_t("sSellerGold", "Seller Gold"), merchant_gold]
 
 func _refresh_container() -> void:
 	if _cont_grid == null or not is_instance_valid(_cont_grid):

@@ -33,6 +33,9 @@ var merchant_grid: Control = null
 var player_grid: Control = null
 var _grid_parents: Array = []
 var grid_merchant_ids: Array = []     # testy
+var merchant_category := "all"         # kategoria okna kupca (SortFilterItemModel)
+var merchant_filter := ""
+var _dialogue_was_visible := false
 var grid_player_ids: Array = []
 
 func _ready() -> void:
@@ -90,12 +93,12 @@ func _ready() -> void:
 	offer_btn.pressed.connect(func(): make_offer())
 	bottom.add_child(offer_btn)
 	var clear_btn := Button.new()
-	clear_btn.text = "Wyczyść koszyk"
+	clear_btn.text = "Cancel"
 	clear_btn.name = "Clear"
 	clear_btn.pressed.connect(func(): buy = {}; sell = {}; refresh())
 	bottom.add_child(clear_btn)
 	var close_btn := Button.new()
-	close_btn.text = "Zamknij"
+	close_btn.text = "Close"
 	close_btn.pressed.connect(close)
 	bottom.add_child(close_btn)
 	visible = false
@@ -123,11 +126,26 @@ func open(service: String) -> bool:
 	if service == "enchanting":                       # usługa zaklinacza – okno zaklinania (etap 7d)
 		main.magic_window.open_enchant(actor)
 		return true
+	if service in ["spells", "travel", "training"] and main.get("service_window") != null:
+		main.service_window.open(service, actor)        # SpellBuyingWindow / TravelWindow / TrainingWindow
+		return true
 	mode = service
 	buy = {}
 	sell = {}
+	merchant_category = "all"
+	merchant_filter = ""
 	trade.restock(actor)
 	visible = true
+	if service == "barter" and main.get("menu_mode") != null:
+		# GM_Barter (updateVisible): okno ekwipunku gracza i okno kupca, okno rozmowy ukryte
+		panel.visible = false
+		merchant_grid = null
+		player_grid = null
+		_dialogue_was_visible = main.dialogue_window.visible
+		main.dialogue_window.visible = false
+		main.menu_mode.open_barter(self)
+		return true
+	panel.visible = true
 	refresh()
 	panel.position = (get_viewport().get_visible_rect().size - panel.custom_minimum_size) / 2.0
 	return true
@@ -165,7 +183,8 @@ func refresh() -> void:
 				_right_ids.append(it.id)
 			_fill_barter_grids()
 			var mo: int = trade.merchant_offer(actor, buy, sell)
-			offer_spin.set_value_no_signal(mo)
+			offer_spin.set_value_no_signal(mo)          # TradeWindow::updateOffer: saldo = oferta kupca
+			_barter_labels()
 			var lines := []
 			for id in buy:
 				lines.append("kupujesz: %s × %d" % [_name(id), int(buy[id])])
@@ -211,19 +230,24 @@ func _entry(it: Dictionary, count: int, src: String, merchant_side: bool, state 
 
 func _fill_barter_grids() -> void:
 	var mm = main.menu_mode
-	if merchant_grid == null:
+	if merchant_grid == null or not is_instance_valid(merchant_grid):
+		if mm.barter == self:
+			return                                 # okna handlu jeszcze budowane
 		mm.scale_ui = UI.ui_scale()
 		merchant_grid = mm._make_grid(_grid_parents[0], "merchant", self)
 		player_grid = mm._make_grid(_grid_parents[1], "player", self)
 	merchant_head.text = main.dialogue.actor_name(actor)
-	player_head.text = _t("sInventory", "Ekwipunek")
+	player_head.text = _t("sInventory", "Inventory")
+	if mm.barter == self:
+		mm._title("barter", main.dialogue.actor_name(actor))
 	var me := []
+	var flt := merchant_filter.strip_edges().to_lower()
 	for it in _merchant:
 		var n := int(it.count) - int(buy.get(it.id, 0))
-		if n > 0:
+		if n > 0 and _merchant_shown(String(it.id), flt):
 			me.append(_entry(it, n, "merchant", true))
 	for it in _player:                             # sprzedawane – po stronie kupca, z tłem „barter”
-		if int(sell.get(it.id, 0)) > 0:
+		if int(sell.get(it.id, 0)) > 0 and _merchant_shown(String(it.id), flt):
 			me.append(_entry(it, int(sell[it.id]), "sold", false, "barter"))
 	var pe := []
 	for it in _player:
@@ -235,6 +259,45 @@ func _fill_barter_grids() -> void:
 			pe.append(_entry(it, int(buy[it.id]), "bought", true, "barter"))
 	grid_merchant_ids = mm._fill_grid(merchant_grid, me, "merchant", self)
 	grid_player_ids = mm._fill_grid(player_grid, pe, "player", self)
+
+## Kategoria i filtr nazw okna kupca (jak w ekwipunku).
+func _merchant_shown(id: String, flt: String) -> bool:
+	var it: Dictionary = main.interaction.inventory.item(id)
+	if it.is_empty():
+		return false
+	var mm = main.menu_mode
+	if not mm.in_category(String(it.kind), not String(it.rec.get("enchant", "")).is_empty(), merchant_category):
+		return false
+	return flt.is_empty() or _name(id).to_lower().contains(flt)
+
+func _barter_labels() -> void:
+	if main.menu_mode.barter == self:
+		main.menu_mode.barter_labels(int(offer_spin.value), trade.player_gold(), trade.merchant_gold(actor))
+
+## TradeWindow::onIncrease/DecreaseButtonTriggered: zwiększa / zmniejsza wartość bezwzględną salda o 1
+## (przy zerze – od zera, znak zostaje).
+func change_balance(d: int) -> void:
+	var b := int(offer_spin.value)
+	if b < 0:
+		b -= d
+	else:
+		b += d
+	offer_spin.set_value_no_signal(b)
+	_barter_labels()
+
+## TradeWindow::onBalanceValueChanged: wpisana kwota ze znakiem bieżącego salda (0 – bez zmiany znaku).
+func set_balance_abs(v: int) -> void:
+	var b := int(offer_spin.value)
+	var sign := -1 if b < 0 else 1
+	if v == 0:
+		return
+	offer_spin.set_value_no_signal(sign * absi(v))
+	_barter_labels()
+
+## TradeWindow::onMaxSaleButtonClicked: saldo = złoto kupca.
+func max_sale() -> void:
+	offer_spin.set_value_no_signal(trade.merchant_gold(actor))
+	_barter_labels()
 
 ## Kliknięcie ikony w siatce handlu: towar kupca → koszyk zakupu, rzecz gracza → sprzedaż; z tłem – cofnięcie.
 func click_item(id: String, source: String) -> void:
@@ -304,6 +367,17 @@ func make_offer(roll := -1) -> Dictionary:
 	return r
 
 func close() -> void:
+	var was_barter: bool = main != null and main.get("menu_mode") != null and main.menu_mode.barter == self
 	visible = false
 	buy = {}
 	sell = {}
+	if was_barter:
+		main.menu_mode.close()
+		merchant_grid = null
+		player_grid = null
+		if _dialogue_was_visible and main.dialogue_window != null:
+			main.dialogue_window.visible = true
+			main.dialogue_window.refresh()
+			get_tree().paused = true
+			if DisplayServer.get_name() != "headless":
+				Input.mouse_mode = Input.MOUSE_MODE_VISIBLE

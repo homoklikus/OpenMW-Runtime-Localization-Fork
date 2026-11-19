@@ -188,10 +188,54 @@ func auto_player_spells(attrs: Array, skills: Array, race: Dictionary) -> Array:
 
 ## buildPlayer: rasa (atrybuty wg płci, umiejętności 5 + premia, moce), znak (czary), klasa (+10 ulubionym atrybutom,
 ## +25 główne, +10 drugorzędne, +5 umiejętnościom specjalizacji). Wartości bieżące = maksymalne.
-func build(choice: Dictionary) -> Dictionary:
+## Postać gracza z rekordu „player” na starcie nowej gry (Npc::getNpcData, rekord bez autocalc): atrybuty,
+## umiejętności i poziom z NPDT, zdrowie/magia/kondycja z NPDT (do pierwszego przeliczenia), czary rekordu
+## i moce rasy z rekordu. Rasa i klasa nie są jeszcze naliczone – robi to dopiero buildPlayer (build()) po
+## wyborze w kreatorze (MechanicsManager::setPlayerRace/Class/Birthsign).
+func build_record(choice: Dictionary) -> Dictionary:
 	var player_rec: Dictionary = records.record("npc", "player")
-	var race: Dictionary = records.record("race", String(choice.get("race", "")))
-	var cls: Dictionary = records.record("class", String(choice.get("class", "")))
+	var attrs := []
+	var skills := []
+	var base_attrs: Array = player_rec.get("attributes", [])
+	var base_skills: Array = player_rec.get("skills", [])
+	for i in 8:
+		attrs.append(float(base_attrs[i]) if i < base_attrs.size() else 0.0)
+	for i in 27:
+		skills.append(float(base_skills[i]) if i < base_skills.size() else 0.0)
+	var spells := []
+	for sp in player_rec.get("spells", []):
+		var sid := String(sp).to_lower()
+		if not records.record("spell", sid).is_empty() and not sid in spells:
+			spells.append(sid)
+	var race: Dictionary = records.record("race", String(player_rec.get("race", "")))
+	for p in race.get("powers", []):
+		var pid := String(p).to_lower()
+		if not records.record("spell", pid).is_empty() and not pid in spells:
+			spells.append(pid)
+	var st := {"name": String(choice.get("name", "")), "race": String(choice.get("race", "")).to_lower(),
+		"female": bool(choice.get("female", false)), "class": String(choice.get("class", "")).to_lower(),
+		"birthsign": "", "head": String(choice.get("head", "")).to_lower(), "hair": String(choice.get("hair", "")).to_lower(),
+		"level": maxi(1, int(player_rec.get("level", 1))), "attributes": attrs, "skills": skills, "spells": spells,
+		"race_selected": false, "class_selected": false}
+	if player_rec.has("health"):
+		st["health_base"] = float(player_rec.health)
+	var keys: Dictionary = derived(st).dyn_keys
+	st["dyn_base"] = {}
+	for k in ["magicka", "fatigue"]:
+		if player_rec.has(k):
+			st.dyn_base[k] = [float(player_rec[k]), keys[k]]
+	var d := derived(st)
+	st["health"] = d.health.modified
+	st["magicka"] = d.magicka.modified
+	st["fatigue"] = d.fatigue.modified
+	return st
+
+## MechanicsManager::buildPlayer: od wartości rekordu, rasa tylko gdy wybrana (mRaceSelected), klasa tylko gdy
+## wybrana (mClassSelected), znak gdy ustawiony; zdrowie updateHealth, magia/kondycja z atrybutów.
+func build(choice: Dictionary, flags := {"race": true, "class": true}) -> Dictionary:
+	var player_rec: Dictionary = records.record("npc", "player")
+	var race: Dictionary = records.record("race", String(choice.get("race", ""))) if bool(flags.get("race", true)) else {}
+	var cls: Dictionary = records.record("class", String(choice.get("class", ""))) if bool(flags.get("class", true)) else {}
 	var sign: Dictionary = records.record("birthsign", String(choice.get("birthsign", "")))
 	var female := bool(choice.get("female", false))
 	var attrs := []
@@ -244,7 +288,8 @@ func build(choice: Dictionary) -> Dictionary:
 		"female": female, "class": String(choice.get("class", "")).to_lower(),
 		"birthsign": String(choice.get("birthsign", "")).to_lower(),
 		"head": String(choice.get("head", "")).to_lower(), "hair": String(choice.get("hair", "")).to_lower(),
-		"level": maxi(1, int(player_rec.get("level", 1))), "attributes": attrs, "skills": skills, "spells": spells}
+		"level": maxi(1, int(player_rec.get("level", 1))), "attributes": attrs, "skills": skills, "spells": spells,
+		"race_selected": bool(flags.get("race", true)), "class_selected": bool(flags.get("class", true))}
 	var d := derived(st)
 	st["health"] = d.health.modified
 	st["magicka"] = d.magicka.modified

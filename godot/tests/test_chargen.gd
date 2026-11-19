@@ -57,6 +57,16 @@ func _run() -> void:
 	Engine.time_scale = 4.0
 	var nm := await _until(func(): return cg.visible and cg.step == "name", 600)
 	check(nm >= 0, "po kwestii (SayDone) menu imienia")
+	# przed wyborami: surowe NPDT rekordu „player” (Npc::getNpcData) – bez rasy i klasy
+	var prec: Dictionary = main.builder.actors.record("npc", "player")
+	var st0: Dictionary = main.player_stats()
+	var d0: Dictionary = main.character.derived(st0)
+	check(st0.get("attributes") == (prec.get("attributes", []) as Array).map(func(x): return float(x))
+		and st0.get("skills") == (prec.get("skills", []) as Array).map(func(x): return float(x)),
+		"przed kreatorem: atrybuty i umiejętności z rekordu (%s)" % [st0.get("attributes")])
+	check(is_equal_approx(float(d0.health.base), float(prec.get("health", -1))) and is_equal_approx(float(d0.magicka.base), float(prec.get("magicka", -1)))
+		and is_equal_approx(float(d0.fatigue.base), float(prec.get("fatigue", -1))),
+		"przed kreatorem: zdrowie/magia/kondycja z NPDT (%s/%s/%s)" % [d0.health.base, d0.magicka.base, d0.fatigue.base])
 	check(sc.game.menu_mode(), "menu tworzenia postaci = tryb menu (MenuMode)")
 	await _frames(5)
 	check(int(sc._locals("global:synth_cg").get("state", 0)) == 20, "skrypt wstrzymany w trybie menu")
@@ -70,11 +80,21 @@ func _run() -> void:
 			seen.append(st)
 			if st == "race":
 				cg.choose("race", "synth elf")
+			if st == "class":
+				# po wyborze rasy, przed klasą: buildPlayer z rasą, bez klasy (mClassSelected = false)
+				var ch: Dictionary = main.state.player.get("chargen_choice", {})
+				var exp: Dictionary = main.character.build(ch, {"race": true, "class": false})
+				var cur: Dictionary = main.player_stats()
+				check(cur.get("skills") == exp.get("skills") and cur.get("attributes") == exp.get("attributes") and not bool(cur.get("class_selected", true)),
+					"po rasie, przed klasą: rasa naliczona, klasa nie (%s)" % [cur.get("attributes")])
 			cg._create()
 	check(seen == steps, "kolejne menu: rasa, klasa, znak, przegląd (%s)" % [seen])
 	await _until(func(): return int(sc._locals("global:synth_cg").get("state", 0)) == 70, 200)
 	var st: Dictionary = main.player_stats()
 	check(String(st.get("name", "")) == "Testowa" and String(st.get("race", "")) == "synth elf", "postać z menu: imię i rasa")
+	var full: Dictionary = main.character.build(main.state.player.get("chargen_choice", {}))
+	check(st.get("skills") == full.get("skills") and bool(st.get("class_selected", false)) and bool(st.get("race_selected", false)),
+		"po klasie: buildPlayer z rasą i klasą")
 	check(main.control_allowed("controls") and main.menu_allowed("inventory"), "EnablePlayerControls, EnableInventoryMenu")
 	check(String(main.envr.weather) == "rain", "ChangeWeather region 4 → deszcz (%s)" % main.envr.weather)
 	check(sc.get_global("synthstate") == 77.0, "GetRace „Synth Elf” = 1")

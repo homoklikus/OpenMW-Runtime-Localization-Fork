@@ -31,6 +31,7 @@ func _run() -> void:
 	var main := (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(main)
 	await _frames(5)
+	var _pc0: Dictionary = main.player_stats(); var _pc: Dictionary = main.character.build(main.default_choice()); _pc["equipment"] = _pc0.get("equipment", {}); main.state.player["character"] = _pc   # postać po kreatorze (buildPlayer z rasą i klasą) – testy formuł zależnych od umiejętności klasy
 	var tr = main.trade
 	var tw = main.trade_window
 	var inv = main.interaction.inventory
@@ -56,8 +57,21 @@ func _run() -> void:
 	check(spoons >= 7, "łyżki kupca i z jego skrzyni (%d)" % spoons)
 	# kupno 6 łyżek po cenie kupca
 	check(tw.open("barter") and tw.visible, "okno handlu")
+	# GM_Barter: okno ekwipunku gracza i okno kupca (0,6; 0,27; 0,38 × 0,63), okno rozmowy ukryte
+	var mm = main.menu_mode
+	check(mm.visible and mm.barter == tw and mm.windows.has("inventory") and mm.windows.has("barter") and not main.dialogue_window.visible,
+		"handel: okna ekwipunku i kupca, bez okna rozmowy")
+	check(tw.grid_merchant_ids.has("misc_synth_spoon") and tw.grid_player_ids.size() > 0, "siatki kupca i gracza (%s)" % [tw.grid_merchant_ids])
 	for i in 6:
 		tw._click_left(tw._left_ids.find("misc_synth_spoon"))
+	# TradeWindow::updateLabels i przyciski +/−/Max Sale
+	var bal0 := int(tw.offer_spin.value)
+	check(mm.barter_total_label.text == main.dialogue.gmst_text("sTotalCost", "Total Cost") and int(mm.barter_total.value) == absi(bal0),
+		"saldo ujemne: sTotalCost i kwota bez znaku (%s %s)" % [mm.barter_total_label.text, mm.barter_total.value])
+	tw.change_balance(1)
+	check(int(tw.offer_spin.value) == bal0 - 1, "„+” zwiększa wartość bezwzględną salda")
+	tw.change_balance(-1)
+	check(int(tw.offer_spin.value) == bal0, "„−” zmniejsza wartość bezwzględną salda")
 	var mo: int = tr.merchant_offer(a, tw.buy, tw.sell)
 	var mg0: int = tr.merchant_gold(a)
 	var pg0: int = tr.player_gold()
@@ -77,7 +91,21 @@ func _run() -> void:
 	check(bool(h.ok) and h.gain == 10.0, "haggle: d = 10 → x = −40 + 50 = 10, rzut 1 – zgoda, przyrost 10 (%s)" % [h])
 	check(not bool(tr.haggle(a, -9, -10, 11).ok), "rzut 11 > 10 – odmowa")
 	check(not bool(tr.haggle(a, 5, -10, 1).ok), "kupno z zarobkiem – zawsze odmowa")
+	tw.max_sale()
+	check(int(tw.offer_spin.value) == tr.merchant_gold(a), "Max Sale: saldo = złoto kupca")
 	tw.close()
+	check(not mm.visible and main.dialogue_window.visible, "Cancel: koniec handlu, powrót do rozmowy")
+	# okna usług w układach OpenMW (SpellBuyingWindow, TrainingWindow, TravelWindow)
+	var sw = main.service_window
+	check(tw.open("spells") and sw.visible and sw.mode == "spells" and sw.panel.size.is_equal_approx(Vector2(450, 290) * preload("res://scripts/mw/mw_ui.gd").ui_scale()),
+		"okno zakupu zaklęć 450 × 290")
+	check(sw.rows.size() == 1 and String(sw.rows[0][0]) == "synth_bolt" and String(sw.rows[0][1]).ends_with("  - 60" + main.dialogue.gmst_text("sgp", "gp")),
+		"wiersz „nazwa  - cena” + sgp (%s)" % [sw.rows])
+	sw.close()
+	check(tw.open("training") and sw.rows.size() == 3, "okno treningu: 3 umiejętności (%s)" % [sw.rows])
+	sw.close()
+	check(tw.open("travel") and sw.rows.size() == 1, "okno podróży: cel (%s)" % [sw.rows])
+	sw.close()
 	# zaklęcia: synth_bolt autoobliczany: (15 × 0,5 × 1 + 0) × 0,5 × 1,5 = 5,6 → 6 × 10 = 60
 	var sp: Array = tr.spells_for_sale(a)
 	check(sp.size() == 1 and sp[0].id == "synth_bolt" and int(sp[0].price) == 60, "zaklęcia na sprzedaż, cena 60 (%s)" % [sp])

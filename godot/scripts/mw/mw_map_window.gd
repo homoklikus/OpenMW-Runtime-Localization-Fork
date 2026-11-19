@@ -55,9 +55,12 @@ func _load_world() -> void:
 			_world_tex = ImageTexture.create_from_image(img)
 
 ## rect – położenie okna w trybie menu (osadzone: bez pauzy i własnego zamykania – robi to tryb menu).
-func open(rect := Rect2()) -> void:
+## Układ openmw_map_window.layout: pasek tytułu MW_Window_Pinnable (nazwa komórki, pinezka), widok mapy na całe
+## wnętrze okna, przycisk World/Local 61 × 22 nad mapą 10 px od prawej i 9 px od dołu.
+func open(rect := Rect2(), menu = null) -> void:
 	_load_world()
 	embedded = rect.size != Vector2.ZERO
+	_menu = menu
 	var vp := get_viewport().get_visible_rect().size if get_viewport() != null else Vector2(1280, 720)
 	scale_ui = UI.ui_scale()
 	if _root != null:
@@ -75,34 +78,84 @@ func open(rect := Rect2()) -> void:
 	_root.add_child(_win)
 	var box := VBoxContainer.new()
 	_win.add_child(box)
-	var top := HBoxContainer.new()
-	box.add_child(top)
 	_title = Label.new()
-	_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(_title)
-	_toggle = Button.new()
-	_toggle.pressed.connect(func(): set_world(not world_mode))
-	top.add_child(_toggle)
-	var close_b := Button.new()
-	close_b.text = _t("sClose", "Zamknij")
-	close_b.pressed.connect(close)
-	close_b.visible = not embedded
-	top.add_child(close_b)
+	_title.name = "Text"
+	var head := UI.make_head(_title, scale_ui)
+	head.name = "Title"
+	head.gui_input.connect(_title_input)
+	box.add_child(head)
+	if embedded and _menu != null:
+		var pin := UI.pin_button(scale_ui, _menu.is_pinned("map"))
+		pin.gui_input.connect(func(e):
+			if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+				_menu.toggle_pin("map")
+				UI.set_pin_skin(pin, _menu.is_pinned("map"))
+				pin.accept_event())
+		head.add_child(pin)
+	var area := Control.new()
+	area.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	box.add_child(area)
 	_view = Control.new()
 	_view.clip_contents = true
-	_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_view.custom_minimum_size = (wsize - Vector2(24, 40 + 22 * scale_ui)).max(Vector2(64, 64)) if embedded else Vector2(WIN.x - 20, WIN.y - 60) * scale_ui
-	box.add_child(_view)
+	_view.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_view.custom_minimum_size = (wsize - Vector2(16, 36) * scale_ui).max(Vector2(64, 64)) if embedded else Vector2(WIN.x - 20, WIN.y - 60) * scale_ui
+	area.add_child(_view)
+	_toggle = Button.new()
+	_toggle.name = "WorldButton"
+	_toggle.pressed.connect(func(): set_world(not world_mode))
+	_toggle.anchor_left = 1.0
+	_toggle.anchor_right = 1.0
+	_toggle.anchor_top = 1.0
+	_toggle.anchor_bottom = 1.0
+	_toggle.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_toggle.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_toggle.offset_right = -10.0 * scale_ui
+	_toggle.offset_bottom = -9.0 * scale_ui
+	_toggle.custom_minimum_size = Vector2(61, 22) * scale_ui
+	area.add_child(_toggle)
+	if not embedded:
+		var close_b := Button.new()
+		close_b.text = _t("sClose", "Close")
+		close_b.pressed.connect(close)
+		close_b.anchor_left = 0.0
+		close_b.anchor_top = 1.0
+		close_b.anchor_bottom = 1.0
+		close_b.grow_vertical = Control.GROW_DIRECTION_BEGIN
+		close_b.offset_left = 10.0 * scale_ui
+		close_b.offset_bottom = -9.0 * scale_ui
+		area.add_child(close_b)
 	visible = true
+	pinned_mode = false
 	if not embedded:
 		get_tree().paused = true
 		if DisplayServer.get_name() != "headless":
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	set_world(world_mode)
 
+var _menu = null
+var pinned_mode := false             # przypięta mapa poza trybem GUI (bez obsługi myszy)
+
+func _title_input(e: InputEvent) -> void:
+	if _menu != null:
+		_menu._title_input(e, "map")
+	if e is InputEventMouseMotion and (e.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0 and embedded and not pinned_mode:
+		var vp := get_viewport().get_visible_rect().size
+		_win.position = (_win.position + e.relative).clamp(Vector2.ZERO, vp - Vector2(40, 20))
+
+func set_window_visible(on: bool) -> void:
+	if _win != null:
+		_win.visible = on
+
+## Mapa przypięta: zostaje po zamknięciu trybu menu, bez reakcji na mysz (jak okna OpenMW poza trybem GUI).
+func set_pinned_mode(on: bool) -> void:
+	pinned_mode = on
+	if _win != null:
+		_win.visible = true
+		_win.propagate_call("set", ["mouse_filter", Control.MOUSE_FILTER_IGNORE if on else Control.MOUSE_FILTER_STOP])
+
 func set_world(on: bool) -> void:
 	world_mode = on
-	_toggle.text = _t("sLocal", "Lokalna") if on else _t("sWorld", "Świat")
+	_toggle.text = _t("sLocal", "Local") if on else _t("sWorld", "World")
 	for c in _view.get_children():
 		c.queue_free()
 	_scroll = null
@@ -324,10 +377,11 @@ func close() -> void:
 		if DisplayServer.get_name() != "headless":
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	embedded = false
+	pinned_mode = false
 	closed.emit()
 
 func _unhandled_input(e: InputEvent) -> void:
-	if not visible:
+	if not visible or pinned_mode:
 		return
 	if embedded and not (e is InputEventMouseButton):
 		return                               # klawisze obsługuje tryb menu

@@ -57,10 +57,21 @@ func _run() -> void:
 	# rozmowa z NPC: pierwsze powitanie (TalkedToPc == 0)
 	var v := _ref(main, "synth_villager")
 	check(v != null and main.activate(v) and win.visible and get_root().get_tree().paused, "aktywacja NPC otwiera okno rozmowy (pauza)")
+	# openmw_dialogue_window.layout: prawa kolumna 166 px, 9 px od historii, pasek 18, Goodbye 23
+	await process_frame
+	var sc: float = preload("res://scripts/mw/mw_ui.gd").ui_scale()
+	var rc: Control = win.panel.find_child("DialogueRight", true, false)
+	var hb: Control = win.panel.find_child("DialogueHistoryBox", true, false)
+	check(rc != null and hb != null and absf(rc.size.x - 166.0 * sc) < 1.0 and absf(rc.global_position.x - (hb.global_position.x + hb.size.x) - 9.0 * sc) < 1.0
+		and absf(win.bye_btn.size.y - 23.0 * sc) < 1.0 and absf(win.disp_bar.get_parent().size.y - 18.0 * sc) < 1.0,
+		"układ okna rozmowy jak OpenMW (kolumna %s, przycisk %s)" % [rc.size if rc else null, win.bye_btn.size])
 	check(String(_last(dl).get("text", "")) == "Witaj, Tester. Pytaj o Synth Lore, jesli chcesz.", "powitanie z %%PCName (%s)" % [_last(dl)])
 	check(dl.available_topics() == ["synth lore"], "temat poznany z tekstu powitania (%s)" % [dl.available_topics()])
 	check(win.history_label.text.contains("[url=topic:synth%20lore]"), "hiperłącze tematu w historii")
-	check(dl.derived_disposition(dl.actor) == 50, "postawa pochodna: 50 + rasa 5 + osobowość −5 = 50 (%d)" % dl.derived_disposition(dl.actor))
+	# gracz bez kreatora: osobowość z rekordu „player” (30) – (30 − fDispPersonalityBase 50) × 0,5 = −10
+	var pers: float = float(main.player_stats().attributes[6])
+	var exp_disp := 50 + 5 + int((pers - 50.0) * 0.5)
+	check(dl.derived_disposition(dl.actor) == exp_disp, "postawa pochodna: 50 + rasa 5 + osobowość (%d) = %d (%d)" % [int(pers), exp_disp, dl.derived_disposition(dl.actor)])
 	# temat z pytaniem
 	win.select_topic("synth lore")
 	check(String(_last(dl).get("text", "")) == "Czy pomozesz mi z dzwignia?" and String(_last(dl).title) == "Synth Lore",
@@ -121,7 +132,7 @@ func _run() -> void:
 	check(dl.player_factions().has("synth guild") and int(dl.player_factions()["synth guild"].rank) == 0, "PCJoinFaction")
 	win.select_topic("synth guild")
 	check(String(_last(dl).text) == "Witaj w gildii, Nowicjusz.", "filtr frakcji gracza i %%PCRank (%s)" % [_last(dl)])
-	check(dl.derived_disposition(dl.actor) == 50 + 0, "postawa: reakcja frakcji 0 – bez zmiany")
+	check(dl.derived_disposition(dl.actor) == exp_disp + 0, "postawa: reakcja frakcji 0 – bez zmiany (%d)" % dl.derived_disposition(dl.actor))
 	win.close()
 	# podstawienia i słowa kluczowe
 	check(dl.fix_defines("%PCName: %SynthTicks%", {}, false).begins_with("Tester: ") and dl.fix_defines("100%", {}, false) == "100%",

@@ -28,6 +28,7 @@ func _run() -> void:
 	var main := (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(main)
 	await _frames(10)
+	var _pc0: Dictionary = main.player_stats(); var _pc: Dictionary = main.character.build(main.default_choice()); _pc["equipment"] = _pc0.get("equipment", {}); main.state.player["character"] = _pc   # postać po kreatorze (buildPlayer z rasą i klasą)
 	get_root().get_tree().paused = false
 	var mm = main.menu_mode
 	check(mm != null and not mm.visible, "tryb menu gotowy")
@@ -150,6 +151,7 @@ func _run() -> void:
 	check(mm.spell_rows.size() == spells_n, "pusty filtr przywraca listę")
 	var sp_ids: Array = mm.spell_rows.filter(func(r): return String(r[0]) == "spell").map(func(r): return String(r[1]))
 	report["deletable"] = sp_ids.size()
+	check(not sp_ids.is_empty(), "jest czar do usunięcia (postać po kreatorze)")
 	if not sp_ids.is_empty():
 		mm.delete_spell(String(sp_ids[0]))
 		check(not (main.player_stats().get("spells", []) as Array).has(sp_ids[0]) and mm.spell_rows.size() == spells_n - 1, "usunięcie czaru")
@@ -163,6 +165,38 @@ func _run() -> void:
 	mm.open()
 	await _frames(2)
 	check(absf((mm.windows["inventory"] as Control).position.x - 100.0) < 1.5, "okno w zapamiętanym miejscu")
+	# WindowManager::toggleVisible (ustawienie „hidden”) i kliknięcie w HUD (HUD::onWeaponClicked)
+	mm.toggle_visible("inventory")
+	check(not (mm.windows["inventory"] as Control).visible and mm.is_hidden("inventory"), "ukrycie okna ekwipunku (hidden)")
+	var wb: Control = main.mw_hud.weap_box
+	if wb.is_visible_in_tree():
+		check(mm.hud_click(wb.get_global_rect().get_center()) and (mm.windows["inventory"] as Control).visible, "klik w broń w HUD przywraca ekwipunek")
+	else:
+		mm.toggle_visible("inventory")
+	# toggleMaximized: prostokąt „maximized” z ustawień i powrót
+	var sw: Control = mm.windows["spells"]
+	var reg := Rect2(sw.position, sw.size)
+	mm.toggle_maximized("spells")
+	var mr: Rect2 = mm.MAX_RECTS["spells"]
+	check(absf(sw.size.y - maxf(floorf(mr.size.y * vp.y), sw.custom_minimum_size.y)) < 1.5 and absf(sw.position.x - floorf(mr.position.x * vp.x)) < 1.5,
+		"maksymalizacja okna magii (%s)" % [Rect2(sw.position, sw.size)])
+	mm.toggle_maximized("spells")
+	check(sw.position.distance_to(reg.position) < 1.5, "powrót z maksymalizacji")
+	# pinezka: przypięte okno zostaje poza trybem GUI, jego część HUD znika (setHMSVisibility)
+	mm.toggle_pin("stats")
+	mm.toggle_pin("map")
+	check(not main.mw_hud.bars["health"].visible and not main.mw_hud.minimap.visible, "przypięte statystyki i mapa chowają paski i minimapę")
+	mm.close()
+	await _frames(2)
+	check(mm._pin_layer != null and mm._pinned_windows == ["stats"] and not mm.visible, "po zamknięciu trybu menu przypięte statystyki zostają (%s)" % [mm._pinned_windows])
+	check(main.map_window.visible and main.map_window.pinned_mode, "przypięta mapa zostaje poza trybem GUI")
+	check(main._no_window_open(), "przypięte okna nie blokują sterowania (nie są oknami GUI)")
+	mm.open()
+	await _frames(2)
+	check(mm._pin_layer == null and mm.windows.has("stats") and not main.map_window.pinned_mode, "otwarcie trybu menu przejmuje przypięte okna")
+	mm.toggle_pin("stats")
+	mm.toggle_pin("map")
+	check(main.mw_hud.bars["health"].visible, "odpięcie przywraca paski HUD")
 	mm.close()
 	report["checks"] = checks
 	print("RESULT ", JSON.stringify({"ok": failures.is_empty(), "failures": failures, "report": report}))

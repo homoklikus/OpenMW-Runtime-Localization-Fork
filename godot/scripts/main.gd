@@ -57,6 +57,7 @@ var rest_window = null                # etap 7: odpoczynek i awans
 var magic = null                      # etap 7: wzory magii (koszty, efekty)
 var trade = null                      # etap 7: handel i usługi
 var trade_window = null
+var service_window = null          # zakup zaklęć, podróże, trening (układy OpenMW)
 var combat = null                     # etap 7: walka
 var magic_window = null               # etap 7d: magia, alchemia, zaklinanie
 var data_dir := ""                    # katalog przekonwertowanych danych
@@ -100,6 +101,8 @@ func _ready() -> void:
 		MWModelCache.base_roots = PackedStringArray([ProjectSettings.globalize_path(base)])
 	settings = _load_settings(arg("settings"))
 	UI.gui_scaling = clampf(float(settings.get("gui_scaling_factor", 1.0)), 0.5, 8.0)
+	# paski przewijania jak MW_VScroll: krok 36 px i MoveToClick w każdym oknie (także listy i pola tekstu)
+	get_tree().node_added.connect(_on_node_added_scroll)
 	# [General] preferred locales (OpenMW, domyślnie „en”) – teksty silnika z l10n OMWEngine/Calendar
 	preload("res://scripts/mw/mw_l10n.gd").set_locales(String(settings.get("preferred_locales", "en")))   # [GUI] scaling factor
 	settings.merge(_load_ingame_settings(), true)      # etap 10: zmiany z „Ustawienia” w grze (nowsze)
@@ -170,6 +173,11 @@ func _ready() -> void:
 	trade_window = TradeWindowScript.new()
 	trade_window.main = self
 	trade_window.trade = trade
+	service_window = preload("res://scripts/mw/mw_service_window.gd").new()
+	service_window.name = "ServiceWindow"
+	service_window.main = self
+	service_window.trade = trade
+	add_child(service_window)
 	add_child(trade_window)
 	rest_window = RestWindowScript.new()
 	rest_window.main = self
@@ -288,14 +296,20 @@ func _ready() -> void:
 	if not (state.player.get("character", {}) as Dictionary).is_empty():
 		pass
 	elif scripted_start:
-		state.player["character"] = character.build(default_choice())
+		_new_player_character()
 	elif launched_by_launcher and lp.is_empty() and arg("screenshot").is_empty() and arg("autotest-frames", "0") == "0" \
 			and bool(settings.get("character_creation", true)) and builder.actors.available():
 		chargen.open(default_choice())
 	else:
-		state.player["character"] = character.build(default_choice())
+		_new_player_character()
 	if lp.is_empty():
 		_init_player_items()
+
+func _on_node_added_scroll(n: Node) -> void:
+	if n is ScrollContainer:
+		UI.setup_scroll(n)
+	elif n is ScrollBar:
+		UI.setup_scroll_bar(n)
 
 ## Npc::getNpcData dla gracza (World::setupPlayer): ekwipunek z rekordu NPC „player” (ContainerStore::fill)
 ## i InventoryStore::autoEquip – raz, przy nowej grze; stan zapisu ma już własny inwentarz.
@@ -368,23 +382,57 @@ func open_chargen_step(step: String) -> void:
 	var ch: Dictionary = state.player.get("chargen_choice", default_choice())
 	chargen.open_step(step, ch)
 
+## Nowa gra: gracz z rekordu „player” (surowe NPDT), rasa i klasa jeszcze niewybrane (mRaceSelected/mClassSelected).
+func _new_player_character() -> void:
+	state.player["character"] = character.build_record(default_choice())
+	state.player["chargen_flags"] = {"race": false, "class": false}
+
+## Krok kreatora jak MechanicsManager: setPlayerName – tylko imię; setPlayerRace/Class/Birthsign – buildPlayer
+## z dotychczas wybranymi elementami (rasa tylko po jej wyborze, klasa tylko po jej wyborze), potem
+## unequipAll + autoEquip (np. buty po zmianie na rasę zwierzęcą). Bez znaczników (wczytany zapis) –
+## wszystko wybrane, jak MechanicsManager::playerLoaded.
 func _on_chargen_step(step: String, ch: Dictionary) -> void:
 	var merged: Dictionary = state.player.get("chargen_choice", default_choice())
 	merged.merge(ch, true)
 	state.player["chargen_choice"] = merged
 	var old: Dictionary = state.player.get("character", {})
-	var st: Dictionary = character.build(merged)
+	if step == "name" and not old.is_empty():
+		old["name"] = String(ch.get("name", old.get("name", "")))
+		return
+	var flags: Dictionary = state.player.get("chargen_flags", {"race": true, "class": true})
+	if step == "race":
+		flags["race"] = true
+	elif step == "class":
+		flags["class"] = true
+	state.player["chargen_flags"] = flags
+	var st: Dictionary = character.build(merged, flags)
 	if String(st.get("name", "")).is_empty():
 		st["name"] = String(old.get("name", "")) if not String(old.get("name", "")).is_empty() else "Przybysz"
-	if old.get("equipment") is Dictionary and not st.has("equipment"):
-		st["equipment"] = old.equipment         # przebudowa postaci w kreatorze nie zdejmuje ubrań
 	state.player["character"] = st
+	_reequip_player(String(st.get("race", "")))
 	_rebuild_player_visual()
+
+## buildPlayer: unequipAll, potem autoEquip z bieżącego ekwipunku (rasa decyduje np. o butach).
+func _reequip_player(race: String) -> void:
+	if builder == null or not builder.actors.available() or not state.has_inventory("player"):
+		return
+	var av = builder.actors
+	if av.equipment == null:
+		av.equipment = av.Equipment.new(av)
+	var npc: Dictionary = av.record("npc", "player").duplicate()
+	if not race.is_empty():
+		npc["race"] = race
+	var eq := _equipment()
+	eq.clear()
+	var slots: Dictionary = av.equipment.auto_equip(npc, state.inventory("player"))
+	for sl in slots:
+		eq[str(sl)] = {"id": String(slots[sl].id).to_lower(), "health": -1.0}
+	_weight_cache = -1.0
 
 ## Czy otwarte jest jakieś okno (wtedy klawisze trybu menu nie działają).
 func _no_window_open() -> bool:
 	for w in [item_window, magic_window, map_window, journal_window, rest_window, dialogue_window, menu_mode]:
-		if w != null and w.visible:
+		if w != null and w.visible and not (w.get("pinned_mode") == true):     # przypięta mapa nie jest oknem GUI
 			return false
 	return not get_tree().paused
 
@@ -467,7 +515,6 @@ func _on_character_created(st: Dictionary) -> void:
 		st["equipment"] = old.equipment
 	state.player["character"] = st
 	_init_player_items()
-	_toast("Utworzono postać: %s" % st.get("name", ""))
 
 ## Obrażenia od upadku (OpenMW getFallDamage; w wodzie bez obrażeń). Śmierć i jej skutki – etap 7.
 func _on_player_landed(height: float) -> void:
@@ -2355,6 +2402,7 @@ func load_game(path: String) -> Array:
 	var d: Dictionary = m["data"]
 	var warnings := GameStateScript.compatibility(d.get("header", {}), save_header())
 	warnings.append_array(state.from_dict(d))
+	state.player["chargen_flags"] = {"race": true, "class": true}    # MechanicsManager::playerLoaded
 	if scripts != null:
 		scripts.inactive.clear()           # ScriptManager::clear przy wczytaniu: wyłączone po błędzie – znowu aktywne
 	game_state = "running"
@@ -2712,7 +2760,7 @@ func saving_allowed() -> bool:
 		return false
 	for w in [item_window, chargen, msgbox, dialogue_window, journal_window, trade_window, get("magic_window"),
 			get("book_window"), get("map_window")]:
-		if w != null and is_instance_valid(w) and w.visible:
+		if w != null and is_instance_valid(w) and w.visible and not (w.get("pinned_mode") == true):
 			return false
 	if menu_mode != null and menu_mode.visible:
 		return false
@@ -2759,7 +2807,7 @@ func new_game() -> void:
 		loading.loading_on()
 		loading.set_label("Inicjalizacja...")
 	state.seed = randi()
-	state.player["character"] = character.build(default_choice())   # gracz istnieje od razu (rekord „player”)
+	_new_player_character()           # gracz istnieje od razu (rekord „player”, Npc::getNpcData)
 	game_state = "running"
 	player.process_mode = Node.PROCESS_MODE_INHERIT
 	player.visible = true
@@ -2778,7 +2826,7 @@ func new_game() -> void:
 		if bool(settings.get("character_creation", true)) and builder.actors.available():
 			chargen.open(default_choice())
 		else:
-			state.player["character"] = character.build(default_choice())
+			_new_player_character()
 	_init_player_items()
 	if loading != null:
 		loading.loading_off()

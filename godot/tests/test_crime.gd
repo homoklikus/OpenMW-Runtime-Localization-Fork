@@ -55,6 +55,7 @@ func _run() -> void:
 	var main := (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(main)
 	await _frames(5)
+	var _pc0: Dictionary = main.player_stats(); var _pc: Dictionary = main.character.build(main.default_choice()); _pc["equipment"] = _pc0.get("equipment", {}); main.state.player["character"] = _pc   # postać po kreatorze (buildPlayer z rasą i klasą) – testy formuł zależnych od umiejętności klasy
 	var ai = main.ai
 	var cr = main.crime
 	var inv = main.interaction.inventory

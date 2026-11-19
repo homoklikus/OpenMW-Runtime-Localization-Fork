@@ -289,9 +289,16 @@ static func theme(scale := 1.0) -> Theme:
 	th.set_stylebox("panel", "Panel", window_box())
 	th.set_stylebox("panel", "TooltipPanel", inner_box(WINDOW_BG))
 	th.set_color("font_color", "TooltipLabel", normal)
+	# MW_Button: ramka 4 px, przycisk 23 px przy czcionce 16 (layouty OpenMW), AutoSizedButton: tekst + 24 px
+	var bb: StyleBox = button_box().duplicate()
+	var fh := float(font().get_height(roundi(16 * scale)))
+	bb.content_margin_top = floorf((23.0 * scale - fh) / 2.0)
+	bb.content_margin_bottom = ceilf((23.0 * scale - fh) / 2.0)
+	bb.content_margin_left = 12.0 * scale
+	bb.content_margin_right = 12.0 * scale
 	for st_name in ["normal", "hover", "pressed", "focus", "disabled", "hover_pressed"]:
-		th.set_stylebox(st_name, "Button", button_box())
-		th.set_stylebox(st_name, "OptionButton", button_box())
+		th.set_stylebox(st_name, "Button", bb)
+		th.set_stylebox(st_name, "OptionButton", bb)
 	th.set_stylebox("focus", "Button", empty)
 	th.set_stylebox("panel", "ItemList", inner_box())
 	th.set_stylebox("focus", "ItemList", empty)
@@ -303,21 +310,228 @@ static func theme(scale := 1.0) -> Theme:
 	th.set_stylebox("normal", "LineEdit", inner_box(Color(0, 0, 0, 0.6)))
 	th.set_stylebox("focus", "LineEdit", empty)
 	th.set_stylebox("panel", "ScrollContainer", empty)
-	var grab := StyleBoxFlat.new()
-	grab.bg_color = normal.darkened(0.35)
-	var track := StyleBoxFlat.new()
-	track.bg_color = Color(0, 0, 0, 0.5)
-	track.border_color = normal.darkened(0.6)
-	track.set_border_width_all(1)
-	for sb_cls in ["VScrollBar", "HScrollBar"]:
-		th.set_stylebox("scroll", sb_cls, track)
-		th.set_stylebox("grabber", sb_cls, grab)
-		th.set_stylebox("grabber_highlight", sb_cls, grab)
-		th.set_stylebox("grabber_pressed", sb_cls, grab)
+	_apply_scroll_theme(th, scale)
 	th.set_constant("separation", "VBoxContainer", roundi(2 * scale))
 	th.set_constant("separation", "HBoxContainer", roundi(4 * scale))
 	_themes[key] = th
 	return th
+
+# --- paski przewijania: MW_VScroll / MW_HScroll (files/data/mygui/openmw_list.skin.xml) -----------------
+# Pasek 14 px: strzałki w polach MW_Box 14 × 15 (strzałka 10 × 10 od 2, 2), tło MW_Box 3 px od strzałek,
+# suwak MW_ScrollTrackV – kafelkowana omw_menu_scroll_center_v, 9 px od x = 2, zakres TrackRangeMargins 20/19,
+# MinTrackSize 14; WheelPage = Page = 36; MoveToClick – klik w tło przenosi suwak.
+const SCROLL_W := 14.0
+const SCROLL_PAGE := 36.0
+
+## Ramka MW_Box (menu_thin_border_*) dowolnego rozmiaru jako obraz (narożniki, krawędzie kafelkowane).
+static func _box_image(w: int, h: int) -> Image:
+	var out := Image.create(maxi(w, 1), maxi(h, 1), false, Image.FORMAT_RGBA8)
+	out.fill(Color(0, 0, 0, 0))
+	var names := {"t": "top", "b": "bottom", "l": "left", "r": "right", "tl": "top_left_corner",
+		"tr": "top_right_corner", "bl": "bottom_left_corner", "br": "bottom_right_corner"}
+	var im := {}
+	for k in names:
+		var i := _image("textures/menu_thin_border_" + names[k])
+		if i == null:
+			return out
+		i = i.duplicate()
+		i.convert(Image.FORMAT_RGBA8)
+		im[k] = i
+	var put := func(src: Image, at: Vector2i) -> void:
+		out.blend_rect(src, Rect2i(Vector2i.ZERO, src.get_size()), at)
+	var tl: Image = im.tl
+	var x := tl.get_width()
+	while x < w - (im.tr as Image).get_width():
+		put.call(im.t, Vector2i(x, 0))
+		put.call(im.b, Vector2i(x, h - (im.b as Image).get_height()))
+		x += maxi(1, (im.t as Image).get_width())
+	var y := tl.get_height()
+	while y < h - (im.bl as Image).get_height():
+		put.call(im.l, Vector2i(0, y))
+		put.call(im.r, Vector2i(w - (im.r as Image).get_width(), y))
+		y += maxi(1, (im.l as Image).get_height())
+	put.call(im.tl, Vector2i(0, 0))
+	put.call(im.tr, Vector2i(w - (im.tr as Image).get_width(), 0))
+	put.call(im.bl, Vector2i(0, h - (im.bl as Image).get_height()))
+	put.call(im.br, Vector2i(w - (im.br as Image).get_width(), h - (im.br as Image).get_height()))
+	return out
+
+static func _omw_image(name: String) -> Image:
+	var p := ProjectSettings.globalize_path("res://ui/omw/%s.png" % name)
+	var img := Image.load_from_file(p) if FileAccess.file_exists(p) else null
+	if img != null:
+		img.convert(Image.FORMAT_RGBA8)
+	return img
+
+## Pole strzałki: MW_Box 14 × 15 (dla poziomego 15 × 14) ze strzałką 10 × 10 od (2, 2), przeskalowane o s.
+static func _arrow_icon(dir: String, s: float) -> Texture2D:
+	var horiz := dir in ["left", "right"]
+	var w := 15 if horiz else 14
+	var h := 14 if horiz else 15
+	var img := _box_image(w, h)
+	var arrow := _omw_image("omw_menu_scroll_" + dir)
+	if arrow != null:
+		arrow.resize(10, 10, Image.INTERPOLATE_BILINEAR)
+		img.blend_rect(arrow, Rect2i(0, 0, 10, 10), Vector2i(2, 2))
+	if not is_equal_approx(s, 1.0):
+		img.resize(maxi(1, roundi(w * s)), maxi(1, roundi(h * s)), Image.INTERPOLATE_BILINEAR)
+	return ImageTexture.create_from_image(img)
+
+static func _apply_scroll_theme(th: Theme, s: float) -> void:
+	var box := inner_box()
+	for vertical in [true, false]:
+		var cls := "VScrollBar" if vertical else "HScrollBar"
+		# tło (Background MW_Box): 3 px od pól strzałek; marginesy treści wyznaczają zakres suwaka i jego 9 px
+		var bg: StyleBox = box.duplicate()
+		var along_a := 3.0 * s
+		if vertical:
+			bg.expand_margin_top = -along_a
+			bg.expand_margin_bottom = -along_a
+			bg.content_margin_top = 5.0 * s      # TrackRangeMargins 20 − pole strzałki 15
+			bg.content_margin_bottom = 4.0 * s   # 19 − 15
+			bg.content_margin_left = 2.0 * s
+			bg.content_margin_right = 3.0 * s
+		else:
+			bg.expand_margin_left = -along_a
+			bg.expand_margin_right = -along_a
+			bg.content_margin_left = 5.0 * s
+			bg.content_margin_right = 4.0 * s
+			bg.content_margin_top = 2.0 * s
+			bg.content_margin_bottom = 3.0 * s
+		var grab := StyleBoxTexture.new()
+		var timg := _omw_image("omw_menu_scroll_center_" + ("v" if vertical else "h"))
+		if timg != null:
+			if not is_equal_approx(s, 1.0):
+				timg.resize(maxi(1, roundi(timg.get_width() * s)), maxi(1, roundi(timg.get_height() * s)), Image.INTERPOLATE_BILINEAR)
+			grab.texture = ImageTexture.create_from_image(timg)
+		grab.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
+		grab.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
+		# suwak 9 px (od 2 px), minimum 14 px (MinTrackSize)
+		if vertical:
+			grab.expand_margin_left = -2.0 * s
+			grab.expand_margin_right = -3.0 * s
+			grab.content_margin_top = 7.0 * s
+			grab.content_margin_bottom = 7.0 * s
+		else:
+			grab.expand_margin_top = -2.0 * s
+			grab.expand_margin_bottom = -3.0 * s
+			grab.content_margin_left = 7.0 * s
+			grab.content_margin_right = 7.0 * s
+		th.set_stylebox("scroll", cls, bg)
+		th.set_stylebox("scroll_focus", cls, bg)
+		for st in ["grabber", "grabber_highlight", "grabber_pressed"]:
+			th.set_stylebox(st, cls, grab)
+		var dec := _arrow_icon("up" if vertical else "left", s)
+		var inc := _arrow_icon("down" if vertical else "right", s)
+		for suf in ["", "_highlight", "_pressed"]:
+			th.set_icon("decrement" + suf, cls, dec)
+			th.set_icon("increment" + suf, cls, inc)
+
+## ScrollContainer w oknach: krok kółka i strzałek 36 px (WheelPage, Page) × skala, MoveToClick na tle paska.
+static func setup_scroll(sc: ScrollContainer, s := -1.0) -> void:
+	if sc.has_meta("mw_scroll"):
+		return
+	sc.set_meta("mw_scroll", true)
+	if s <= 0.0:
+		s = ui_scale()
+	sc.scroll_vertical_custom_step = SCROLL_PAGE * s
+	sc.scroll_horizontal_custom_step = SCROLL_PAGE * s
+	for bar in [sc.get_v_scroll_bar(), sc.get_h_scroll_bar()]:
+		setup_scroll_bar(bar, s)
+	sc.gui_input.connect(_scroll_wheel.bind(sc, s))
+
+## WheelPage 36: kółko myszy przesuwa o 36 px × skala (Godot domyślnie o 1/8 strony).
+static func _scroll_wheel(e: InputEvent, sc: ScrollContainer, s: float) -> void:
+	if not (e is InputEventMouseButton) or not e.pressed:
+		return
+	var mb := e as InputEventMouseButton
+	var f := mb.factor if mb.factor > 0.0 else 1.0
+	var step := SCROLL_PAGE * s * f
+	var vb := sc.get_v_scroll_bar()
+	var hb := sc.get_h_scroll_bar()
+	var vertical_ok := vb != null and vb.max_value - vb.page > vb.min_value and sc.vertical_scroll_mode != ScrollContainer.SCROLL_MODE_DISABLED
+	match mb.button_index:
+		MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN:
+			var sign := -1.0 if mb.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0
+			if vertical_ok and not mb.shift_pressed:
+				vb.value += sign * step
+			elif hb != null:
+				hb.value += sign * step
+			else:
+				return
+		MOUSE_BUTTON_WHEEL_LEFT, MOUSE_BUTTON_WHEEL_RIGHT:
+			if hb == null:
+				return
+			hb.value += (-1.0 if mb.button_index == MOUSE_BUTTON_WHEEL_LEFT else 1.0) * step
+		_:
+			return
+	sc.accept_event()
+
+static func setup_scroll_bar(bar: ScrollBar, s := -1.0) -> void:
+	if bar == null or bar.has_meta("mw_scroll"):
+		return
+	bar.set_meta("mw_scroll", true)
+	if s <= 0.0:
+		s = ui_scale()
+	bar.custom_step = SCROLL_PAGE * s
+	bar.gui_input.connect(_scroll_move_to_click.bind(bar))
+
+## MyGUI ScrollBar z MoveToClick: kliknięcie w pustą część paska ustawia środek suwaka w miejscu kliknięcia
+## (zamiast przewijania o stronę), dalsze przeciąganie przesuwa suwak.
+static func _scroll_move_to_click(e: InputEvent, bar: ScrollBar) -> void:
+	if not (e is InputEventMouseButton) or (e as InputEventMouseButton).button_index != MOUSE_BUTTON_LEFT or not e.pressed:
+		return
+	var vertical := bar is VScrollBar
+	var dec: Texture2D = bar.get_theme_icon("decrement")
+	var inc: Texture2D = bar.get_theme_icon("increment")
+	var bg: StyleBox = bar.get_theme_stylebox("scroll")
+	var pos: float = e.position.y if vertical else e.position.x
+	var total: float = bar.size.y if vertical else bar.size.x
+	var a: float = (dec.get_height() if vertical else dec.get_width()) + (bg.content_margin_top if vertical else bg.content_margin_left)
+	var b: float = total - (inc.get_height() if vertical else inc.get_width()) - (bg.content_margin_bottom if vertical else bg.content_margin_right)
+	if pos < (dec.get_height() if vertical else dec.get_width()) or pos > total - (inc.get_height() if vertical else inc.get_width()):
+		return                          # strzałki – zwykły krok
+	var span := b - a
+	var rng: float = bar.max_value - bar.min_value
+	if span <= 0.0 or rng <= 0.0:
+		return
+	var grab_len := clampf(span * bar.page / rng, 14.0, span)
+	var cur_start := a + (bar.value - bar.min_value) / maxf(rng - bar.page, 0.0001) * (span - grab_len)
+	if pos >= cur_start and pos <= cur_start + grab_len:
+		return                          # na suwaku – zwykłe przeciąganie
+	var t := clampf((pos - a - grab_len * 0.5) / maxf(span - grab_len, 0.0001), 0.0, 1.0)
+	bar.value = bar.min_value + t * (rng - bar.page)
+	bar.accept_event()
+
+## Przycisk pinezki okna (skórki PinUp / PinDown, 19 × 19: ramka menu_rightbutton{up,down}_* i środek 15 × 15
+## od 2, 2). Zwraca kontrolkę; stan zmienia set_pin_skin.
+static func pin_button(s: float, pinned: bool) -> Control:
+	var b := Control.new()
+	b.name = "Pin"
+	b.custom_minimum_size = Vector2(19, 19) * s
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	b.mouse_filter = Control.MOUSE_FILTER_STOP
+	var frame := Panel.new()
+	frame.name = "Frame"
+	frame.set_anchors_preset(Control.PRESET_FULL_RECT)
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(frame)
+	var c := TextureRect.new()
+	c.name = "Center"
+	c.position = Vector2(2, 2) * s
+	c.size = Vector2(15, 15) * s
+	c.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	c.stretch_mode = TextureRect.STRETCH_SCALE
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(c)
+	set_pin_skin(b, pinned)
+	return b
+
+static func set_pin_skin(b: Control, pinned: bool) -> void:
+	var prefix := "menu_rightbutton" + ("down" if pinned else "up")
+	(b.get_node("Frame") as Panel).add_theme_stylebox_override("panel", _frame_box(prefix, Color(0, 0, 0, 0), ""))
+	(b.get_node("Center") as TextureRect).texture = texture("textures/%s_center" % prefix)
+	b.set_meta("pinned", pinned)
 
 ## Etykieta nagłówka (FontColor_color_header).
 static func header(text: String) -> Label:

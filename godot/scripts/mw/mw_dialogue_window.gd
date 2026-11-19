@@ -30,44 +30,83 @@ var _bribe_btns := {}
 var _topic_ids: Array = []        # pozycja listy → id tematu ("" – wpis specjalny, "#persuasion")
 var _links := {}                  # słowa kluczowe dostępnych tematów (dla hiperłączy w historii)
 
+## Układ openmw_dialogue_window.layout (we wnętrzu okna, × skala GUI): marginesy 8; historia w MW_Box (wcięcie
+## 7 px) na resztę szerokości; 9 px dalej prawa kolumna 166 px: pasek postawy 18 px z tekstem wewnątrz (ProgressText),
+## 5 px, lista tematów, 7 px, przycisk sGoodbye 23 px.
 func _ready() -> void:
 	layer = 21
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	var s := UI.ui_scale()
 	panel = PanelContainer.new()
 	panel.name = "DialogueWindow"
-	panel.custom_minimum_size = Vector2(980, 560)
+	panel.theme = UI.theme(s)
+	panel.custom_minimum_size = Vector2(380, 230) * s           # MinSize
 	add_child(panel)
 	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 0)
 	panel.add_child(box)
 	title = Label.new()
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(UI.make_head(title))
+	box.add_child(UI.make_head(title, s))
+	var body := MarginContainer.new()
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	for side in ["margin_left", "margin_top", "margin_right", "margin_bottom"]:
+		body.add_theme_constant_override(side, roundi(8 * s))
+	box.add_child(body)
 	var row := HBoxContainer.new()
-	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	box.add_child(row)
+	row.name = "Row"
+	row.add_theme_constant_override("separation", roundi(9 * s))
+	body.add_child(row)
+	var hist_box := PanelContainer.new()
+	hist_box.name = "DialogueHistoryBox"
+	var hsb: StyleBox = UI.inner_box().duplicate()
+	hsb.content_margin_left = 7 * s
+	hsb.content_margin_top = 7 * s
+	hsb.content_margin_right = 5 * s
+	hsb.content_margin_bottom = 4 * s
+	hist_box.add_theme_stylebox_override("panel", hsb)
+	hist_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(hist_box)
 	history_label = RichTextLabel.new()
+	history_label.name = "History"
 	history_label.bbcode_enabled = true
 	history_label.scroll_following = true
-	history_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	history_label.size_flags_stretch_ratio = 2.6
 	history_label.meta_clicked.connect(_on_meta)
-	history_label.add_theme_stylebox_override("normal", UI.inner_box())
-	row.add_child(history_label)
+	history_label.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
+	hist_box.add_child(history_label)
 	var right := VBoxContainer.new()
-	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right.name = "DialogueRight"
+	right.custom_minimum_size.x = 166 * s
+	right.add_theme_constant_override("separation", 0)
 	row.add_child(right)
-	disp_bar = UI.progress_bar("magic")
+	var disp := Control.new()
+	disp.name = "Disposition"
+	disp.custom_minimum_size.y = 18 * s
+	right.add_child(disp)
+	disp_bar = UI.progress_bar("magic", s)
 	disp_bar.max_value = 100
-	right.add_child(disp_bar)
+	disp_bar.set_anchors_preset(Control.PRESET_FULL_RECT)
+	disp.add_child(disp_bar)
 	disp_label = Label.new()
+	disp_label.set_anchors_preset(Control.PRESET_FULL_RECT)
 	disp_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	right.add_child(disp_label)
+	disp_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	disp_label.add_theme_color_override("font_color", UI.color("normal_pressed"))
+	disp.add_child(disp_label)
+	var gap1 := Control.new()
+	gap1.custom_minimum_size.y = 5 * s
+	right.add_child(gap1)
 	topics = ItemList.new()
+	topics.name = "TopicsList"
 	topics.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	topics.item_activated.connect(_on_topic)
 	topics.item_clicked.connect(func(i, _p, _b): _on_topic(i))
 	right.add_child(topics)
+	var gap2 := Control.new()
+	gap2.custom_minimum_size.y = 7 * s
+	right.add_child(gap2)
 	bye_btn = Button.new()
+	bye_btn.name = "ByeButton"
+	bye_btn.custom_minimum_size.y = 23 * s
 	bye_btn.pressed.connect(close)
 	right.add_child(bye_btn)
 	_build_persuasion()
@@ -110,7 +149,7 @@ func open(node: Node) -> bool:
 	if not dialogue.start(node):
 		return false
 	title.text = dialogue.actor_name(dialogue.actor)
-	bye_btn.text = _t("sGoodbye", "Żegnaj")
+	bye_btn.text = _t("sGoodbye", "Goodbye")
 	visible = true
 	persuasion.visible = false
 	refresh()
@@ -165,13 +204,11 @@ func refresh() -> void:
 	_render_history()
 	if dialogue.actor.get("npc", false):
 		var d: int = dialogue.derived_disposition(dialogue.actor)
-		disp_bar.visible = true
-		disp_label.visible = true
+		disp_bar.get_parent().visible = true
 		disp_bar.value = d
 		disp_label.text = "%d/100" % d
 	else:
-		disp_bar.visible = false
-		disp_label.visible = false
+		disp_bar.get_parent().visible = false
 
 func _render_history() -> void:
 	var out := ""
@@ -185,7 +222,7 @@ func _render_history() -> void:
 	for c in dialogue.choices:
 		out += "\n[url=choice:%d][color=%s]%s[/color][/url]" % [int(c[1]), ANSWER, Loc.escape_bbcode(String(c[0]))]
 	if dialogue.goodbye_flag:
-		out += "\n[url=goodbye][color=%s]%s[/color][/url]" % [ANSWER, Loc.escape_bbcode(_t("sGoodbye", "Żegnaj"))]
+		out += "\n[url=goodbye][color=%s]%s[/color][/url]" % [ANSWER, Loc.escape_bbcode(_t("sGoodbye", "Goodbye"))]
 	history_label.text = out
 
 ## Response::write – tekst z „@temat#” zamienionym na nazwę i hiperłączami dostępnych tematów.
