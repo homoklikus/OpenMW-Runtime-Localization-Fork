@@ -50,6 +50,7 @@ w oknie odpoczynku i stara perswazja zastąpione.
 | Centrowanie okna awansu | OpenMW centruje, zanim policzy wysokość opisu | odtworzone (górna krawędź jak bez opisu) | porównanie ui_levelup |
 | Zawijanie opisu awansu o wyraz wcześniej | Label Godota łamie z innym marginesem niż MyGUI::TextView | `mw_box_layout.wrap_lines` jak TextView | porównanie ui_levelup |
 | Przycisk OK awansu z tekstem sDone | sDone tylko w trybie kontrolera | Interface:OK | porównanie ui_levelup |
+| Sen nigdy nie był przerywany, odpoczynek obok wrogów dozwolony, brak paska postępu | brak listy snu regionu (BNAM) w konwerterze, brak getEnemiesNearby | konwerter: `sleep_list`; WaitDialog: przerwanie, stworzenia z listy, sNotifyMessage2, pasek postępu, przyciemnienie | test_progress (38), test_mwscript_functions (odmowa po ciosie i przemianie w wilkołaka na oczach NPC) |
 | Lua w porównaniach: błąd przy polskich znakach w krokach | `json.dumps` z `\u` (LuaJIT tego nie zna) | literał UTF-8 | ui_messagebox |
 
 ## 3. Ustawienia okien globalnie (jak [Windows] w OpenMW)
@@ -90,7 +91,7 @@ Okno uznane za ukończone tylko wtedy, gdy jego funkcja jest przetestowana.
 | Perswazja | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | – | ✓ | – | ✓ | etap 9 |
 | Usługi: zaklęcia, podróże, trening, naprawa u NPC | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | – | ✓ | etapy 8–9 |
 | Naprawa, ładowanie, alchemia, zaklinanie, tworzenie czarów, edycja efektu | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | ~ | ✓ | – | ✓ | etap 9; porównania tylko 1080p; sterowanie klawiaturą (strzałki, Tab) nie odtworzone |
-| Odpoczynek / czekanie | ✗ | ~ | ✓ | ~ | ✓ | ✗ | ~ | ~ | – | ✓ | układ Godota; brak paska postępu (`openmw_wait_dialog_progressbar`), przyciemnienia 0,2 s, przerywania snu (lista snu regionu, fSleepRandMod/fSleepRestMod, sSleepInterrupt), sNotifyMessage2 (wrogowie w pobliżu), autozapisu – P2 |
+| Odpoczynek / czekanie | ~ | ~ | ✓ | ~ | ✓ | ✗ | ~ | ✓ | – | ✓ | cz. 7: pasek postępu (WaitDialogProgressBar), przyciemnienie 0,2 s, przerywanie snu (BNAM regionu, fSleepRandMod/fSleepRestMod, sSleepInterrupt, spawnRandomCreature), sNotifyMessage2 (getEnemiesNearby) – test_progress; układ okna przez kontenery Godota (bez porównania zrzutem), klawisze strzałek i autozapis ([Saves] autosave) – brak |
 | Awans | ✓ | ✓ | ✓ | ✓ | ✓ | ~ | – | ✓ | – | ✓ | etap 9 |
 | Książki i zwoje | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | – | ✓ | etap 7 |
 | Komunikaty (MessageBox, okno z pytaniem) | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | ~ | ✓ | – | ✓ | etap 9; klawisz domyślny (sOk/sYes, Enter) nie odtworzony |
@@ -104,8 +105,7 @@ Okno uznane za ukończone tylko wtedy, gdy jego funkcja jest przetestowana.
 | Ekran wczytywania | ~ | ~ | ✓ | – | – | – | ~ | ✓ | – | ✓ | szybkie wczytanie – komunikat jak LoadingScreen::loadingOff |
 | Pad (menu kontrolera) | ✗ | ✗ | – | ✗ | – | – | – | – | ✗ | ✗ | brak (`[GUI] controller menus`) |
 
-Wnioski: najważniejsze braki to szybkie klawisze (P1), okno ilości, okno czekania z paskiem postępu i przerywaniem
-snu, podpowiedzi w układach OpenMW, więzienie i towarzysz (P2). Sterowanie klawiaturą w nowych oknach (strzałki,
+Wnioski: najważniejsze braki to szybkie klawisze (P1), okno ilości, podpowiedzi w układach OpenMW, więzienie i towarzysz (P2). Sterowanie klawiaturą w nowych oknach (strzałki,
 domyślny przycisk) i porównania w 720p/1440p/2160p dla okien etapu 9 – do zrobienia.
 
 ## 6. Treści: Morrowind, Tribunal, Bloodmoon, mody
@@ -115,8 +115,9 @@ domyślny przycisk) i porównania w 720p/1440p/2160p dla okien etapu 9 – do zr
   przedrostek `misc_soulgem` (isSoulGem), `gold_001` (ContainerStore::sGoldId), klasy broni z `weapontype.hpp`.
 - Porównania zrzutami wykonano na Morrowind.esm (Arrille's Tradehouse); Tribunal, Bloodmoon i typowe mody
   (składniki, efekty, zaklęcia z modów) w tym etapie **nie były sprawdzane** – status „nieprzetestowane”.
-- Konwerter: tylko dane syntetyczne (kupiec z usługami tworzenia czarów i zaklinania, GMST fSpellMakingValueMult);
-  zmiany w konwersji prawdziwych danych nie były potrzebne. Oryginalne pliki gry nie były modyfikowane.
+- Konwerter: dane syntetyczne (kupiec z usługami tworzenia czarów i zaklinania, GMST fSpellMakingValueMult, region
+  z listą snu) oraz odczyt BNAM regionu (`sleep_list`) – prawdziwe dane wymagają ponownej konwersji, by sen mógł
+  być przerywany. Oryginalne pliki gry nie były modyfikowane.
 
 ## 7. Przeszkody
 
@@ -142,7 +143,8 @@ test_progress, test_settings, test_menu_mode, test_ui_geometry – nowe API okie
 | `dbe879dab9` | cz. 3: zaklinanie, tworzenie czarów, ładowanie, usunięcie starego okna magii |
 | `5d525476d8` | cz. 4: awans i perswazja, krok „click” w porównaniach |
 | `4133e3c15a` | cz. 5: ustawienia okien poza zapisem, MessageBoxManager |
-| (ten raport) | cz. 6: raport etapu 9, inwentaryzacja |
+| `00c120ecc9` | cz. 6: raport etapu 9, inwentaryzacja |
+| (ostatni) | cz. 7: czekanie/sen jak WaitDialog (pasek postępu, przerywanie snu, wrogowie w pobliżu), konwerter: BNAM regionu |
 
 Każdy commit przygotowany w kopii roboczej w chmurze i zastosowany lokalnie przez `git am`; drzewa
 (`HEAD^{tree}`) porównane po każdym zastosowaniu – zgodne.

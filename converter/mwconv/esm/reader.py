@@ -282,6 +282,9 @@ def parse_region(rec: Record) -> Optional[dict]:
            for s in rec.subs if s.name == "SNAM"]
     if snd:
         o["sounds"] = snd
+    bn = rec.zstr("BNAM")                       # mSleepList: lista stworzeń przerywających sen (etap 9)
+    if bn:
+        o["sleep_list"] = bn
     return o
 
 

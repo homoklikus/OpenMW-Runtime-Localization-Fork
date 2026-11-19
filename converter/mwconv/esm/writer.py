@@ -118,13 +118,15 @@ def land(grid, heights: np.ndarray, vtex: np.ndarray | None = None, colors: np.n
     return record("LAND", s)
 
 
-def region(id_: str, name: str, weather: dict, color=(120, 160, 90), sounds: Iterable = ()) -> bytes:
-    """REGN; sounds: (id dźwięku, szansa 0–100) – SNAM 32 bajty + 1 bajt szansy."""
+def region(id_: str, name: str, weather: dict, color=(120, 160, 90), sounds: Iterable = (), sleep_list: str = "") -> bytes:
+    """REGN; sounds: (id dźwięku, szansa 0–100) – SNAM 32 bajty + 1 bajt szansy; sleep_list – BNAM."""
     from .reader import WEATHERS
     w = bytes(int(weather.get(k, 0)) for k in WEATHERS)
     subs = [sub("NAME", zs(id_)), sub("FNAM", zs(name)), sub("WEAT", w), sub("CNAM", bytes([*color, 0]))]
     for sid, chance in sounds:
         subs.append(sub("SNAM", sid.encode("cp1252")[:31].ljust(32, b"\0") + bytes([chance])))
+    if sleep_list:
+        subs.append(sub("BNAM", zs(sleep_list)))
     return record("REGN", subs)
 
 

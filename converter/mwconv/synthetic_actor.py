@@ -741,7 +741,8 @@ def _stage10_records() -> list:
                                 W.sub("DESC", W.zs("Klasa z pytan (test)."))])
     return [book, note, warrior,W.record("SOUN", [W.sub("NAME", W.zs("Synth Wind")), W.sub("FNAM", W.zs("Fx\\envrn\\synth_wind.wav")),
                               W.sub("DATA", bytes([200, 0, 0]))]),
-            W.region("Synthetic Region", "Kraina Syntetyczna", REGION_WEATHER, sounds=[("Synth Wind", 100)]),
+            W.region("Synthetic Region", "Kraina Syntetyczna", REGION_WEATHER, sounds=[("Synth Wind", 100)],
+                     sleep_list="synth_lev_creature"),
             _script_rec("synth_music", """Begin synth_music
 StreamMusic "Battle\\synth_battle.wav"
 StopScript synth_music

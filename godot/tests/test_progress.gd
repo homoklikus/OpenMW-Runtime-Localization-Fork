@@ -120,6 +120,30 @@ func _run() -> void:
 			"atrybuty z mnożnikami (siła +3, wytrzymałość +1, szybkość +2), postęp wyzerowany")
 	check(near(float(st.health_base), hb + (e0 + 1.0) * 0.1), "zdrowie bazowe + wytrzymałość × 0,1")
 	check(not main.rest_window.visible and not paused, "okna zamknięte, gra wznowiona")
+	# WaitDialog: wrogowie w pobliżu, pasek postępu, przerwanie snu przez listę regionu (BNAM)
+	var rw = main.rest_window
+	check(not rw.enemies_nearby(), "brak wrogów w pobliżu")
+	var reg: Dictionary = main.envr.regions.get(String(main.current_region).to_lower(), {})
+	check(String(reg.get("sleep_list", "")) == "synth_lev_creature", "region z listą snu (BNAM) – %s" % [reg.get("sleep_list", "")])
+	var dyn0: int = main.state.dynamic.size()
+	var h1: float = main.envr.game_hour
+	check(rw.open() and rw.sleeping, "ponowny sen")
+	rw.rest(10)
+	rw._rest.interrupt = 3
+	rw._rest.list = "synth_lev_creature"
+	var saw_progress := false
+	for i in 200:
+		if not rw.is_resting():
+			break
+		if rw.progress_win != null and rw.progress_win.visible:
+			saw_progress = true
+		await process_frame
+	check(saw_progress and not rw.progress_win.visible, "pasek postępu w trakcie snu, ukryty po nim")
+	check(near(fposmod(main.envr.game_hour - h1, 24.0), 3.0), "sen przerwany po 3 godzinach (%s)" % fposmod(main.envr.game_hour - h1, 24.0))
+	check(main.message_boxes.texts().has(main.dialogue.gmst_text("sSleepInterrupt", "Your rest has been interrupted.")), "komunikat sSleepInterrupt")
+	check(main.state.dynamic.size() > dyn0 and not main.levelup_window.visible, "stworzenia z listy snu pojawiają się, bez awansu (%d)" % (main.state.dynamic.size() - dyn0))
+	check(rw.enemies_nearby() == (main.ai.actor_nodes().any(func(n): return main.ai.fight_term(n, main.player) >= 100.0)),
+		"enemiesNearby zgodne z getFightTerm")
 	# zapis i odczyt
 	var path := ProjectSettings.globalize_path("user://test_saves/postep.mwsave")
 	check(main.save_game(path) == "", "zapis")

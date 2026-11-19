@@ -168,6 +168,12 @@ func _run() -> void:
 
 	# --- sen: GetPCSleep podczas odliczania, WakeUpPC przerywa; skrypty działają w trybie menu
 	var hour0: float = main.envr.game_hour
+	# Rest_EnemiesAreNearby: po ciosie i przemianie na oczach NPC (PCKnownWerewolf) odpoczynek niedozwolony
+	var refused: bool = main.rest_window.enemies_nearby() and not main.rest_window.open()
+	check(refused, "wrogowie w pobliżu – odpoczynek odmówiony (sNotifyMessage2)")
+	main.scripts.set_global("pcknownwerewolf", 0.0)
+	for n in main.ai.actor_nodes():
+		main.ai.stop_combat(n)
 	var opened: bool = main.rest_window.open()
 	check(opened, "okno odpoczynku")
 	if opened:

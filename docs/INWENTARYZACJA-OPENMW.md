@@ -131,7 +131,7 @@ klasa, statystyki po 9 powrotach = buildPlayer od zera) i `probe_newgame.gd` (15
 | Okno ilości (dzielenie stosów, Shift przy przeciąganiu) | Brakujące | dziś zawsze cały stos / 1 sztuka | P2 |
 | Dziennik jak książka (zadania, indeks tematów, strony) | Zweryfikowane | etap 7: JournalWindow (tx_menubook, zakładka, indeks), zrzuty IoU ≥ 0,997 | – |
 | Okno awansu (obraz klasy, mnożniki atrybutów) | Zweryfikowane | etap 9: LevelupDialog, porównanie zrzutem (obraz i opis piksel w piksel) | – |
-| Odpoczynek/czekanie (układ OpenMW, „do wyleczenia”) | Częściowo zgodne | układ `openmw_wait_dialog`, pasek postępu, przerywanie snu (lista snu regionu), sNotifyMessage2, autozapis – do zrobienia | P2 |
+| Odpoczynek/czekanie (układ OpenMW, „do wyleczenia”) | Częściowo zgodne | etap 9: pasek postępu, przyciemnienie, przerywanie snu (BNAM regionu – wymaga ponownej konwersji), sNotifyMessage2 – test_progress; układ okna bez porównania zrzutem, autozapis i strzałki – do zrobienia | P2 |
 | Tworzenie zaklęć (usługa) | Zweryfikowane | etap 9: SpellCreationDialog i pozycja w rozmowie | – |
 | Naprawa u kupca / młotkiem, ładowanie kamieniem duszy | Zweryfikowane | etap 9: Repair, MerchantRepair, Recharge, SoulgemDialog | – |
 | Zaklinanie, kupno zaklęć, trening, podróż w układzie OpenMW | Zweryfikowane | etapy 8–9: porównania zrzutami | – |
@@ -982,7 +982,7 @@ na VM biblioteka GDExtension nie wczytuje się (glibc 2.38), sonda działa na ś
 4. ~~Efekty magii z punktu 5~~ – etap 6 (2026-11-19): 137/143 zweryfikowanych porównaniem; pozostało porównanie obrazu
    (Wykrywanie – znaczniki mapy lokalnej, Światło, Widzenie w ciemności, głowa wampira).
 5. Interfejs z punktu 3 – etap 9 (`RAPORT-ETAP9.md`): okna rzemiosła, awansu, perswazji i komunikatów wykonane;
-   pozostały szybkie klawisze, okno ilości, czekanie, podpowiedzi, więzienie, towarzysz, konsola.
+   pozostały szybkie klawisze, okno ilości, podpowiedzi, więzienie, towarzysz, konsola (czekanie – częściowo).
 6. Grafika: animacje, widok 1-/3-osobowy, pogoda, oświetlenie.
 7. Tribunal/Bloodmoon (wilkołactwo i pozostałe).
 

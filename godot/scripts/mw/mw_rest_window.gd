@@ -118,6 +118,9 @@ func open() -> bool:
 		if rs.has("message"):
 			main._toast(String(rs.message))
 		return false
+	if enemies_nearby():                          # Rest_EnemiesAreNearby (Player::enemiesNearby)
+		main._toast(_t("sNotifyMessage2", "You can't rest with enemies nearby."))
+		return false
 	sleeping = bool(rs.sleep)
 	var werewolf := bool(main.player_stats().get("werewolf", false))
 	# WaitDialog::setCanRest
@@ -162,15 +165,36 @@ func hours_until_healed() -> int:
 		h = maxf(h, (float(d.magicka.modified) - float(st.get("magicka", 0))) / mp)
 	return clampi(int(ceilf(h)), 0, 24)
 
-## Odpoczynek: n godzin (WaitDialog + TimeAdvancer): okno znika, po wygaszeniu (0,4 s) co 1/60 s jedna godzina
-## (restoreDynamicStats, upływ czasu, czary); skrypty działają w tym czasie (GetPCSleep = 1 podczas snu,
-## WakeUpPC przerywa). Po śnie – awans, jeśli możliwy. Przerwanie snu przez stworzenia z listy regionu – brak.
+## Odpoczynek: n godzin (WaitDialog::startWaiting + TimeAdvancer): okno znika, ekran przyciemnia się (0,2 s), po
+## 0,4 s pasek postępu (WaitDialogProgressBar) i co 1/60 s jedna godzina (restoreDynamicStats, upływ czasu, czary);
+## skrypty działają w tym czasie (GetPCSleep = 1 podczas snu, WakeUpPC przerywa). Sen w świecie zewnętrznym
+## w regionie z listą snu (BNAM): rzut rollDice(n) < fSleepRandMod × n – przerwanie po n − int(fSleepRestMod × n)
+## godzinach: sSleepInterrupt i 1 + rollDice(iNumberCreatures) stworzeń z listy 220 j. przed graczem.
+## Po śnie – awans, jeśli możliwy. Autozapis przed odpoczynkiem ([Saves] autosave) – brak w Godocie.
 const STEP_DELAY := 1.0 / 60.0
 var _rest := {}
+var rng := RandomNumberGenerator.new()
+var progress_win: Control = null          # WaitDialogProgressBar (MW_Dialog 219 × 40)
+var _progress_bar: ProgressBar = null
+var _progress_text: Label = null
 
 func rest(n: int) -> void:
 	panel.visible = false
-	_rest = {"hours": maxi(1, n), "cur": 0, "fade": 0.4, "t": STEP_DELAY}
+	n = maxi(1, n)
+	_rest = {"hours": n, "cur": 0, "fade": 0.4, "t": STEP_DELAY, "interrupt": -1, "list": ""}
+	if main.get("fader") != null and main.fader != null:
+		main.fader.fade_screen_out(0.2)
+	if sleeping and String(main.interior).is_empty() and main.get("envr") != null and main.envr != null:
+		var reg: Dictionary = main.envr.regions.get(String(main.current_region).to_lower(), {})
+		var sl := String(reg.get("sleep_list", "")).to_lower()
+		if not sl.is_empty():
+			var x := rng.randi_range(0, n - 1)                       # Misc::Rng::rollDice(n)
+			if x < character._gmst("fsleeprandmod", 0.25) * n:
+				var at := int(character._gmst("fsleeprestmod", 0.3) * n)
+				if at != 0:
+					_rest.interrupt = n - at
+					_rest.list = sl
+	_set_progress(0, n)
 
 func is_resting() -> bool:
 	return not _rest.is_empty()
@@ -186,15 +210,132 @@ func wake_up() -> void:
 	sleeping = false
 	_stop_rest()
 
+## WaitDialog::stopWaiting: rozjaśnienie ekranu, pasek ukryty, okno zamknięte.
 func _stop_rest() -> void:
 	_rest = {}
+	if main.get("fader") != null and main.fader != null:
+		main.fader.fade_screen_in(0.2)
+	_hide_progress()
 	close()
+
+## onWaitingInterrupted: sSleepInterrupt, spawnRandomCreature(lista snu regionu), stopWaiting (bez awansu).
+func _interrupted() -> void:
+	var list := String(_rest.get("list", ""))
+	main._toast(_t("sSleepInterrupt", "Your rest has been interrupted."))
+	spawn_random_creatures(list)
+	sleeping = false
+	_stop_rest()
+
+## World::spawnRandomCreature: 1 + rollDice(iNumberCreatures) stworzeń z listy (getLevelledItem dla poziomu
+## gracza), każde 220 j. przed graczem (safePlaceObject; przeszkoda – w miejscu gracza). → sid stworzeń
+func spawn_random_creatures(list_id: String) -> Array:
+	var out := []
+	var list: Dictionary = main.builder.actors.record("leveledcreature", list_id) if main.get("builder") != null else {}
+	if list.is_empty() or main.player == null:
+		return out
+	var count := 1 + rng.randi_range(0, maxi(1, int(character._gmst("inumbercreatures", 3))) - 1)
+	var level := int(main.player_stats().get("level", 1))
+	for i in count:
+		var cid: String = main.builder._leveled_creature(list, rng, level, 0)
+		if cid.is_empty():
+			continue
+		var n: Node3D = main.player
+		var pos := MWCoords.godot_to_mw(n.global_position)
+		var rz := -float(n.rotation.y)
+		var place := pos + Vector3(sin(rz), cos(rz), 0.0) * 220.0
+		var space: PhysicsDirectSpaceState3D = n.get_world_3d().direct_space_state if n.is_inside_tree() else null
+		if space != null:
+			var q := PhysicsRayQueryParameters3D.create(n.global_position + Vector3.UP * 0.9, MWCoords.mw_to_godot(place) + Vector3.UP * 0.9)
+			q.exclude = [n.get_rid()]
+			if not space.intersect_ray(q).is_empty():
+				place = pos
+		var key: String = String(main.db.exterior_key(MWCoords.cell_of(MWCoords.mw_to_godot(place))))
+		out.append(main.state.add_dynamic(cid, key, place, Vector3(0, 0, rz + PI), 1))
+	return out
+
+## Player::enemiesNearby → Actors::getEnemiesNearby: żywi aktorzy w zasięgu przetwarzania (bez stworzeń tylko
+## wodnych) w walce z graczem albo agresywni wobec niego (isAggressive: bez Uspokojenia, getFightTerm ≥ 100),
+## o ile nie podążają za graczem.
+func enemies_nearby() -> bool:
+	if main.get("ai") == null or main.ai == null or main.player == null:
+		return false
+	var range_mw := float(main.settings.get("actors_processing_range", 7168.0))
+	var ppos := MWCoords.godot_to_mw(main.player.global_position)
+	for n in main.ai.actor_nodes():
+		if not is_instance_valid(n):
+			continue
+		var f: Dictionary = main.combat.fighter_of(n)
+		if f.is_empty() or main.combat.is_dead(f):
+			continue
+		if MWCoords.godot_to_mw(n.global_position).distance_to(ppos) > range_mw:
+			continue
+		if f.kind == "creature":
+			var fl := int(f.rec.get("flags", 0))
+			if (fl & 0x10) != 0 and (fl & 0x01) == 0 and (fl & 0x20) == 0 and (fl & 0x40) == 0:
+				continue                                   # isPureWaterCreature
+		var follower := false
+		var combat := false
+		for p in main.ai.ai_state(n).packages:
+			var t := String(p.get("type", ""))
+			if String(p.get("target", "")) != "player":
+				continue
+			if t == "combat":
+				combat = true
+			elif t in ["follow", "escort"]:
+				follower = true
+		if combat:
+			return true
+		if follower:
+			continue
+		var calm: int = 49 if f.kind == "npc" else 50          # ESM::MagicEffect::CalmHumanoid / CalmCreature
+		if main.magic.magnitude_of(f, calm) > 0.0:
+			continue
+		if main.ai.fight_term(n, main.player) >= 100.0:
+			return true
+	return false
+
+## WaitDialogProgressBar (openmw_wait_dialog_progressbar.layout): MW_Dialog 219 × 40 na środku, pasek
+## MW_Progress_Blue (5, 6, 199, 20) z tekstem „bieżące/wszystkie”.
+func _set_progress(cur: int, total: int) -> void:
+	if progress_win == null or not is_instance_valid(progress_win):
+		var s: float = UI.ui_scale()
+		progress_win = Panel.new()
+		progress_win.name = "WaitDialogProgressBar"
+		progress_win.add_theme_stylebox_override("panel", UI.window_box())
+		progress_win.size = Vector2(219, 40) * s
+		progress_win.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(progress_win)
+		_progress_bar = UI.progress_bar("magicka", s)
+		_progress_bar.position = Vector2(4 + 5, 4 + 6) * s
+		_progress_bar.size = Vector2(199, 20) * s
+		progress_win.add_child(_progress_bar)
+		_progress_text = Label.new()
+		_progress_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_progress_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_progress_text.add_theme_color_override("font_color", UI.color("normal_pressed"))
+		_progress_text.position = Vector2(0, 0)
+		_progress_text.size = Vector2(199, 16) * s
+		_progress_bar.add_child(_progress_text)
+		progress_win.position = ((get_viewport().get_visible_rect().size - progress_win.size) / 2.0).floor()
+		progress_win.visible = false
+	_progress_bar.max_value = maxi(1, total)
+	_progress_bar.value = cur
+	_progress_text.text = "%d/%d" % [cur, total]
+
+func _hide_progress() -> void:
+	if progress_win != null and is_instance_valid(progress_win):
+		progress_win.visible = false
 
 func _process(dt: float) -> void:
 	if _rest.is_empty():
 		return
 	if float(_rest.fade) > 0.0:
 		_rest.fade = float(_rest.fade) - dt
+		if float(_rest.fade) <= 0.0 and progress_win != null:
+			progress_win.visible = true
+		return
+	if int(_rest.cur) == int(_rest.get("interrupt", -1)):     # TimeAdvancer: przerwanie przed kolejną godziną
+		_interrupted()
 		return
 	_rest.t = float(_rest.t) - dt
 	while not _rest.is_empty() and float(_rest.t) <= 0.0:
@@ -208,13 +349,12 @@ func _rest_hour() -> void:
 	if main.has_method("pass_magic_time"):
 		main.pass_magic_time(3600.0)          # czary wygasają, przedmioty się ładują (Actors::rest)
 	_rest.cur = int(_rest.cur) + 1
+	_set_progress(int(_rest.cur), int(_rest.hours))
 	if main.combat != null and main.combat.is_dead(main.combat.player_fighter()):
 		_stop_rest()
 		return
 	if int(_rest.cur) >= int(_rest.hours):
-		_rest = {}
-		visible = false
-		close()
+		_stop_rest()
 		if sleeping and character.can_level_up(st):
 			open_levelup()          # WaitDialog::stopWaiting → GM_Levelup (LevelupDialog)
 
