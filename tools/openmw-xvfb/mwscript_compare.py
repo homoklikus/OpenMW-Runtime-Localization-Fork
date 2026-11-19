@@ -175,7 +175,8 @@ return {
               if obj then I.UI.setMode(u[3].mode, {target = obj}) end
             elseif type(u[3]) == 'table' then I.UI.setMode(u[3][1], {windows = u[3][2]}) else I.UI.setMode(u[3]) end
           elseif u[2] == 'clear' then I.UI.setMode()
-          elseif u[2] == 'shot' then print('MWSHOT ' .. u[3]) end
+          elseif u[2] == 'shot' then print('MWSHOT ' .. u[3])
+          elseif u[2] == 'click' then print(string.format('MWCLICK %d %d', u[3][1], u[3][2])) end
         end
       end
       -- okno interfejsu (I.UI.setMode), np. odpoczynek: [czas rzeczywisty, tryb]
@@ -538,6 +539,17 @@ class KeySender:
         self.X, self.XK, self.xtest = X, XK, xtest
         self.d = xdisplay.Display(f":{display}")
 
+    def click(self, x, y):
+        """Kliknięcie lewym przyciskiem myszy w punkcie ekranu (XTest: ruch, naciśnięcie, zwolnienie)."""
+        self.xtest.fake_input(self.d, self.X.MotionNotify, x=int(x), y=int(y))
+        self.d.sync()
+        time.sleep(0.25)
+        self.xtest.fake_input(self.d, self.X.ButtonPress, 1)
+        self.d.sync()
+        time.sleep(0.15)
+        self.xtest.fake_input(self.d, self.X.ButtonRelease, 1)
+        self.d.sync()
+
     def press(self, name):
         kc = self.d.keysym_to_keycode(self.XK.string_to_keysym(name))
         self.xtest.fake_input(self.d, self.X.KeyPress, kc)
@@ -676,6 +688,8 @@ def run_openmw(case: dict, omw_dir: Path, cfg_src: Path, work: Path, display: in
             p = subprocess.Popen(args, stdout=out, stderr=subprocess.STDOUT, env=env)
             t0 = time.time()
             keys = KeySender(display, omw_dir) if case.get("keys") else None
+            clicker = KeySender(display, omw_dir) if any(u[1] == "click" for u in case.get("ui", [])) else None
+            clicked = 0
             sent = 0
             shots_done = 0
             shot_dir = work / "shots"
@@ -690,6 +704,11 @@ def run_openmw(case: dict, omw_dir: Path, cfg_src: Path, work: Path, display: in
                         + [str(shot_dir / f"{name}.png")]
                     subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
                 shots_done = len(shots)
+                if clicker:                      # MWCLICK z sondy (krok ui „click”) → kliknięcie myszą przez XTest
+                    pts = re.findall(r"MWCLICK (-?\d+) (-?\d+)", text)
+                    for x, y in pts[clicked:]:
+                        clicker.click(int(x), int(y))
+                    clicked = len(pts)
                 if keys:                         # MWKEY z gracza (Lua) → naciśnięcie klawisza przez XTest
                     names = re.findall(r"MWKEY (\S+)", text)
                     for name in names[sent:]:

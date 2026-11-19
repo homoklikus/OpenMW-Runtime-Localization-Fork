@@ -40,8 +40,9 @@ func _caption(n: Dictionary) -> String:
 func _hidden(n: Dictionary) -> bool:
 	return bool(n.get("hidden", false))
 
+## AutoSizedWidget (także "auto": true – np. AutoSizedEditBox z rozmiarem podanym w "size").
 func _is_auto(n: Dictionary) -> bool:
-	return String(n.type) in ["hbox", "vbox", "text", "button", "spacer"]
+	return bool(n.get("auto", false)) or String(n.type) in ["hbox", "vbox", "text", "button", "spacer"]
 
 ## AutoSizedWidget::getRequestedSize (z błędem OpenMW: dopełnienie liczone przy każdym dziecku).
 func requested(n: Dictionary) -> Vector2:
@@ -80,6 +81,32 @@ func requested(n: Dictionary) -> Vector2:
 				size += Vector2(pd * 2, pd * 2)
 			return size
 	return Vector2(n.get("size", Vector2.ZERO))
+
+## Sumy z Box::align (totalWidth, totalHeight) – rozmiar obszaru klienta przy AutoResize to sumy + 2 × Padding.
+func totals(n: Dictionary) -> Vector2:
+	var horiz := String(n.type) == "hbox"
+	var sp := int(n.get("spacing", 4))
+	var ch: Array = n.get("children", [])
+	var total := Vector2.ZERO
+	for i in ch.size():
+		var w: Dictionary = ch[i]
+		if _hidden(w):
+			continue
+		var r: Vector2 = requested(w) if _is_auto(w) else Vector2(w.get("size", Vector2.ZERO))
+		if horiz:
+			total.x += r.x
+			if _is_auto(w) or not _st(w, "vstretch"):
+				total.y = maxf(total.y, r.y)
+		else:
+			total.y += r.y
+			if _is_auto(w) or not _st(w, "hstretch"):
+				total.x = maxf(total.x, r.x)
+		if i != ch.size() - 1:
+			if horiz:
+				total.x += sp
+			else:
+				total.y += sp
+	return total
 
 ## Box::align dla węzła o współrzędnych rect (jednostki układu, względem rodzica kontrolki boxa).
 ## origin – przesunięcie układu współrzędnych dzieci (gdy box nie ma własnej kontrolki).
@@ -142,6 +169,25 @@ func place(n: Dictionary, rect: Rect2, origin := Vector2.ZERO) -> void:
 		if i != ch.size() - 1:
 			cur += sp
 		place(w, wr, child_origin)
+
+## Zawijanie wierszy jak MyGUI::TextView (WordWrap): przekroczenie szerokości cofa do ostatniej spacji (spacja
+## znika), wymuszone \n; szerokość w jednostkach układu. Zwraca wiersze.
+func wrap_lines(text: String, max_w: float) -> PackedStringArray:
+	var out := PackedStringArray()
+	var f := UI.font()
+	var limit := max_w * sc
+	for para in text.split("\n"):
+		var words := para.split(" ")
+		var line := ""
+		for i in words.size():
+			var cand: String = words[i] if i == 0 else line + " " + words[i]
+			if i > 0 and f.get_string_size(cand, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x > limit:
+				out.append(line)
+				line = words[i]
+			else:
+				line = cand
+		out.append(line)
+	return out
 
 ## UserString HStretch/VStretch; Spacer ustawia oba w konstruktorze.
 static func _st(w: Dictionary, key: String) -> bool:

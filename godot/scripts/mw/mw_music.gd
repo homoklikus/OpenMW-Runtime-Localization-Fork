@@ -120,6 +120,12 @@ func set_paused(on: bool) -> void:
 	if _player != null and is_instance_valid(_player):
 		_player.stream_paused = on
 
+## LevelupDialog::onOpen: streamMusic(triumphMusic, MusicType::Normal) – po utworze wracają playlisty.
+func play_triumph() -> void:
+	music_type = "normal"
+	current = ""
+	_advance("music/special/mw_triumph.mp3", fade_time)
+
 func player_died() -> void:
 	music_type = "script"
 	_advance("music/special/mw_death.mp3", fade_time)

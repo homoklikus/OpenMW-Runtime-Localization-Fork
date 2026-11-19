@@ -1,0 +1,74 @@
+{
+ "name": "ui_persuasion_e9_1080",
+ "cell": "Seyda Neen, Arrille's Tradehouse",
+ "resolution": [
+  1920,
+  1080
+ ],
+ "note": "etap 9: PersuasionDialog – rozmowa (I.UI.setMode z celem NPC), kliknięcie pozycji sPersuasion na liście tematów (krok „click”: XTest w OpenMW, zdarzenie myszy w Godocie)",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [],
+ "ui": [
+  [
+   2.0,
+   "clear",
+   null
+  ],
+  [
+   4.0,
+   "mode",
+   {
+    "mode": "Dialogue",
+    "target": "arrille"
+   }
+  ],
+  [
+   7.0,
+   "shot",
+   "dialogue"
+  ],
+  [
+   8.0,
+   "click",
+   [
+    1490,
+    610
+   ]
+  ],
+  [
+   11.0,
+   "shot",
+   "persuasion"
+  ],
+  [
+   14.0,
+   "clear",
+   null
+  ]
+ ],
+ "seconds": 17.0,
+ "interior": true,
+ "teleport": [
+  [
+   0,
+   "player",
+   -242.27,
+   -11.77,
+   228.0
+  ]
+ ],
+ "give": [
+  [
+   "gold_001",
+   150
+  ]
+ ]
+}

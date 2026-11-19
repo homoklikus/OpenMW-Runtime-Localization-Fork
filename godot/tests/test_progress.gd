@@ -103,15 +103,19 @@ func _run() -> void:
 		await process_frame
 	check(near(fposmod(main.envr.game_hour - hour0, 24.0), 2.0), "upływ 2 godzin")
 	check(near(float(st.health), minf(float(dd.health.modified), 10.0 + 2.0 * 0.1 * end), 0.01), "sen: zdrowie + 0,1 × wytrzymałość na godzinę (%s)" % st.health)
-	check(main.rest_window.levelup.visible, "po śnie przy postępie ≥ 10 – okno awansu")
-	main.rest_window._toggle_attr(0, true)
-	main.rest_window._toggle_attr(5, true)
-	check(not main.rest_window.confirm_levelup(), "za mało wyborów – brak awansu")
-	main.rest_window._toggle_attr(4, true)
+	var lw = main.levelup_window
+	check(lw.visible and not main.rest_window.visible, "po śnie przy postępie ≥ 10 – okno awansu (LevelupDialog)")
+	check(lw.level_text.text.ends_with(" 2") and lw.coin_count == 3 and lw.widgets[0].mult.text == "x3" and lw.widgets[1].mult.text == "",
+		"„sLevelUpMenu1 2”, 3 monety, mnożnik x3 przy sile, bez mnożnika przy ×1")
+	lw.attribute_clicked(0)
+	lw.attribute_clicked(5)
+	check(lw.widgets[0].value.text == str(int(st.attributes[0]) + 3), "wartość wybranego atrybutu z mnożnikiem")
+	check(not lw.ok_clicked(), "za mało wyborów – brak awansu (sNotifyMessage36)")
+	lw.attribute_clicked(4)
 	var s0 := float(st.attributes[0])
 	var e0 := float(st.attributes[5])
 	var v0 := float(st.attributes[4])
-	check(main.rest_window.confirm_levelup() and int(st.level) == 2, "awans na poziom 2")
+	check(lw.ok_clicked() and int(st.level) == 2 and not lw.visible, "awans na poziom 2")
 	check(st.attributes[0] == s0 + 3.0 and st.attributes[5] == e0 + 1.0 and st.attributes[4] == v0 + 2.0 and int(st.level_progress) == 0,
 			"atrybuty z mnożnikami (siła +3, wytrzymałość +1, szybkość +2), postęp wyzerowany")
 	check(near(float(st.health_base), hb + (e0 + 1.0) * 0.1), "zdrowie bazowe + wytrzymałość × 0,1")

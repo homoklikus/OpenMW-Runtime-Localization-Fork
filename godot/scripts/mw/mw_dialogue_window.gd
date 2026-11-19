@@ -24,9 +24,7 @@ var topics                          # MWList (mw_list.gd) w skórce MW_SimpleLis
 var disp_bar: ProgressBar
 var disp_label: Label
 var bye_btn: Button
-var persuasion: PanelContainer
-var gold_label: Label
-var _bribe_btns := {}
+var persuasion = null              # PersuasionDialog (mw_persuasion_dialog.gd)
 var _topic_ids: Array = []        # pozycja listy → id tematu ("" – wpis specjalny, "#persuasion")
 var _links := {}                  # słowa kluczowe dostępnych tematów (dla hiperłączy w historii)
 
@@ -112,30 +110,8 @@ func _ready() -> void:
 	visible = false
 
 func _build_persuasion() -> void:
-	persuasion = PanelContainer.new()
-	persuasion.name = "Persuasion"
-	persuasion.visible = false
-	add_child(persuasion)
-	var box := VBoxContainer.new()
-	persuasion.add_child(box)
-	var t := Label.new()
-	t.name = "Title"
-	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(t)
-	for k in dialogue_kinds():
-		var b := Button.new()
-		b.name = k
-		var kind: String = k
-		b.pressed.connect(func(): _persuade(kind))
-		box.add_child(b)
-		if kind.begins_with("bribe"):
-			_bribe_btns[kind] = b
-	gold_label = Label.new()
-	box.add_child(gold_label)
-	var c := Button.new()
-	c.name = "cancel"
-	c.pressed.connect(func(): persuasion.visible = false)
-	box.add_child(c)
+	persuasion = preload("res://scripts/mw/mw_persuasion_dialog.gd").new(main, dialogue)
+	persuasion.on_persuade = _after_action
 
 static func dialogue_kinds() -> Array:
 	return ["admire", "intimidate", "taunt", "bribe10", "bribe100", "bribe1000"]
@@ -150,7 +126,7 @@ func open(node: Node) -> bool:
 	title.text = dialogue.actor_name(dialogue.actor)
 	bye_btn.text = _t("sGoodbye", "Goodbye")
 	visible = true
-	persuasion.visible = false
+	persuasion.close()
 	refresh()
 	# położenie i rozmiar jak OpenMW ([Windows] dialogue: 0,15; 0,5; 0,7 × 0,45 ekranu)
 	var vp := get_viewport().get_visible_rect().size
@@ -274,26 +250,10 @@ func _after_action() -> void:
 	refresh()
 
 func _open_persuasion() -> void:
-	var g: int = dialogue.gold()
-	(persuasion.get_node("VBoxContainer/Title") as Label).text = _t("sPersuasionMenuTitle", "Perswazja")
-	var labels := {"admire": ["sAdmire", "Podziw"], "intimidate": ["sIntimidate", "Zastraszenie"],
-		"taunt": ["sTaunt", "Drwina"], "bribe10": ["sBribe 10 Gold", "Łapówka (10 sztuk złota)"],
-		"bribe100": ["sBribe 100 Gold", "Łapówka (100 sztuk złota)"], "bribe1000": ["sBribe 1000 Gold", "Łapówka (1000 sztuk złota)"]}
-	for k in labels:
-		var b := persuasion.get_node("VBoxContainer/" + k) as Button
-		b.text = _t(labels[k][0], labels[k][1])
-	(_bribe_btns["bribe10"] as Button).disabled = g < 10
-	(_bribe_btns["bribe100"] as Button).disabled = g < 100
-	(_bribe_btns["bribe1000"] as Button).disabled = g < 1000
-	gold_label.text = "%s: %d" % [_t("sGold", "Złoto"), g]
-	(persuasion.get_node("VBoxContainer/cancel") as Button).text = _t("sCancel", "Anuluj")
-	persuasion.visible = true
-	persuasion.position = (get_viewport().get_visible_rect().size - persuasion.get_combined_minimum_size()) / 2.0
+	persuasion.open(self)
 
 func _persuade(kind: String, roll := -1) -> void:
-	dialogue.persuade(kind, roll)
-	persuasion.visible = false
-	_after_action()
+	persuasion.persuade(kind, roll)
 
 ## Zamknięcie: w trakcie pytania niemożliwe (exit() w OpenMW), chyba że rozmowa zakończona przez Goodbye.
 func close(force := false) -> bool:
@@ -305,7 +265,7 @@ func close(force := false) -> bool:
 	visible = false
 	if main != null and main.get("trade_window") != null:
 		main.trade_window.close()
-	persuasion.visible = false
+	persuasion.close()
 	get_tree().paused = false
 	if DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED

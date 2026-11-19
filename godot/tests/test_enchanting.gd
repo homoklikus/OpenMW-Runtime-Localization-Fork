@@ -256,6 +256,24 @@ func _run() -> void:
 	sw.editor.available_clicked(0)
 	check(not sw.editor.is_dialog_open() and sw.editor.effects.size() == 8, "dziewiąty efekt – sNotifyMessage28")
 	sw.close()
+	# --- PersuasionDialog (okno modalne z rozmowy)
+	var dw = main.dialogue_window
+	check(dw.visible and dw._topic_ids.has("#persuasion"), "pozycja sPersuasion na liście tematów")
+	dw._on_topic(dw._topic_ids.find("#persuasion"))
+	var pd = dw.persuasion
+	check(pd.is_open() and pd.win.name == "PersuasionDialog" and pd.buttons.size() == 6, "klik sPersuasion: okno perswazji z 6 akcjami")
+	var sc: float = pd.ui.sc
+	check(pd.win.size.y == 192 * sc and (pd.buttons.admire as Control).position.y == 3 * sc and (pd.buttons.bribe1000 as Control).position.y == 93 * sc,
+		"adjustAction: wiersze 18 px od 3, okno 192 px")
+	var g_now: int = main.trade.player_gold()
+	check(pd.buttons.bribe10.disabled == (g_now < 10) and pd.buttons.bribe1000.disabled == (g_now < 1000)
+		and pd.gold_label.text.ends_with(": %d" % g_now), "łapówki wg złota, „sGold: N”")
+	var disp0: int = main.dialogue.derived_disposition(a)
+	pd.persuade("admire", 0)
+	check(not pd.is_open() and main.dialogue.derived_disposition(a) >= disp0, "podziw (rzut 0): okno zamknięte, nastawienie nie spada")
+	main.dialogue_window._open_persuasion()
+	pd.close()
+	check(not pd.is_open() and dw.visible, "Anuluj: tylko okno perswazji")
 	# --- ładowanie (Recharge)
 	_set_charge(mg, me, nid, 1.0)
 	inv.add("player", {}, weak, 2)

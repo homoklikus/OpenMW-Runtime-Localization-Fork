@@ -17,16 +17,8 @@ var hours_label: Label
 var rest_btn: Button
 var heal_btn: Button
 var sleeping := false
-var levelup: PanelContainer
-var lv_title: Label
-var lv_buttons: Array = []
-var lv_info: Label
-var chosen: Array = []
 
 const UI := preload("res://scripts/mw/mw_ui.gd")
-const ATTR_NAMES := ["Siła", "Inteligencja", "Siła woli", "Zręczność", "Szybkość", "Wytrzymałość", "Osobowość", "Szczęście"]
-const ATTR_GMST := ["sAttributeStrength", "sAttributeIntelligence", "sAttributeWillpower", "sAttributeAgility",
-	"sAttributeSpeed", "sAttributeEndurance", "sAttributePersonality", "sAttributeLuck"]
 
 ## Układ openmw_wait_dialog.layout: VBox w skórce MW_Dialog, Padding 8, Spacing 8, AutoResize – szerokość i wysokość
 ## z treści (600 w układzie to tylko rozmiar początkowy, VBox::setSize po wypełnieniu tekstów go zastępuje):
@@ -91,7 +83,6 @@ func _ready() -> void:
 	rest_btn.name = "WaitButton"
 	var cb := _btn(row, "Cancel", close)
 	cb.name = "CancelButton"
-	_build_levelup()
 	visible = false
 
 func _btn(parent: Control, t: String, cb: Callable) -> Button:
@@ -100,30 +91,6 @@ func _btn(parent: Control, t: String, cb: Callable) -> Button:
 	b.pressed.connect(cb)
 	parent.add_child(b)
 	return b
-
-func _build_levelup() -> void:
-	levelup = PanelContainer.new()
-	levelup.name = "LevelUp"
-	levelup.visible = false
-	add_child(levelup)
-	var box := VBoxContainer.new()
-	levelup.add_child(box)
-	lv_title = Label.new()
-	lv_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(lv_title)
-	var grid := GridContainer.new()
-	grid.columns = 2
-	box.add_child(grid)
-	for i in 8:
-		var b := Button.new()
-		b.toggle_mode = true
-		var idx := i
-		b.toggled.connect(func(on): _toggle_attr(idx, on))
-		grid.add_child(b)
-		lv_buttons.append(b)
-	lv_info = Label.new()
-	box.add_child(lv_info)
-	_btn(box, "OK", func(): confirm_levelup())
 
 func _t(gm: String, fb: String) -> String:
 	if main == null or main.dialogue == null:
@@ -247,57 +214,15 @@ func _rest_hour() -> void:
 	if int(_rest.cur) >= int(_rest.hours):
 		_rest = {}
 		visible = false
-		if sleeping and character.can_level_up(st):
-			open_levelup()
-			return
 		close()
+		if sleeping and character.can_level_up(st):
+			open_levelup()          # WaitDialog::stopWaiting → GM_Levelup (LevelupDialog)
 
 func open_levelup() -> void:
-	var st: Dictionary = main.player_stats()
-	chosen = []
-	lv_title.text = "%s %d" % [_t("sLevelUpMenu1", "Osiągasz poziom"), int(st.get("level", 1)) + 1]
-	for i in 8:
-		var b: Button = lv_buttons[i]
-		var m: int = mini(character.levelup_multiplier(st, i), int(100 - float(st.attributes[i])))
-		b.set_pressed_no_signal(false)
-		b.disabled = float(st.attributes[i]) >= 100.0
-		b.text = "%s %d%s" % [_t(ATTR_GMST[i], ATTR_NAMES[i]), int(st.attributes[i]), ("  ×%d" % m) if m > 1 else ""]
-	_update_lv_info()
-	levelup.visible = true
-	visible = true
-	levelup.position = (get_viewport().get_visible_rect().size - levelup.get_combined_minimum_size()) / 2.0
-	panel.visible = false
-	get_tree().paused = true
-
-func _toggle_attr(i: int, on: bool) -> void:
-	var coins: int = character.levelup_coins(main.player_stats())
-	if on:
-		if chosen.size() >= coins:
-			var last: int = chosen.pop_back()
-			(lv_buttons[last] as Button).set_pressed_no_signal(false)
-		chosen.append(i)
-	else:
-		chosen.erase(i)
-	_update_lv_info()
-
-func _update_lv_info() -> void:
-	lv_info.text = "Wybierz %d atrybuty (wybrano %d)." % [character.levelup_coins(main.player_stats()), chosen.size()]
-
-## OK w oknie awansu: za mało wyborów – komunikat sNotifyMessage36 (jak OpenMW), inaczej awans.
-func confirm_levelup() -> bool:
-	var st: Dictionary = main.player_stats()
-	if not character.level_up(st, chosen):
-		main._toast(_t("sNotifyMessage36", "Musisz wybrać atrybuty do zwiększenia."))
-		return false
-	levelup.visible = false
-	panel.visible = true
-	main._toast("Poziom %d" % int(st.level))
-	close()
-	return true
+	main.levelup_window.open()
 
 func close() -> void:
 	visible = false
-	levelup.visible = false
 	panel.visible = true
 	get_tree().paused = false
 	if DisplayServer.get_name() != "headless":

@@ -213,7 +213,7 @@ func _ui_clear() -> void:
 		main.repair_window.close()
 	if main.get("alchemy_window") != null and main.alchemy_window.visible:
 		main.alchemy_window.close()
-	for wn in ["enchanting_window", "spellcreation_window", "recharge_window"]:
+	for wn in ["enchanting_window", "spellcreation_window", "recharge_window", "levelup_window"]:
 		if main.get(wn) != null and main.get(wn).visible:
 			main.get(wn).close()
 	if main.get("dialogue_window") != null and main.dialogue_window.visible:
@@ -287,6 +287,8 @@ func _ui_mode(m) -> void:
 			main.rest_window.open()
 		"Alchemy":
 			main.alchemy_window.open()
+		"LevelUp":
+			main.levelup_window.open()
 		"MainMenu":
 			main.open_main_menu()
 
@@ -306,6 +308,22 @@ func _apply_ui(steps: Array, started: bool) -> void:
 				_ui_mode(u[2])
 			"clear":
 				_ui_clear()
+			"click":
+				# kliknięcie lewym przyciskiem w punkcie ekranu (jak XTest po stronie OpenMW)
+				var pos := Vector2(float(u[2][0]), float(u[2][1]))
+				var mm := InputEventMouseMotion.new()
+				mm.position = pos
+				mm.global_position = pos
+				Input.parse_input_event(mm)
+				await process_frame
+				for pressed in [true, false]:
+					var mb := InputEventMouseButton.new()
+					mb.button_index = MOUSE_BUTTON_LEFT
+					mb.pressed = pressed
+					mb.position = pos
+					mb.global_position = pos
+					Input.parse_input_event(mb)
+					await process_frame
 			"shot":
 				var dir := _arg("shots")
 				if dir.is_empty() or DisplayServer.get_name() == "headless":

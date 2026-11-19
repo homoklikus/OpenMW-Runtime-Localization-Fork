@@ -65,6 +65,7 @@ var combat = null                     # etap 7: walka
 var enchanting_window = null          # EnchantingDialog (GM_Enchanting)
 var spellcreation_window = null       # SpellCreationDialog (GM_SpellCreation)
 var recharge_window = null            # Recharge (GM_Recharge)
+var levelup_window = null             # LevelupDialog (GM_Levelup)
 var data_dir := ""                    # katalog przekonwertowanych danych
 var navmesh = null                    # siatka nawigacji AI (mw_navmesh.gd)
 var doors = null                      # drzwi obrotowe (World::activateDoor/processDoors)
@@ -208,6 +209,11 @@ func _ready() -> void:
 	spellcreation_window.name = "SpellCreationDialog"
 	spellcreation_window.main = self
 	add_child(spellcreation_window)
+	levelup_window = preload("res://scripts/mw/mw_levelup_window.gd").new()
+	levelup_window.name = "LevelupDialog"
+	levelup_window.main = self
+	levelup_window.character = character
+	add_child(levelup_window)
 	recharge_window = preload("res://scripts/mw/mw_recharge_window.gd").new()
 	recharge_window.name = "RechargeWindow"
 	recharge_window.main = self
@@ -461,7 +467,7 @@ func _reequip_player(race: String) -> void:
 func _no_window_open() -> bool:
 	for w in [item_window, map_window, journal_window, rest_window, dialogue_window, menu_mode,
 			get("repair_window"), get("service_window"), get("alchemy_window"), get("enchanting_window"),
-			get("spellcreation_window"), get("recharge_window")]:
+			get("spellcreation_window"), get("recharge_window"), get("levelup_window")]:
 		if w != null and w.visible and not (w.get("pinned_mode") == true):     # przypięta mapa nie jest oknem GUI
 			return false
 	return not get_tree().paused
@@ -2801,7 +2807,7 @@ func saving_allowed() -> bool:
 		return false
 	for w in [item_window, chargen, msgbox, dialogue_window, journal_window, trade_window, get("book_window"),
 			get("map_window"), get("repair_window"), get("service_window"), get("alchemy_window"),
-			get("enchanting_window"), get("spellcreation_window"), get("recharge_window")]:
+			get("enchanting_window"), get("spellcreation_window"), get("recharge_window"), get("levelup_window")]:
 		if w != null and is_instance_valid(w) and w.visible and not (w.get("pinned_mode") == true):
 			return false
 	if menu_mode != null and menu_mode.visible:
@@ -2826,7 +2832,7 @@ func cleanup() -> void:
 		fader.clear()
 	for w in [item_window, dialogue_window, journal_window, trade_window, get("book_window"),
 			get("map_window"), menu_mode, rest_window, get("repair_window"), get("service_window"), get("alchemy_window"),
-			get("enchanting_window"), get("spellcreation_window"), get("recharge_window")]:
+			get("enchanting_window"), get("spellcreation_window"), get("recharge_window"), get("levelup_window")]:
 		if w != null and is_instance_valid(w) and w.visible and w.has_method("close"):
 			w.close()
 	if msgbox != null and is_instance_valid(msgbox):
