@@ -426,6 +426,39 @@ static func _model_glb(model: String) -> String:
 	return "" if model.is_empty() else "meshes/" + model.replace("\\", "/").to_lower().get_basename() + ".glb"
 
 ## PRT → GLB do założenia (NpcAnimation::updateParts, 3. osoba, broń schowana).
+## Wampiryzm NPC/gracza (NpcAnimation::getNpcType: wielkość efektu Wampiryzmu > 0): stałe zaklęcia (zdolność,
+## choroba, zaraza, klątwa) z efektem 133 – lista zaklęć ze stanu aktora (AddSpell) albo z rekordu.
+func is_vampire(npc: Dictionary, sid := "") -> bool:
+	var list: Array = npc.get("spells", [])
+	var st = inventory.state if inventory != null else null
+	if st != null and not sid.is_empty() and st.get("actors") is Dictionary:
+		var a = st.actors.get(sid)
+		if a is Dictionary and a.get("spells") is Array:
+			list = a.spells
+	for spid in list:
+		var sp := record("spell", String(spid).to_lower())
+		if int(sp.get("spell_type", 0)) in [1, 2, 3, 4]:
+			for e in sp.get("effects", []):
+				if int(e.get("effect", -1)) == 133:
+					return true
+	return false
+
+var _vampire_heads := {}
+
+## getVampireHead: ostatnia część ciała z flagą wampira, typu skóra, miejsca głowa, tej płci i rasy; {} gdy brak.
+func vampire_head(race_id: String, female: bool) -> Dictionary:
+	var key := "%s|%s" % [race_id.to_lower(), female]
+	if not _vampire_heads.has(key):
+		var found := {}
+		var all := _all("bodypart")
+		for k in all:
+			var b: Dictionary = all[k]
+			if bool(b.get("vampire", false)) and int(b.get("mesh_type", -1)) == 0 and int(b.get("part", -1)) == 0 \
+					and bool(b.get("female", false)) == female and String(b.get("race", "")).to_lower() == race_id.to_lower():
+				found = b
+		_vampire_heads[key] = found
+	return _vampire_heads[key]
+
 func npc_parts(npc: Dictionary, female: bool, sid := "", items_override = null) -> Dictionary:
 	if equipment == null:
 		equipment = Equipment.new(self)
@@ -475,6 +508,11 @@ func npc_parts(npc: Dictionary, female: bool, sid := "", items_override = null) 
 				reserve.call(prt, p)
 	if int(prio.get(0, 0)) < 1:
 		var head := record("bodypart", String(npc.get("head", "")))
+		# NpcAnimation: wampir (efekt Wampiryzmu > 0, nie wilkołak) – głowa wampira rasy i płci (getVampireHead)
+		if is_vampire(npc, sid):
+			var vh := vampire_head(String(npc.get("race", "")), female)
+			if not vh.is_empty():
+				head = vh
 		if not head.is_empty():
 			add.call(0, 1, _part_glb(head))
 	if int(prio.get(1, 0)) < 1 and int(prio.get(0, 0)) <= 1:

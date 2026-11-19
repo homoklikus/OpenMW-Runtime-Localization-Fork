@@ -1,0 +1,82 @@
+{
+ "name": "ctl_melee_damage_dist",
+ "cell": "Seyda Neen",
+ "note": "Rozkład obrażeń na trafienie: Fargoth z daedrycznym mieczem dwuręcznym (S 100) atakuje gracza; liczba trafień, suma, suma kwadratów, maksimum (do porównania AI walki: rodzaj ataku i siła ciosu)",
+ "actors": [
+  "player",
+  "fargoth"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track",
+  ".fargoth.pos",
+  ".fargoth.rot",
+  ".player.dynamic",
+  ".fargoth.dynamic",
+  ".player.skills",
+  ".fargoth.skills"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -10450 -71150 300 0",
+  "player->SetHealth 3000",
+  "player->SetAgility 30",
+  "player->SetLuck 40",
+  "player->SetUnarmored 10",
+  "set lh to player->GetHealth",
+  "fargoth->AddItem \"daedric claymore\" 1",
+  "fargoth->Equip \"daedric claymore\"",
+  "fargoth->SetLongBlade 100",
+  "fargoth->SetStrength 100",
+  "fargoth->SetAgility 60",
+  "fargoth->StartCombat player"
+ ],
+ "spells": [],
+ "commands": [],
+ "every": [
+  "set hh to player->GetHealth",
+  "if ( hh < lh )",
+  "  set nh to nh + 1",
+  "  set dd to lh - hh",
+  "  set lost to lost + dd",
+  "  set sq to sq + dd * dd",
+  "  if ( dd > mx )",
+  "    set mx to dd",
+  "  endif",
+  "endif",
+  "set lh to hh"
+ ],
+ "vars": [
+  [
+   "float",
+   "hh"
+  ],
+  [
+   "float",
+   "lh"
+  ],
+  [
+   "short",
+   "nh"
+  ],
+  [
+   "float",
+   "lost"
+  ],
+  [
+   "float",
+   "dd"
+  ],
+  [
+   "float",
+   "sq"
+  ],
+  [
+   "float",
+   "mx"
+  ]
+ ],
+ "seconds": 30
+}

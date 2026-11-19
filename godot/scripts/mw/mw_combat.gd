@@ -71,6 +71,12 @@ func fighter_of(node: Node) -> Dictionary:
 			"rec": records.record("creature", base)}
 	return {}
 
+## CreatureStats::getKnockedDown: powalenie (także gracza – stan postaci gracza).
+func knocked_down(f: Dictionary) -> bool:
+	if f.get("kind", "") == "player":
+		return bool(main.player_stats().get("knocked_down", false))
+	return f.has("sid") and bool(_actor_state(f).get("knocked_down", false))
+
 func _actor_state(f: Dictionary) -> Dictionary:
 	if not main.state.get("actors") is Dictionary:
 		main.state.actors = {}
@@ -348,7 +354,7 @@ func hit_chance(att: Dictionary, vic: Dictionary, skill_value: float, victim_hel
 	if fatigue(vic) >= 0.0:
 		var helpless := victim_helpless
 		if not helpless and vic.has("sid"):
-			helpless = bool(_actor_state(vic).get("knocked_down", false)) or magic_effect(vic, FX_PARALYZE) > 0.0
+			helpless = knocked_down(vic) or magic_effect(vic, FX_PARALYZE) > 0.0
 		if not helpless and att.get("kind", "") == "player" and vic.get("kind", "") != "player" \
 				and main.get("ai") != null and main.ai != null and vic.get("node") != null \
 				and is_instance_valid(vic.node) and not main.ai.in_combat(vic.node):
@@ -436,7 +442,7 @@ func melee(att: Dictionary, vic: Dictionary, attack_type: int, strength: float, 
 	set_fatigue(att, fatigue(att) - attack_fatigue(att, w, strength))
 	if vic.is_empty() or is_dead(vic):
 		return {"success": false}
-	var helpless := bool(_actor_state(vic).get("knocked_down", false)) if vic.kind != "player" else false
+	var helpless := knocked_down(vic)        # Npc::hit: fCombatKODamageMult – także powalony gracz
 	var chance := hit_chance(att, vic, skill(att, weapon_skill(w)), helpless)
 	var r := roll if roll >= 0 else roll100()
 	if r >= chance:
@@ -654,7 +660,10 @@ func _stagger(vic: Dictionary, raw: float, has_damage: bool) -> void:
 	var agility_term := agi * float(_gmst("fKnockDownMult", 0.5))
 	var kd := agi * float(_gmst("iKnockDownOddsMult", 50)) * 0.01 + float(_gmst("iKnockDownOddsBase", 50))
 	if raw > 0.0 and agility_term <= raw and kd <= roll100():
-		if vic.kind != "player":
+		# Npc/Creature::onHit: powalenie każdego aktora, także gracza (CharacterController – brak ruchu do końca)
+		if vic.kind == "player":
+			main.player_stats()["knocked_down"] = true
+		else:
 			_actor_state(vic)["knocked_down"] = true
 
 ## Pocisk (projectileHit): łuk/kusza + strzała – obie wartości „chop”; broń rzucana – dwa razy (jak OpenMW).

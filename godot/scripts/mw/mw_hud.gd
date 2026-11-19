@@ -27,6 +27,8 @@ var minimap_tiles: Control
 var compass: TextureRect
 var flash_label: Label            # nazwa broni/czaru
 var cell_label: Label             # nazwa miejsca
+var blind_fader: ColorRect        # WindowManager::setBlindness – warstwa FadeToBlack pod HUD-em
+var _blind_layer: CanvasLayer
 var crosshair: Control
 var focus_panel: PanelContainer
 var focus_label: Label
@@ -210,9 +212,28 @@ func flash(text: String) -> void:
 
 # --- aktualizacja ---------------------------------------------------------------------------------------
 
+## Player::update → WindowManager::setBlindness: czarna nakładka (warstwa FadeToBlack, pod HUD-em), krycie =
+## clamp(Oślepienie, 0, 100) / 100 (modyfikator z efektów; tryb boga – 0).
+func update_blindness() -> void:
+	if _blind_layer == null:
+		_blind_layer = CanvasLayer.new()
+		_blind_layer.layer = layer - 1
+		blind_fader = ColorRect.new()
+		blind_fader.color = Color(0, 0, 0, 0)
+		blind_fader.set_anchors_preset(Control.PRESET_FULL_RECT)
+		blind_fader.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_blind_layer.add_child(blind_fader)
+		add_child(_blind_layer)
+	var blind := 0
+	if main.magic != null and main.combat != null and main.get("god_mode") != true:
+		blind = clampi(int(main.magic.magnitude_of(main.combat.player_fighter(), 47)), 0, 100)
+	blind_fader.color.a = blind / 100.0
+	blind_fader.visible = blind > 0
+
 func _process(delta: float) -> void:
 	if root == null or main == null or main.player == null:
 		return
+	update_blindness()
 	# WindowManager::updateVisible: HUD widoczny zawsze (także pod menu głównym, ekwipunkiem, rozmową),
 	# poza ekranem ładowania, filmem (enableScene(false)) i stanem bez gry; F11 – mHudEnabled
 	var loading_on: bool = main.get("loading") != null and main.loading != null and main.loading.visible

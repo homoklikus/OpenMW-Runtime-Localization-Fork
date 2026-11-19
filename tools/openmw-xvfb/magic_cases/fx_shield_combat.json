@@ -1,0 +1,106 @@
+{
+ "name": "fx_shield_combat",
+ "cell": "Seyda Neen",
+ "note": "Tarcza 10 000: pancerz gracza ogromny → obrażenia × fCombatArmorMinMult (0,25); średnia utrata na trafienie vs przebieg bazowy",
+ "actors": [
+  "player",
+  "fargoth"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track",
+  ".fargoth.pos",
+  ".fargoth.rot",
+  ".player.dynamic",
+  ".fargoth.dynamic",
+  ".player.skills",
+  ".fargoth.skills"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -10450 -71150 300 0",
+  "player->SetHealth 3000",
+  "player->SetAgility 30",
+  "player->SetLuck 40",
+  "player->SetUnarmored 10",
+  "set lh to player->GetHealth",
+  "fargoth->AddItem \"steel claymore\" 1",
+  "fargoth->Equip \"steel claymore\"",
+  "fargoth->SetLongBlade 100",
+  "fargoth->SetStrength 100",
+  "fargoth->SetAgility 60",
+  "fargoth->StartCombat player"
+ ],
+ "custom_spells": {
+  "probe_shield": {
+   "name": "Probe Shield",
+   "effects": [
+    {
+     "effect": 3,
+     "skill": -1,
+     "attribute": -1,
+     "range": 0,
+     "area": 0,
+     "duration": 60,
+     "min": 10000,
+     "max": 10000
+    }
+   ]
+  }
+ },
+ "spells": [
+  [
+   2,
+   "player",
+   "probe_shield",
+   ""
+  ]
+ ],
+ "commands": [],
+ "every": [
+  "set hh to player->GetHealth",
+  "if ( hh < lh )",
+  "  set nh to nh + 1",
+  "  set dd to lh - hh",
+  "  set lost to lost + dd",
+  "  set sq to sq + dd * dd",
+  "  if ( dd > mx )",
+  "    set mx to dd",
+  "  endif",
+  "endif",
+  "set lh to hh"
+ ],
+ "vars": [
+  [
+   "float",
+   "hh"
+  ],
+  [
+   "float",
+   "lh"
+  ],
+  [
+   "short",
+   "nh"
+  ],
+  [
+   "float",
+   "lost"
+  ],
+  [
+   "float",
+   "dd"
+  ],
+  [
+   "float",
+   "sq"
+  ],
+  [
+   "float",
+   "mx"
+  ]
+ ],
+ "seconds": 20
+}

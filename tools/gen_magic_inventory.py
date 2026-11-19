@@ -135,6 +135,26 @@ s([118],B,Z,"AiFollow za rzucającym, gdy poziom stworzenia ≤ wielkość","fx_
 s([71],I,Z,"usuwa efekt Korpusu: dla trwałego czaru – removeMagicEffect(Corprus) cofa pogorszenia i usuwa wszystkie efekty czaru, czar zostaje (GetSpell 1)","fx_cure_corprus: po leczeniu brak efektów Korpusu, atrybuty bez wyssań, GetSpell 1 – 0 różnic")
 s([11],C,Z,"opadanie: mInertia.z × (1 − 0,005 × wielkość) w każdym kroku fizyki, bez obrażeń od upadku","ctl_slowfall + physics_fit.py --slowfall: OpenMW 14,21 j./klatkę = model kroków (max 10 kroków, dt 0,2 s); przy 60 Hz model 59,2 j./s, Godot 59,5 j./s")
 s([136],I,Z,"brak odnowy magii we śnie (restoreDynamicStats), „do wyleczenia” bez magii (getHoursToRest)","ctl_rest_stunted (komórka -3,-9 – można spać): sen „do wyleczenia” 3 h z Zahamowaniem (magia bez zmian), 5 h bez (magia pełna) – 0 różnic")
+# --- etap 6 (2026-11-19): domknięcie – czary testowe w mwprobe.esp, przenoszenie chorób, zapis/odczyt w porównaniach ---
+def s6(ids,after,what,test=""):
+    """Etap 6: nowy status i opis; kolumna „przed etapem” (2026-11-17) bez zmian."""
+    for i in ids: S[i]=(S[i][0],after,what,test)
+s6([3],Z,"pancerz +wielkość (Npc::getArmorRating) – obrażenia × max(x, fCombatArmorMinMult)","fx_shield_combat (Tarcza 10 000, Fargoth z mieczem): utrata na trafienie / baza ×0,21 OpenMW, ×0,23 Godot (wzór ×0,25)")
+s6([26],Z,"uszkodzenie umiejętności co sekundę (min(zmodyfikowana, wielkość)), trwałe do przywrócenia","fx_skill_damage_restore (strzelectwo 50, 5/s × 4 s; SW i szczęście 0 – bez rzutu): 30 w obu")
+s6([78],Z,"przywracanie umiejętności co sekundę","fx_skill_damage_restore: 30 → 40 (10/s × 1 s) w obu")
+s6([89],Z,"cel: uszkodzenie umiejętności (bez progu min), rzucający: modyfikator; po wygaśnięciu restoreSkill celu i cofnięcie modyfikatora; śmierć rzucającego – purgeSpellEffects","fx_skill_absorb (gracz 20 → 30, Fargoth 40 → 30), fx_absorb_caster_dead (powrót od razu po śmierci rzucającego), fx_absorb_caster_disabled (do wygaśnięcia) – 0 różnic")
+s6([32,33,34],Z,"diseaseContact: szansa fDiseaseXferChance × 100 × (1 − 0,01 × (odporność − słabość)) na 10 000 przy trafieniu wręcz i przeszukaniu zwłok; Korpus / choroby / zarazy osobno","fx_disease_contact_weak (słabość 3900 → zarażenie każdym trafieniem: choroba, zaraza, Korpus – 5/5 zmiennych w obu)")
+s6([94,96],Z,"odporność na choroby / Korpus w diseaseContact","fx_disease_contact_resist (odporność 4000 − słabość 3900 → szansa 0; zaraza tylko ze słabością – zarażenie) – 0 różnic")
+s6([95],Z,"odporność na zarazy w diseaseContact","fx_disease_contact_resist_blight (zaraza 0, choroba zwykła i Korpus – zarażenie) – 0 różnic")
+s6([36],Z,"obrażenia od zwykłej broni × (1 + słabość/100) – resistNormalWeapon (broń srebrna, magiczna, zaklęta – bez zmian)","fx_weak_normal_combat (słabość 100, stalowy miecz): ×2,03 OpenMW, ×2,4 Godot; fx_shield_weak_combat (z Tarczą 10 000): ×0,58 / ×0,55 (wzór ×0,5)")
+s6([100],Z,"usuwa zaklęcia typu klątwa (Curse) z listy, efekty cofnięte, inne zostają","fx_remove_curse (czar testowy typu 4): GetSpell 0, siła wraca 40 → 50, „bound dagger” zostaje – 0 różnic")
+s6([126],Z,"NPC: zdejmuje wszystko poza bronią, amunicją, spodniami (i nie-pancerzem w lewej ręce); po wygaśnięciu autoEquip","fx_extraspell / fx_extraspell_end (czar testowy): Fargoth tylko w spodniach, po 3 s pełny strój – 0 różnic")
+s6([137],Z,"przywołanie Fabrykanta (GMST sMagicFabricantID)","fx_summon_custom (czar testowy): fabricant_summon pełny aktor (zdrowie 300) w obu")
+s6([141,142],Z,"GMST sMagicCreature04ID/05ID bez stworzenia – brak przywołania, efekt bez wpisu w mapie (jak OpenMW)","fx_summon_custom: mapa efektów tylko z Fabrykantem w obu")
+s6([41],C,"światło przy aktorze: promień 22 j. × wielkość × 3 (Animation::setLightEffect) – w OpenMW światło tylko otoczenia (ambient 1,5), tu OmniLight z energią 1,5","bez porównania obrazu: porównania z OpenMW działają na renderowaniu programowym Xvfb, Godot w sondach – bez obrazu; parametry zgodne z kodem")
+s6([43],C,"otoczenie + 0,7 × min(1, int(wielkość)/100) dla gracza (Player::update, updateAmbient)","bez porównania obrazu (jak Światło); obcięcie wielkości do liczby całkowitej poprawione w etapie 6")
+s6([64,65,66],I,"znaczniki na mapie lokalnej (listDetectedReferences: promień wielkość × 22 j., pojemniki i aktorzy z przedmiotem)","mapa efektów zgodna (fx_potions); znaczniki: OpenMW nie udostępnia wykrytych obiektów w Lua ani MWScript (tylko obraz mapy lokalnej) – porównanie wymaga zrzutów mapy w obu silnikach")
+s6([133],C,"dialogi, Obrażenia od słońca i Słabość na ogień ze zdolności, brak przestępstwa przy napaści na wampira, wielkość zostaje po śmierci; głowa wampira rasy i płci (getVampireHead) – etap 6","fx_sun, fx_vampire_crime; głowa wampira – test syntetyczny, bez porównania obrazu z OpenMW")
 rows=["| # | Efekt | Przed etapem | Po etapie | Działanie | Test / porównanie z OpenMW |","|---|---|---|---|---|---|"]
 from collections import Counter
 cb,ca=Counter(),Counter()

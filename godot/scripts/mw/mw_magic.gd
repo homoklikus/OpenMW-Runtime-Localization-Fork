@@ -1003,7 +1003,8 @@ func apply_movement(f: Dictionary, n: Node) -> void:
 	_light_effect(n, 0.0 if dead else float(fx.get(str(FX_LIGHT), 0.0)))
 	# Widzenie w ciemności gracza (setNightEyeFactor)
 	if f.kind == "player" and main.envr != null:
-		main.envr.night_eye = minf(1.0, maxf(0.0, float(fx.get(str(FX_NIGHT_EYE), 0.0))) / 100.0)
+		# Player::update: static_cast<int>(wielkość) / 100, maks. 1 (ujemne – bez efektu)
+		main.envr.night_eye = minf(1.0, maxf(0.0, float(int(float(fx.get(str(FX_NIGHT_EYE), 0.0))))) / 100.0)
 	# Dźwięk na graczu: pętla „magic sound” o głośności wielkość/100 (applyActorMagicEffect / removeMagicEffect)
 	if f.kind == "player" and main.audio != null:
 		var snd := float(fx.get(str(FX_SOUND), 0.0))

@@ -251,6 +251,29 @@ func _run() -> void:
 	mg.purge_caster(String(vic2.sid))
 	check(near(float(cb.skill(me2, 25)), sk_c0), "purge_caster: umiejętność gracza wraca od razu (%s)" % cb.skill(me2, 25))
 	check(mg.active(me2).filter(func(x): return String(x.get("id", "")) == "abs_sk2").is_empty(), "purge_caster: czar usunięty z gracza")
+	# Oślepienie gracza: czarna nakładka pod HUD-em (WindowManager::setBlindness), krycie = wielkość / 100
+	if main.get("mw_hud") != null:
+		mg.inflict(me2, me2, {"id": "blind_t", "name": "b", "kind": "spell"},
+			[{"effect": 47, "skill": -1, "attribute": -1, "range": 0, "min": 60, "max": 60, "duration": 2}])
+		main.mw_hud.update_blindness()
+		check(main.mw_hud.blind_fader.visible and near(main.mw_hud.blind_fader.color.a, 0.6), "Oślepienie 60: nakładka 0,6 (%s)" % main.mw_hud.blind_fader.color.a)
+		for i in 3:
+			mg.tick(me2, 1.0)
+		main.mw_hud.update_blindness()
+		check(not main.mw_hud.blind_fader.visible, "Oślepienie wygasło: bez nakładki")
+	# Wampiryzm: głowa wampira (NpcAnimation getVampireHead) – stałe zaklęcie z efektem 133, część ciała z flagą wampira
+	var av = main.builder.actors
+	av.record("bodypart", "")
+	av._records["bodypart"]["t_v_head_m"] = {"id": "t_v_head_m", "race": "T_Race", "part": 0, "vampire": true, "female": false, "mesh_type": 0}
+	av._records["bodypart"]["t_v_head_f"] = {"id": "t_v_head_f", "race": "T_Race", "part": 0, "vampire": true, "female": true, "mesh_type": 0}
+	av.record("spell", "")
+	av._records["spell"]["t_vamp_ability"] = {"id": "t_vamp_ability", "spell_type": 1, "effects": [{"effect": 133, "min": 1, "max": 1}]}
+	av._records["spell"]["t_vamp_cast"] = {"id": "t_vamp_cast", "spell_type": 0, "effects": [{"effect": 133, "min": 1, "max": 1}]}
+	check(String(av.vampire_head("t_race", false).get("id", "")) == "t_v_head_m", "głowa wampira: rasa i płeć (mężczyzna)")
+	check(String(av.vampire_head("T_RACE", true).get("id", "")) == "t_v_head_f", "głowa wampira: kobieta")
+	check(av.vampire_head("inna", false).is_empty(), "głowa wampira: brak dla innej rasy")
+	check(av.is_vampire({"spells": ["t_vamp_ability"]}), "wampir: zdolność z Wampiryzmem")
+	check(not av.is_vampire({"spells": ["t_vamp_cast"]}), "wampir: zwykły czar z Wampiryzmem się nie liczy")
 	# diseaseContact: fDiseaseXferChance (2,5) × 100 × (1 − 0,01 × (odporność − słabość)) na 10 000
 	var pl: Dictionary = cb.player_fighter()
 	st = main.player_stats()                              # po odczycie zapisu – nowy słownik postaci

@@ -51,6 +51,32 @@ EFFECTS = {"resistmagicka": ("resistmagicka", "weaknesstomagicka", None),
 # identyfikatory efektów OpenMW (ESM::MagicEffect, kolejność indeksów 0–142) – klucze pełnej mapy efektów „fx”
 EFFECT_IDS = {n.lower(): i for i, n in enumerate(['WaterBreathing', 'SwiftSwim', 'WaterWalking', 'Shield', 'FireShield', 'LightningShield', 'FrostShield', 'Burden', 'Feather', 'Jump', 'Levitate', 'SlowFall', 'Lock', 'Open', 'FireDamage', 'ShockDamage', 'FrostDamage', 'DrainAttribute', 'DrainHealth', 'DrainMagicka', 'DrainFatigue', 'DrainSkill', 'DamageAttribute', 'DamageHealth', 'DamageMagicka', 'DamageFatigue', 'DamageSkill', 'Poison', 'WeaknessToFire', 'WeaknessToFrost', 'WeaknessToShock', 'WeaknessToMagicka', 'WeaknessToCommonDisease', 'WeaknessToBlightDisease', 'WeaknessToCorprusDisease', 'WeaknessToPoison', 'WeaknessToNormalWeapons', 'DisintegrateWeapon', 'DisintegrateArmor', 'Invisibility', 'Chameleon', 'Light', 'Sanctuary', 'NightEye', 'Charm', 'Paralyze', 'Silence', 'Blind', 'Sound', 'CalmHumanoid', 'CalmCreature', 'FrenzyHumanoid', 'FrenzyCreature', 'DemoralizeHumanoid', 'DemoralizeCreature', 'RallyHumanoid', 'RallyCreature', 'Dispel', 'Soultrap', 'Telekinesis', 'Mark', 'Recall', 'DivineIntervention', 'AlmsiviIntervention', 'DetectAnimal', 'DetectEnchantment', 'DetectKey', 'SpellAbsorption', 'Reflect', 'CureCommonDisease', 'CureBlightDisease', 'CureCorprusDisease', 'CurePoison', 'CureParalyzation', 'RestoreAttribute', 'RestoreHealth', 'RestoreMagicka', 'RestoreFatigue', 'RestoreSkill', 'FortifyAttribute', 'FortifyHealth', 'FortifyMagicka', 'FortifyFatigue', 'FortifySkill', 'FortifyMaximumMagicka', 'AbsorbAttribute', 'AbsorbHealth', 'AbsorbMagicka', 'AbsorbFatigue', 'AbsorbSkill', 'ResistFire', 'ResistFrost', 'ResistShock', 'ResistMagicka', 'ResistCommonDisease', 'ResistBlightDisease', 'ResistCorprusDisease', 'ResistPoison', 'ResistNormalWeapons', 'ResistParalysis', 'RemoveCurse', 'TurnUndead', 'SummonScamp', 'SummonClannfear', 'SummonDaedroth', 'SummonDremora', 'SummonAncestralGhost', 'SummonSkeletalMinion', 'SummonBonewalker', 'SummonGreaterBonewalker', 'SummonBonelord', 'SummonWingedTwilight', 'SummonHunger', 'SummonGoldenSaint', 'SummonFlameAtronach', 'SummonFrostAtronach', 'SummonStormAtronach', 'FortifyAttack', 'CommandCreature', 'CommandHumanoid', 'BoundDagger', 'BoundLongsword', 'BoundMace', 'BoundBattleAxe', 'BoundSpear', 'BoundLongbow', 'ExtraSpell', 'BoundCuirass', 'BoundHelm', 'BoundBoots', 'BoundShield', 'BoundGloves', 'Corprus', 'Vampirism', 'SummonCenturionSphere', 'SunDamage', 'StuntedMagicka', 'SummonFabricant', 'SummonWolf', 'SummonBear', 'SummonBonewolf', 'SummonCreature04', 'SummonCreature05'])}
 
+# Skrypt MENU: zapis i odczyt gry na żądanie sondy (pole „save_load”) – menu.saveGame, potem menu.loadGame.
+MENU_LUA = r'''
+local menu = require('openmw.menu')
+local pending = nil
+return {
+  eventHandlers = { mwprobe_save = function() menu.saveGame('mwprobe', 'mwprobe'); pending = 0 end },
+  engineHandlers = {
+    onFrame = function(dt)
+      if pending == nil then return end
+      pending = pending + 1
+      if pending < 3 then return end
+      local dir = menu.getCurrentSaveDir()
+      for name, info in pairs(dir and menu.getSaves(dir) or {}) do
+        if info.description == 'mwprobe' then
+          pending = nil
+          print('MWLOAD ' .. name)
+          menu.loadGame(dir, name)
+          return
+        end
+      end
+      if pending > 600 then pending = nil; print('MWSAVEERR brak zapisu') end
+    end,
+  },
+}
+'''
+
 # Sterowanie graczem (skrypt PLAYER): odcinki [t0, t1, {forward, back, left, right, run, jump, sneak, yaw, pitch}]
 # w sekundach od chwili poleceń; nadpisuje sterowanie wejściem (I.Controls) tylko na czas przypadku.
 PLAYER_LUA = r'''
@@ -72,8 +98,14 @@ local rt, rt0 = 0, nil
 local jumped = {}
 local keyed = {}
 return {
-  eventHandlers = { mwprobe_start = function() t = 0 end },
+  eventHandlers = { mwprobe_start = function() t = 0 end,
+                    mwprobe_save = function() types.Player.sendMenuEvent(self, 'mwprobe_save', {}) end },
   engineHandlers = {
+    onSave = function() return {t = t, casted = casted, jumped = jumped, keyed = keyed, uidone = uidone} end,
+    onLoad = function(d)
+      if not d then return end
+      t, casted, jumped, keyed, uidone = d.t, d.casted or {}, d.jumped or {}, d.keyed or {}, d.uidone or {}
+    end,
     onFrame = function(dt)
       -- klawisze wg czasu rzeczywistego (onFrame): okna (np. odpoczynek) wstrzymują czas symulacji
       if t >= 0 then
@@ -163,6 +195,7 @@ local track = {}
 local spells_done = {}
 local frame = 0
 local done = false
+local saved_once = false
 
 local function enc(v)
   local t = type(v)
@@ -335,6 +368,15 @@ end
 
 return {
   engineHandlers = {
+    -- stan sondy zachowany w zapisie gry (przypadki z „save_load”)
+    onSave = function() return {frame = frame, t_after = t_after, spells_done = spells_done, samples_done = samples_done,
+                                track = track, saved_once = saved_once, done = done} end,
+    onLoad = function(d)
+      if not d then return end
+      frame, t_after, spells_done, samples_done = d.frame, d.t_after, d.spells_done or {}, d.samples_done or {}
+      track, saved_once, done = d.track or {}, d.saved_once, d.done
+      print(string.format('MWLOADED t=%.2f frame=%d', t_after, frame))
+    end,
     onUpdate = function(dt)
       frame = frame + 1
       -- czary nakładane bezpośrednio (ActiveSpells:add – jak applyMagicEffects): [przesunięcie, cel, czar, rzucający]
@@ -402,6 +444,12 @@ return {
         for _, pl in ipairs(world.players) do pl:sendEvent('mwprobe_start', {}) end
       end
       if frame == CFG.delay then t_after = 0 elseif t_after >= 0 then t_after = t_after + dt end
+      -- zapis i odczyt gry w chwili CFG.save_load (s): gracz → skrypt MENU (menu.saveGame / menu.loadGame)
+      if CFG.save_load and t_after >= CFG.save_load and not saved_once then
+        saved_once = true
+        print(string.format('MWSAVE t=%.2f', t_after))
+        for _, pl in ipairs(world.players) do pl:sendEvent('mwprobe_save', {}) end
+      end
       -- próbki położenia w czasie (sekundy od chwili poleceń): track[id] = [[t, x, y, z], …]
       for i, t in ipairs(CFG.samples or {}) do
         if t_after >= t and not samples_done[i] then
@@ -546,6 +594,7 @@ def run_openmw(case: dict, omw_dir: Path, cfg_src: Path, work: Path, display: in
            "delay": int(case.get("delay", DELAY)), "spells": case.get("spells", []), "remove": case.get("remove", []), "debug": bool(case.get("debug", False)), "teleport": case.get("teleport", []),
            "disable_creatures": bool(case.get("disable_creatures", False)),
            "stackable": bool(case.get("stackable", False)),
+           "save_load": case.get("save_load"),
            "seconds": float(case.get("seconds", 0)), "samples": case.get("samples", []), "track": case.get("track", [])}
     lua = (LUA.replace("__CFG__", lua_table(cfg)).replace("__ATTRS__", lua_table(ATTRS))
            .replace("__SKILLS__", lua_table(SKILLS)).replace("__EFFECTS__", lua_table({k: list(v) for k, v in EFFECTS.items()}))
@@ -558,8 +607,9 @@ def run_openmw(case: dict, omw_dir: Path, cfg_src: Path, work: Path, display: in
         .replace("__CAST__", lua_table(case.get("cast", [])))
         .replace("__UIMODE__", lua_table(case.get("ui_mode", [])))
         .replace("__LOOK__", lua_table(case.get("look_at", []))), encoding="utf-8")
-    (probe / "mwprobe.omwscripts").write_text("GLOBAL: scripts/mwprobe/global.lua\nPLAYER: scripts/mwprobe/player.lua\n",
-                                              encoding="utf-8")
+    (probe / "scripts" / "mwprobe" / "menu.lua").write_text(MENU_LUA, encoding="utf-8")
+    (probe / "mwprobe.omwscripts").write_text("GLOBAL: scripts/mwprobe/global.lua\nPLAYER: scripts/mwprobe/player.lua\n"
+                                              "MENU: scripts/mwprobe/menu.lua\n", encoding="utf-8")
     (probe / "mwprobe.esp").write_bytes(probe_esp(case))
     with open(cfg_dir / "openmw" / "openmw.cfg", "a", encoding="utf-8") as f:
         f.write(f'\ndata="{probe}"\ncontent=mwprobe.esp\ncontent=mwprobe.omwscripts\n')

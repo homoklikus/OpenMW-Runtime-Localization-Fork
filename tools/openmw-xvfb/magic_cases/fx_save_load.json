@@ -1,0 +1,166 @@
+{
+ "name": "fx_save_load",
+ "cell": "Seyda Neen",
+ "note": "Zapis i odczyt gry w 3 s: czasowe Wzmocnienie atrybutu i Wyssanie umiejętności (30 s), trwałe Uszkodzenie atrybutu, choroba (AddSpell), przywołany skamp – stan po odczycie (6 s)",
+ "actors": [
+  "player",
+  "scamp_summon"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track",
+  ".scamp_summon.pos",
+  ".scamp_summon.rot"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -12288 -69632 160 0",
+  "player->SetWillpower 0",
+  "player->SetLuck 0",
+  "player->SetAgility 50"
+ ],
+ "custom_spells": {
+  "probe_sl_fortify": {
+   "name": "Probe SL Fortify",
+   "effects": [
+    {
+     "effect": 79,
+     "skill": -1,
+     "attribute": 0,
+     "range": 0,
+     "area": 0,
+     "duration": 30,
+     "min": 20,
+     "max": 20
+    },
+    {
+     "effect": 21,
+     "skill": 25,
+     "attribute": -1,
+     "range": 0,
+     "area": 0,
+     "duration": 30,
+     "min": 10,
+     "max": 10
+    }
+   ]
+  },
+  "probe_sl_damage": {
+   "name": "Probe SL Damage",
+   "effects": [
+    {
+     "effect": 22,
+     "skill": -1,
+     "attribute": 3,
+     "range": 0,
+     "area": 0,
+     "duration": 2,
+     "min": 5,
+     "max": 5
+    }
+   ]
+  },
+  "probe_sl_summon": {
+   "name": "Probe SL Summon",
+   "effects": [
+    {
+     "effect": 102,
+     "skill": -1,
+     "attribute": -1,
+     "range": 0,
+     "area": 0,
+     "duration": 30,
+     "min": 1,
+     "max": 1
+    }
+   ]
+  }
+ },
+ "commands": [
+  "player->AddSpell ataxia"
+ ],
+ "spells": [
+  [
+   2,
+   "player",
+   "probe_sl_fortify",
+   ""
+  ],
+  [
+   2,
+   "player",
+   "probe_sl_damage",
+   ""
+  ],
+  [
+   2,
+   "player",
+   "probe_sl_summon",
+   "player"
+  ]
+ ],
+ "save_load": 3.5,
+ "after_s": [
+  [
+   1.0,
+   "set a1 to player->GetStrength"
+  ],
+  [
+   1.0,
+   "set s1 to player->GetSpeechcraft"
+  ],
+  [
+   6.0,
+   "set a2 to player->GetStrength"
+  ],
+  [
+   6.0,
+   "set s2 to player->GetSpeechcraft"
+  ],
+  [
+   6.0,
+   "set g2 to player->GetAgility"
+  ],
+  [
+   6.0,
+   "set d2 to player->GetSpell ataxia"
+  ],
+  [
+   6.0,
+   "set c2 to player->GetCommonDisease"
+  ]
+ ],
+ "vars": [
+  [
+   "float",
+   "a1"
+  ],
+  [
+   "float",
+   "s1"
+  ],
+  [
+   "float",
+   "a2"
+  ],
+  [
+   "float",
+   "s2"
+  ],
+  [
+   "float",
+   "g2"
+  ],
+  [
+   "float",
+   "d2"
+  ],
+  [
+   "float",
+   "c2"
+  ]
+ ],
+ "seconds": 6.5
+}

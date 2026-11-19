@@ -118,5 +118,20 @@ func _run() -> void:
 	await _frames(3)
 	var vd: Dictionary = cb.fighter_of(_ref(main, "synth_villager"))
 	check(cb.is_dead(vd) and _ref(main, "synth_villager").get_meta("mw_dead", false), "odczyt: NPC martwy, ciało leży")
+	# powalenie gracza (Npc::onHit): zręczność × fKnockDownMult ≤ obrażenia i rzut ≥ szansa; powalony – bez ruchu,
+	# bezbronny (cios × fCombatKODamageMult), koniec po czasie powalenia
+	var pst: Dictionary = main.player_stats()
+	var pme: Dictionary = cb.player_fighter()
+	pst.erase("knocked_down")
+	cb.test_roll = 99
+	cb._stagger(pme, 200.0, true)
+	check(cb.knocked_down(pme), "powalenie gracza silnym ciosem")
+	check(main.player_attack() .get("success", true) == false, "powalony gracz nie atakuje")
+	for i in 3:
+		main._update_knockdown(pst, 1.0)
+	check(not cb.knocked_down(pme), "powalenie gracza mija po czasie")
+	cb._stagger(pme, 1.0, true)
+	check(not cb.knocked_down(pme), "słaby cios (≤ zręczność × fKnockDownMult) nie powala gracza")
+	cb.test_roll = -1
 	print("RESULT ", JSON.stringify({"checks": checks, "failures": failures}))
 	quit(1 if failures.size() > 0 else 0)

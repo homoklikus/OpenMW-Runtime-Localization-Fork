@@ -128,6 +128,7 @@ func _snapshot(case: Dictionary) -> Dictionary:
 
 var _track := {}
 var _spells_done := {}
+var _saved := false
 var _case: Dictionary = {}
 
 ## Czar nakładany bezpośrednio (para do Lua ActiveSpells:add): efekty rekordu (czar albo zaklęcie przedmiotu
@@ -354,6 +355,17 @@ func _run() -> void:
 			t_after = 0.0
 		elif t_after >= 0.0:
 			t_after += main.get_process_delta_time()
+		# zapis i odczyt gry (para do menu.saveGame / loadGame po stronie OpenMW): stan świata, postaci i skryptów
+		if case.get("save_load") != null and not _saved and t_after >= float(case.save_load):
+			_saved = true
+			var sp := ProjectSettings.globalize_path("user://mwprobe_save.mwsave")
+			var err: String = main.save_game(sp)
+			print("MWSAVE t=%.2f %s" % [t_after, err])
+			main.load_game(sp)
+			for k in 3:
+				await process_frame
+			vm = main.scripts
+			print("MWLOADED t=%.2f" % t_after)
 		for i in samples.size():
 			if t_after >= float(samples[i]) and not done.has(i):
 				done[i] = true

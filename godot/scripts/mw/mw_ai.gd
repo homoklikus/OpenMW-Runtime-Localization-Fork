@@ -1367,7 +1367,7 @@ func _combat(n: CharacterBody3D, r: Dictionary, p: Dictionary, dt: float, react:
 		_:
 			# siła: stworzenia bez broni – min(1, 0,1 + los) (prepareHit), z bronią – czas trzymania ataku (los 0..1)
 			var strength := minf(1.0, 0.1 + rng.randf()) if w.is_empty() else rng.randf()
-			cb.melee(f, tf, rng.randi() % 3, strength)
+			cb.melee(f, tf, choose_best_attack(w), strength)
 			if rng.randi() % 100 < int(_gmst("iVoiceAttackOdds", 10)) and main.dialogue != null:
 				main.dialogue.say_voice(n, "attack")     # prowokujący okrzyk przy ataku (canShout)
 			# odstęp: animacja ataku (readyToStartAttack) + fCombatDelayCreature/NPC + 0,01 × los(0..99), maks. +0,9
@@ -1384,3 +1384,22 @@ func _combat(n: CharacterBody3D, r: Dictionary, p: Dictionary, dt: float, react:
 
 func _actor(n: Node) -> Dictionary:
 	return main.combat._actor_state({"sid": String(n.get_meta("mw_sid", ""))})
+
+## AiCombat chooseBestAttack: rodzaj ataku bronią białą losowany z wagą średnich obrażeń (cięcie, pchnięcie,
+## rąbanie – im większe obrażenia, tym częściej); bez broni – losowo. → 0 rąbanie, 1 cięcie, 2 pchnięcie.
+func choose_best_attack(w: Dictionary) -> int:
+	if w.is_empty():
+		return rng.randi() % 3
+	var avg := func(k: String) -> int:
+		var a: Array = w.rec.get(k, [0, 0])
+		return int((int(a[0]) + int(a[1])) / 2) if a.size() >= 2 else 0
+	var slash: int = avg.call("slash")
+	var chop: int = avg.call("chop")
+	var thrust: int = avg.call("thrust")
+	var roll := rng.randf() * float(slash + chop + thrust)
+	if roll <= slash:
+		return 1
+	if roll <= slash + thrust:
+		return 2
+	return 0
+

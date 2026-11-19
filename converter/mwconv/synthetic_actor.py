@@ -585,7 +585,7 @@ def _stage7d_records() -> list:
         recs.append(W.record("SPEL", [W.sub("NAME", W.zs(sid)), W.sub("FNAM", W.zs(name)),
                                       W.sub("SPDT", struct.pack("<iii", 0, 0, 1))] + enams))
     # choroby (diseaseContact): zwykła (typ 3), zaraza (typ 2), Korpus (zaraza z efektem 132); odporność i słabość
-    recs += [_mgef(i, 5, 1.0) for i in (17, 32, 33, 34, 85, 89, 94, 95, 96, 132)]
+    recs += [_mgef(i, 5, 1.0) for i in (17, 32, 33, 34, 47, 85, 89, 94, 95, 96, 132)]
     for sid, typ, enams in (("synth_disease", 3, [_enam(17, 0, 5, 5, 0, attr=0)]),
                             ("synth_blight", 2, [_enam(17, 0, 5, 5, 0, attr=1)]),
                             ("synth_corprus", 2, [_enam(132, 0, 1, 1, 1), _enam(17, 0, 1, 1, 0, attr=2)]),

@@ -531,7 +531,7 @@ _remove_effect → removeMagicEffect, _should_remove → shouldRemoveEffect), sk
 (apply_movement co klatkę), walka w `mw_combat.gd`, AI w `mw_ai.gd`/`mw_dialogue.gd`.
 
 **Stan przed etapem:** 0 zweryfikowanych porównaniem, 79 zaimplementowanych (testy syntetyczne), 14 częściowo,
-50 brakujących. **Po etapie:** 121 zweryfikowanych porównaniem z OpenMW (78 przypadków porównawczych, w tym statystyczne:
+50 brakujących. **Po etapie (stan 2026-11-18):** 121 zweryfikowanych porównaniem z OpenMW (78 przypadków porównawczych, w tym statystyczne:
 40 nałożeń tego samego czaru – odporność, paraliż, odbicie, pochłonięcie, usuwanie, wysysanie umiejętności,
 uszkadzanie magii/kondycji, pochłanianie magii – i 13 przypadków ze sterowaniem postacią), 18 zaimplementowanych
 zgodnie z kodem OpenMW, 4 częściowo zgodne, 0 brakujących.
@@ -571,7 +571,7 @@ trafienia (0 %), tarcze żywiołów bez obrony atakującego (2,4 pkt na trafieni
 | 0 | WaterBreathing | Brakujące | Zweryfikowane | tonięcie (fHoldBreathTime 20 s, fSuffocationDamage 3/s) wyłączone; gracz i NPC | fx_drown/fx_breathe: −12 zdrowia po 24 s / 0 – jak OpenMW |
 | 1 | SwiftSwim | Częściowo zgodne | Zweryfikowane | prędkość pływania gracza i NPC × (1 + 0,01 × wielkość), bieg bez dodatkowego mnożnika | ctl_swim (30 × Pływanie): droga 326/312 j., baza 252/243 j. (stosunek 1,29/1,28) |
 | 2 | WaterWalking | Brakujące | Zweryfikowane | kolizja z powierzchnią wody (bieg po wodzie), przeniesienie na powierzchnię, castable, usuwane po teleporcie | fx_waterwalk (z = 0), ctl_waterwalk_run: bieg po wodzie 477/466 j., z = 0 w obu |
-| 3 | Shield | Częściowo zgodne | Zaimplementowane | pancerz +wielkość (Npc::getArmorRating), GetArmorBonus | fx_player_map |
+| 3 | Shield | Częściowo zgodne | Zweryfikowane | pancerz +wielkość (Npc::getArmorRating) – obrażenia × max(x, fCombatArmorMinMult) | fx_shield_combat (Tarcza 10 000, Fargoth z mieczem): utrata na trafienie / baza ×0,21 OpenMW, ×0,23 Godot (wzór ×0,25) |
 | 4 | FireShield | Częściowo zgodne | Zweryfikowane | odporność na ogień + rani atakującego wręcz (applyElementalShields: 0,1 × wielkość × (1 − 0,01 × x), przed blokiem) | fx_shield_attack: 2 pkt na trafienie w obu (liczba trafień zależy od AI walki) |
 | 5 | LightningShield | Częściowo zgodne | Zweryfikowane | odporność na żywioł + rani atakującego wręcz (applyElementalShields: wielkość × fElementalShieldMult, rzut obrony atakującego) | fx_shock_frost_shield: atakujący bez obrony – 2,4 pkt na trafienie w obu (3 trafienia OpenMW, 5 Godot) |
 | 6 | FrostShield | Częściowo zgodne | Zweryfikowane | odporność na żywioł + rani atakującego wręcz (applyElementalShields: wielkość × fElementalShieldMult, rzut obrony atakującego) | fx_shock_frost_shield: atakujący bez obrony – 2,4 pkt na trafienie w obu (3 trafienia OpenMW, 5 Godot) |
@@ -594,24 +594,24 @@ trafienia (0 %), tarcze żywiołów bez obrony atakującego (2,4 pkt na trafieni
 | 23 | DamageHealth | Zaimplementowane | Zweryfikowane | obrażenia zdrowia co sekundę, śmierć | fx_player_damage |
 | 24 | DamageMagicka | Zaimplementowane | Zweryfikowane | uszkadzanie magii/kondycji co sekundę | porównanie statystyczne 2×20 czarów: sumy 57/66 i 294/290, magia i kondycja do zera w obu |
 | 25 | DamageFatigue | Zaimplementowane | Zweryfikowane | uszkadzanie magii/kondycji co sekundę | porównanie statystyczne 2×20 czarów: sumy 57/66 i 294/290, magia i kondycja do zera w obu |
-| 26 | DamageSkill | Zaimplementowane | Częściowo zgodne | ubytki atrybutów/umiejętności, przywracanie po wygaśnięciu (Drain) | fx_player_damage/fx_npc_stats: wartości zgodne do rzutu odporności (losowe) |
+| 26 | DamageSkill | Zaimplementowane | Zweryfikowane | uszkodzenie umiejętności co sekundę (min(zmodyfikowana, wielkość)), trwałe do przywrócenia | fx_skill_damage_restore (strzelectwo 50, 5/s × 4 s; SW i szczęście 0 – bez rzutu): 30 w obu |
 | 27 | Poison | Zaimplementowane | Zweryfikowane | trucizna, paraliż i ich leczenie | fx_cures: 0 różnic |
 | 28 | WeaknessToFire | Częściowo zgodne | Zweryfikowane | ujemna odporność w getEffectResistance (obrażenia × (1 + słabość/100)), znosi się z odpornością | fx_weakness_elements: 0 różnic, utrata zdrowia ±0,04 pkt |
 | 29 | WeaknessToFrost | Częściowo zgodne | Zweryfikowane | ujemna odporność w getEffectResistance (obrażenia × (1 + słabość/100)), znosi się z odpornością | fx_weakness_elements: 0 różnic, utrata zdrowia ±0,04 pkt |
 | 30 | WeaknessToShock | Częściowo zgodne | Zweryfikowane | słabość do porażenia | fx_shock_damage: 0 różnic (słabość 99, obrażenia w przedziale wzoru) |
 | 31 | WeaknessToMagicka | Częściowo zgodne | Zweryfikowane | słabość do magii – obrażenia bez własnej odporności i kolejne czary szkodliwe (narastająco) | fx_weakness_magicka_poison: słabość 159 w obu (kolejne nałożenia wzmacniane), utrata zdrowia 211 / 213 |
-| 32 | WeaknessToCommonDisease | Zaimplementowane | Zaimplementowane | słabości w odpornościach i obrażeniach | wielkość w mapie zgodna (fx_player_damage: Fire, Poison – rzut odporności) |
-| 33 | WeaknessToBlightDisease | Zaimplementowane | Zaimplementowane | słabości w odpornościach i obrażeniach | wielkość w mapie zgodna (fx_player_damage: Fire, Poison – rzut odporności) |
-| 34 | WeaknessToCorprusDisease | Zaimplementowane | Zaimplementowane | słabości w odpornościach i obrażeniach | wielkość w mapie zgodna (fx_player_damage: Fire, Poison – rzut odporności) |
+| 32 | WeaknessToCommonDisease | Zaimplementowane | Zweryfikowane | diseaseContact: szansa fDiseaseXferChance × 100 × (1 − 0,01 × (odporność − słabość)) na 10 000 przy trafieniu wręcz i przeszukaniu zwłok; Korpus / choroby / zarazy osobno | fx_disease_contact_weak (słabość 3900 → zarażenie każdym trafieniem: choroba, zaraza, Korpus – 5/5 zmiennych w obu) |
+| 33 | WeaknessToBlightDisease | Zaimplementowane | Zweryfikowane | diseaseContact: szansa fDiseaseXferChance × 100 × (1 − 0,01 × (odporność − słabość)) na 10 000 przy trafieniu wręcz i przeszukaniu zwłok; Korpus / choroby / zarazy osobno | fx_disease_contact_weak (słabość 3900 → zarażenie każdym trafieniem: choroba, zaraza, Korpus – 5/5 zmiennych w obu) |
+| 34 | WeaknessToCorprusDisease | Zaimplementowane | Zweryfikowane | diseaseContact: szansa fDiseaseXferChance × 100 × (1 − 0,01 × (odporność − słabość)) na 10 000 przy trafieniu wręcz i przeszukaniu zwłok; Korpus / choroby / zarazy osobno | fx_disease_contact_weak (słabość 3900 → zarażenie każdym trafieniem: choroba, zaraza, Korpus – 5/5 zmiennych w obu) |
 | 35 | WeaknessToPoison | Częściowo zgodne | Zweryfikowane | słabość do trucizny | fx_weakness_magicka_poison: słabość 99, utrata w przedziale wzoru w obu |
-| 36 | WeaknessToNormalWeapons | Zaimplementowane | Zaimplementowane | słabości w odpornościach i obrażeniach | wielkość w mapie zgodna (fx_player_damage: Fire, Poison – rzut odporności) |
+| 36 | WeaknessToNormalWeapons | Zaimplementowane | Zweryfikowane | obrażenia od zwykłej broni × (1 + słabość/100) – resistNormalWeapon (broń srebrna, magiczna, zaklęta – bez zmian) | fx_weak_normal_combat (słabość 100, stalowy miecz): ×2,03 OpenMW, ×2,4 Godot; fx_shield_weak_combat (z Tarczą 10 000): ×0,58 / ×0,55 (wzór ×0,5) |
 | 37 | DisintegrateWeapon | Częściowo zgodne | Zweryfikowane | stan broni w prawej ręce / pierwszego pancerza wg kolejności slotów (tarcza, kirys, …): stan całkowity, ułamek zbierany (applyChargeRemainderToBeSubtracted), przedmiot o stanie 0 pomijany, zniszczony zdejmowany u gracza | fx_disintegrate: sztylet −15 / −15, tarcza −33 / −32 (losowe wielkości 6–25), kirys bez zmian w obu |
 | 38 | DisintegrateArmor | Częściowo zgodne | Zweryfikowane | stan broni w prawej ręce / pierwszego pancerza wg kolejności slotów (tarcza, kirys, …): stan całkowity, ułamek zbierany (applyChargeRemainderToBeSubtracted), przedmiot o stanie 0 pomijany, zniszczony zdejmowany u gracza | fx_disintegrate: sztylet −15 / −15, tarcza −33 / −32 (losowe wielkości 6–25), kirys bez zmian w obu |
 | 39 | Invisibility | Częściowo zgodne | Zweryfikowane | wykrywanie, trafienie; zdejmowana przy ataku, czarze, przedmiocie, wypiciu, alchemii; od pierwszej klatki; czar z tej samej klatki (kolejka ActiveSpells) nie jest zdejmowany | fx_invis_break, fx_invis_break2: 0 różnic |
 | 40 | Chameleon | Zaimplementowane | Zweryfikowane | spostrzegawczość (awarenessCheck: + wielkość) z rzutem obserwatora trzymanym 5 s; obrona w walce (fCombatInvisoMult) | fx_stat_chameleon: GetDetected 40× – 0/40 z Kameleonem 300, 40/40 bez, w obu |
-| 41 | Light | Brakujące | Częściowo zgodne | światło przy aktorze (promień 22 j. × wielkość × 3) | bez porównania obrazu; tylko światło otoczenia w OpenMW – tu OmniLight |
+| 41 | Light | Brakujące | Częściowo zgodne | światło przy aktorze: promień 22 j. × wielkość × 3 (Animation::setLightEffect) – w OpenMW światło tylko otoczenia (ambient 1,5), tu OmniLight z energią 1,5 | bez porównania obrazu: porównania z OpenMW działają na renderowaniu programowym Xvfb, Godot w sondach – bez obrazu; parametry zgodne z kodem |
 | 42 | Sanctuary | Zaimplementowane | Zweryfikowane | unik (getEvasion: + min(100, wielkość)), pomijany przy powaleniu, paraliżu i nieświadomości ofiary | fx_sanctuary_combat: brak trafień z Schronieniem 120, trafienia bez niego (Fargoth, walka wręcz) w obu |
-| 43 | NightEye | Brakujące | Częściowo zgodne | światło otoczenia + 0,7 × min(1, wielkość/100) dla gracza | bez porównania obrazu |
+| 43 | NightEye | Brakujące | Częściowo zgodne | otoczenie + 0,7 × min(1, int(wielkość)/100) dla gracza (Player::update, updateAmbient) | bez porównania obrazu (jak Światło); obcięcie wielkości do liczby całkowitej poprawione w etapie 6 |
 | 44 | Charm | Zaimplementowane | Zweryfikowane | postawa + wielkość (getDerivedDisposition) | fx_charm_misc: GetDisposition 70 z Urokiem 30, 40 bez – w obu |
 | 45 | Paralyze | Zaimplementowane | Zweryfikowane | bez ruchu i ataku (sparaliżowany NPC nie zadaje ciosów); Leczenie paraliżu | fx_paralyze_combat (gracz bez strat), fx_cures |
 | 46 | Silence | Zaimplementowane | Zweryfikowane | szansa rzucenia 0 (getSpellSuccessChance), magia zużyta przy nieudanym rzucie | fx_cast_silence: rzut czaru przez gracza (postawa magii + „use”) – nieudany z Ciszą, udany bez; magia −5 w obu |
@@ -632,9 +632,9 @@ trafienia (0 %), tarcze żywiołów bez obrony atakującego (2,4 pkt na trafieni
 | 61 | Recall | Częściowo zgodne | Zweryfikowane | Znak z obrotem, Przywołanie, DisableTeleporting, zapis | fx_markrecall: 0 różnic |
 | 62 | DivineIntervention | Brakujące | Zweryfikowane | teleportToClosestMarker (siatka komórek, wnętrza przez drzwi) | fx_divine → Pelagiad, fx_almsivi → Vivec (x, y zgodne) |
 | 63 | AlmsiviIntervention | Brakujące | Zweryfikowane | teleportToClosestMarker (siatka komórek, wnętrza przez drzwi) | fx_divine → Pelagiad, fx_almsivi → Vivec (x, y zgodne) |
-| 64 | DetectAnimal | Brakujące | Zaimplementowane | znaczniki na mapie lokalnej (listDetectedReferences: promień wielkość × 22 j., pojemniki i aktorzy z przedmiotem) | mapa efektów zgodna (fx_potions); znaczniki – bez porównania obrazu |
-| 65 | DetectEnchantment | Brakujące | Zaimplementowane | znaczniki na mapie lokalnej (listDetectedReferences: promień wielkość × 22 j., pojemniki i aktorzy z przedmiotem) | mapa efektów zgodna (fx_potions); znaczniki – bez porównania obrazu |
-| 66 | DetectKey | Brakujące | Zaimplementowane | znaczniki na mapie lokalnej (listDetectedReferences: promień wielkość × 22 j., pojemniki i aktorzy z przedmiotem) | mapa efektów zgodna (fx_potions); znaczniki – bez porównania obrazu |
+| 64 | DetectAnimal | Brakujące | Zaimplementowane | znaczniki na mapie lokalnej (listDetectedReferences: promień wielkość × 22 j., pojemniki i aktorzy z przedmiotem) | mapa efektów zgodna (fx_potions); znaczniki: OpenMW nie udostępnia wykrytych obiektów w Lua ani MWScript (tylko obraz mapy lokalnej) – porównanie wymaga zrzutów mapy w obu silnikach |
+| 65 | DetectEnchantment | Brakujące | Zaimplementowane | znaczniki na mapie lokalnej (listDetectedReferences: promień wielkość × 22 j., pojemniki i aktorzy z przedmiotem) | mapa efektów zgodna (fx_potions); znaczniki: OpenMW nie udostępnia wykrytych obiektów w Lua ani MWScript (tylko obraz mapy lokalnej) – porównanie wymaga zrzutów mapy w obu silnikach |
+| 66 | DetectKey | Brakujące | Zaimplementowane | znaczniki na mapie lokalnej (listDetectedReferences: promień wielkość × 22 j., pojemniki i aktorzy z przedmiotem) | mapa efektów zgodna (fx_potions); znaczniki: OpenMW nie udostępnia wykrytych obiektów w Lua ani MWScript (tylko obraz mapy lokalnej) – porównanie wymaga zrzutów mapy w obu silnikach |
 | 67 | SpellAbsorption | Częściowo zgodne | Zweryfikowane | dla każdego efektu osobno: rzut dla każdego aktywnego efektu Odbicia/Pochłonięcia, absorbSpell (+koszt) | porównanie statystyczne 40 czarów: odbite 9/40 OpenMW, 4–10/40 Godot; pochłonięte 4/40 i 8/40 (oczekiwane 20%) |
 | 68 | Reflect | Częściowo zgodne | Zweryfikowane | dla każdego efektu osobno: rzut dla każdego aktywnego efektu Odbicia/Pochłonięcia, absorbSpell (+koszt) | porównanie statystyczne 40 czarów: odbite 9/40 OpenMW, 4–10/40 Godot; pochłonięte 4/40 i 8/40 (oczekiwane 20%) |
 | 69 | CureCommonDisease | Zaimplementowane | Zweryfikowane | usuwanie chorób i zarazy z listy czarów (także NPC), cofnięcie Wyssania | fx_disease_cure: GetSpell/GetCommonDisease/GetBlightDisease 0, atrybuty wracają |
@@ -646,7 +646,7 @@ trafienia (0 %), tarcze żywiołów bez obrony atakującego (2,4 pkt na trafieni
 | 75 | RestoreHealth | Zaimplementowane | Zweryfikowane | przywracanie | fx_player_map (Restore Health), fx_player_damage (Restore Attribute) |
 | 76 | RestoreMagicka | Zaimplementowane | Zweryfikowane | przywracanie magii/kondycji | fx_potions_restore: pełne przywrócenie w obu |
 | 77 | RestoreFatigue | Zaimplementowane | Zweryfikowane | przywracanie magii/kondycji | fx_potions_restore: pełne przywrócenie w obu |
-| 78 | RestoreSkill | Zaimplementowane | Zaimplementowane | przywracanie | test_magic |
+| 78 | RestoreSkill | Zaimplementowane | Zweryfikowane | przywracanie umiejętności co sekundę | fx_skill_damage_restore: 30 → 40 (10/s × 1 s) w obu |
 | 79 | FortifyAttribute | Zaimplementowane | Zweryfikowane | wzmocnienia (czasowe zdrowie/magia/kondycja – tylko bieżąca, w mapie efektów) | fx_player_map, fx_npc_stats |
 | 80 | FortifyHealth | Zaimplementowane | Zweryfikowane | wzmocnienia (czasowe zdrowie/magia/kondycja – tylko bieżąca, w mapie efektów) | fx_player_map, fx_npc_stats |
 | 81 | FortifyMagicka | Zaimplementowane | Zweryfikowane | modyfikator magii (Wzmocnienie magii) | fx_charm_misc: magia +15 (10 + 5) w obu |
@@ -657,18 +657,18 @@ trafienia (0 %), tarcze żywiołów bez obrony atakującego (2,4 pkt na trafieni
 | 86 | AbsorbHealth | Zaimplementowane | Zweryfikowane | pochłanianie zdrowia do rzucającego | fx_absorb_health: zdrowie zgodne |
 | 87 | AbsorbMagicka | Zaimplementowane | Zweryfikowane | pochłanianie magii do rzucającego | porównanie 10 czarów: suma 109/110, magia celu 0 i rzucającego pełna w obu |
 | 88 | AbsorbFatigue | Zaimplementowane | Zweryfikowane | pochłanianie kondycji do rzucającego | fx_absorb: ~20/s w obu (różnica – długość okna czasu) |
-| 89 | AbsorbSkill | Zaimplementowane | Zaimplementowane | pochłanianie do rzucającego | test_magic |
+| 89 | AbsorbSkill | Zaimplementowane | Zweryfikowane | cel: uszkodzenie umiejętności (bez progu min), rzucający: modyfikator; po wygaśnięciu restoreSkill celu i cofnięcie modyfikatora; śmierć rzucającego – purgeSpellEffects | fx_skill_absorb (gracz 20 → 30, Fargoth 40 → 30), fx_absorb_caster_dead (powrót od razu po śmierci rzucającego), fx_absorb_caster_disabled (do wygaśnięcia) – 0 różnic |
 | 90 | ResistFire | Częściowo zgodne | Zweryfikowane | odporność w getEffectResistance (≥ 100 – pełne odparcie bez rzutu) | fx_resist_elements: odporności 120 – zero obrażeń od ognia, mrozu, porażenia, trucizny i obrażeń zdrowia w obu (0 różnic) |
 | 91 | ResistFrost | Częściowo zgodne | Zweryfikowane | odporność w getEffectResistance (≥ 100 – pełne odparcie bez rzutu) | fx_resist_elements: odporności 120 – zero obrażeń od ognia, mrozu, porażenia, trucizny i obrażeń zdrowia w obu (0 różnic) |
 | 92 | ResistShock | Częściowo zgodne | Zweryfikowane | odporność w getEffectResistance (≥ 100 – pełne odparcie bez rzutu) | fx_resist_elements: odporności 120 – zero obrażeń od ognia, mrozu, porażenia, trucizny i obrażeń zdrowia w obu (0 różnic) |
 | 93 | ResistMagicka | Częściowo zgodne | Zweryfikowane | odporność w getEffectResistance (≥ 100 – pełne odparcie bez rzutu) | fx_resist_elements: odporności 120 – zero obrażeń od ognia, mrozu, porażenia, trucizny i obrażeń zdrowia w obu (0 różnic) |
-| 94 | ResistCommonDisease | Zaimplementowane | Zaimplementowane | odporności (getEffectResistance – zawsze, także bez rzucającego) | wielkość w mapie zgodna (fx_player_map) |
-| 95 | ResistBlightDisease | Zaimplementowane | Zaimplementowane | odporności (getEffectResistance – zawsze, także bez rzucającego) | wielkość w mapie zgodna (fx_player_map) |
-| 96 | ResistCorprusDisease | Zaimplementowane | Zaimplementowane | odporności (getEffectResistance – zawsze, także bez rzucającego) | wielkość w mapie zgodna (fx_player_map) |
+| 94 | ResistCommonDisease | Zaimplementowane | Zweryfikowane | odporność na choroby / Korpus w diseaseContact | fx_disease_contact_resist (odporność 4000 − słabość 3900 → szansa 0; zaraza tylko ze słabością – zarażenie) – 0 różnic |
+| 95 | ResistBlightDisease | Zaimplementowane | Zweryfikowane | odporność na zarazy w diseaseContact | fx_disease_contact_resist_blight (zaraza 0, choroba zwykła i Korpus – zarażenie) – 0 różnic |
+| 96 | ResistCorprusDisease | Zaimplementowane | Zweryfikowane | odporność na choroby / Korpus w diseaseContact | fx_disease_contact_resist (odporność 4000 − słabość 3900 → szansa 0; zaraza tylko ze słabością – zarażenie) – 0 różnic |
 | 97 | ResistPoison | Częściowo zgodne | Zweryfikowane | odporność w getEffectResistance (≥ 100 – pełne odparcie bez rzutu) | fx_resist_elements: odporności 120 – zero obrażeń od ognia, mrozu, porażenia, trucizny i obrażeń zdrowia w obu (0 różnic) |
 | 98 | ResistNormalWeapons | Częściowo zgodne | Zweryfikowane | obrażenia od broni niemagicznej (nie srebrnej) × (1 − odporność/100) | fx_resist_normal_weapons: zdolność „immune to normal weapons” – sztylet Fargotha bez obrażeń, bez niej −14…−16 w obu |
 | 99 | ResistParalysis | Częściowo zgodne | Zweryfikowane | odporność na paraliż – 100 odpiera paraliż | fx_charm_misc: Spojrzenie meduzy bez paraliżu przy odporności 100 w obu |
-| 100 | RemoveCurse | Zaimplementowane | Zaimplementowane | usuwanie chorób/trucizn/paraliżu/klątw (także NPC) | test_magic |
+| 100 | RemoveCurse | Zaimplementowane | Zweryfikowane | usuwa zaklęcia typu klątwa (Curse) z listy, efekty cofnięte, inne zostają | fx_remove_curse (czar testowy typu 4): GetSpell 0, siła wraca 40 → 50, „bound dagger” zostaje – 0 różnic |
 | 101 | TurnUndead | Brakujące | Zweryfikowane | Flee + wielkość dla nieumarłych (Creature::Undead) | fx_turnundead: ucieczka przywołanego szkieletu zgodna |
 | 102 | SummonScamp | Brakujące | Zweryfikowane | pełny aktor (statystyki, ekwipunek, AI follow, pomoc w walce, koniec, śmierć, przez drzwi z graczem, zapis) | fx_summon (0 różnic), fx_summon_end (znika po 10 s) |
 | 103 | SummonClannfear | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
@@ -694,23 +694,79 @@ trafienia (0 %), tarcze żywiołów bez obrony atakującego (2,4 pkt na trafieni
 | 123 | BoundBattleAxe | Zaimplementowane | Zweryfikowane | przedmiot przywołany: ActionEquip bez zdejmowania broni dwuręcznej/tarczy | fx_bound_weapons: 0 różnic |
 | 124 | BoundSpear | Zaimplementowane | Zweryfikowane | przedmiot przywołany: ActionEquip bez zdejmowania broni dwuręcznej/tarczy | fx_bound_weapons: 0 różnic |
 | 125 | BoundLongbow | Zaimplementowane | Zweryfikowane | przedmiot przywołany: ActionEquip bez zdejmowania broni dwuręcznej/tarczy | fx_bound_weapons: 0 różnic |
-| 126 | ExtraSpell | Brakujące | Zaimplementowane | NPC zdejmuje wszystko poza bronią, amunicją, spodniami i pochodnią; po wygaśnięciu autoEquip | brak czaru z tym efektem w danych gry – bez porównania |
+| 126 | ExtraSpell | Brakujące | Zweryfikowane | NPC: zdejmuje wszystko poza bronią, amunicją, spodniami (i nie-pancerzem w lewej ręce); po wygaśnięciu autoEquip | fx_extraspell / fx_extraspell_end (czar testowy): Fargoth tylko w spodniach, po 3 s pełny strój – 0 różnic |
 | 127 | BoundCuirass | Zaimplementowane | Zweryfikowane | przedmiot w ekwipunku na czas efektu | fx_bound: ekwipunek zgodny |
 | 128 | BoundHelm | Zaimplementowane | Zweryfikowane | przedmiot w ekwipunku na czas efektu | fx_bound: ekwipunek zgodny |
 | 129 | BoundBoots | Zaimplementowane | Zweryfikowane | przedmiot w ekwipunku na czas efektu | fx_bound: ekwipunek zgodny |
 | 130 | BoundShield | Zaimplementowane | Zweryfikowane | przedmiot przywołany: ActionEquip bez zdejmowania broni dwuręcznej/tarczy | fx_bound_weapons: 0 różnic |
 | 131 | BoundGloves | Zaimplementowane | Zweryfikowane | przedmiot w ekwipunku na czas efektu | fx_bound: ekwipunek zgodny |
 | 132 | Corprus | Częściowo zgodne | Zweryfikowane | choroba jako trwały czar: Wyssanie/Wzmocnienie przy dodaniu, pogarszanie co 24 h znacznika czasu (DaysPassed) | fx_corprus: atrybuty po 2 dniach zgodne (dwa pogorszenia) |
-| 133 | Vampirism | Częściowo zgodne | Częściowo zgodne | dialogi, Obrażenia od słońca i Słabość na ogień ze zdolności, brak przestępstwa przy napaści na wampira (canCommitCrimeAgainst), wielkość zostaje po śmierci; wygląd głowy wampira – brak (obraz) | fx_sun, fx_vampire_crime: grzywna 0 w obu |
+| 133 | Vampirism | Częściowo zgodne | Częściowo zgodne | dialogi, Obrażenia od słońca i Słabość na ogień ze zdolności, brak przestępstwa przy napaści na wampira, wielkość zostaje po śmierci; głowa wampira rasy i płci (getVampireHead) – etap 6 | fx_sun, fx_vampire_crime; głowa wampira – test syntetyczny, bez porównania obrazu z OpenMW |
 | 134 | SummonCenturionSphere | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
 | 135 | SunDamage | Brakujące | Zweryfikowane | zdrowie na zewnątrz × widoczność słońca | fx_sun: ~5/s w obu (Wampir: obrażenia od słońca) |
 | 136 | StuntedMagicka | Zaimplementowane | Zweryfikowane | brak odnowy magii we śnie (restoreDynamicStats), „do wyleczenia” bez magii (getHoursToRest) | ctl_rest_stunted (komórka -3,-9 – można spać): sen „do wyleczenia” 3 h z Zahamowaniem (magia bez zmian), 5 h bez (magia pełna) – 0 różnic |
-| 137 | SummonFabricant | Brakujące | Zaimplementowane | jak inne przywołania (Fabrykant bez czaru w danych; Creature04/05 – GMST bez stworzenia) | bez porównania |
+| 137 | SummonFabricant | Brakujące | Zweryfikowane | przywołanie Fabrykanta (GMST sMagicFabricantID) | fx_summon_custom (czar testowy): fabricant_summon pełny aktor (zdrowie 300) w obu |
 | 138 | SummonWolf | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
 | 139 | SummonBear | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
 | 140 | SummonBonewolf | Brakujące | Zweryfikowane | pełny aktor z GMST (statystyki, odporności, zdolności, AI follow) | fx_summon_all: zgodne; różnice: OpenMW AI rzuca czary wzmacniające (zużycie magii), losowy ekwipunek z list, losowa wielkość regeneracji |
-| 141 | SummonCreature04 | Brakujące | Zaimplementowane | jak inne przywołania (Fabrykant bez czaru w danych; Creature04/05 – GMST bez stworzenia) | bez porównania |
-| 142 | SummonCreature05 | Brakujące | Zaimplementowane | jak inne przywołania (Fabrykant bez czaru w danych; Creature04/05 – GMST bez stworzenia) | bez porównania |
+| 141 | SummonCreature04 | Brakujące | Zweryfikowane | GMST sMagicCreature04ID/05ID bez stworzenia – brak przywołania, efekt bez wpisu w mapie (jak OpenMW) | fx_summon_custom: mapa efektów tylko z Fabrykantem w obu |
+| 142 | SummonCreature05 | Brakujące | Zweryfikowane | GMST sMagicCreature04ID/05ID bez stworzenia – brak przywołania, efekt bez wpisu w mapie (jak OpenMW) | fx_summon_custom: mapa efektów tylko z Fabrykantem w obu |
+
+### Etap 6 (2026-11-19): domknięcie zgodności efektów
+
+**Stan po etapie 6:** 137 efektów zweryfikowanych porównaniem z OpenMW 0.51, 3 zaimplementowane bez porównania
+(Wykrywanie zwierząt, zaklęć, kluczy), 3 częściowo zgodne (Światło, Widzenie w ciemności, Wampiryzm); 94 przypadki
+porównawcze (`tools/openmw-xvfb/magic_cases/`, +16). Tabela wyżej – `tools/gen_magic_inventory.py`.
+
+**Narzędzia porównań (rozszerzone):**
+
+* `custom_spells` – czary testowe zapisywane jako rekordy SPEL w dodatku `mwprobe.esp` (OpenMW) i wstrzykiwane do
+  rekordów sondy Godota: dokładne wielkości, czasy, umiejętności i atrybuty, efekty bez czaru w danych gry
+  (ExtraSpell, Przywołanie Fabrykanta, Creature04/05, klątwa). OpenMW 0.51 nie obsługuje w Lua własnych wielkości
+  (`magnitudeMin`/`duration` w `ActiveSpells:add` – dopiero w gałęzi rozwojowej), stąd rekordy testowe.
+* źródło czaru z zaklęcia przedmiotu (ARMO/CLOT/WEAP/BOOK) jako identyfikator w `spells`.
+* `save_load` (sekundy) – zapis i odczyt gry w trakcie przypadku: OpenMW – zdarzenie gracza → skrypt MENU
+  (`menu.saveGame`, `menu.loadGame`), stan skryptów sondy w `onSave`/`onLoad`; Godot – `save_game`/`load_game`.
+* deterministyczne rzuty odporności: Siła woli i Szczęście celu = 0 (getEffectResistance: x = 0 → bez oporu).
+* rozkłady obrażeń w walce: liczba trafień, suma, suma kwadratów i maksimum (zmienne skryptu sondy co klatkę).
+* praktyka uruchamiania (VM, 2 rdzenie, llvmpipe): efekty czarów tuż przed kamerą i przestępstwo gracza (czar
+  szkodliwy rzucony przez gracza → rozmowa ze strażnikiem, gra w trybie menu) zatrzymywały OpenMW – w przypadkach
+  rzucającym jest NPC albo gracz stoi z dala od celu; ustawienia obrazu lokalnej kopii OpenMW (320 × 240, krótki
+  zasięg, bez cieni) – bez wpływu na mechanikę.
+
+**Niezgodności znalezione i naprawione:**
+
+| Błąd | Przyczyna (pomiar) | OpenMW 0.51 | Naprawa | Test | Przed → po |
+|---|---|---|---|---|---|
+| Brak przenoszenia chorób | `diseaseContact` nie istniał – odporność/słabość na choroby (32–34, 94–96) bez skutku | disease.hpp: przy trafieniu wręcz (po bloku) i przeszukaniu zwłok, szansa na 10 000 | `MWMagic.disease_contact`, wspólne `add_spell` (także AddSpell) | test_magic (rzuty 249/250, 9749/9750), fx_disease_contact_* | 0 zarażeń → 5/5 zmiennych zgodnych w 3 przypadkach |
+| Pochłanianie trwało po śmierci rzucającego | brak `purgeSpellEffects` | Actors: po animacji śmierci i sprzątaniu przywołania czary zmarłego usuwane z innych aktorów | `MWMagic.purge_caster` (śmierć, cleanup_summon) | test_magic, fx_absorb_caster_dead | wymowa gracza 20 do końca czaru → 30 od razu (jak OpenMW) |
+| Gracz nie mógł zostać powalony | `_stagger` pomijał gracza | Npc::onHit: powalenie każdego aktora (zgłoszenie OpenMW #9154) | stan `knocked_down` gracza, bez ruchu, ataku i czarów, cios × fCombatKODamageMult, nokaut przy kondycji < 0 | test_combat | maks. cios 76 → 115 (OpenMW 115–127) |
+| AI: rodzaj ataku losowany równo | `rng % 3` | AiCombat chooseBestAttack – waga średnich obrażeń | `MWAI.choose_best_attack` | test_combat_ai (pełny zestaw) | – |
+| Brak zaciemnienia przy Oślepieniu gracza | nie było nakładki | WindowManager::setBlindness – warstwa FadeToBlack pod HUD-em, krycie = Oślepienie/100 | `MWHud.update_blindness` | test_magic | brak → 0,6 przy Oślepieniu 60 |
+| Widzenie w ciemności – wielkość ułamkowa | float zamiast int | Player::update: `static_cast<int>` / 100 | obcięcie do liczby całkowitej | – | – |
+| Głowa wampira | nie było podmiany | NpcAnimation getVampireHead (część ciała z flagą wampira, rasa, płeć) | `MWActorVisual.is_vampire` / `vampire_head`, także lalka gracza | test_magic | – (bez porównania obrazu) |
+| Obiekty stawiane przez skrypty niedostępne | konwerter eksportował tylko obiekty z przekonwertowanych komórek, list i przywołań | PlaceAtPC/PlaceAtMe/PlaceItem tworzą referencję z dowolnego rekordu | eksport obiektów z argumentów PlaceAtPC/PlaceAtMe/PlaceItem/PlaceItemCell z listami LEVC/LEVI (wersja eksportu 20) | converter/tests/test_script_placed.py | np. `dremora_lord` ze skryptu zadania – brak modelu → w eksporcie |
+
+**Potwierdzone pomiarem bez zmian w kodzie:** Tarcza (×0,21 / ×0,23 vs ×0,25), Słabość na zwykłą broń (×2,03 / ×2,4),
+Uszkodzenie i Przywrócenie umiejętności (30 → 40 w obu), Pochłonięcie umiejętności i wygasanie, Usunięcie klątwy,
+ExtraSpell (Fargoth tylko w spodniach, po 3 s pełny strój), przywołania bez czaru w danych, zapis i odczyt gry
+z czasowym wzmocnieniem, wyssaniem, trwałym uszkodzeniem, chorobą i przywołaniem (przyrosty zgodne, przywołanie po
+odczycie w obu). Po zmianie silnika fizyki na Jolt: chód, bieg z Lekkością, skok, lot (Lewitacja), pływanie, bieg po
+wodzie, Powolne opadanie, podążanie skampa – jak przed zmianą (track_summary: prędkości szczytowe zgodne; OpenMW przy
+~5 kl./s w Xvfb później rusza i wolniej opada – znane ograniczenie).
+
+**Rozkład obrażeń w walce (hipoteza, niepotwierdzona):** średnia utrata zdrowia na trafienie mieczem Fargotha – Godot
+ok. 43 (85 trafień), OpenMW ok. 56 (57 trafień), ok. 2,7σ. Wzory obrażeń identyczne; prawdopodobna przyczyna – AI
+OpenMW zwalnia cios, gdy napięcie ataku przekroczy wylosowaną siłę, sprawdzając co klatkę, więc przy ~5 kl./s w Xvfb
+siła ma naddatek. Stosunki (Tarcza, Słabość) porównywane w obrębie silnika – niezależne od tego.
+
+**Ograniczenia:** Wykrywanie (64–66) – OpenMW nie udostępnia wykrytych obiektów w Lua ani MWScript, porównanie
+wymagałoby zrzutów mapy lokalnej w obu silnikach (sondy Godota działają bez obrazu). Światło, Widzenie w ciemności,
+głowa wampira – tylko obraz. OpenMW po odczycie gry zwraca w Lua efekty bez atrybutu/umiejętności (klucze `17:nil`
+w migawce) – wartości statystyk zgodne z przebiegiem bez zapisu, różnica tylko w raporcie Lua. Głowa wampira nie jest
+przebudowywana w chwili zarażenia (OpenMW: setVampire → rebuild) – dopiero przy ponownym złożeniu aktora.
+Test powalenia w Godocie używa obrażeń przed pancerzem (badania Morrowinda; OpenMW 0.51 – po pancerzu, uznane
+w OpenMW za błąd #9154) – świadoma różnica.
 
 ### Różnice i zależności (magia)
 
@@ -913,7 +969,8 @@ na VM biblioteka GDExtension nie wczytuje się (glibc 2.38), sonda działa na ś
 2. ~~Pięć okien kreatora postaci jak w OpenMW~~ – wykonane 2026-11-17 (punkt 2a); pozostało: podpowiedzi z ikonami, tekstury pasków przewijania, pad.
 3. ~~MWScript – stałe zera i nieobsłużone~~ – wykonane 2026-11-17 (punkt 4a); pozostało: zależności z punktu 4a
    (animacje śmierci/powalenia, sen przerywany stworzeniami, okno więzienia, wygląd wilkołaka, Lewitacja, księżyce).
-4. Efekty magii z punktu 5.
+4. ~~Efekty magii z punktu 5~~ – etap 6 (2026-11-19): 137/143 zweryfikowanych porównaniem; pozostało porównanie obrazu
+   (Wykrywanie – znaczniki mapy lokalnej, Światło, Widzenie w ciemności, głowa wampira).
 5. Interfejs z punktu 3.
 6. Grafika: animacje, widok 1-/3-osobowy, pogoda, oświetlenie.
 7. Tribunal/Bloodmoon (wilkołactwo i pozostałe).

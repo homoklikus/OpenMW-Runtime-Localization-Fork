@@ -370,6 +370,7 @@ func player_doll() -> Node3D:
 		if not String(st.get(k, "")).is_empty():
 			npc[k] = st[k]
 	npc["female"] = bool(st.get("female", npc.get("female", false)))
+	npc["spells"] = (st.get("spells", []) as Array).duplicate()    # wampiryzm gracza – głowa wampira
 	var slots := {}
 	var eq := _equipment()
 	for sl in eq:
@@ -521,8 +522,9 @@ func _update_player_rpg(dt: float) -> void:
 	player.air_factor = float(mv.air_factor)
 	if player.want_sneak:                      # fSneakSpeedMultiplier (chód skradając się)
 		player.walk_speed *= float(combat._gmst("fSneakSpeedMultiplier", 0.75))
-	if magic != null and magic.magnitude_of(combat.player_fighter(), magic.FX_PARALYZE) > 0.0:
-		player.walk_speed = 0.0                    # paraliż: bez ruchu i skoku (animacja – etap 10)
+	if (magic != null and magic.magnitude_of(combat.player_fighter(), magic.FX_PARALYZE) > 0.0) \
+			or bool(st.get("knocked_down", false)):
+		player.walk_speed = 0.0                    # paraliż / powalenie: bez ruchu i skoku (animacja – etap 10)
 		player.run_speed = 0.0
 		player.swim_speed = 0.0
 		player.jump_velocity = 0.0
@@ -703,6 +705,8 @@ func _attack_strength() -> float:
 func player_attack(roll := -1) -> Dictionary:
 	var strength := _attack_strength()
 	_attack_hold = -1.0
+	if bool(player_stats().get("knocked_down", false)):
+		return {"success": false}                 # powalony gracz nie atakuje (CharacterController)
 	var att: Dictionary = combat.player_fighter()
 	var w: Dictionary = combat.weapon(att)
 	var wt := int(w.rec.get("weapon_type", -1)) if not w.is_empty() else -1
@@ -955,6 +959,7 @@ func _update_magic(dt: float) -> void:
 	if magic == null or combat == null or player_stats().is_empty():
 		return
 	magic.tick(combat.player_fighter(), dt)
+	_update_knockdown(player_stats(), dt)      # powalenie i nokaut gracza (kondycja < 0) – jak NPC
 	if player != null:
 		player.move_flags = player_stats().get("move_flags", {})
 		magic.apply_movement(combat.player_fighter(), player)
@@ -1070,6 +1075,8 @@ func selected_magic_name() -> String:
 ## Rzucenie wybranej magii (lewy przycisk przy gotowej magii): zaklęcie/moc albo przedmiot; dotyk – aktor
 ## w zasięgu fCombatDistance (getHitContact) albo obiekt (Otwarcie/Zamknięcie); cel – pocisk czaru.
 func player_cast(roll := -1) -> Dictionary:
+	if bool(player_stats().get("knocked_down", false)):
+		return {"success": false}                 # powalony gracz nie rzuca czarów
 	var sel := selected_magic()
 	if sel.is_empty():
 		_toast(dialogue.gmst_text("sNoSpellSelected", "Nie wybrano zaklęcia.") if dialogue != null else "Nie wybrano zaklęcia.", 2.0)
