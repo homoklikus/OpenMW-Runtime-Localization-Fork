@@ -1,6 +1,6 @@
 # Inwentaryzacja zgodności OpenMWGodot z OpenMW
 
-Stan na 2026-11-19 (etap 8: `RAPORT-ETAP8.md`; etap 7 – interfejs: `AUDYT-ETAP7-UI.md`; wcześniej po etapach „pełny start gry”, „pięć okien tworzenia postaci” i „MWScript zgodny z OpenMW”). Cel: wierne odtworzenie OpenMW, zanim
+Stan na 2026-11-19 (etap 9: `RAPORT-ETAP9.md`; etap 8: `RAPORT-ETAP8.md`; etap 7 – interfejs: `AUDYT-ETAP7-UI.md`; wcześniej po etapach „pełny start gry”, „pięć okien tworzenia postaci” i „MWScript zgodny z OpenMW”). Cel: wierne odtworzenie OpenMW, zanim
 zajmiemy się remasterem. OpenMW jest źródłem prawdy (fork `apps/openmw`, ten sam kod co oficjalne 0.51).
 
 ## Statusy
@@ -123,26 +123,29 @@ klasa, statystyki po 9 powrotach = buildPlayer od zera) i `probe_newgame.gd` (15
 | Skala GUI (jedna, jak `[GUI] scaling factor`; dziennik/książki – ScalingLayer 600 × 520) | Zweryfikowane | etap 7: wcześniej każde okno skalowało się `vp.y/720` (1,5× przy 1080p) – szczegóły `AUDYT-ETAP7-UI.md` | – |
 | HUD, tryb menu (statystyki, ekwipunek, magia, mapa), okna kreatora | Zweryfikowane | etap 7: porównanie zrzutami z OpenMW w 720p–2160p (IoU 0,93–1,0), test_ui_geometry | – |
 | Rozmowa, handel (GM_Barter), pojemnik (z Dispose of Corpse), zakup zaklęć, podróże, trening | Zaimplementowane | etap 8: układy z layoutów OpenMW, testy; porównanie zrzutami czeka na VM (`RAPORT-ETAP8.md`) | P2 |
-| Alchemia, zaklinanie, tworzenie czarów, odpoczynek/awans, naprawa, doładowanie, perswazja | Częściowo zgodne | własne układy Godota | P2 |
+| Alchemia, zaklinanie, tworzenie czarów, edycja efektu, awans, naprawa, ładowanie, perswazja | Zweryfikowane | etap 9: układy z layoutów OpenMW, mechanika z kodu OpenMW, testy i porównania zrzutami 1080p (ramki IoU 1,0, wnętrze ±1–2 px) – `RAPORT-ETAP9.md`; inne rozdzielczości i klawiatura – do porównania | P3 |
 | Pasek przewijania w stylu Morrowinda (MW_VScroll) | Zweryfikowane | etap 8: skórka, krok 36, MoveToClick, test | – |
-| Przypinanie, maksymalizacja, ukrywanie okien, klik w HUD | Zaimplementowane | etap 8; stan w zapisie gry zamiast w settings | P3 |
+| Przypinanie, maksymalizacja, ukrywanie okien, klik w HUD | Zweryfikowane | etap 9: globalnie jak [Windows] (window_settings.json), migracja starych zapisów, test_window_settings | – |
 | Pasek zdrowia wroga w HUD | Brakujące | | P2 |
 | Szybkie klawisze (F1, 1–9) | Brakujące | | P1 |
 | Okno ilości (dzielenie stosów, Shift przy przeciąganiu) | Brakujące | dziś zawsze cały stos / 1 sztuka | P2 |
 | Dziennik jak książka (zadania, indeks tematów, strony) | Zweryfikowane | etap 7: JournalWindow (tx_menubook, zakładka, indeks), zrzuty IoU ≥ 0,997 | – |
-| Okno awansu (obraz klasy, mnożniki atrybutów) | Częściowo zgodne | | P2 |
-| Odpoczynek/czekanie (układ OpenMW, „do wyleczenia”) | Częściowo zgodne | układ `openmw_wait_dialog` – do zrobienia | P2 |
-| Tworzenie zaklęć (usługa) | Brakujące | | P2 |
-| Naprawa u kupca / młotkiem, ładowanie kamieniem duszy | Częściowo zgodne | logika częściowo, okna OpenMW brak | P2 |
-| Zaklinanie, kupno zaklęć, trening, podróż w układzie OpenMW | Częściowo zgodne | wygląd Morrowinda, układ list | P3 |
+| Okno awansu (obraz klasy, mnożniki atrybutów) | Zweryfikowane | etap 9: LevelupDialog, porównanie zrzutem (obraz i opis piksel w piksel) | – |
+| Odpoczynek/czekanie (układ OpenMW, „do wyleczenia”) | Częściowo zgodne | układ `openmw_wait_dialog`, pasek postępu, przerywanie snu (lista snu regionu), sNotifyMessage2, autozapis – do zrobienia | P2 |
+| Tworzenie zaklęć (usługa) | Zweryfikowane | etap 9: SpellCreationDialog i pozycja w rozmowie | – |
+| Naprawa u kupca / młotkiem, ładowanie kamieniem duszy | Zweryfikowane | etap 9: Repair, MerchantRepair, Recharge, SoulgemDialog | – |
+| Zaklinanie, kupno zaklęć, trening, podróż w układzie OpenMW | Zweryfikowane | etapy 8–9: porównania zrzutami | – |
 | Więzienie (okno odsiadki, utrata umiejętności) | Nieprzetestowane | | P2 |
 | Towarzysz (dzielenie ekwipunku), przechodzenie przez drzwi | Brakujące | | P2 |
 | Konsola (~) | Brakujące | przydatna też do testów | P3 |
 | Ustawienia jak OpenMW (zakładki, klawisze) | Częściowo zgodne | mniej opcji | P3 |
 | Kursor z gry (`tx_cursor`) | Brakujące | | P3 |
 | Podpowiedź nad obiektem w świecie: waga, wartość, właściciel na czerwono | Częściowo zgodne | dziś tekst akcji | P2 |
-| Okno komunikatu (MessageBox) w stylu i położeniu OpenMW | Częściowo zgodne | | P3 |
+| Okno komunikatu (MessageBox) w stylu i położeniu OpenMW | Zweryfikowane | etap 9: MessageBoxManager (komunikaty i okno z pytaniem), test_messagebox, porównanie zrzutem; klawisz domyślny – do zrobienia | P3 |
 | Książka/zwój: „Weź” tylko przy odblokowanym ekwipunku | Zweryfikowane | test_chargen + sonda | – |
+| Podpowiedzi w układach OpenMW (`openmw_tooltips`: ikony, MagicEffectToolTip, kolory) | Częściowo zgodne | etap 9 – audyt: dziś zwykłe podpowiedzi tekstowe Godota | P2 |
+| Sterowanie z pada (menu kontrolera) | Brakujące | | P3 |
+| Stos trybów GUI (pushGuiMode/popGuiMode) | Częściowo zgodne | okna otwierane z ekwipunku zamykają tryb menu zamiast wracać do niego | P2 |
 
 ## 4. Skrypty (Morrowind, Tribunal, Bloodmoon)
 
@@ -978,7 +981,8 @@ na VM biblioteka GDExtension nie wczytuje się (glibc 2.38), sonda działa na ś
    (animacje śmierci/powalenia, sen przerywany stworzeniami, okno więzienia, wygląd wilkołaka, Lewitacja, księżyce).
 4. ~~Efekty magii z punktu 5~~ – etap 6 (2026-11-19): 137/143 zweryfikowanych porównaniem; pozostało porównanie obrazu
    (Wykrywanie – znaczniki mapy lokalnej, Światło, Widzenie w ciemności, głowa wampira).
-5. Interfejs z punktu 3.
+5. Interfejs z punktu 3 – etap 9 (`RAPORT-ETAP9.md`): okna rzemiosła, awansu, perswazji i komunikatów wykonane;
+   pozostały szybkie klawisze, okno ilości, czekanie, podpowiedzi, więzienie, towarzysz, konsola.
 6. Grafika: animacje, widok 1-/3-osobowy, pogoda, oświetlenie.
 7. Tribunal/Bloodmoon (wilkołactwo i pozostałe).
 
