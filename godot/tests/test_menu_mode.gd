@@ -198,6 +198,17 @@ func _run() -> void:
 	mm.toggle_pin("map")
 	check(main.mw_hud.bars["health"].visible, "odpięcie przywraca paski HUD")
 	mm.close()
+	# openmw_wait_dialog.layout: 600 px, data, tekst, „N sRestMenu2”, pasek 24 pozycji, przyciski
+	var rw = main.rest_window
+	if rw.open():
+		var rs: float = preload("res://scripts/mw/mw_ui.gd").ui_scale()
+		check(absf(rw.panel.size.x - 600.0 * rs) < 1.5 and rw.hours_label.text.begins_with("1 ") and rw.date_label.text.contains("("),
+			"okno odpoczynku jak OpenMW (%s, %s, %s)" % [rw.panel.size, rw.hours_label.text, rw.date_label.text])
+		rw.slider.value = 5
+		check(int(rw.hours.value) == 6 and rw.hours_label.text.begins_with("6 "), "pasek godzin: pozycja 5 = 6 godzin")
+		rw.close()
+	else:
+		check(false, "okno odpoczynku się otwiera")
 	report["checks"] = checks
 	print("RESULT ", JSON.stringify({"ok": failures.is_empty(), "failures": failures, "report": report}))
 	quit(0 if failures.is_empty() else 1)

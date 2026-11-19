@@ -146,6 +146,13 @@ Ceny i targowanie bez zmian (`mw_trade.gd`). Testy w test_trade.
 - **Brakująca funkcja „Dispose of Corpse” dodana** (`ContainerWindow::onDisposeCorpseButtonClicked`): najpierw
   „weź wszystko”, potem ciało nietrwałego aktora znika ze świata, a przy trwałym pojawia się
   `sDisposeCorpseFail`.
+- **Odpoczynek** wg `openmw_wait_dialog`:
+  - `MW_Dialog` 600 px, odstępy 8;
+  - data „dzień miesiąc (Day N) godzina” z kalendarza (globale Day, Month, DaysPassed, l10n Calendar);
+  - tekst `sRestMenu3` / `sRestIllegal` / `sWerewolfRestMessage`;
+  - „N sRestMenu2”;
+  - pasek MW_HScroll z 24 pozycjami (pozycja 0 = 1 godzina);
+  - przyciski `sUntilHealed`, `sRest`/`sWait` i Cancel przy prawej (wcześniej zwykły suwak i polskie napisy).
 - **Konwerter:** gubił flagę trwałości z nagłówka rekordu (`FLAG_PERSISTENT` 0x400, `Class::isPersistent`).
   Teraz NPC i stworzenia mają pole `persistent`. Test: pytest `test_records`.
 
@@ -163,6 +170,7 @@ Ceny i targowanie bez zmian (`mw_trade.gd`). Testy w test_trade.
   - `test_chargen`: statystyki przed kreatorem, po rasie, po klasie;
   - `test_weather`: oświetlenie wnętrz, światła punktowe, tonemapping;
   - `test_combat`: Dispose of Corpse;
+  - `test_menu_mode`: okno odpoczynku;
   - `test_ai`: widoczność bez aktorów;
   - pytest `test_records`: flaga trwałości.
 - Porównania wizualne na prawdziwych danych w tej części etapu nie były możliwe (punkt 12). Procedura z
@@ -182,7 +190,9 @@ Priorytety z zależnościami (P1 – psuje wierność od pierwszych minut, P2 �
 4. **Alchemia, zaklinanie, tworzenie czarów** (`openmw_alchemy_window`, `openmw_enchanting_dialog`,
    `openmw_spellcreation_dialog`): dziś wspólne okno `mw_magic_window` z polskimi opisami. P2.
 5. **Okno pojemnika:** wymiary względem ItemView (5 px) i porównanie zrzutem. P3.
-6. **Odpoczynek i awans:** `openmw_wait_dialog`, `openmw_levelup_dialog` (teksty zapasowe po polsku). P2.
+6. **Awans:** `openmw_levelup_dialog` (teksty zapasowe po polsku); pasek postępu odpoczynku
+   (`openmw_wait_dialog_progressbar`) i przerwanie snu przez stworzenia z regionu (`fSleepRandMod`) – do
+   sprawdzenia. P2.
 7. **Okno perswazji:** `openmw_persuasion_dialog`. P3.
 8. **Ustawienia okien w settings (globalnie)** zamiast w zapisie gry, jak `[Windows]` OpenMW. P3.
 9. **Okno ustawień** jak OpenMW (zakładki, klawisze; teksty z l10n OMWEngine). P3.

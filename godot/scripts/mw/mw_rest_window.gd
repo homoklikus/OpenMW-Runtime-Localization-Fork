@@ -23,39 +23,74 @@ var lv_buttons: Array = []
 var lv_info: Label
 var chosen: Array = []
 
+const UI := preload("res://scripts/mw/mw_ui.gd")
 const ATTR_NAMES := ["Siła", "Inteligencja", "Siła woli", "Zręczność", "Szybkość", "Wytrzymałość", "Osobowość", "Szczęście"]
 const ATTR_GMST := ["sAttributeStrength", "sAttributeIntelligence", "sAttributeWillpower", "sAttributeAgility",
 	"sAttributeSpeed", "sAttributeEndurance", "sAttributePersonality", "sAttributeLuck"]
 
+## Układ openmw_wait_dialog.layout: VBox w skórce MW_Dialog, 600 px, Padding 8, Spacing 8 (wysokość z treści):
+## data i godzina (DateTimeText), tekst odpoczynku (RestText), „N sRestMenu2” (HourText), pasek MW_HScroll
+## (24 pozycje, MoveToClick, kółko o 1), przyciski przy prawej: sUntilHealed, sRest/sWait, Cancel.
+var date_label: Label
+var slider: HScrollBar
+
 func _ready() -> void:
 	layer = 23
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	var s: float = UI.ui_scale()
 	panel = PanelContainer.new()
 	panel.name = "RestWindow"
-	panel.custom_minimum_size = Vector2(460, 180)
+	panel.theme = UI.theme(s)
+	var sb: StyleBox = UI.window_box().duplicate()
+	for side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
+		sb.set_content_margin(side, 8 * s + 4 * s)               # Client MW_Dialog (4) + Padding 8
+	panel.add_theme_stylebox_override("panel", sb)
+	panel.custom_minimum_size.x = 600 * s
 	add_child(panel)
 	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", roundi(8 * s))
 	panel.add_child(box)
+	date_label = Label.new()
+	date_label.name = "DateTimeText"
+	date_label.add_theme_color_override("font_color", UI.color("normal"))
+	box.add_child(date_label)
 	info = Label.new()
-	info.autowrap_mode = TextServer.AUTOWRAP_WORD
+	info.name = "RestText"
+	info.add_theme_color_override("font_color", UI.color("normal"))
 	box.add_child(info)
+	hours_label = Label.new()
+	hours_label.name = "HourText"
+	hours_label.add_theme_color_override("font_color", UI.color("normal"))
+	box.add_child(hours_label)
+	# HourSlider: Range 24, Page 1 – pozycja 0..23 = 1..24 godzin; „hours” trzyma wartość w godzinach
+	slider = HScrollBar.new()
+	slider.name = "HourSlider"
+	slider.min_value = 0
+	slider.max_value = 24
+	slider.page = 1
+	slider.step = 1
+	slider.custom_minimum_size.y = 18 * s
+	box.add_child(slider)
 	hours = HSlider.new()
 	hours.min_value = 1
 	hours.max_value = 24
 	hours.step = 1
 	hours.value = 1
-	hours.value_changed.connect(func(v): hours_label.text = "%d h" % int(v))
+	hours.visible = false
 	box.add_child(hours)
-	hours_label = Label.new()
-	hours_label.text = "1 h"
-	hours_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(hours_label)
+	slider.value_changed.connect(func(v): hours.value = int(v) + 1)
+	hours.value_changed.connect(func(v):
+		hours_label.text = "%d %s" % [int(v), _t("sRestMenu2", "hours")]
+		slider.set_value_no_signal(int(v) - 1))
 	var row := HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.alignment = BoxContainer.ALIGNMENT_END
 	box.add_child(row)
-	rest_btn = _btn(row, "Odpocznij", func(): rest(int(hours.value)))
-	heal_btn = _btn(row, "Do wyleczenia", func(): rest(hours_until_healed()))
-	_btn(row, "Anuluj", close)
+	heal_btn = _btn(row, "Until Healed", func(): rest(hours_until_healed()))
+	heal_btn.name = "UntilHealedButton"
+	rest_btn = _btn(row, "Rest", func(): rest(int(hours.value)))
+	rest_btn.name = "WaitButton"
+	var cb := _btn(row, "Cancel", close)
+	cb.name = "CancelButton"
 	_build_levelup()
 	visible = false
 
@@ -101,7 +136,7 @@ func rest_state() -> Dictionary:
 	if p == null:
 		return {"ok": false}
 	if p.swimming or (not p.is_on_floor() and p.collide) or p.fly:
-		return {"ok": false, "message": _t("sNotifyMessage1", "Nie możesz tu odpoczywać.")}
+		return {"ok": false, "message": _t("sNotifyMessage1", "You can't rest now.")}
 	var can_sleep := not bool(main.player_stats().get("werewolf", false))     # WaitDialog::setCanRest – wilkołak czeka
 	# World::canRest: flaga komórki NoSleep (0x4) – także komórki zewnętrzne (np. miasta: Seyda Neen)
 	var key: String = ("int:" + main.interior.to_lower()) if not main.interior.is_empty() \
@@ -117,11 +152,28 @@ func open() -> bool:
 			main._toast(String(rs.message))
 		return false
 	sleeping = bool(rs.sleep)
-	info.text = _t("sRestMenu3", "Ile godzin chcesz odpoczywać?") if sleeping else _t("sRestIllegal", "Nie możesz tu spać – możesz tylko czekać.")
-	rest_btn.text = _t("sRest", "Odpocznij") if sleeping else _t("sWait", "Czekaj")
+	var werewolf := bool(main.player_stats().get("werewolf", false))
+	# WaitDialog::setCanRest
+	info.text = _t("sRestMenu3", "How long do you wish to rest?") if sleeping else \
+		(_t("sWerewolfRestMessage", "You cannot rest in beast form.") if werewolf else _t("sRestIllegal", "You can't rest here."))
+	rest_btn.text = _t("sRest", "Rest") if sleeping else _t("sWait", "Wait")
+	heal_btn.text = _t("sUntilHealed", "Until Healed")
 	heal_btn.visible = sleeping and hours_until_healed() > 0
+	(panel.find_child("CancelButton", true, false) as Button).text = preload("res://scripts/mw/mw_l10n.gd").ctx_text("Interface", "Cancel", "Cancel")
+	# WaitDialog::onOpen: „dzień miesiąc (#{Calendar:day} N) godzina”, suwak na 1 godzinę
+	var sc = main.scripts
+	var dom := int(sc.get_global("day")) if sc != null else 1
+	var mon := int(sc.get_global("month")) if sc != null else 0
+	var passed := int(sc.get_global("dayspassed")) if sc != null else int(main.envr.day) + 1
+	date_label.text = "%d %s (%s %d) %s" % [dom, main.month_name(mon),
+		preload("res://scripts/mw/mw_l10n.gd").ctx_text("Calendar", "day", "Day"), passed,
+		preload("res://scripts/mw/mw_l10n.gd").time_of_day(float(main.envr.game_hour))]
+	hours.value = 1
+	hours_label.text = "%d %s" % [1, _t("sRestMenu2", "hours")]
+	slider.set_value_no_signal(0)
 	visible = true
-	panel.position = (get_viewport().get_visible_rect().size - panel.get_combined_minimum_size()) / 2.0
+	panel.reset_size()
+	panel.position = ((get_viewport().get_visible_rect().size - panel.get_combined_minimum_size()) / 2.0).floor()
 	get_tree().paused = true
 	if DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
