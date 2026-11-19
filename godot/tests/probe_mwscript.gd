@@ -308,6 +308,8 @@ func _apply_ui(steps: Array, started: bool) -> void:
 				_ui_mode(u[2])
 			"clear":
 				_ui_clear()
+			"message":
+				main._toast(String(u[2]))          # ui.showMessage → MessageBoxManager::createMessageBox
 			"click":
 				# kliknięcie lewym przyciskiem w punkcie ekranu (jak XTest po stronie OpenMW)
 				var pos := Vector2(float(u[2][0]), float(u[2][1]))

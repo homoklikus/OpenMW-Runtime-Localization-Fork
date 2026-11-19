@@ -111,7 +111,7 @@ func _run() -> void:
 		root.size = Vector2i(vp)
 		await _frames(2)
 		var mm = main.menu_mode
-		main.state.player.erase("ui_windows")      # bez układu zapamiętanego przy innej rozdzielczości
+		main.window_store("ui_windows").clear()      # bez układu zapamiętanego przy innej rozdzielczości
 		mm.open()
 		await _frames(3)
 		for wn in mm.DEFAULT_RECTS:

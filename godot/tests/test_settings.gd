@@ -71,6 +71,7 @@ func _run() -> void:
 	main.apply_live_settings()
 	check(not main._subtitle.visible, "napisy wyłączone w ustawieniach")
 	main._toast("Komunikat")
-	check(main.overlay().get_children().any(func(c): return c is Label and c.text == "Komunikat"), "komunikat na warstwie nad oknami")
+	check(main.message_boxes != null and main.message_boxes.layer > 24 and main.message_boxes.texts() == ["Komunikat"],
+		"komunikat (MessageBoxManager) na warstwie nad oknami")
 	print("RESULT ", JSON.stringify({"checks": checks, "failures": failures}))
 	quit(1 if failures.size() > 0 else 0)

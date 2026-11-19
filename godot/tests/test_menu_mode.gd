@@ -160,7 +160,7 @@ func _run() -> void:
 	mm.close()
 	await _frames(2)
 	check(not mm.visible and not paused and not main.map_window.visible, "zamknięcie trybu menu (z mapą)")
-	var saved: Array = main.state.player.get("ui_windows", {}).get("inventory", [])
+	var saved: Array = main.window_store("ui_windows").get("inventory", [])
 	check(saved.size() == 4 and absf(float(saved[0]) * vp.x - 100.0) < 1.0, "układ okien zapamiętany")
 	mm.open()
 	await _frames(2)

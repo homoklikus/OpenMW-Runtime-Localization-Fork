@@ -176,7 +176,8 @@ return {
             elseif type(u[3]) == 'table' then I.UI.setMode(u[3][1], {windows = u[3][2]}) else I.UI.setMode(u[3]) end
           elseif u[2] == 'clear' then I.UI.setMode()
           elseif u[2] == 'shot' then print('MWSHOT ' .. u[3])
-          elseif u[2] == 'click' then print(string.format('MWCLICK %d %d', u[3][1], u[3][2])) end
+          elseif u[2] == 'click' then print(string.format('MWCLICK %d %d', u[3][1], u[3][2]))
+          elseif u[2] == 'message' then require('openmw.ui').showMessage(u[3]) end
         end
       end
       -- okno interfejsu (I.UI.setMode), np. odpoczynek: [czas rzeczywisty, tryb]
@@ -570,7 +571,7 @@ def lua_table(v):
         return "true" if v else "false"
     if isinstance(v, (int, float)):
         return repr(v)
-    return json.dumps(str(v))
+    return json.dumps(str(v), ensure_ascii=False)     # UTF-8 w literale Lua (LuaJIT nie zna \\u)
 
 
 DELAY = 30     # klatek od startu do wykonania poleceń (aktorzy komórki już zainicjowani, zdolności nałożone)

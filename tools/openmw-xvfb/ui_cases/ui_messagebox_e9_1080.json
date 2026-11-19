@@ -1,0 +1,57 @@
+{
+ "name": "ui_messagebox_e9_1080",
+ "cell": "Seyda Neen, Arrille's Tradehouse",
+ "resolution": [
+  1920,
+  1080
+ ],
+ "note": "etap 9: MessageBox (ui.showMessage w OpenMW, main._toast w Godocie) – trzy komunikaty, w tym zawinięty; tekst testowy (nie z gry)",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [],
+ "ui": [
+  [
+   2.0,
+   "clear",
+   null
+  ],
+  [
+   3.0,
+   "message",
+   "Komunikat testowy"
+  ],
+  [
+   3.1,
+   "message",
+   "Drugi komunikat testowy, wyraźnie dłuższy od pierwszego, aby zawinąć go na dwa wiersze"
+  ],
+  [
+   3.2,
+   "message",
+   "Trzeci komunikat"
+  ],
+  [
+   3.5,
+   "shot",
+   "messages"
+  ]
+ ],
+ "seconds": 8.0,
+ "interior": true,
+ "teleport": [
+  [
+   0,
+   "player",
+   -242.27,
+   -11.77,
+   228.0
+  ]
+ ]
+}

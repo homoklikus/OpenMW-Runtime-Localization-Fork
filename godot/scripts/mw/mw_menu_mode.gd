@@ -155,12 +155,11 @@ func close() -> void:
 	_set_hud(true)
 	closed.emit()
 
+## [Windows] <okno> x/y/w/h – globalnie (main.window_store), nie w zapisie gry.
 func _layout_store() -> Dictionary:
-	if main == null or main.get("state") == null:
+	if main == null or not main.has_method("window_store"):
 		return {}
-	if not main.state.player.get("ui_windows") is Dictionary:
-		main.state.player["ui_windows"] = {}
-	return main.state.player["ui_windows"]
+	return main.window_store("ui_windows")
 
 func _rect(name: String, vp: Vector2) -> Rect2:
 	var r: Rect2 = DEFAULT_RECTS[name]
@@ -175,6 +174,8 @@ func _save_layout() -> void:
 	for n in windows:
 		var w: Control = windows[n]
 		store[n] = [w.position.x / vp.x, w.position.y / vp.y, w.size.x / vp.x, w.size.y / vp.y]
+	if main != null and main.has_method("save_window_settings"):
+		main.save_window_settings()
 
 func _window(name: String, rect: Rect2) -> PanelContainer:
 	var w := PanelContainer.new()
@@ -221,11 +222,13 @@ func _window(name: String, rect: Rect2) -> PanelContainer:
 # --- przypinanie, ukrywanie, maksymalizacja (WindowPinnableBase, WindowManager) -----------------------------
 
 func _ui(key: String) -> Dictionary:
-	if main == null or main.get("state") == null:
+	if main == null or not main.has_method("window_store"):
 		return {}
-	if not main.state.player.get(key) is Dictionary:
-		main.state.player[key] = {}
-	return main.state.player[key]
+	return main.window_store(key)
+
+func _ui_changed() -> void:
+	if main != null and main.has_method("save_window_settings"):
+		main.save_window_settings()
 
 ## [Windows] <okno> pin
 func is_pinned(n: String) -> bool:
@@ -244,6 +247,7 @@ func _pin_input(e: InputEvent, n: String, b: Control) -> void:
 ## WindowPinnableBase::onPinButtonPressed: przypięte okno zostaje poza trybem GUI, a jego część HUD się chowa.
 func toggle_pin(n: String) -> void:
 	_ui("ui_pins")[n] = not is_pinned(n)
+	_ui_changed()
 	if main != null and main.get("mw_hud") != null and main.mw_hud.has_method("_apply_allowed"):
 		main.mw_hud._apply_allowed()
 
@@ -263,6 +267,7 @@ func toggle_visible(n: String) -> void:
 	if n == "magic":
 		n = "spells"
 	_ui("ui_hidden")[n] = not is_hidden(n)
+	_ui_changed()
 	_apply_shown()
 
 func _apply_shown() -> void:
@@ -284,6 +289,7 @@ func toggle_maximized(n: String) -> void:
 		if n == "map":
 			w.custom_minimum_size = w.size
 	mx[n] = to_max
+	_ui_changed()
 
 ## Prostokąt zwykły (zapamiętany albo domyślny) w ułamkach ekranu.
 func _rect_frac(n: String) -> Rect2:

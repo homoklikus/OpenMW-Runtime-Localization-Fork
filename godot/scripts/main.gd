@@ -66,6 +66,7 @@ var enchanting_window = null          # EnchantingDialog (GM_Enchanting)
 var spellcreation_window = null       # SpellCreationDialog (GM_SpellCreation)
 var recharge_window = null            # Recharge (GM_Recharge)
 var levelup_window = null             # LevelupDialog (GM_Levelup)
+var message_boxes = null              # MessageBoxManager (komunikaty i okna z pytaniem)
 var data_dir := ""                    # katalog przekonwertowanych danych
 var navmesh = null                    # siatka nawigacji AI (mw_navmesh.gd)
 var doors = null                      # drzwi obrotowe (World::activateDoor/processDoors)
@@ -568,8 +569,6 @@ func _on_player_landed(height: float) -> void:
 		if float(st.health) <= 0.0:
 			st["health"] = 0.0
 			_player_died()
-		else:
-			_toast("Upadek: −%d zdrowia" % roundi(lost))
 
 # --- etap 7: rozwój umiejętności, ruch wg statystyk, kondycja ----------------------------------------------
 
@@ -1415,6 +1414,79 @@ func save_ingame_settings(changes: Dictionary) -> bool:
 	f.close()
 	return DirAccess.rename_absolute(tmp, p) == OK
 
+# --- [Windows]: ustawienia okien poza zapisem gry (OpenMW: settings.cfg użytkownika) ---------------------------
+## Położenie i rozmiar (ułamki ekranu), przypięcie, ukrycie i maksymalizacja okien trybu menu są globalne jak
+## sekcja [Windows] w OpenMW – nie zależą od zapisu. Plik window_settings.json obok ustawień z gry (zapis
+## atomowy przy każdej zmianie); --window-settings=PLIK wskazuje inny plik; przebiegi testowe (-s) bez pliku
+## trzymają ustawienia tylko w pamięci. Zgodność: dawne zapisy z kluczami ui_* w postaci – przy pierwszym
+## wczytaniu, gdy pliku jeszcze nie ma, ustawienia są przejmowane do pliku; klucze usuwane z postaci.
+const WINDOW_KEYS := ["ui_windows", "ui_pins", "ui_hidden", "ui_max"]
+var window_settings := {}
+var _window_settings_loaded := false
+
+func window_settings_path() -> String:
+	var p := arg("window-settings")
+	if not p.is_empty():
+		return p
+	var a := OS.get_cmdline_args()
+	if "-s" in a or "--script" in a:
+		return ""
+	return ingame_settings_path().get_base_dir().path_join("window_settings.json")
+
+func _ensure_window_settings() -> void:
+	if _window_settings_loaded:
+		return
+	_window_settings_loaded = true
+	var p := window_settings_path()
+	if p.is_empty() or not FileAccess.file_exists(p):
+		return
+	var d = JSON.parse_string(FileAccess.get_file_as_string(p))
+	if d is Dictionary and d.get("windows") is Dictionary:
+		for k in WINDOW_KEYS:
+			if (d.windows as Dictionary).get(k) is Dictionary:
+				window_settings[k] = (d.windows[k] as Dictionary).duplicate(true)
+
+## Słownik jednego rodzaju ustawień okien (ui_windows / ui_pins / ui_hidden / ui_max).
+func window_store(key: String) -> Dictionary:
+	_ensure_window_settings()
+	if not window_settings.get(key) is Dictionary:
+		window_settings[key] = {}
+	return window_settings[key]
+
+func save_window_settings() -> bool:
+	_ensure_window_settings()
+	var p := window_settings_path()
+	if p.is_empty():
+		return false
+	DirAccess.make_dir_recursive_absolute(p.get_base_dir())
+	var tmp := p + ".tmp"
+	var f := FileAccess.open(tmp, FileAccess.WRITE)
+	if f == null:
+		return false
+	f.store_string(JSON.stringify({"format": "mwgodot-window-settings", "version": 1, "windows": window_settings}, " "))
+	f.close()
+	return DirAccess.rename_absolute(tmp, p) == OK
+
+## Zapis sprzed etapu 9 z ustawieniami okien w postaci gracza: przejęcie (tylko gdy globalnych jeszcze nie ma).
+func migrate_window_settings_from_save() -> void:
+	_ensure_window_settings()
+	var found := false
+	for k in WINDOW_KEYS:
+		if state.player.has(k):
+			found = true
+	if not found:
+		return
+	var p := window_settings_path()
+	var have_global := (not p.is_empty() and FileAccess.file_exists(p)) or not window_settings.is_empty()
+	if not have_global:
+		for k in WINDOW_KEYS:
+			if state.player.get(k) is Dictionary:
+				window_settings[k] = (state.player[k] as Dictionary).duplicate(true)
+	for k in WINDOW_KEYS:
+		state.player.erase(k)
+	if not have_global:
+		save_window_settings()
+
 ## Opcje zmieniane w trakcie gry: dźwięk, napisy, mysz, pole widzenia, odległość widzenia, cienie, mgła,
 ## V-Sync, limit FPS (bez przebudowy świata).
 func apply_live_settings() -> void:
@@ -1882,19 +1954,16 @@ func _unhandled_input(e: InputEvent) -> void:
 			line = "--cell=\"%s\" %s" % [interior, line]
 		DisplayServer.clipboard_set(line)
 		print("MWGODOT_POS ", line)
-		_toast("Skopiowano do schowka: " + line)
 	if e.is_action_pressed("ready_weapon") and player and control_allowed("fighting"):
 		weapon_drawn = not weapon_drawn
 		if weapon_drawn:
 			magic_ready = false
-		_toast("Broń dobyta" if weapon_drawn else "Broń schowana", 1.0)
 		get_viewport().set_input_as_handled()
 		return
 	if e.is_action_pressed("ready_magic") and player and control_allowed("magic"):
 		magic_ready = not magic_ready
 		if magic_ready:
 			weapon_drawn = false
-		_toast(("Magia gotowa: " + selected_magic_name()) if magic_ready else "Magia schowana", 1.5)
 		get_viewport().set_input_as_handled()
 		return
 	if (e.is_action_pressed("magic_menu") or e.is_action_pressed("map_menu") or e.is_action_pressed("inventory") \
@@ -2361,15 +2430,16 @@ func _update_torches(delta: float) -> void:
 			if n.get_meta("mw_actor", "") == "npc":
 				_on_ref_changed(String(n.get_meta("mw_sid", "")))
 
-func _toast(text: String, seconds := 3.0) -> void:
-	var l := Label.new()
-	l.text = text
-	l.position = Vector2(12, 90)
-	l.add_theme_color_override("font_outline_color", Color.BLACK)
-	l.add_theme_constant_override("outline_size", 4)
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	overlay().add_child(l)
-	get_tree().create_timer(seconds).timeout.connect(l.queue_free)
+## WindowManager::messageBox (MessageBoxManager::createMessageBox) – komunikat u dołu ekranu.
+func _toast(text: String, _seconds := 3.0) -> void:
+	if text.is_empty():
+		return
+	if message_boxes == null:
+		message_boxes = preload("res://scripts/mw/mw_message_boxes.gd").new()
+		message_boxes.name = "MessageBoxManager"
+		message_boxes.main = self
+		add_child(message_boxes)
+	message_boxes.create(text)
 
 func _add_message(text: String) -> void:
 	var l := Label.new()
@@ -2450,6 +2520,7 @@ func load_game(path: String) -> Array:
 	var warnings := GameStateScript.compatibility(d.get("header", {}), save_header())
 	warnings.append_array(state.from_dict(d))
 	state.player["chargen_flags"] = {"race": true, "class": true}    # MechanicsManager::playerLoaded
+	migrate_window_settings_from_save()
 	if scripts != null:
 		scripts.inactive.clear()           # ScriptManager::clear przy wczytaniu: wyłączone po błędzie – znowu aktywne
 	game_state = "running"
@@ -2554,42 +2625,28 @@ func travel_to_cell(cell: String, mw_pos: Vector3, rot_z_deg: float) -> void:
 ## MessageBox ze skryptu: bez przycisków – komunikat; z przyciskami – okno (tryb menu), wybór → GetButtonPressed.
 func show_message_box(text: String, buttons: Array, on_button := Callable(), engine := false) -> void:
 	if buttons.is_empty():
-		_toast(text, 4.0)
+		_toast(text)
 		return
-	if msgbox != null and is_instance_valid(msgbox):
-		msgbox.queue_free()
-	var cl := CanvasLayer.new()
-	cl.layer = 30
-	cl.process_mode = Node.PROCESS_MODE_ALWAYS
-	var panel := PanelContainer.new()
-	var box := VBoxContainer.new()
-	panel.add_child(box)
-	var l := Label.new()
-	l.text = text
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD
-	l.custom_minimum_size = Vector2(520, 0)
-	box.add_child(l)
-	for i in buttons.size():
-		var b := Button.new()
-		b.text = String(buttons[i])
-		var idx := i
-		b.pressed.connect(func():
-			if not engine:
-				scripts.button_pressed = idx
-			cl.visible = false
-			cl.queue_free()
-			var resume: bool = game_state == "running" and not (main_menu != null and main_menu.is_open())
-			if resume:
-				get_tree().paused = false
-				if DisplayServer.get_name() != "headless":
-					Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-			if on_button.is_valid():
-				on_button.call(idx))
-		box.add_child(b)
-	cl.add_child(panel)
-	add_child(cl)
-	panel.position = (get_viewport().get_visible_rect().size - panel.get_combined_minimum_size()) / 2.0
-	msgbox = cl
+	if message_boxes == null:
+		message_boxes = preload("res://scripts/mw/mw_message_boxes.gd").new()
+		message_boxes.name = "MessageBoxManager"
+		message_boxes.main = self
+		add_child(message_boxes)
+	var gui_mode: bool = get_tree().paused or Input.mouse_mode == Input.MOUSE_MODE_VISIBLE
+	var was_paused := get_tree().paused
+	var mouse := Input.mouse_mode
+	var box: Control = message_boxes.create_interactive(text, buttons, func(idx: int):
+		if not engine:
+			scripts.button_pressed = idx
+		msgbox = null
+		var resume: bool = game_state == "running" and not (main_menu != null and main_menu.is_open())
+		if resume:
+			get_tree().paused = was_paused
+			if DisplayServer.get_name() != "headless":
+				Input.mouse_mode = mouse if was_paused else Input.MOUSE_MODE_CAPTURED
+		if on_button.is_valid():
+			on_button.call(idx), gui_mode)
+	msgbox = box.get_meta("layer")
 	get_tree().paused = true
 	if DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -2838,6 +2895,8 @@ func cleanup() -> void:
 	if msgbox != null and is_instance_valid(msgbox):
 		msgbox.queue_free()
 		msgbox = null
+	if message_boxes != null:
+		message_boxes.clear()
 	if saves != null:
 		saves.current = null
 	time_played = 0.0
