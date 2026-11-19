@@ -123,8 +123,11 @@ func open(service: String) -> bool:
 	if actor.is_empty() or trade.refused(service):
 		main.dialogue_window.refresh()
 		return false
-	if service == "enchanting":                       # usługa zaklinacza – okno zaklinania (etap 7d)
-		main.magic_window.open_enchant(actor)
+	if service == "enchanting":                       # GM_Enchanting (EnchantingDialog::setPtr z NPC)
+		main.enchanting_window.open_for(actor)
+		return true
+	if service == "spellmaking":                      # GM_SpellCreation (SpellCreationDialog::setPtr)
+		main.spellcreation_window.open(actor)
 		return true
 	if service in ["spells", "travel", "training", "repair"] and main.get("service_window") != null:
 		main.service_window.open(service, actor)        # SpellBuyingWindow / TravelWindow / TrainingWindow

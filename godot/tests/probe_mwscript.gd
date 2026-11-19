@@ -213,6 +213,9 @@ func _ui_clear() -> void:
 		main.repair_window.close()
 	if main.get("alchemy_window") != null and main.alchemy_window.visible:
 		main.alchemy_window.close()
+	for wn in ["enchanting_window", "spellcreation_window", "recharge_window"]:
+		if main.get(wn) != null and main.get(wn).visible:
+			main.get(wn).close()
 	if main.get("dialogue_window") != null and main.dialogue_window.visible:
 		main.dialogue_window.close(true)
 	for w in [main.menu_mode, main.journal_window, main.rest_window]:
@@ -236,6 +239,10 @@ func _ui_mode(m) -> void:
 		match String(m.get("mode", "")):
 			"Repair":
 				main.repair_window.open(pick)
+			"Recharge":
+				main.recharge_window.open(pick)
+			"Enchanting":
+				main.enchanting_window.open_for({}, pick)
 		return
 	if m is Dictionary:
 		# okno z celem (jak I.UI.setMode(tryb, {target = obiekt}) w sondzie OpenMW): Dialogue, Barter, Container
@@ -255,6 +262,14 @@ func _ui_mode(m) -> void:
 					var svc := {"Training": "training", "SpellBuying": "spells", "Travel": "travel", "MerchantRepair": "repair"}
 					main.dialogue_window.visible = false
 					main.service_window.open(String(svc[String(m.mode)]), main.dialogue.actor)
+			"Enchanting", "SpellCreation":
+				# GM_Enchanting / GM_SpellCreation z aktorem (setPtr) – okno rozmowy ukryte jak przy innych usługach
+				if main.open_dialogue(node):
+					main.dialogue_window.visible = false
+					if String(m.mode) == "Enchanting":
+						main.enchanting_window.open_for(main.dialogue.actor)
+					else:
+						main.spellcreation_window.open(main.dialogue.actor)
 			"Container":
 				# GuiMode Container z celem otwiera okno bez aktywacji (zamek, pułapka i skrypt OnActivate pominięte)
 				var c: Dictionary = main.interaction.snapshot(node)

@@ -62,7 +62,9 @@ var repair = null                  # mw_repair.gd – Repair::repair, MerchantRe
 var repair_window = null           # okno naprawy narzędziem (MWGui::Repair)
 var alchemy_window = null          # okno alchemii (MWGui::AlchemyWindow)
 var combat = null                     # etap 7: walka
-var magic_window = null               # etap 7d: magia, alchemia, zaklinanie
+var enchanting_window = null          # EnchantingDialog (GM_Enchanting)
+var spellcreation_window = null       # SpellCreationDialog (GM_SpellCreation)
+var recharge_window = null            # Recharge (GM_Recharge)
 var data_dir := ""                    # katalog przekonwertowanych danych
 var navmesh = null                    # siatka nawigacji AI (mw_navmesh.gd)
 var doors = null                      # drzwi obrotowe (World::activateDoor/processDoors)
@@ -198,10 +200,18 @@ func _ready() -> void:
 	rest_window.main = self
 	rest_window.character = character
 	add_child(rest_window)
-	magic_window = preload("res://scripts/mw/mw_magic_window.gd").new()
-	magic_window.main = self
-	magic_window.magic = magic
-	add_child(magic_window)
+	enchanting_window = preload("res://scripts/mw/mw_enchanting_window.gd").new()
+	enchanting_window.name = "EnchantingDialog"
+	enchanting_window.main = self
+	add_child(enchanting_window)
+	spellcreation_window = preload("res://scripts/mw/mw_spellcreation_window.gd").new()
+	spellcreation_window.name = "SpellCreationDialog"
+	spellcreation_window.main = self
+	add_child(spellcreation_window)
+	recharge_window = preload("res://scripts/mw/mw_recharge_window.gd").new()
+	recharge_window.name = "RechargeWindow"
+	recharge_window.main = self
+	add_child(recharge_window)
 	journal_window = JournalWindowScript.new()
 	journal_window.dialogue = dialogue
 	journal_window.main = self
@@ -449,8 +459,9 @@ func _reequip_player(race: String) -> void:
 
 ## Czy otwarte jest jakieś okno (wtedy klawisze trybu menu nie działają).
 func _no_window_open() -> bool:
-	for w in [item_window, magic_window, map_window, journal_window, rest_window, dialogue_window, menu_mode,
-			get("repair_window"), get("service_window"), get("alchemy_window")]:
+	for w in [item_window, map_window, journal_window, rest_window, dialogue_window, menu_mode,
+			get("repair_window"), get("service_window"), get("alchemy_window"), get("enchanting_window"),
+			get("spellcreation_window"), get("recharge_window")]:
 		if w != null and w.visible and not (w.get("pinned_mode") == true):     # przypięta mapa nie jest oknem GUI
 			return false
 	return not get_tree().paused
@@ -2788,8 +2799,9 @@ func month_name(m: int) -> String:
 func saving_allowed() -> bool:
 	if game_state != "running" or scripts == null or scripts.get_global("chargenstate") != -1.0:
 		return false
-	for w in [item_window, chargen, msgbox, dialogue_window, journal_window, trade_window, get("magic_window"),
-			get("book_window"), get("map_window"), get("repair_window"), get("service_window"), get("alchemy_window")]:
+	for w in [item_window, chargen, msgbox, dialogue_window, journal_window, trade_window, get("book_window"),
+			get("map_window"), get("repair_window"), get("service_window"), get("alchemy_window"),
+			get("enchanting_window"), get("spellcreation_window"), get("recharge_window")]:
 		if w != null and is_instance_valid(w) and w.visible and not (w.get("pinned_mode") == true):
 			return false
 	if menu_mode != null and menu_mode.visible:
@@ -2812,8 +2824,9 @@ func cleanup() -> void:
 		doors.moving.clear()
 	if fader != null:
 		fader.clear()
-	for w in [item_window, dialogue_window, journal_window, trade_window, get("magic_window"), get("book_window"),
-			get("map_window"), menu_mode, rest_window]:
+	for w in [item_window, dialogue_window, journal_window, trade_window, get("book_window"),
+			get("map_window"), menu_mode, rest_window, get("repair_window"), get("service_window"), get("alchemy_window"),
+			get("enchanting_window"), get("spellcreation_window"), get("recharge_window")]:
 		if w != null and is_instance_valid(w) and w.visible and w.has_method("close"):
 			w.close()
 	if msgbox != null and is_instance_valid(msgbox):

@@ -18,8 +18,14 @@ func _unhandled_input(e: InputEvent) -> void:
 			main.rest_window.close()
 			get_viewport().set_input_as_handled()
 			return
-		if main.get("magic_window") != null and main.magic_window.visible:
-			main.magic_window.close()
+		for wn in ["enchanting_window", "spellcreation_window"]:
+			var w = main.get(wn)
+			if w != null and w.visible:
+				w.escape()
+				get_viewport().set_input_as_handled()
+				return
+		if main.get("recharge_window") != null and main.recharge_window.visible:
+			main.recharge_window.close()
 			get_viewport().set_input_as_handled()
 			return
 		if main.get("journal_window") != null and main.journal_window.visible:

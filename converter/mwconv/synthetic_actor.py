@@ -516,9 +516,10 @@ TRADER_SPELLS = ["synth_bolt", "synth_ability"]
 
 
 def _trader() -> bytes:
-    """Kupiec: handel wszystkim, zaklęcia, trening, naprawa (AIDT), podróż do miejsca w Synthville, 500 sztuk złota."""
+    """Kupiec: handel wszystkim, zaklęcia, tworzenie czarów, zaklinanie, trening, naprawa (AIDT), podróż do miejsca
+    w Synthville, 500 sztuk złota."""
     npdt = struct.pack("<h", 5) + bytes([50, 0, 0]) + b"\0\0\0" + struct.pack("<i", 500)
-    services = 0x2000 | 0x7FF | 0x800 | 0x4000 | 0x20000
+    services = 0x2000 | 0x7FF | 0x800 | 0x4000 | 0x8000 | 0x10000 | 0x20000
     aidt = struct.pack("<HBBB", 30, 0, 0, 0) + b"\0\0\0" + struct.pack("<i", services)
     subs = [W.sub("NAME", W.zs("synth_trader")), W.sub("FNAM", W.zs("Kupiec testowy")), W.sub("RNAM", W.zs(RACE)),
             W.sub("CNAM", W.zs("Synth Warrior")), W.sub("BNAM", W.zs("b_n_synth_m_head_01")),
@@ -558,7 +559,9 @@ GMST_MAGIC = {"fPotionStrengthMult": 0.5, "fPotionT1MagMult": 1.5, "fPotionT1Dur
               "fEnchantmentConstantDurationMult": 100.0, "fEnchantmentValueMult": 10.0, "iMagicItemChargeOnce": 1,
               "iMagicItemChargeStrike": 10, "iMagicItemChargeUse": 5, "iMagicItemChargeConst": 10,
               "fMagicItemRechargePerSecond": 0.05, "fSoulGemMult": 3.0, "iSoulAmountForConstantEffect": 400,
-              "fNPCbaseMagickaMult": 2.0, "fTargetSpellMaxSpeed": 1000.0}
+              "fNPCbaseMagickaMult": 2.0, "fTargetSpellMaxSpeed": 1000.0,
+              # etap 9: tworzenie czarów (SpellCreationDialog::notifyEffectsChanged)
+              "fSpellMakingValueMult": 7.0}
 
 
 def _mgef(idx, school, cost, flags=0x600) -> bytes:

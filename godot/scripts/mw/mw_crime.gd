@@ -617,3 +617,37 @@ func use_tool(node: Node, tool_id: String, kind: String, roll := -1) -> Dictiona
 		else:
 			main.combat._set_item_health(main.combat.player_fighter(), slot, float(uses))
 	return res
+
+## MechanicsManager::isItemStolenFrom: przedmiot skradziony temu aktorowi (właściciel – id bazowe) albo jego
+## frakcji głównej. a – aktor rozmowy (make_actor).
+func is_item_stolen_from(item: String, a: Dictionary) -> bool:
+	var owners: Dictionary = (st().get("stolen", {}) as Dictionary).get(main.interaction.inventory.base_id(item), {})
+	if owners.is_empty() or a.is_empty():
+		return false
+	if owners.has(String(a.get("base", "")).to_lower()):
+		return true
+	var fac := String((a.get("rec", {}) as Dictionary).get("faction", "")).to_lower() if bool(a.get("npc", false)) else ""
+	return not fac.is_empty() and owners.has("faction:" + fac)
+
+## confiscateStolenItemToOwner: zmniejsza licznik kradzieży (właściciel albo frakcja), przenosi przedmioty do
+## ekwipunku ofiary i zgłasza kradzież (wartość × liczba).
+func confiscate_to_owner(item: String, a: Dictionary, count: int) -> void:
+	var base: String = main.interaction.inventory.base_id(item)
+	var stolen: Dictionary = st().get("stolen", {})
+	if not stolen.has(base):
+		return
+	var owners: Dictionary = stolen[base]
+	var key := String(a.get("base", "")).to_lower()
+	var fac := String((a.get("rec", {}) as Dictionary).get("faction", "")).to_lower() if bool(a.get("npc", false)) else ""
+	if not owners.has(key) and not fac.is_empty() and owners.has("faction:" + fac):
+		key = "faction:" + fac
+	var take := mini(count, int(owners.get(key, 0)))
+	owners[key] = int(owners.get(key, 0)) - take
+	if int(owners[key]) <= 0:
+		owners.erase(key)
+	if owners.is_empty():
+		stolen.erase(base)
+	var inv = main.interaction.inventory
+	inv.add(String(a.get("sid", "")), a.get("rec", {}), item, take)
+	inv.remove("player", {}, item, take)
+	commit(a.get("node"), THEFT, fac if key.begins_with("faction:") else "", take * int(main.trade.item_value(item)))

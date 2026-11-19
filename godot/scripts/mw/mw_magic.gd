@@ -2266,11 +2266,11 @@ func enchant_points(list: Array, cast_type: int, precise := true) -> float:
 func enchant_cast_cost(list: Array, cast_type: int) -> int:
 	return 0 if cast_type == ENCH_CONSTANT else int(enchant_points(list, cast_type, false))
 
-## getMaxEnchantValue: pojemność przedmiotu × fEnchantmentMult.
+## getMaxEnchantValue dla przedmiotu (it z MWInventory.item).
 func max_enchant_value(it: Dictionary) -> int:
 	return int(float(it.get("rec", {}).get("enchant_capacity", 0)) * _gmst("fEnchantmentMult", 0.1))
 
-## getEnchantChance (zaklinanie samodzielne).
+## getEnchantChance dla samodzielnego zaklinania zwykłego przedmiotu (mnożnik typu 1, jedna sztuka).
 func enchant_chance(f: Dictionary, list: Array, cast_type: int) -> int:
 	var at: Array = _combat().attributes(f)
 	var x := (float(_combat().skill(f, SK_ENCHANT)) - enchant_points(list, cast_type) * _gmst("fEnchantmentChanceMult", 3.0)
@@ -2279,97 +2279,288 @@ func enchant_chance(f: Dictionary, list: Array, cast_type: int) -> int:
 		x *= _gmst("fEnchantmentConstantChanceMult", 0.5)
 	return int(x)
 
-## getEnchantPrice: koszt ostatniego efektu × fEnchantmentValueMult, oferta targowa kupca (a – aktor rozmowy).
-func enchant_price(a: Dictionary, list: Array, cast_type: int) -> int:
-	var costs := enchant_effect_costs(list, cast_type)
-	var last := float(costs.back()) if not costs.is_empty() else 0.0
-	var p: int = main.trade.barter_offer(a, int(last * _gmst("fEnchantmentValueMult", 1000.0)), true)
-	return maxi(1, p)
-
-## Dozwolone sposoby rzucania dla przedmiotu (nextCastStyle): zbroja/ubranie – po użyciu, stały (silna dusza);
-## broń – przy uderzeniu (nie dystansowa), po użyciu (nie amunicja/rzucana… jak OpenMW), stały; książka – raz.
-func cast_types_for(it: Dictionary, gem_id: String) -> Array:
-	if it.is_empty():
-		return []
-	var powerful := gem_charge(gem_id) >= int(_gmst("iSoulAmountForConstantEffect", 400.0))
-	match String(it.kind):
-		"armor", "clothing":
-			return [ENCH_WHEN_USED, ENCH_CONSTANT] if powerful else [ENCH_WHEN_USED]
-		"book":
-			return [ENCH_CAST_ONCE]
-		"weapon":
-			var wt := int(it.rec.get("weapon_type", 0))
-			var out := []
-			if not wt in [9, 10]:
-				out.append(ENCH_WHEN_STRIKES)
-			if wt in [9, 10] or not wt in [11, 12, 13]:
-				out.append(ENCH_WHEN_USED)
-			if powerful and not wt in [11, 12, 13]:
-				out.append(ENCH_CONSTANT)
-			return out
-	return []
-
-## Efekty, które gracz może nałożyć (znane z czarów, flaga „enchanting”).
-func known_enchant_effects(st: Dictionary) -> Array:
-	var out := []
-	for sid in st.get("spells", []):
-		for e in records.record("spell", String(sid)).get("effects", []):
-			var id := int(e.get("effect", -1))
-			if _flag(effect(id), "enchanting") and not id in out:
-				out.append(id)
-	out.sort()
-	return out
-
-## Enchanting::create: kamień zużyty zawsze; samodzielnie – rzut wg szansy, postęp zaklinania; u zaklinacza
-## (a – aktor rozmowy) – zapłata. Nowy rekord zaklęcia i przedmiotu (kopia z nazwą i zaklęciem).
-## → {"success", "item", "message"}
+## EnchantingDialog::onBuyButtonClicked + Enchanting::create bez okna (testy, skrypty): komunikaty w kolejności
+## OpenMW; a – zaklinacz (NPC) albo {} – samodzielnie. → {"success", "item", "message", "failed"}
 func enchant(f: Dictionary, item_id: String, gem_id: String, list: Array, cast_type: int, name: String, a := {}, roll := -1) -> Dictionary:
 	var inv = main.interaction.inventory
-	var it: Dictionary = inv.item(item_id)
+	var st := {"item": item_id if inv.count_of("player", {}, item_id) > 0 else "", "gem": gem_id if inv.count_of("player", {}, gem_id) > 0 else "",
+		"cast": cast_type, "effects": list, "enchanter": a, "self": a.is_empty(), "name": name}
 	if list.is_empty():
-		return {"success": false, "message": _text("sEnchantmentMenu11", "Wybierz efekty.")}
-	if name.strip_edges().is_empty():
-		return {"success": false, "message": _text("sNotifyMessage10", "Podaj nazwę przedmiotu.")}
-	if gem_charge(gem_id) <= 0 or inv.count_of("player", {}, gem_id) <= 0:
-		return {"success": false, "message": _text("sNotifyMessage52", "Wybierz kamień dusz z duszą.")}
-	if it.is_empty() or inv.count_of("player", {}, item_id) <= 0 or not item_enchantment(it).is_empty():
-		return {"success": false, "message": _text("sNotifyMessage11", "Wybierz przedmiot do zaklęcia.")}
-	if not cast_type in cast_types_for(it, gem_id):
-		return {"success": false, "message": "Tego sposobu rzucania nie można użyć dla tego przedmiotu."}
-	if int(enchant_points(list, cast_type, false)) > max_enchant_value(it):
-		return {"success": false, "message": _text("sNotifyMessage29", "Zaklęcie jest zbyt silne dla tego przedmiotu.")}
-	var price := 0
-	if not a.is_empty():
-		price = enchant_price(a, list, cast_type)
-		if inv.count_of("player", {}, "gold_001") < price:
-			return {"success": false, "message": _text("sNotifyMessage18", "Nie masz dość złota.")}
-	var charge := gem_charge(gem_id)
-	inv.remove("player", {}, gem_id, 1)
-	if gem_id.get_slice("@", 0) == "misc_soulgem_azura":
-		inv.add("player", {}, "misc_soulgem_azura", 1)
-	if a.is_empty():
-		if enchant_chance(f, list, cast_type) <= (roll if roll >= 0 else roll100()):
-			if main.audio != null:
-				main.audio.play("enchant fail")
-			return {"success": false, "failed": true, "message": _text("sNotifyMessage34", "Nie udało ci się zakląć przedmiotu.")}
-		main.skill_used(SK_ENCHANT, "enchant_create")
-	var en := {"type": cast_type, "cost": enchant_cast_cost(list, cast_type), "charge": 0 if cast_type == ENCH_CONSTANT else charge,
-		"autocalc": false, "flags": 0, "effects": list.duplicate(true)}
-	var eid := find_or_create("enchantment", en, ["type", "cost", "charge", "effects"])
-	var rec: Dictionary = (it.rec as Dictionary).duplicate(true)
-	rec["name"] = name.strip_edges()
-	rec["enchant"] = eid
-	rec.erase("script")
-	var nid := find_or_create(String(it.kind), rec, ["name", "enchant", "model"])
-	if not a.is_empty():                          # payForEnchantment: złoto do kupca
-		inv.remove("player", {}, "gold_001", price)
-		main.trade.set_merchant_gold(a, main.trade.merchant_gold(a) + price)
-	if main.equipped_slot_of(it.id) >= 0 and inv.count_of("player", {}, it.id) <= 1:
-		main.unequip_slot(main.equipped_slot_of(it.id))
-	inv.remove("player", {}, it.id, 1)
-	inv.add("player", {}, nid, 1)
-	if cast_type != ENCH_CONSTANT:
-		_set_item_charge(f, nid, float(charge))
+		return {"success": false, "message": _text("sEnchantmentMenu11", "")}
+	if name.is_empty():
+		return {"success": false, "message": _text("sNotifyMessage10", "")}
+	if String(st.gem).is_empty():
+		return {"success": false, "message": _text("sNotifyMessage52", "")}
+	if String(st.item).is_empty() or not ench_enchantable_entry({"kind": String(inv.item(item_id).get("kind", "")),
+			"rec": inv.item(item_id).get("rec", {}), "magic": not item_enchantment(inv.item(item_id)).is_empty()}):
+		return {"success": false, "message": _text("sNotifyMessage11", "")}
+	if int(ench_points(st, false)) > ench_max_value(st):
+		return {"success": false, "message": _text("sNotifyMessage29", "")}
+	if not a.is_empty() and ench_price(st) > inv.count_of("player", {}, "gold_001"):
+		return {"success": false, "message": _text("sNotifyMessage18", "")}
+	var r := ench_create(f, st, roll)
+	if not bool(r.ok):
+		if main.audio != null:
+			main.audio.play("enchant fail")
+		return {"success": false, "failed": true, "message": _text("sNotifyMessage34", "")}
 	if main.audio != null:
 		main.audio.play("enchant success")
-	return {"success": true, "item": nid, "price": price, "message": _text("sEnchantmentMenu12", "Przedmiot został zaklęty.")}
+	return {"success": true, "item": r.item, "price": r.price, "message": _text("sEnchantmentMenu12", "")}
+
+# --- zaklinanie (MWMechanics::Enchanting, apps/openmw/mwmechanics/enchanting.cpp) ---------------------------
+## Stan okna st: {"item", "gem", "cast", "effects", "enchanter" (aktor rozmowy albo {}), "self", "name"}.
+
+## ESM::WeaponType::Class (weapontype.hpp): łuk i kusza – Ranged, rzucana – Thrown, strzały i bełty – Ammo.
+static func weapon_class(wt: int) -> String:
+	if wt == 9 or wt == 10:
+		return "ranged"
+	if wt == 11:
+		return "thrown"
+	if wt == 12 or wt == 13:
+		return "ammo"
+	return "melee"
+
+func _ench_item(st: Dictionary) -> Dictionary:
+	var id := String(st.get("item", ""))
+	return main.interaction.inventory.item(id) if not id.is_empty() else {}
+
+func _ench_wclass(st: Dictionary) -> String:
+	var it := _ench_item(st)
+	if it.is_empty() or String(it.kind) != "weapon":
+		return ""
+	return weapon_class(int(it.rec.get("weapon_type", 0)))
+
+func ench_points(st: Dictionary, precise := true) -> float:
+	return enchant_points(st.get("effects", []), int(st.get("cast", ENCH_CAST_ONCE)), precise)
+
+## getGemCharge: dusza stworzenia z kamienia (brak kamienia lub duszy – 0).
+func ench_gem_charge(st: Dictionary) -> int:
+	var g := String(st.get("gem", ""))
+	return gem_charge(g) if not g.is_empty() else 0
+
+## nextCastStyle.
+func ench_next_cast_style(st: Dictionary) -> int:
+	var cur := int(st.get("cast", ENCH_CAST_ONCE))
+	var it := _ench_item(st)
+	if it.is_empty():
+		return cur
+	var powerful := ench_gem_charge(st) >= int(_gmst("iSoulAmountForConstantEffect", 400.0))
+	var kind := String(it.kind)
+	if kind == "armor" or kind == "clothing":
+		if cur == ENCH_WHEN_USED:
+			return ENCH_CONSTANT if powerful else cur
+		return ENCH_WHEN_USED
+	if kind == "weapon":
+		var wc := weapon_class(int(it.rec.get("weapon_type", 0)))
+		match cur:
+			ENCH_WHEN_STRIKES:
+				return ENCH_WHEN_USED if wc == "melee" or wc == "ranged" else cur
+			ENCH_WHEN_USED:
+				if powerful and wc != "ammo" and wc != "thrown":
+					return ENCH_CONSTANT
+				if wc != "ranged":
+					return ENCH_WHEN_STRIKES
+				return cur
+			_:
+				return ENCH_WHEN_STRIKES if wc != "ranged" else ENCH_WHEN_USED
+	return ENCH_CAST_ONCE
+
+## getMaxEnchantValue: pojemność × fEnchantmentMult.
+func ench_max_value(st: Dictionary) -> int:
+	var it := _ench_item(st)
+	if it.is_empty():
+		return 0
+	return int(float(it.rec.get("enchant_capacity", 0)) * _gmst("fEnchantmentMult", 0.1))
+
+## getTypeMultiplier: [Game] projectiles enchant multiplier > 0 – broń rzucana i amunicja × 0,125.
+func ench_type_mult(st: Dictionary) -> float:
+	var pm := float(main.settings.get("projectiles_enchant_multiplier", 0.0)) if main != null else 0.0
+	var wc := _ench_wclass(st)
+	if pm > 0.0 and not wc.is_empty() and ench_points(st) > 0.0 and (wc == "thrown" or wc == "ammo"):
+		return 0.125
+	return 1.0
+
+## getEnchantItemsCount: rzucana broń / amunicja – ile sztuk obejmie dusza (co najmniej 1, najwyżej tyle, ile ma gracz).
+func ench_items_count(st: Dictionary) -> int:
+	var count := 1
+	var pts := ench_points(st)
+	var wc := _ench_wclass(st)
+	if not wc.is_empty() and pts > 0.0 and (wc == "thrown" or wc == "ammo"):
+		var have: int = main.interaction.inventory.count_of("player", {}, String(st.item))
+		var pm := float(main.settings.get("projectiles_enchant_multiplier", 0.0))
+		count = clampi(int(ench_gem_charge(st) * pm / pts), 1, have)
+	return count
+
+func _ench_enchanter(st: Dictionary) -> Dictionary:
+	var a: Dictionary = st.get("enchanter", {})
+	if bool(st.get("self", true)) or a.is_empty() or not (a.get("node") is Node) or not is_instance_valid(a.node):
+		return _combat().player_fighter()
+	return _combat().fighter_of(a.node)
+
+## getEnchantChance: (Zaklinanie − punkty × fEnchantmentChanceMult × mnożnik typu × sztuki + 0,2 Int + 0,1 Szczęście)
+## × współczynnik zmęczenia; stały efekt × fEnchantmentConstantChanceMult.
+func ench_chance(st: Dictionary) -> int:
+	var f := _ench_enchanter(st)
+	var at: Array = _combat().attributes(f)
+	var x := (float(_combat().skill(f, SK_ENCHANT)) - ench_points(st) * _gmst("fEnchantmentChanceMult", 3.0)
+		* ench_type_mult(st) * ench_items_count(st) + 0.2 * float(at[A_INTELLIGENCE]) + 0.1 * float(at[A_LUCK])) \
+		* float(_combat().fatigue_term(f))
+	if int(st.get("cast", 0)) == ENCH_CONSTANT:
+		x *= _gmst("fEnchantmentConstantChanceMult", 0.5)
+	return int(x)
+
+## getBaseCastCost / getEffectiveCastCost (gracz).
+func ench_base_cast_cost(st: Dictionary) -> int:
+	if int(st.get("cast", 0)) == ENCH_CONSTANT:
+		return 0
+	return int(ench_points(st, false))
+
+func ench_effective_cast_cost(st: Dictionary) -> int:
+	return effective_cast_cost({"cost": ench_base_cast_cost(st)}, _combat().player_fighter())
+
+## getEnchantPrice(getEnchantItemsCount()): koszt ostatniego efektu × fEnchantmentValueMult, oferta targowa,
+## × (sztuki × mnożnik typu), co najmniej 1; bez zaklinacza – 0.
+func ench_price(st: Dictionary) -> int:
+	var a: Dictionary = st.get("enchanter", {})
+	if bool(st.get("self", true)) or a.is_empty():
+		return 0
+	var costs := enchant_effect_costs(st.get("effects", []), int(st.get("cast", 0)))
+	var last := float(costs.back()) if not costs.is_empty() else 0.0
+	var price: int = main.trade.barter_offer(a, int(last * _gmst("fEnchantmentValueMult", 1000.0)), true)
+	price *= int(ench_items_count(st) * ench_type_mult(st))
+	return maxi(1, price)
+
+## Filter_OnlyEnchantable: zbroja, ubranie, broń, zwój (książka z flagą scroll), bez zaklęcia.
+func ench_enchantable_entry(e: Dictionary) -> bool:
+	if bool(e.get("magic", false)):
+		return false
+	var k := String(e.get("kind", ""))
+	if not k in ["armor", "clothing", "weapon", "book"]:
+		return false
+	return k != "book" or bool((e.get("rec", {}) as Dictionary).get("scroll", false))
+
+## Filter_OnlyChargedSoulstones: przedmiot różny z duszą istniejącego stworzenia.
+func ench_soulstone_entry(e: Dictionary) -> bool:
+	if String(e.get("kind", "")) != "misc":
+		return false
+	var s := soul_of(String(e.get("id", "")))
+	return not s.is_empty() and not records.record("creature", s).is_empty()
+
+## Nowy rekord przedmiotu (ESMStore::insert – zawsze nowy identyfikator).
+func create_record(file: String, rec: Dictionary) -> String:
+	var created: Dictionary = main.state.created
+	if not created.has(file):
+		created[file] = {}
+	var nid := "mwg_generated_%d" % int(main.state.created_next)
+	main.state.created_next = int(main.state.created_next) + 1
+	var r := rec.duplicate(true)
+	r["id"] = nid
+	created[file][nid] = r
+	return nid
+
+## Enchanting::create: kamień zużyty (Gwiazda Azury wraca pusta); samodzielnie – rzut 0–99 wobec szansy, postęp
+## Enchant_CreateMagicItem; rekord zaklęcia (dynamiczny o tych samych danych albo nowy), applyEnchantment
+## (kopia rekordu: nazwa, zaklęcie, pojemność = ładunek kamienia; broń – Magical, książka – zwój); u zaklinacza
+## zapłata (złoto do puli kupca); stary przedmiot zastąpiony nowym. → {"ok", "item"}
+func ench_create(_f: Dictionary, st: Dictionary, roll := -1) -> Dictionary:
+	var inv = main.interaction.inventory
+	var cast := int(st.get("cast", 0))
+	var list: Array = st.get("effects", [])
+	var gem := String(st.get("gem", ""))
+	var charge := ench_gem_charge(st)
+	var count := ench_items_count(st)
+	var price := ench_price(st)
+	var en := {"flags": 0, "type": cast, "cost": ench_base_cast_cost(st), "autocalc": false}
+	inv.remove("player", {}, gem, 1)
+	if inv.base_id(gem).get_slice("@", 0) == "misc_soulgem_azura":
+		inv.add("player", {}, "misc_soulgem_azura", 1)
+	if bool(st.get("self", true)):
+		var r := roll if roll >= 0 else roll100()
+		if ench_chance(st) <= r:
+			return {"ok": false, "roll": r}
+		main.skill_used(SK_ENCHANT, "enchant_create")
+	en["effects"] = list.duplicate(true)
+	en["charge"] = 0 if cast == ENCH_CONSTANT else int(charge / count)
+	var eid := find_or_create("enchantment", en, ["flags", "type", "cost", "charge", "effects"])
+	var it := _ench_item(st)
+	var rec: Dictionary = (it.rec as Dictionary).duplicate(true)
+	rec.erase("id")
+	rec["source_object"] = String(rec.get("source_object", main.interaction.inventory.base_id(String(st.item)).to_lower()))
+	rec["name"] = String(st.get("name", ""))
+	rec["enchant"] = eid
+	match String(it.kind):
+		"weapon":
+			rec["enchant_capacity"] = charge & 0xFFFF
+			rec["flags"] = int(rec.get("flags", 0)) | 1
+			rec["magical"] = true
+		"book":
+			rec["enchant_capacity"] = charge
+			rec["scroll"] = true
+		_:
+			rec["enchant_capacity"] = charge
+	var nid := create_record(String(it.kind), rec)
+	if not bool(st.get("self", true)):
+		var a: Dictionary = st.enchanter
+		inv.remove("player", {}, "gold_001", price)
+		main.trade.set_merchant_gold(a, main.trade.merchant_gold(a) + price)
+	var old := String(st.item)
+	if main.equipped_slot_of(old) >= 0 and inv.count_of("player", {}, old) <= count:
+		main.unequip_slot(main.equipped_slot_of(old))
+	inv.remove("player", {}, old, count)
+	inv.add("player", {}, nid, count)
+	return {"ok": true, "item": nid, "enchantment": eid, "price": price, "count": count}
+
+# --- ładowanie przedmiotów (MWMechanics::rechargeItem, apps/openmw/mwmechanics/recharge.cpp) -----------------
+
+## Filter_OnlyRechargable: przedmiot zaklęty, ładunek ustawiony (nie −1) i mniejszy od pełnego.
+func rechargeable_entry(e: Dictionary) -> bool:
+	if not bool(e.get("magic", false)):
+		return false
+	var it: Dictionary = main.interaction.inventory.item(String(e.get("id", "")))
+	var en := item_enchantment(it)
+	if en.is_empty():
+		return false
+	var ch: Dictionary = holder(_combat().player_fighter()).get("item_charge", {})
+	var key := String(e.id).to_lower()
+	return ch.has(key) and float(ch[key]) >= 0.0 and float(ch[key]) < float(enchantment_charge(en))
+
+## rechargeItem(item, gem): x = (Zaklinanie + 0,2 Int [1..20] + 0,1 Szczęście [1..10, inaczej 1]) × zmęczenie;
+## rzut 0–99 < x – ładunek + dusza × rzut / x (do pełnego), „Enchant Success”, inaczej „Enchant Fail”; zawsze
+## postęp Enchant_Recharge i zużycie kamienia (ostatni – sNotifyMessage51, Gwiazda Azury wraca pusta).
+func recharge_item(item_id: String, gem_id: String, roll := -1) -> Dictionary:
+	var inv = main.interaction.inventory
+	if inv.count_of("player", {}, gem_id) <= 0:
+		return {"ok": false}
+	var me: Dictionary = _combat().player_fighter()
+	break_invisibility(me)
+	var at: Array = _combat().attributes(me)
+	var luck := 0.1 * float(at[A_LUCK])
+	if luck < 1.0 or luck > 10.0:
+		luck = 1.0
+	var intel := clampf(0.2 * float(at[A_INTELLIGENCE]), 1.0, 20.0)
+	var x := (float(_combat().skill(me, SK_ENCHANT)) + intel + luck) * float(_combat().fatigue_term(me))
+	var r := roll if roll >= 0 else roll100()
+	var sounds := []
+	var success := float(r) < x
+	if success:
+		var restored := float(gem_charge(gem_id)) * (float(r) / x)
+		var en := item_enchantment(inv.item(item_id))
+		var mx := float(enchantment_charge(en))
+		_set_item_charge(me, item_id, minf(item_charge(me, item_id, en) + restored, mx))
+		sounds.append("Enchant Success")
+	else:
+		sounds.append("Enchant Fail")
+	if main.audio != null:
+		for s in sounds:
+			main.audio.play(s)
+	main.skill_used(SK_ENCHANT, "enchant_recharge")
+	var gem_name: String = main.interaction.item_name("misc", gem_id, inv.item(gem_id).get("rec", {}))
+	inv.remove("player", {}, gem_id, 1)
+	var messages := []
+	if inv.count_of("player", {}, gem_id) <= 0:
+		messages.append(_text("sNotifyMessage51", "%s").replace("%s", gem_name))
+		if gem_id.get_slice("@", 0) == "misc_soulgem_azura":
+			inv.add("player", {}, "misc_soulgem_azura", 1)
+	for m in messages:
+		main._toast(m)
+	return {"ok": true, "success": success, "roll": r, "x": x, "messages": messages}

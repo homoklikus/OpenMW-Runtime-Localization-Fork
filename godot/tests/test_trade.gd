@@ -41,7 +41,7 @@ func _run() -> void:
 	var a: Dictionary = main.dialogue.actor
 	var svc: Array = tr.service_entries(a).map(func(e): return e[0])
 	# kolejność DialogueWindow::updateTopicsPane: handel, zaklęcia, podróż, …, trening, naprawa
-	check(svc == ["barter", "spells", "travel", "training", "repair"], "usługi kupca w oknie rozmowy (%s)" % [svc])
+	check(svc == ["barter", "spells", "travel", "spellmaking", "enchanting", "training", "repair"], "usługi kupca w oknie rozmowy – kolejność DialogueWindow::updateTopicsPane (%s)" % [svc])
 	check(main.dialogue_window._topic_ids.has("#svc:barter"), "pozycja „Handel” na liście tematów")
 	# ceny: postawa 50; gracz: handel 5, szczęście 40, osobowość 40, zmęczenie 1,25 → 21,25;
 	# kupiec (poziom 5, autoobliczanie): handel 5, szczęście 40, osobowość 41 → 21,5

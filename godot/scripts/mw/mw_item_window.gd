@@ -187,9 +187,8 @@ func use_item(i: int) -> void:
 			main.alchemy_window.open()
 			return
 		"misc":
-			if main.magic.is_soul_gem(id) and main.magic.gem_charge(id) > 0:
-				close()
-				main.magic_window.open_enchant({}, id)
+			if main.magic.is_soul_gem(id):
+				use_soul_gem(id)
 				return
 			toggle_equip(i)
 			return
@@ -231,3 +230,28 @@ func _sound(id: String, up: bool) -> void:
 func _take_all() -> void:
 	interaction.take_all(cont_sid, cont_rec)
 	refresh()
+
+## ActionSoulgem::executeImp: w walce sInventoryMessage5, kamień bez duszy sNotifyMessage32, dusza nieznanego
+## stworzenia – nic; inaczej SoulgemDialog („sDoYouWantTo”: sRechargeEnchantment → GM_Recharge,
+## sMake Enchantment → GM_Enchanting z kamieniem).
+func use_soul_gem(id: String) -> void:
+	var t = func(gm: String, fb: String) -> String: return main.dialogue.gmst_text(gm, fb)
+	if main._player_in_combat():
+		main._toast(t.call("sInventoryMessage5", "You cannot do this in combat."))
+		return
+	var soul: String = main.magic.soul_of(id)
+	if soul.is_empty():
+		main._toast(t.call("sNotifyMessage32", "This soul gem is empty."))
+		return
+	if main.magic.records.record("creature", soul).is_empty():
+		push_warning("Soul '%s' not found (item: '%s')" % [soul, id])
+		return
+	close()
+	main.show_message_box(t.call("sDoYouWantTo", "Do you want to..."),
+		[t.call("sRechargeEnchantment", "Recharge"), t.call("sMake Enchantment", "Make Enchantment")],
+		func(b: int):
+			if b == 0:
+				main.recharge_window.open(id)
+			else:
+				main.enchanting_window.open_for({}, id), true)
+

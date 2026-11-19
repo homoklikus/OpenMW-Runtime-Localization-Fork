@@ -1,0 +1,74 @@
+{
+ "name": "ui_enchanting_e9_1080",
+ "cell": "Seyda Neen, Arrille's Tradehouse",
+ "resolution": [
+  1920,
+  1080
+ ],
+ "note": "etap 9: EnchantingDialog i SpellCreationDialog z aktorem (I.UI.setMode z celem NPC), układ jak ui_repair_e9_1080; zawartość list efektów zależy od czarów postaci (różnica stanu, nie interfejsu) – porównanie ramek i stałych elementów",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [],
+ "ui": [
+  [
+   2.0,
+   "clear",
+   null
+  ],
+  [
+   4.0,
+   "mode",
+   {
+    "mode": "Enchanting",
+    "target": "arrille"
+   }
+  ],
+  [
+   7.0,
+   "shot",
+   "enchanting"
+  ],
+  [
+   9.0,
+   "mode",
+   {
+    "mode": "SpellCreation",
+    "target": "arrille"
+   }
+  ],
+  [
+   12.0,
+   "shot",
+   "spellcreation"
+  ],
+  [
+   14.0,
+   "clear",
+   null
+  ]
+ ],
+ "seconds": 19.0,
+ "interior": true,
+ "teleport": [
+  [
+   0,
+   "player",
+   -242.27,
+   -11.77,
+   228.0
+  ]
+ ],
+ "give": [
+  [
+   "gold_001",
+   500
+  ]
+ ]
+}
