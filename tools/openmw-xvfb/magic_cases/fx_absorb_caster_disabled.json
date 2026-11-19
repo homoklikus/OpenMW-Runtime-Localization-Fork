@@ -1,0 +1,147 @@
+{
+ "name": "fx_absorb_caster_disabled",
+ "note": "Pochłonięcie (Fargoth → gracz: wymowa 10, siła 10 na 6 s), rzucający wyłączony (Disable) w 2 s (gracz z dala od celu – efekty czarów przed kamerą spowalniają llvmpipe w Xvfb)",
+ "actors": [
+  "player",
+  "fargoth"
+ ],
+ "setup": [
+  "player->Position -12288 -69632 160 0",
+  "player->SetWillpower 0",
+  "player->SetLuck 0",
+  "player->SetSpeechcraft 30",
+  "fargoth->SetSpeechcraft 30",
+  "player->SetStrength 40",
+  "fargoth->SetStrength 40"
+ ],
+ "spells": [
+  [
+   0,
+   "player",
+   "probe_absorb_two",
+   "fargoth",
+   0.5
+  ]
+ ],
+ "after_s": [
+  [
+   1.5,
+   "set a1 to player->GetSpeechcraft"
+  ],
+  [
+   1.5,
+   "set b1 to fargoth->GetSpeechcraft"
+  ],
+  [
+   1.5,
+   "set s1 to fargoth->GetStrength"
+  ],
+  [
+   2.0,
+   "fargoth->Disable"
+  ],
+  [
+   4,
+   "set a2 to player->GetSpeechcraft"
+  ],
+  [
+   4,
+   "set b2 to fargoth->GetSpeechcraft"
+  ],
+  [
+   4,
+   "set s2 to fargoth->GetStrength"
+  ],
+  [
+   4,
+   "set p2 to player->GetStrength"
+  ],
+  [
+   9,
+   "set a3 to player->GetSpeechcraft"
+  ],
+  [
+   9,
+   "set p3 to player->GetStrength"
+  ]
+ ],
+ "vars": [
+  [
+   "float",
+   "a1"
+  ],
+  [
+   "float",
+   "b1"
+  ],
+  [
+   "float",
+   "s1"
+  ],
+  [
+   "float",
+   "a2"
+  ],
+  [
+   "float",
+   "b2"
+  ],
+  [
+   "float",
+   "s2"
+  ],
+  [
+   "float",
+   "p2"
+  ],
+  [
+   "float",
+   "a3"
+  ],
+  [
+   "float",
+   "p3"
+  ]
+ ],
+ "seconds": 10,
+ "cell": "Seyda Neen",
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "custom_spells": {
+  "probe_absorb_two": {
+   "name": "Probe Absorb",
+   "effects": [
+    {
+     "effect": 85,
+     "skill": -1,
+     "attribute": 0,
+     "range": 1,
+     "area": 0,
+     "duration": 6,
+     "min": 10,
+     "max": 10
+    },
+    {
+     "effect": 89,
+     "skill": 25,
+     "attribute": -1,
+     "range": 1,
+     "area": 0,
+     "duration": 6,
+     "min": 10,
+     "max": 10
+    }
+   ]
+  }
+ },
+ "look_at": [
+  -14500,
+  -67500,
+  400
+ ]
+}

@@ -347,11 +347,25 @@ return {
           spells_done[si] = true
           local o = find(sp[2])
           local rec = core.magic.spells.records[sp[3]]
-          if o and rec then
+          local rid, effs = nil, nil
+          if rec then rid, effs = rec.id, rec.effects
+          else
+            -- przedmiot zaklęty (ARMO/CLOT/WEAP/BOOK): efekty zaklęcia przedmiotu
+            for _, ty in ipairs({types.Clothing, types.Armor, types.Weapon, types.Book}) do
+              local ir = ty.records[sp[3]]
+              if ir and ir.enchant and ir.enchant ~= '' then
+                local en = core.magic.enchantments.records[ir.enchant]
+                if en then rid, effs = ir.id, en.effects end
+                break
+              end
+            end
+          end
+          if o and rid then
+            -- OpenMW 0.51: tylko indeksy efektów rekordu (własne wielkości – czary testowe „custom_spells”)
             local idx = {}
-            for i = 1, #rec.effects do idx[i] = i - 1 end
+            for i = 1, #effs do idx[i] = i - 1 end
             local c = (sp[4] and sp[4] ~= '') and find(sp[4]) or nil
-            types.Actor.activeSpells(o):add({id = rec.id, effects = idx, caster = c, stackable = CFG.stackable})
+            types.Actor.activeSpells(o):add({id = rid, effects = idx, caster = c, stackable = CFG.stackable})
           end
         end
       end
@@ -495,7 +509,16 @@ def probe_esp(case: dict) -> bytes:
     src = probe_script(case)
     schd = b"mwprobe_run".ljust(32, b"\0") + struct.pack("<5i", 1, 0, 0, 0, 0)
     rec = W.record("SCPT", [W.sub("SCHD", schd), W.sub("SCTX", src.replace("\n", "\r\n").encode("cp1252"))])
-    return W.header([("Morrowind.esm", 0)], 1, desc="mwscript compare probe", is_master=False) + rec
+    # czary testowe przypadku („custom_spells”: id → {name, type, effects}) – rekordy SPEL tylko w dodatku testowym,
+    # dla efektów bez czaru w danych gry (np. ExtraSpell, przywołania bez stworzenia)
+    recs = [rec]
+    for sid, sp in case.get("custom_spells", {}).items():
+        enams = [W.sub("ENAM", struct.pack("<hbbiiiii", int(e["effect"]), int(e.get("skill", -1)), int(e.get("attribute", -1)),
+                                           int(e.get("range", 0)), int(e.get("area", 0)), int(e.get("duration", 0)),
+                                           int(e.get("min", 0)), int(e.get("max", 0)))) for e in sp.get("effects", [])]
+        recs.append(W.record("SPEL", [W.sub("NAME", W.zs(sid)), W.sub("FNAM", W.zs(sp.get("name", sid))),
+                                      W.sub("SPDT", struct.pack("<iii", int(sp.get("type", 0)), 0, 0))] + enams))
+    return W.header([("Morrowind.esm", 0)], len(recs), desc="mwscript compare probe", is_master=False) + b"".join(recs)
 
 
 def baseline(case: dict) -> dict:

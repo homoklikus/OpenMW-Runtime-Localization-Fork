@@ -76,7 +76,7 @@ def _converter_ok(prev_conv: str, converter: str, vfs, key: str) -> bool:
     chk = COMPAT_CONVERTERS.get(prev_conv)
     return converter == MODEL_CONVERTER and chk is not None and chk(vfs, key)
 TEXTURE_CONVERTER = "tex2png-0.1.0"
-WORLD_EXPORT_VERSION = 19         # 19: stworzenia przywołań (GMST sMagic…ID) w objects.json; 18: części ciała wszystkich grywalnych ras (okno rasy tworzenia postaci);
+WORLD_EXPORT_VERSION = 20         # 20: obiekty stawiane przez skrypty (PlaceAtPC/PlaceAtMe/PlaceItem/PlaceItemCell) w objects.json; 19: stworzenia przywołań (GMST sMagic…ID) w objects.json; 18: części ciała wszystkich grywalnych ras (okno rasy tworzenia postaci);
                                   # 17: filmy (video/*.ogv – lokalnie przez ffmpeg), ekrany ładowania (splash/), fallback Movies_*;
 # 16: tekstury interfejsu i ikony (icons/), FontColor; 15: tekstury wody (textures/water); 14: fallbacki pogody/wody/księżyców, tekstury nieba i słońca; 13: SNDG (generatory dźwięków stworzeń); 12: world/fallbacks.json (pytania o klasę, awans); 11: mapa świata (world/map/); 10: głosy (sound/vo), muzyka (music/), szanse dźwięków regionów (etap 10); 9: stworzenia z punktów LEVC i znaczniki (etap 8); 8: siatki ścieżek PGRD w komórkach (etap 8); 2: world/records/ (etap 1); 3: rekordy etapu 3, dźwięki (sound/); 4: SPEL (etap 4); 5: skrypty; 6: dialogi (etap 6); 7: MGEF, ENCH (etap 7)
 
@@ -567,6 +567,38 @@ def _leveled_creatures(world, keys) -> set:
     return out
 
 
+PLACE_FUNCTIONS = ("placeatpc", "placeatme", "placeitem", "placeitemcell")
+
+
+def _script_placed(world) -> set:
+    """Obiekty stawiane w świecie przez skrypty (PlaceAtPC/PlaceAtMe/PlaceItem/PlaceItemCell – OpenMW tworzy
+    referencję z dowolnego rekordu), z rozwinięciem list (LEVC/LEVI): model, animacje i obiekt w objects.json,
+    także gdy obiekt nie występuje w żadnej przekonwertowanej komórce (np. dremora_lord ze skryptu zadania)."""
+    lev = {**world.records.get("LEVC", {}), **world.records.get("LEVI", {})}
+    out, todo, seen = set(), [], set()
+
+    def walk(n):
+        if isinstance(n, list):
+            if len(n) == 4 and n[0] == "call" and str(n[2]).lower() in PLACE_FUNCTIONS:
+                args = n[3] if isinstance(n[3], list) else []
+                if args and isinstance(args[0], list) and len(args[0]) == 2 and args[0][0] == "str":
+                    todo.append(str(args[0][1]).lower())
+            for x in n:
+                walk(x)
+    for sc in world.records.get("SCPT", {}).values():
+        walk(sc.get("body", []))
+    while todo:
+        i = todo.pop()
+        if i in seen:
+            continue
+        seen.add(i)
+        if i in lev:
+            todo += [(x.get("id") or "").lower() for x in lev[i].get("items", [])]
+        elif i in world.objects:
+            out.add(i)
+    return out
+
+
 # Przywołania (OpenMW summoning.cpp getSummonMap): GMST z identyfikatorami stworzeń efektów przywołania
 SUMMON_GMSTS = ("sMagicScampID", "sMagicClannfearID", "sMagicDaedrothID", "sMagicDremoraID", "sMagicAncestralGhostID",
                 "sMagicSkeletalMinionID", "sMagicLeastBonewalkerID", "sMagicGreaterBonewalkerID", "sMagicBonelordID",
@@ -943,7 +975,7 @@ def _run(cfg: InstallConfig, opts: Options, log: Callable[[str], None] = print) 
                     needed_models.add(mk)
                 else:
                     missing_models.add(o["model"])
-    spawn_creatures = _leveled_creatures(world, keys) | _summon_creatures(world)
+    spawn_creatures = _leveled_creatures(world, keys) | _summon_creatures(world) | _script_placed(world)
     for cid in sorted(spawn_creatures):
         o = world.objects.get(cid)
         mk = vfs.resolve_mesh(o["model"]) if o and o.get("model") else None

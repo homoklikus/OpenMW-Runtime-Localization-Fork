@@ -1,0 +1,110 @@
+{
+ "name": "fx_remove_curse",
+ "note": "Usunięcie klątwy: czar testowy typu Curse (4) usunięty z listy czarów, efekty cofnięte; czar zwykły zostaje",
+ "actors": [
+  "player"
+ ],
+ "setup": [
+  "player->Position -12288 -69632 160 0",
+  "player->SetStrength 50"
+ ],
+ "custom_spells": {
+  "probe_curse": {
+   "name": "Probe Curse",
+   "type": 4,
+   "effects": [
+    {
+     "effect": 17,
+     "skill": -1,
+     "attribute": 0,
+     "range": 0,
+     "area": 0,
+     "duration": 0,
+     "min": 10,
+     "max": 10
+    }
+   ]
+  },
+  "probe_remove_curse": {
+   "name": "Probe Remove Curse",
+   "effects": [
+    {
+     "effect": 100,
+     "skill": -1,
+     "attribute": -1,
+     "range": 0,
+     "area": 0,
+     "duration": 1,
+     "min": 1,
+     "max": 1
+    }
+   ]
+  }
+ },
+ "commands": [
+  "player->AddSpell probe_curse",
+  "player->AddSpell \"bound dagger\""
+ ],
+ "spells": [
+  [
+   0,
+   "player",
+   "probe_remove_curse",
+   "player",
+   2.0
+  ]
+ ],
+ "after_s": [
+  [
+   1.0,
+   "set c1 to player->GetSpell probe_curse"
+  ],
+  [
+   1.0,
+   "set s1 to player->GetStrength"
+  ],
+  [
+   4.0,
+   "set c2 to player->GetSpell probe_curse"
+  ],
+  [
+   4.0,
+   "set s2 to player->GetStrength"
+  ],
+  [
+   4.0,
+   "set d2 to player->GetSpell \"bound dagger\""
+  ]
+ ],
+ "vars": [
+  [
+   "float",
+   "c1"
+  ],
+  [
+   "float",
+   "s1"
+  ],
+  [
+   "float",
+   "c2"
+  ],
+  [
+   "float",
+   "s2"
+  ],
+  [
+   "float",
+   "d2"
+  ]
+ ],
+ "seconds": 5,
+ "cell": "Seyda Neen",
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {}
+}

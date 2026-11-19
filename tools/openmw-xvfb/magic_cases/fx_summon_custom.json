@@ -1,0 +1,89 @@
+{
+ "name": "fx_summon_custom",
+ "cell": "Seyda Neen",
+ "note": "czary testowe (SPEL w mwprobe.esp): Przywołanie Fabrykanta (137, brak czaru w danych gry), Creature04/05 (141/142 – GMST bez stworzenia)",
+ "actors": [
+  "player",
+  "fabricant_summon"
+ ],
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track",
+  ".fabricant_summon.pos",
+  ".fabricant_summon.rot"
+ ],
+ "tol": {},
+ "setup": [
+  "player->Position -12288 -69632 160 0"
+ ],
+ "custom_spells": {
+  "probe_fabricant": {
+   "name": "Probe Fabricant",
+   "effects": [
+    {
+     "effect": 137,
+     "skill": -1,
+     "attribute": -1,
+     "range": 0,
+     "area": 0,
+     "duration": 20,
+     "min": 1,
+     "max": 1
+    }
+   ]
+  },
+  "probe_creature04": {
+   "name": "Probe C04",
+   "effects": [
+    {
+     "effect": 141,
+     "skill": -1,
+     "attribute": -1,
+     "range": 0,
+     "area": 0,
+     "duration": 20,
+     "min": 1,
+     "max": 1
+    }
+   ]
+  },
+  "probe_creature05": {
+   "name": "Probe C05",
+   "effects": [
+    {
+     "effect": 142,
+     "skill": -1,
+     "attribute": -1,
+     "range": 0,
+     "area": 0,
+     "duration": 20,
+     "min": 1,
+     "max": 1
+    }
+   ]
+  }
+ },
+ "spells": [
+  [
+   3,
+   "player",
+   "probe_fabricant",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "probe_creature04",
+   "player"
+  ],
+  [
+   3,
+   "player",
+   "probe_creature05",
+   "player"
+  ]
+ ],
+ "seconds": 3
+}

@@ -1,0 +1,98 @@
+{
+ "name": "fx_skill_damage_restore",
+ "note": "Uszkodzenie umiejętności 5/s × 4 s (strzelectwo), potem Przywrócenie 10/s × 1 s; SW i szczęście 0 – bez rzutu odporności",
+ "actors": [
+  "player"
+ ],
+ "setup": [
+  "player->Position -12288 -69632 160 0",
+  "player->SetWillpower 0",
+  "player->SetLuck 0",
+  "player->SetMarksman 50"
+ ],
+ "spells": [
+  [
+   0,
+   "player",
+   "probe_damage_marksman",
+   "",
+   0.5
+  ],
+  [
+   0,
+   "player",
+   "probe_restore_marksman",
+   "",
+   7.0
+  ]
+ ],
+ "after_s": [
+  [
+   2.5,
+   "set m1 to player->GetMarksman"
+  ],
+  [
+   6.5,
+   "set m2 to player->GetMarksman"
+  ],
+  [
+   10,
+   "set m3 to player->GetMarksman"
+  ]
+ ],
+ "vars": [
+  [
+   "float",
+   "m1"
+  ],
+  [
+   "float",
+   "m2"
+  ],
+  [
+   "float",
+   "m3"
+  ]
+ ],
+ "seconds": 11,
+ "cell": "Seyda Neen",
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "custom_spells": {
+  "probe_damage_marksman": {
+   "name": "Probe Damage Skill",
+   "effects": [
+    {
+     "effect": 26,
+     "skill": 23,
+     "attribute": -1,
+     "range": 0,
+     "area": 0,
+     "duration": 4,
+     "min": 5,
+     "max": 5
+    }
+   ]
+  },
+  "probe_restore_marksman": {
+   "name": "Probe Restore Skill",
+   "effects": [
+    {
+     "effect": 78,
+     "skill": 23,
+     "attribute": -1,
+     "range": 0,
+     "area": 0,
+     "duration": 1,
+     "min": 10,
+     "max": 10
+    }
+   ]
+  }
+ }
+}

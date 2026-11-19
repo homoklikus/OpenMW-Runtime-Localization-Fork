@@ -29,6 +29,7 @@ const COST_GAME_POTION := 4
 var records
 var main = null                     # main.gd (walczący, inwentarz, komunikaty); bez main – tylko wzory
 var rng := RandomNumberGenerator.new()
+var test_disease_roll := -1                    # testy: stały rzut diseaseContact (0–9999)
 var test_roll := -1                 # testy: stały rzut 0..99 (−1 – losowy)
 var test_magnitude := -1            # testy: stałe losowanie wielkości (−1 – losowe; ≥ 0 – przesunięcie od min)
 var unsupported := {}               # efekty bez implementacji (etap 8 i dalej) → licznik użyć
@@ -430,6 +431,71 @@ func _add_active(fx: Dictionary, list) -> void:
 				var k := "_tmp%d" % id
 				fx[k] = float(fx.get(k, 0.0)) + float(e.get("magnitude", 0.0))
 			main.character.add_effect(fx, e, float(e.get("magnitude", 0.0)))
+
+## Spells::add (AddSpell, zarażenie chorobą): gracz – lista zaklęć postaci; NPC/stworzenie – lista w stanie aktora,
+## zdolności i choroby działają od razu. false, gdy aktor już ma zaklęcie albo rekord nie istnieje.
+func add_spell(f: Dictionary, spid: String) -> bool:
+	spid = spid.to_lower()
+	if records.record("spell", spid).is_empty():
+		return false
+	if f.kind == "player":
+		var sp: Array = main.player_stats().get("spells", [])
+		if spid in sp:
+			return false
+		sp.append(spid)
+		main.player_stats()["spells"] = sp
+		return true
+	var ast: Dictionary = _combat()._actor_state(f)
+	if not ast.get("spells") is Array:
+		ast["spells"] = (f.rec.get("spells", []) as Array).map(func(x): return String(x).to_lower())
+	if spid in ast.spells:
+		return false
+	ast.spells.append(spid)
+	sync_dynamic(f)
+	return true
+
+## diseaseContact (mwmechanics/disease.hpp): aktor zetknął się z nosicielem (trafienie wręcz, przeszukanie zwłok).
+## Każda choroba nosiciela, której aktor nie ma: szansa fDiseaseXferChance × 100 × (1 − 0,01 × (odporność −
+## słabość)) na 10 000 (Korpus – odporność/słabość na Korpus, choroba zwykła – na choroby, zaraza – na zarazy).
+## Gracz nie zaraża.
+func disease_contact(actor: Dictionary, carrier: Dictionary) -> Array:
+	var got := []
+	if actor.is_empty() or carrier.is_empty() or carrier.kind == "player":
+		return got
+	var chance := float(_gmst("fDiseaseXferChance", 2.5))
+	var fx := effects(actor)
+	var have: Array = main.player_stats().get("spells", []) if actor.kind == "player" else actor_spells(actor)
+	for sid in actor_spells(carrier).duplicate():
+		var spid := String(sid).to_lower()
+		if spid in have:
+			continue
+		var sp: Dictionary = records.record("spell", spid)
+		if sp.is_empty():
+			continue
+		var corprus := false
+		for e in sp.get("effects", []):
+			if int(e.get("effect", -1)) == 132:
+				corprus = true
+		var typ := int(sp.get("spell_type", 0))
+		var res_w := []
+		if corprus:
+			res_w = ["96", "34"]
+		elif typ == 3:
+			res_w = ["94", "32"]
+		elif typ == 2:
+			res_w = ["95", "33"]
+		else:
+			continue
+		var resist := 1.0 - 0.01 * (float(fx.get(res_w[0], 0.0)) - float(fx.get(res_w[1], 0.0)))
+		var x := int(chance * 100.0 * resist)
+		var roll := test_disease_roll if test_disease_roll >= 0 else rng.randi() % 10000
+		if roll < x and add_spell(actor, spid):
+			got.append(spid)
+			if actor.kind == "player":
+				var g: Dictionary = records.record("gmst", "smagiccontractdisease")
+				var msg := String(g.get("value", "You have contracted %s.")) if not g.is_empty() else "You have contracted %s."
+				main.call("_toast", msg.replace("%s", String(sp.get("name", spid))))
+	return got
 
 ## Zaklęcia aktora (Spells): po AddSpell/RemoveSpell lista w stanie aktora, inaczej z rekordu.
 func actor_spells(f: Dictionary) -> Array:
@@ -1247,6 +1313,7 @@ func summon_creature(id: int, summoner: Dictionary) -> String:
 func cleanup_summon(summoner: Dictionary, sid: String) -> void:
 	if sid.is_empty():
 		return
+	purge_caster(sid)                          # Actors::cleanupSummonedCreature → purgeSpellEffects
 	var h := holder(summoner)
 	if h.get("summons") is Dictionary:
 		h.summons.erase(sid)
@@ -1289,6 +1356,34 @@ func clear_on_death(f: Dictionary) -> void:
 		for x in sp.effects:
 			_remove_effect(f, x)
 	list.clear()
+
+## Actors::purgeSpellEffects: czary rzucone przez aktora (zmarłego po animacji śmierci, usuniętego przywołania)
+## znikają z działających czarów gracza i aktorów wczytanych komórek – z cofnięciem skutków (np. Pochłanianie
+## wraca do celu od razu, nie po czasie trwania).
+func purge_caster(caster_sid: String) -> void:
+	if caster_sid.is_empty() or main == null:
+		return
+	var targets: Array = [_combat().player_fighter()]
+	for key in main.loaded:
+		var refs: Node = main.loaded[key].get_node_or_null("Refs")
+		if refs == null:
+			continue
+		for n in refs.get_children():
+			var nsid := String(n.get_meta("mw_sid", ""))
+			var st = main.state.actors.get(nsid) if main.state.get("actors") is Dictionary else null
+			# tylko aktorzy z działającymi czarami (bez tworzenia stanu pozostałym)
+			if n.has_meta("mw_actor") and nsid != caster_sid and st is Dictionary \
+					and not (st.get("active_spells", []) as Array).is_empty():
+				targets.append(_combat().fighter_of(n))
+	for t in targets:
+		if t.is_empty():
+			continue
+		var list := active(t)
+		for sp in list.duplicate():
+			if String(sp.get("caster", "")) == caster_sid:
+				for x in sp.effects:
+					_remove_effect(t, x)
+				list.erase(sp)
 
 ## getStuntedMagickaDuration: −1 – stałe źródło (zdolność, przedmiot), inaczej najdłuższy pozostały czas (s).
 func stunted_magicka_remaining(f: Dictionary) -> float:

@@ -584,6 +584,17 @@ def _stage7d_records() -> list:
     for sid, name, enams in spells:
         recs.append(W.record("SPEL", [W.sub("NAME", W.zs(sid)), W.sub("FNAM", W.zs(name)),
                                       W.sub("SPDT", struct.pack("<iii", 0, 0, 1))] + enams))
+    # choroby (diseaseContact): zwykła (typ 3), zaraza (typ 2), Korpus (zaraza z efektem 132); odporność i słabość
+    recs += [_mgef(i, 5, 1.0) for i in (17, 32, 33, 34, 85, 89, 94, 95, 96, 132)]
+    for sid, typ, enams in (("synth_disease", 3, [_enam(17, 0, 5, 5, 0, attr=0)]),
+                            ("synth_blight", 2, [_enam(17, 0, 5, 5, 0, attr=1)]),
+                            ("synth_corprus", 2, [_enam(132, 0, 1, 1, 1), _enam(17, 0, 1, 1, 0, attr=2)]),
+                            ("synth_resist_disease", 0, [_enam(94, 0, 100, 100, 30), _enam(95, 0, 100, 100, 30),
+                                                         _enam(96, 0, 100, 100, 30)]),
+                            ("synth_weak_disease", 0, [_enam(32, 0, 3900, 3900, 30), _enam(33, 0, 3900, 3900, 30),
+                                                       _enam(34, 0, 3900, 3900, 30)])):
+        recs.append(W.record("SPEL", [W.sub("NAME", W.zs(sid)), W.sub("FNAM", W.zs(sid)),
+                                      W.sub("SPDT", struct.pack("<iii", typ, 0, 0))] + enams))
     recs.append(W.record("ALCH", [W.sub("NAME", W.zs("synth_potion")), W.sub("FNAM", W.zs("Mikstura testowa")),
                                   W.sub("MODL", W.zs("m\\misc_synth_spoon.nif")),
                                   W.sub("ALDT", struct.pack("<fii", 0.5, 15, 0)),

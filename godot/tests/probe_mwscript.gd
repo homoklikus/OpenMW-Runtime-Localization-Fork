@@ -130,18 +130,31 @@ var _track := {}
 var _spells_done := {}
 var _case: Dictionary = {}
 
-## Czar nakładany bezpośrednio (para do Lua ActiveSpells:add): wszystkie efekty rekordu na cel.
+## Czar nakładany bezpośrednio (para do Lua ActiveSpells:add): efekty rekordu (czar albo zaklęcie przedmiotu
+## ARMO/CLOT/WEAP/BOOK) na cel. Własne wielkości i czasy – czary testowe przypadku („custom_spells”).
 func _apply_spell(sp: Array) -> void:
 	var t: Dictionary = vm._fighter(vm._target(String(sp[1]), _ctx()))
-	var rec: Dictionary = main.builder.actors.record("spell", String(sp[2]).to_lower())
+	var sid := String(sp[2]).to_lower()
+	var rec: Dictionary = main.builder.actors.record("spell", sid)
+	var kind := "spell"
+	if rec.is_empty():
+		for ty in ["clothing", "armor", "weapon", "book"]:
+			var ir: Dictionary = main.builder.actors.record(ty, sid)
+			var en := String(ir.get("enchant", ir.get("enchantment", "")))
+			if not ir.is_empty() and not en.is_empty():
+				var er: Dictionary = main.builder.actors.record("enchantment", en.to_lower())
+				rec = {"name": ir.get("name", ""), "effects": er.get("effects", [])}
+				kind = "enchantment"
+				break
 	if t.is_empty() or rec.is_empty():
 		printerr("PROBE: brak celu/czaru ", sp)
 		return
 	var c: Dictionary = {}
 	if sp.size() > 3 and String(sp[3]) != "":
 		c = vm._fighter(vm._target(String(sp[3]), _ctx()))
-	main.magic.inflict(t, c, {"id": String(sp[2]).to_lower(), "name": String(rec.get("name", "")), "kind": "spell",
-		"stackable": bool(_case.get("stackable", false))}, rec.get("effects", []), rec)
+	var effs: Array = rec.get("effects", [])
+	main.magic.inflict(t, c, {"id": sid, "name": String(rec.get("name", "")), "kind": kind,
+		"stackable": bool(_case.get("stackable", false))}, effs, rec)
 
 ## Sterowanie graczem jak skrypt PLAYER sondy OpenMW: odcinki [t0, t1, {forward, back, left, right, run, jump,
 ## sneak, yaw, pitch}] (sekundy od poleceń) → akcje wejścia kontrolera gracza.
@@ -282,6 +295,15 @@ func _run() -> void:
 	for i in 2:
 		await process_frame
 	vm = main.scripts
+	# czary testowe przypadku (para do rekordów SPEL w mwprobe.esp po stronie OpenMW)
+	var cs: Dictionary = case.get("custom_spells", {})
+	if not cs.is_empty():
+		main.builder.actors.record("spell", "")
+		for sid in cs:
+			var sp: Dictionary = cs[sid]
+			main.builder.actors._records["spell"][String(sid).to_lower()] = {"id": String(sid).to_lower(),
+				"name": String(sp.get("name", sid)), "spell_type": int(sp.get("type", 0)), "cost": 0, "flags": 0,
+				"effects": sp.get("effects", [])}
 	# skrypt globalny sondy (jak mwprobe.esp po stronie OpenMW): polecenia w klatce „delay” od startu skryptu
 	vm._scripts["mwprobe_run"] = case.get("script", {})
 	vm.start("mwprobe_run")
@@ -297,7 +319,7 @@ func _run() -> void:
 		var spl: Array = case.get("spells", [])
 		for si in spl.size():
 			var sp: Array = spl[si]
-			var due: bool = (t_after >= 0.0 and t_after >= float(sp[4]) and not _spells_done.has(si)) if sp.size() > 4 \
+			var due: bool = (t_after >= 0.0 and t_after >= float(sp[4]) and not _spells_done.has(si)) if sp.size() > 4 and sp[4] != null \
 				else frame == delay + int(sp[0])
 			if due:
 				_spells_done[si] = true

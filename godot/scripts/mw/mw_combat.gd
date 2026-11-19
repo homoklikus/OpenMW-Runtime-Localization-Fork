@@ -470,6 +470,9 @@ func melee(att: Dictionary, vic: Dictionary, attack_type: int, strength: float, 
 	var blocked := block(att, vic, w, damage, strength)
 	if blocked:
 		damage = 0.0
+	# Npc::hit / Creature::hit: diseaseContact(ofiara, atakujący) po bloku, także przy zablokowanym ciosie
+	if main.magic != null and main.magic.main != null:
+		main.magic.disease_contact(vic, att)
 	var res := on_hit(vic, att, {"health": damage} if health_dmg else {"fatigue": damage}, true)
 	if ench:
 		res["enchanted"] = true

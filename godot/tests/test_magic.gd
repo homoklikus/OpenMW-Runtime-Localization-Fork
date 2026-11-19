@@ -230,5 +230,53 @@ func _run() -> void:
 	await _frames(3)
 	check(not inv.item(pid).is_empty() and not inv.item(nid).is_empty() and String(inv.item(nid).rec.get("enchant", "")) != "", "odczyt: mikstura i pierścień z zapisu")
 	check(mg.active(cb.player_fighter()).size() >= 1, "odczyt: działające czary gracza")
+	# Pochłonięcie umiejętności (AbsorbSkill): cel −wielkość (uszkodzenie), rzucający +modyfikator; po wygaśnięciu
+	# removeMagicEffect przywraca cel i cofa modyfikator rzucającego
+	var vic2: Dictionary = cb.fighter_of(_ref(main, "synth_villager"))
+	var me2: Dictionary = cb.player_fighter()
+	var sk_c0 := float(cb.skill(me2, 25))
+	var sk_v0 := float(cb.skill(vic2, 25))
+	mg.inflict(vic2, me2, {"id": "abs_sk", "name": "abs", "kind": "spell"},
+		[{"effect": 89, "skill": 25, "attribute": -1, "range": 1, "min": 10, "max": 10, "duration": 3}])
+	check(near(float(cb.skill(vic2, 25)), maxf(0.0, sk_v0 - 10.0)), "pochłonięcie umiejętności: cel −10 (nie poniżej 0) (%s → %s)" % [sk_v0, cb.skill(vic2, 25)])
+	check(near(float(cb.skill(me2, 25)), sk_c0 + 10.0), "pochłonięcie umiejętności: rzucający +10 (%s → %s)" % [sk_c0, cb.skill(me2, 25)])
+	for i in 5:
+		mg.tick(vic2, 1.0)
+	check(near(float(cb.skill(vic2, 25)), sk_v0), "pochłonięcie umiejętności: cel przywrócony po wygaśnięciu (%s)" % cb.skill(vic2, 25))
+	check(near(float(cb.skill(me2, 25)), sk_c0), "pochłonięcie umiejętności: rzucający bez premii po wygaśnięciu (%s)" % cb.skill(me2, 25))
+	# purgeSpellEffects: śmierć rzucającego usuwa jego czary z innych aktorów (Pochłanianie wraca od razu)
+	mg.inflict(me2, vic2, {"id": "abs_sk2", "name": "abs2", "kind": "spell"},
+		[{"effect": 89, "skill": 25, "attribute": -1, "range": 1, "min": 10, "max": 10, "duration": 30}])
+	check(near(float(cb.skill(me2, 25)), maxf(0.0, sk_c0 - 10.0)), "pochłonięcie przez NPC: gracz −10 (%s)" % cb.skill(me2, 25))
+	mg.purge_caster(String(vic2.sid))
+	check(near(float(cb.skill(me2, 25)), sk_c0), "purge_caster: umiejętność gracza wraca od razu (%s)" % cb.skill(me2, 25))
+	check(mg.active(me2).filter(func(x): return String(x.get("id", "")) == "abs_sk2").is_empty(), "purge_caster: czar usunięty z gracza")
+	# diseaseContact: fDiseaseXferChance (2,5) × 100 × (1 − 0,01 × (odporność − słabość)) na 10 000
+	var pl: Dictionary = cb.player_fighter()
+	st = main.player_stats()                              # po odczycie zapisu – nowy słownik postaci
+	var carrier := {"kind": "creature", "sid": "synth_carrier_test", "base": "x", "rec": {"spells": ["synth_disease", "synth_blight", "synth_corprus"]}}
+	var _drop := func():
+		for x in ["synth_disease", "synth_blight", "synth_corprus"]:
+			st.spells.erase(x)
+	_drop.call()
+	mg.test_disease_roll = 250
+	check(mg.disease_contact(pl, carrier).is_empty(), "choroba: rzut 250 ≥ 250 – bez zarażenia")
+	mg.test_disease_roll = 249
+	var got: Array = mg.disease_contact(pl, carrier)
+	check(got.size() == 3 and "synth_disease" in st.spells, "choroba: rzut 249 < 250 – trzy choroby (%s)" % str(got))
+	check(mg.disease_contact(pl, carrier).is_empty(), "choroba: już posiadanej się nie dostaje")
+	_drop.call()
+	check(mg.disease_contact(carrier, pl).is_empty(), "choroba: gracz nie zaraża")
+	mg.test_disease_roll = 0
+	mg.inflict(pl, pl, {"id": "synth_resist_disease", "name": "r", "kind": "spell"}, mg.records.record("spell", "synth_resist_disease").effects)
+	check(mg.disease_contact(pl, carrier).is_empty(), "choroba: odporność 100 – szansa 0")
+	mg.inflict(pl, pl, {"id": "synth_weak_disease", "name": "w", "kind": "spell"}, mg.records.record("spell", "synth_weak_disease").effects)
+	mg.test_disease_roll = 9749
+	check(mg.disease_contact(pl, carrier).size() == 3, "choroba: odporność 100 i słabość 3900 – szansa 9750")
+	_drop.call()
+	mg.test_disease_roll = 9750
+	check(mg.disease_contact(pl, carrier).is_empty(), "choroba: odporność 100 i słabość 3900 – rzut 9750 bez zarażenia")
+	mg.test_disease_roll = -1
+	_drop.call()
 	print("RESULT ", JSON.stringify({"checks": checks, "failures": failures, "unsupported": mg.unsupported}))
 	quit(1 if failures.size() > 0 else 0)

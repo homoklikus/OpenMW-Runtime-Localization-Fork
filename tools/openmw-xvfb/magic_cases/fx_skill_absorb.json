@@ -1,0 +1,91 @@
+{
+ "name": "fx_skill_absorb",
+ "note": "Pochłonięcie umiejętności (wymowa) 10 na 5 s, Fargoth → gracz: gracz −10, Fargoth +10, po wygaśnięciu powrót (bez przestępstwa gracza – rzucającym jest NPC)",
+ "actors": [
+  "player",
+  "fargoth"
+ ],
+ "setup": [
+  "player->Position -12288 -69632 160 0",
+  "player->SetWillpower 0",
+  "player->SetLuck 0",
+  "player->SetSpeechcraft 30",
+  "fargoth->SetSpeechcraft 30"
+ ],
+ "spells": [
+  [
+   0,
+   "player",
+   "probe_absorb_speech",
+   "fargoth",
+   0.5
+  ]
+ ],
+ "after_s": [
+  [
+   2.5,
+   "set a1 to player->GetSpeechcraft"
+  ],
+  [
+   2.5,
+   "set b1 to fargoth->GetSpeechcraft"
+  ],
+  [
+   8,
+   "set a2 to player->GetSpeechcraft"
+  ],
+  [
+   8,
+   "set b2 to fargoth->GetSpeechcraft"
+  ]
+ ],
+ "vars": [
+  [
+   "float",
+   "a1"
+  ],
+  [
+   "float",
+   "b1"
+  ],
+  [
+   "float",
+   "a2"
+  ],
+  [
+   "float",
+   "b2"
+  ]
+ ],
+ "seconds": 9,
+ "cell": "Seyda Neen",
+ "ignore": [
+  ".player.cell",
+  ".player.water",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "custom_spells": {
+  "probe_absorb_speech": {
+   "name": "Probe Absorb Skill",
+   "effects": [
+    {
+     "effect": 89,
+     "skill": 25,
+     "attribute": -1,
+     "range": 1,
+     "area": 0,
+     "duration": 5,
+     "min": 10,
+     "max": 10
+    }
+   ]
+  }
+ },
+ "look_at": [
+  -14500,
+  -67500,
+  400
+ ]
+}

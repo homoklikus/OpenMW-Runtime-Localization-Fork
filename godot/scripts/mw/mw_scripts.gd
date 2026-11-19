@@ -838,30 +838,31 @@ func _call(ref, fname: String, args: Array, c: Ctx):
 			return float(game.main.player_stats().get("bounty", 0))
 		"addspell", "removespell":
 			var tsp := _target(ref, c)
-			if String(tsp.get("sid", "")) == "player":
+			var spid := _str(args, 0).to_lower()
+			var fs: Dictionary = game.main.combat.player_fighter() if String(tsp.get("sid", "")) == "player" and game.main.combat != null else ({"kind": "player", "sid": "player", "rec": {}} if String(tsp.get("sid", "")) == "player" else _fighter(tsp))
+			if fs.is_empty():
+				return null
+			if fname == "addspell":
+				if records.record("spell", spid).is_empty():
+					if fs.kind != "player":
+						_fail(c, "%s: %s – nieznane zaklęcie %s" % [c.scr, fname, spid])
+					return null
+				if game.main.magic != null:
+					game.main.magic.add_spell(fs, spid)
+				elif fs.kind == "player" and not spid in game.main.player_stats().get("spells", []):
+					var sp0: Array = game.main.player_stats().get("spells", [])
+					sp0.append(spid)
+					game.main.player_stats()["spells"] = sp0
+			elif fs.kind == "player":
 				var sp: Array = game.main.player_stats().get("spells", [])
-				var spid := _str(args, 0).to_lower()
-				if fname == "addspell" and not spid in sp and not records.record("spell", spid).is_empty():
-					sp.append(spid)
-				elif fname == "removespell":
-					sp.erase(spid)
+				sp.erase(spid)
 				game.main.player_stats()["spells"] = sp
 			else:
-				# NPC/stworzenie: lista zaklęć w stanie aktora (Spells::add/remove); zdolności działają od razu
-				var fs := _fighter(tsp)
-				var spid2 := _str(args, 0).to_lower()
-				if fs.is_empty():
-					return null
-				if records.record("spell", spid2).is_empty():
-					_fail(c, "%s: %s – nieznane zaklęcie %s" % [c.scr, fname, spid2])
-					return null
+				# NPC/stworzenie: lista zaklęć w stanie aktora (Spells::remove)
 				var ast: Dictionary = game.main.combat._actor_state(fs)
 				if not ast.get("spells") is Array:
 					ast["spells"] = (fs.rec.get("spells", []) as Array).map(func(x): return String(x).to_lower())
-				if fname == "addspell" and not spid2 in ast.spells:
-					ast.spells.append(spid2)
-				elif fname == "removespell":
-					ast.spells.erase(spid2)
+				ast.spells.erase(spid)
 				if game.main.magic != null:
 					game.main.magic.sync_dynamic(fs)
 			return null

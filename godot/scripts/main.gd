@@ -914,6 +914,7 @@ func on_actor_died(f: Dictionary, _att: Dictionary) -> void:
 	a["dead"] = true
 	if magic != null:
 		magic.clear_on_death(f)            # ActiveSpells::clear: przywołania znikają, efekty cofnięte
+		magic.purge_caster(String(f.sid))  # purgeSpellEffects: czary zmarłego na innych aktorach usunięte
 	a["health"] = 0.0
 	var ds: Dictionary = dialogue._ds()
 	ds.deaths[f.base] = int(ds.deaths.get(f.base, 0)) + 1
@@ -1815,6 +1816,8 @@ func activate(r: Node, force_default := false) -> bool:
 	if dialogue != null and dialogue.is_actor_node(r):
 		if combat != null and combat.is_dead(combat.fighter_of(r)):
 			var f: Dictionary = combat.fighter_of(r)           # martwy aktor – przeszukanie (jak pojemnik)
+			if magic != null:
+				magic.disease_contact(combat.player_fighter(), f)   # ActionOpen: diseaseContact
 			menu_mode.open_container(f.sid, f.rec, dialogue.actor_name(dialogue.make_actor(r)))
 			return true
 		# Npc::activate: gracz-wilkołak nie rozmawia z NPC (sWerewolfRefusal, dźwięk WolfNPC); NPC-wilkołak też nie
