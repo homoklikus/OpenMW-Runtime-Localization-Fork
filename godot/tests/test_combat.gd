@@ -82,6 +82,8 @@ func _run() -> void:
 	v = _ref(main, "synth_villager")
 	check(v.get_meta("mw_dead", false), "ciało leży")
 	check(main.activate(v) and main.menu_mode.visible and main.menu_mode.cont_sid == vic.sid, "przeszukanie ciała")
+	var dcb: Control = main.menu_mode.windows["container"].find_child("DisposeCorpseButton", true, false)
+	check(dcb != null and dcb.visible, "przy łupieniu ciała przycisk sDisposeofCorpse")
 	main.menu_mode.close()
 	check(not bool(cb.melee(me, vic, 0, 1.0, 0).get("success", false)), "martwego nie można trafić")
 	# łuk i strzały – lot pocisku do NPC
@@ -134,5 +136,15 @@ func _run() -> void:
 	cb._stagger(pme, 1.0, true)
 	check(not cb.knocked_down(pme), "słaby cios (≤ zręczność × fKnockDownMult) nie powala gracza")
 	cb.test_roll = -1
+	# ContainerWindow::onDisposeCorpseButtonClicked: weź wszystko, ciało nietrwałego aktora znika ze świata
+	var vbody := _ref(main, "synth_villager")
+	var vsid := String(vbody.get_meta("mw_sid", ""))
+	if main.activate(vbody) and main.menu_mode.visible:
+		var persistent := bool(main.menu_mode.cont_rec.get("persistent", false))
+		main.menu_mode.dispose_corpse()
+		await _frames(2)
+		check(not main.menu_mode.visible and main.state.is_enabled(vsid) == persistent, "Dispose of Corpse: ciało usunięte (trwałe zostaje)")
+	else:
+		check(false, "ponowne przeszukanie ciała")
 	print("RESULT ", JSON.stringify({"checks": checks, "failures": failures}))
 	quit(1 if failures.size() > 0 else 0)

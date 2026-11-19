@@ -1,6 +1,6 @@
 # Inwentaryzacja zgodności OpenMWGodot z OpenMW
 
-Stan na 2026-11-19 (etap 7 – interfejs: `AUDYT-ETAP7-UI.md`; wcześniej po etapach „pełny start gry”, „pięć okien tworzenia postaci” i „MWScript zgodny z OpenMW”). Cel: wierne odtworzenie OpenMW, zanim
+Stan na 2026-11-19 (etap 8: `RAPORT-ETAP8.md`; etap 7 – interfejs: `AUDYT-ETAP7-UI.md`; wcześniej po etapach „pełny start gry”, „pięć okien tworzenia postaci” i „MWScript zgodny z OpenMW”). Cel: wierne odtworzenie OpenMW, zanim
 zajmiemy się remasterem. OpenMW jest źródłem prawdy (fork `apps/openmw`, ten sam kod co oficjalne 0.51).
 
 ## Statusy
@@ -122,14 +122,16 @@ klasa, statystyki po 9 powrotach = buildPlayer od zera) i `probe_newgame.gd` (15
 |---|---|---|---|
 | Skala GUI (jedna, jak `[GUI] scaling factor`; dziennik/książki – ScalingLayer 600 × 520) | Zweryfikowane | etap 7: wcześniej każde okno skalowało się `vp.y/720` (1,5× przy 1080p) – szczegóły `AUDYT-ETAP7-UI.md` | – |
 | HUD, tryb menu (statystyki, ekwipunek, magia, mapa), okna kreatora | Zweryfikowane | etap 7: porównanie zrzutami z OpenMW w 720p–2160p (IoU 0,93–1,0), test_ui_geometry | – |
-| Pojemnik, handel, alchemia, rozmowa, odpoczynek | Zaimplementowane | wspólna skala z etapu 7; porównanie zrzutami jeszcze nie | P2 |
-| Pasek przewijania w stylu Morrowinda (MW_VScroll) | Brakujące | etap 7 | P2 |
+| Rozmowa, handel (GM_Barter), pojemnik (z Dispose of Corpse), zakup zaklęć, podróże, trening | Zaimplementowane | etap 8: układy z layoutów OpenMW, testy; porównanie zrzutami czeka na VM (`RAPORT-ETAP8.md`) | P2 |
+| Alchemia, zaklinanie, tworzenie czarów, odpoczynek/awans, naprawa, doładowanie, perswazja | Częściowo zgodne | własne układy Godota | P2 |
+| Pasek przewijania w stylu Morrowinda (MW_VScroll) | Zweryfikowane | etap 8: skórka, krok 36, MoveToClick, test | – |
+| Przypinanie, maksymalizacja, ukrywanie okien, klik w HUD | Zaimplementowane | etap 8; stan w zapisie gry zamiast w settings | P3 |
 | Pasek zdrowia wroga w HUD | Brakujące | | P2 |
 | Szybkie klawisze (F1, 1–9) | Brakujące | | P1 |
 | Okno ilości (dzielenie stosów, Shift przy przeciąganiu) | Brakujące | dziś zawsze cały stos / 1 sztuka | P2 |
 | Dziennik jak książka (zadania, indeks tematów, strony) | Zweryfikowane | etap 7: JournalWindow (tx_menubook, zakładka, indeks), zrzuty IoU ≥ 0,997 | – |
 | Okno awansu (obraz klasy, mnożniki atrybutów) | Częściowo zgodne | | P2 |
-| Odpoczynek/czekanie (układ OpenMW, „do wyleczenia”) | Częściowo zgodne | | P2 |
+| Odpoczynek/czekanie (układ OpenMW, „do wyleczenia”) | Częściowo zgodne | układ `openmw_wait_dialog` – do zrobienia | P2 |
 | Tworzenie zaklęć (usługa) | Brakujące | | P2 |
 | Naprawa u kupca / młotkiem, ładowanie kamieniem duszy | Częściowo zgodne | logika częściowo, okna OpenMW brak | P2 |
 | Zaklinanie, kupno zaklęć, trening, podróż w układzie OpenMW | Częściowo zgodne | wygląd Morrowinda, układ list | P3 |
@@ -850,7 +852,7 @@ w OpenMW za błąd #9154) – świadoma różnica.
 | Opady (deszcz, śnieg, popiół, zaraza), błyskawice | Częściowo zgodne | dźwięki są, cząsteczek brak | P2 |
 | Księżyce Masser i Secunda (fazy) | Brakujące | | P2 |
 | Kręgi i plusk na wodzie, ślady | Brakujące | | P3 |
-| Wierność oświetlenia (Godot liniowo + tonowanie, OpenMW w gamma) | Częściowo zgodne | porównać zrzutami | P1 |
+| Wierność oświetlenia (Godot liniowo + tonowanie, OpenMW w gamma) | Zaimplementowane | etap 8: tłumienie I^2,2 (gamma → liniowo), zasięg 1,75 r, słońce wnętrza, minimum 0,08, bez tonemappingu; zostaje obcięcie sumy przed teksturą i lambert liniowo; porównanie zrzutami czeka na VM | P1 |
 | Daleki teren i obiekty na horyzoncie | Brakujące | | P3 |
 | Odbicia wody (poziomy 0–5) | Częściowo zgodne | tylko niebo | P3 |
 
@@ -865,6 +867,8 @@ w OpenMW za błąd #9154) – świadoma różnica.
 | ObstacleCheck (utknięcie 1,5 s / 0,5 j., unik 1 s, 7 kierunków), predictAndAvoidCollisions | Zweryfikowane | test_ai (podróżny omija stojącego NPC) |
 | Stepper: wejście na stopień ≤ 34 j. (3 próby jak sDoExtraStairHacks, zejście tylko na ≤ 46°), prostopadłościan aktora | Zweryfikowane | **naprawione:** gracz zatrzymywał się na progu drzwi urzędu (20 j.); test_ai_mechanics (20 j. pokonany, 48 j. nie) |
 | Drzwi obrotowe: World::activateDoor/rotateDoor/processDoors – 90°/s, otwórz/zamknij/odwróć w trakcie, zatrzymanie na aktorze w kierunku obrotu, AiAvoidDoor, zapis i wznowienie ruchu | Zweryfikowane | **nowa mechanika**; test_ai_mechanics (drzwi ×10), sonda (drzwi korytarza urzędu) |
+| Widoczność (getLOS): promień z maską World | HeightMap | Door – aktorzy nie zasłaniają | Zweryfikowane | **naprawione w etapie 8** (wcześniej zasłaniali inni NPC: podążanie, powitania, świadkowie, walka); test_ai |
+| Statystyki gracza przed kreatorem (Npc::getNpcData, buildPlayer z mRaceSelected/mClassSelected) | Zweryfikowane | **naprawione w etapie 8**; test_chargen |
 | AiPackage::openDoors – NPC otwiera drzwi na drodze (poza AiWander), z kluczem; evadeObstacles: najpierw drzwi | Zaimplementowane | brak sceny testowej z NPC przechodzącym przez drzwi na prawdziwych danych |
 | AiWander (bezczynność, punkty w promieniu, spacer) | Zaimplementowane | sonda Seyda Neen 60 s: 13/15 aktorów w ruchu, wszyscy w promieniu wędrówki, nikt nie spadł pod teren |
 | Aresztowanie przez strażnika, grzywna, więzienie | Nieprzetestowane | do sondy | 

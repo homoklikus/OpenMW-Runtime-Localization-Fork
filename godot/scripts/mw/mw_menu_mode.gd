@@ -889,9 +889,11 @@ var cont_ids: Array = []          # testy
 
 ## Pojemnik jak OpenMW: okno pojemnika (ułożenie [Windows] container) i ekwipunek gracza obok; przeciąganie między
 ## oknami, dwuklik w pojemniku – weź stos, dwuklik w ekwipunku – włóż; „Weź wszystko”, „Zamknij”.
-func open_container(sid: String, rec: Dictionary, name: String) -> void:
+## corpse – przeszukanie martwego aktora (ContainerWindow: przycisk sDisposeofCorpse widoczny przy łupieniu).
+func open_container(sid: String, rec: Dictionary, name: String, corpse := false) -> void:
 	if visible:
 		close()
+	cont_corpse = corpse
 	cont_sid = sid
 	cont_rec = rec
 	cont_name = name
@@ -907,18 +909,31 @@ func open_container(sid: String, rec: Dictionary, name: String) -> void:
 	visible = true
 	windows["inventory"] = _window("inventory", _rect("inventory", vp))
 	_build_inventory()
+	# openmw_container_window.layout: ItemView od 5 px, pod nim (po 5 px) HBox do prawej: sDisposeofCorpse (tylko
+	# przy łupieniu ciała), sTakeAll, Close (l10n Interface)
 	windows["container"] = _window("container", Rect2(Vector2(0.49, 0.54) * vp, Vector2(0.39, 0.38) * vp))
+	(windows["container"].get_node("Box/Title/Pin") as Control).visible = false    # MW_Window – bez pinezki
 	var body := _body("container")
+	body.add_theme_constant_override("separation", roundi(5 * scale_ui))
 	_cont_grid = _make_grid(body, "container")
 	var btns := HBoxContainer.new()
+	btns.name = "Buttons"
 	btns.alignment = BoxContainer.ALIGNMENT_END
 	body.add_child(btns)
+	var dc := Button.new()
+	dc.name = "DisposeCorpseButton"
+	dc.text = _t("sDisposeofCorpse", "Dispose of Corpse")
+	dc.visible = corpse
+	dc.pressed.connect(dispose_corpse)
+	btns.add_child(dc)
 	var ta := Button.new()
-	ta.text = _t("sTakeAll", "Weź wszystko")
+	ta.name = "TakeButton"
+	ta.text = _t("sTakeAll", "Take All")
 	ta.pressed.connect(take_all)
 	btns.add_child(ta)
 	var cb := Button.new()
-	cb.text = _t("sClose", "Zamknij")
+	cb.name = "CloseButton"
+	cb.text = preload("res://scripts/mw/mw_l10n.gd").ctx_text("Interface", "Close", _t("sClose", "Close"))
 	cb.pressed.connect(close)
 	btns.add_child(cb)
 	get_tree().paused = true
@@ -1088,6 +1103,19 @@ func put_item(id: String) -> void:
 	if main.interaction.move("player", {}, cont_sid, cont_rec, id, n) > 0 and main.get("audio") != null:
 		main.audio.play(main.interaction.item_sound(id, false))
 	refresh()
+
+var cont_corpse := false
+
+## ContainerWindow::onDisposeCorpseButtonClicked: najpierw „weź wszystko”, potem ciało trwałego aktora zostaje
+## (sDisposeCorpseFail), a pozostałe są usuwane ze świata (deleteObject).
+func dispose_corpse() -> void:
+	var sid := cont_sid
+	var persistent := bool(cont_rec.get("persistent", false))
+	take_all()
+	if persistent:
+		main.message_box(_t("sDisposeCorpseFail", "You cannot dispose of this corpse."))
+	elif not sid.is_empty():
+		main.state.delete_ref(sid)
 
 func take_all() -> void:
 	main.interaction.take_all(cont_sid, cont_rec)

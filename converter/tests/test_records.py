@@ -30,7 +30,8 @@ def creature():
     v = [3, 5] + list(range(40, 48)) + [30, 10, 50, 100, 20, 30, 40, 1, 4, 2, 6, 3, 9, 15]
     return W.record("CREA", [W.sub("NAME", W.zs("mudcrab")), W.sub("FNAM", W.zs("Mudcrab")),
                              W.sub("MODL", W.zs("r\\mudcrab.nif")), W.sub("NPDT", struct.pack("<24i", *v)),
-                             W.sub("FLAG", struct.pack("<i", 0x10 | 0x40 | 0x08)), W.sub("XSCL", struct.pack("<f", 1.5))])
+                             W.sub("FLAG", struct.pack("<i", 0x10 | 0x40 | 0x08)), W.sub("XSCL", struct.pack("<f", 1.5))],
+                    flags=0x400)
 
 
 def race():
@@ -117,7 +118,9 @@ def test_records_decode_merge_export(tmp_path):
     assert n["disposition"] == 40 and n["gold"] == 123 and n["essential"] and not n["female"] and n["blood"] == 2
     assert n["inventory"] == [{"count": 2, "item": "common_ring_01"}] and n["spells"] == ["hearth heal"]
     assert n["ai"]["hello"] == 30 and n["ai"]["services"] == 0x4001 and n["ai"]["packages"][0]["distance"] == 512
+    assert "persistent" not in n
     c = r["CREA"]["mudcrab"]
+    assert c["persistent"]                         # FLAG_PERSISTENT 0x400 w nagłówku (Class::isPersistent)
     assert c["level"] == 5 and c["soul"] == 100 and c["attack"][0] == [1, 4] and c["gold"] == 15 and c["scale"] == 1.5
     assert c["swims"] and c["walks"] and not c["flies"]
     ra = r["RACE"]["dark elf"]

@@ -132,9 +132,17 @@ def decode_npc(rec, rid: str) -> dict:
         o.update(level=lvl, disposition=d[2], reputation=d[3], rank=d[4], gold=struct.unpack_from("<i", d, 8)[0],
                  autocalc=True)
     _flags(rec, o, {0x01: "female", 0x02: "essential", 0x04: "respawn", 0x10: "autocalc_flag"})
+    _persistent(rec, o)
     o["ai"] = _ai(rec)
     _inventory_spells_travel(rec, o)
     return o
+
+
+def _persistent(rec, o: dict) -> None:
+    """Flaga trwałości z nagłówka rekordu (FLAG_PERSISTENT 0x400) – OpenMW Class::isPersistent (np. „Dispose of
+    Corpse” odmawia usunięcia ciała trwałego aktora, sDisposeCorpseFail)."""
+    if getattr(rec, "flags", 0) & 0x0400:
+        o["persistent"] = True
 
 
 def decode_creature(rec, rid: str) -> dict:
@@ -150,6 +158,7 @@ def decode_creature(rec, rid: str) -> dict:
                  attack=[[v[17], v[18]], [v[19], v[20]], [v[21], v[22]]], gold=v[23])
     _flags(rec, o, {0x01: "bipedal", 0x02: "respawn", 0x04: "weapon_and_shield", 0x10: "swims", 0x20: "flies",
                     0x40: "walks", 0x80: "essential"})
+    _persistent(rec, o)
     sc = rec.get("XSCL")
     o["scale"] = struct.unpack_from("<f", sc, 0)[0] if sc and len(sc) >= 4 else 1.0
     o["ai"] = _ai(rec)

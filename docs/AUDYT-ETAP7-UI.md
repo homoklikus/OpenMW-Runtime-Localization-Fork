@@ -1,5 +1,7 @@
 # Audyt zgodności z OpenMW 0.51 – etap 7: klasyczny interfejs
 
+> Aktualizacja etapu 8: rozwiązane i nowe pozycje oznaczone „etap 8”; szczegóły w `RAPORT-ETAP8.md`.
+
 Stan na 2026-11-19. Baza: lokalny HEAD `2c2dbb7` (etap 6), commity etapu: `6469331` (cz. 1) i następne.
 Źródło prawdy: OpenMW 0.51 (`apps/openmw/mwgui`, `files/data/mygui/*.layout`, `openmw_*.skin.xml`,
 `files/settings-default.cfg`, `files/data/l10n`). Statusy i priorytety jak w `INWENTARYZACJA-OPENMW.md`
@@ -76,14 +78,15 @@ powiększone (`zoom*_1080_hud_*`) są zgodne co do piksela.
 | Magia | Zweryfikowane | pole efektów 268 × 23, filtr nazw (także przedmioty), Delete z potwierdzeniem `sQuestionDeleteSpell` | – |
 | Pasek tytułu okien | Zweryfikowane | `MW_Caption` + `WindowCaption::align`: przerwa na tekst + 24 px, bloki `HB_ALL`, 20 px, kolor normal | – |
 | Kreator (5 okien) | Zweryfikowane | rozmiary i położenia zgodne (IoU 1,0) | – |
-| Mapa (okno) | Częściowo zgodne | położenie i rozmiar zgodne; mapa lokalna wnętrza w Godocie prawie czarna (mgła/odkrycie) | P2 |
-| Pasek przewijania MW_VScroll (strzałki, suwak) | Brakujące | Godot ukrywa pasek; OpenMW pokazuje skórkę Morrowinda | P2 |
+| Mapa (okno) | Zaimplementowane | etap 8: tytuł z pinezką, przycisk World/Local w prawym dolnym rogu; mapa lokalna wnętrz wg LocalMap (granice z geometrii, kamera zMax–zMin, jasność mapy) – porównanie zrzutem do zrobienia | P2 |
+| Pasek przewijania MW_VScroll (strzałki, suwak) | Zweryfikowane (test) | etap 8: skórka, wymiary, krok 36, MoveToClick (`RAPORT-ETAP8.md` p. 2) | – |
 | Wcięcie pól od ramki okna (8 px) | Częściowo zgodne | Godot ~4 px od wewnętrznej krawędzi ramki | P3 |
 | Teksty silnika (potwierdzenia, okno zapisu) | Zweryfikowane | **naprawione:** były wpisane po polsku na sztywno; teraz l10n OpenMW (`OMWEngine`, `Calendar`) wg `preferred_locales` (domyślnie en, jak OpenMW) | – |
 | Pozostałe stałe polskie napisy (zapasy dla GMST, okno ustawień, kreator, magia) | Częściowo zgodne | zapasy po polsku tylko gdy brak GMST; okno ustawień i część komunikatów do przeniesienia na l10n/GMST | P2 |
-| Okna rozmowy, handlu, pojemnika, odpoczynku, alchemii, zaklinania, napraw | Nieprzetestowane wizualnie | wspólna skala już działa; porównanie zrzutami w kolejnym kroku (wymaga przypadków z NPC i obiektami) | P2 |
+| Okna rozmowy, handlu, pojemnika, zakupu zaklęć, podróży, treningu | Zaimplementowane | etap 8: układy z layoutów OpenMW, testy geometrii i działania; porównanie zrzutami czeka na VM | P2 |
+| Okna odpoczynku, awansu, alchemii, zaklinania, tworzenia czarów, napraw, doładowania, perswazji | Częściowo zgodne | własne układy Godota (część tekstów zapasowych po polsku) | P2 |
 | Menu główne, zapis/odczyt, opcje | Częściowo zgodne | `I.UI.setMode("MainMenu")` w OpenMW nic nie pokazuje – potrzebny inny sposób wywołania w sondzie | P2 |
-| Zachowanie okien: przeciąganie, zmiana rozmiaru, zapamiętanie układu | Zaimplementowane | test_menu_mode (przesunięcie, zapamiętanie, odtworzenie); przypinanie (pin) i maksymalizacja – brak | P3 |
+| Zachowanie okien: przeciąganie, zmiana rozmiaru, zapamiętanie układu, pin, maksymalizacja, ukrywanie | Zaimplementowane | etap 8: pinezka, okna przypięte poza GUI, Shift + podwójne kliknięcie, podwójne kliknięcie, klik w HUD; stan w zapisie gry (OpenMW: settings) | P3 |
 | Skróty klawiszowe, kontroler | Częściowo zgodne | klawisze trybu menu i okien są; szybkie klawisze F1/1–9 i menu kontrolera – brak (punkt 3 inwentaryzacji) | P1/P3 |
 
 ## 5. Inne systemy znalezione przy porównaniach
@@ -94,10 +97,10 @@ powiększone (`zoom*_1080_hud_*`) są zgodne co do piksela.
 | Start w komórce wewnętrznej (`--cell`) | **Naprawione** | Gracz spadał w pustkę (pozycja 0,0,0). Teraz działa `World::findInteriorPosition`: drzwi z komórki posortowane po id i celu, w komórce docelowej drzwi prowadzące z powrotem, a jeśli ich nie ma, pierwszy obiekt statyczny. Test: test_interaction | – |
 | OpenMW `--start <wnętrze>` | Uwaga (zachowanie OpenMW) | OpenMW przy starcie nie ma wczytanych komórek źródłowych drzwi (`getReadOnlyDoors()` jest puste), więc sięga po pierwszy obiekt statyczny i gracz trafia poza pomieszczenie („falling into the void”). Godot sprawdza drzwi zawsze, co odpowiada COC w trakcie gry. Porównania używają jawnego `teleport` | – |
 | Szybki odczyt w tej samej sekundzie | **Naprawione** | Kolejność zapisów także po `created_unix`, a nagłówek zapisu nie jest już brany z pamięci podręcznej (`saves.forget`). Wcześniej test_start_game był niestabilny | – |
-| Statystyki przed ukończeniem kreatora | Częściowo zgodne | OpenMW do zakończenia kreatora pokazuje surowe wartości rekordu „player” (atrybuty 30, umiejętności 5). Godot od razu nalicza premie rasy i klasy (`character.build`) | P2 |
-| Oświetlenie wnętrz | Częściowo zgodne | scena w Godocie wyraźnie jaśniejsza niż w OpenMW przy tym samym kadrze (Arrille's, urząd celny); zgodne z punktem „wierność oświetlenia” w inwentaryzacji | P1 |
+| Statystyki przed ukończeniem kreatora | Zweryfikowane (test) | etap 8: surowe NPDT do wyboru rasy/klasy, buildPlayer ze znacznikami (`RAPORT-ETAP8.md` p. 3) | – |
+| Oświetlenie wnętrz | Zaimplementowane | etap 8: gamma → liniowo (I^2,2), zasięg 1,75 r, słońce wnętrza, minimum 0,08, bez tonemappingu (`RAPORT-ETAP8.md` p. 4); porównanie zrzutami czeka na VM | P1 |
 | Komunikat CharGen w urzędzie celnym | Nieprzetestowane | Godot pokazuje „Press ActionActivate to talk to the Captain…” po teleporcie, OpenMW nie; do sprawdzenia warunki skryptu przy starcie `--cell` | P2 |
-| `test_ai` przy równoległym uruchomieniu | Uwaga | dwa sprawdzenia pakietu podróży nie przechodzą przy 3 testach naraz (obciążenie CPU), przechodzą osobno i w `run_tests.sh` | P3 |
+| `test_ai` przy równoległym uruchomieniu | Naprawione (etap 8) | przyczyna: widoczność zasłaniana przez aktorów (błąd silnika) i założenia testu zależne od liczby klatek; 8/8 przy ośmiu równoległych przebiegach | – |
 
 ## 6. Testy
 

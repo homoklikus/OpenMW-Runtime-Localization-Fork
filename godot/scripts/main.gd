@@ -1950,7 +1950,7 @@ func activate(r: Node, force_default := false) -> bool:
 			var f: Dictionary = combat.fighter_of(r)           # martwy aktor – przeszukanie (jak pojemnik)
 			if magic != null:
 				magic.disease_contact(combat.player_fighter(), f)   # ActionOpen: diseaseContact
-			menu_mode.open_container(f.sid, f.rec, dialogue.actor_name(dialogue.make_actor(r)))
+			menu_mode.open_container(f.sid, f.rec, dialogue.actor_name(dialogue.make_actor(r)), true)
 			return true
 		# Npc::activate: gracz-wilkołak nie rozmawia z NPC (sWerewolfRefusal, dźwięk WolfNPC); NPC-wilkołak też nie
 		var fa: Dictionary = combat.fighter_of(r) if combat != null else {}
