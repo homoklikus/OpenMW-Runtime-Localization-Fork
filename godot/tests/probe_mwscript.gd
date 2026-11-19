@@ -211,6 +211,8 @@ func _ui_clear() -> void:
 		main.service_window.close()
 	if main.get("repair_window") != null and main.repair_window.visible:
 		main.repair_window.close()
+	if main.get("alchemy_window") != null and main.alchemy_window.visible:
+		main.alchemy_window.close()
 	if main.get("dialogue_window") != null and main.dialogue_window.visible:
 		main.dialogue_window.close(true)
 	for w in [main.menu_mode, main.journal_window, main.rest_window]:
@@ -268,6 +270,8 @@ func _ui_mode(m) -> void:
 			main.journal_window.open()
 		"Rest":
 			main.rest_window.open()
+		"Alchemy":
+			main.alchemy_window.open()
 		"MainMenu":
 			main.open_main_menu()
 

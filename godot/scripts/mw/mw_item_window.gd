@@ -182,8 +182,9 @@ func use_item(i: int) -> void:
 			var r: Dictionary = main.magic.eat(me, id)
 			info.text = String(r.get("message", "")) if not String(r.get("message", "")).is_empty() else "Zjedzono: " + interaction.item_name("ingredient", id, it.rec)
 		"apparatus":
+			# Apparatus::use → GM_Alchemy (AlchemyWindow)
 			close()
-			main.magic_window.open_alchemy()
+			main.alchemy_window.open()
 			return
 		"misc":
 			if main.magic.is_soul_gem(id) and main.magic.gem_charge(id) > 0:

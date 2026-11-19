@@ -60,6 +60,7 @@ var trade_window = null
 var service_window = null          # zakup zaklęć, podróże, trening, naprawa u NPC (układy OpenMW)
 var repair = null                  # mw_repair.gd – Repair::repair, MerchantRepair
 var repair_window = null           # okno naprawy narzędziem (MWGui::Repair)
+var alchemy_window = null          # okno alchemii (MWGui::AlchemyWindow)
 var combat = null                     # etap 7: walka
 var magic_window = null               # etap 7d: magia, alchemia, zaklinanie
 var data_dir := ""                    # katalog przekonwertowanych danych
@@ -188,6 +189,10 @@ func _ready() -> void:
 	repair_window.name = "RepairWindow"
 	repair_window.main = self
 	add_child(repair_window)
+	alchemy_window = preload("res://scripts/mw/mw_alchemy_window.gd").new()
+	alchemy_window.name = "AlchemyWindow"
+	alchemy_window.main = self
+	add_child(alchemy_window)
 	add_child(trade_window)
 	rest_window = RestWindowScript.new()
 	rest_window.main = self
@@ -445,7 +450,7 @@ func _reequip_player(race: String) -> void:
 ## Czy otwarte jest jakieś okno (wtedy klawisze trybu menu nie działają).
 func _no_window_open() -> bool:
 	for w in [item_window, magic_window, map_window, journal_window, rest_window, dialogue_window, menu_mode,
-			get("repair_window"), get("service_window")]:
+			get("repair_window"), get("service_window"), get("alchemy_window")]:
 		if w != null and w.visible and not (w.get("pinned_mode") == true):     # przypięta mapa nie jest oknem GUI
 			return false
 	return not get_tree().paused
@@ -2784,7 +2789,7 @@ func saving_allowed() -> bool:
 	if game_state != "running" or scripts == null or scripts.get_global("chargenstate") != -1.0:
 		return false
 	for w in [item_window, chargen, msgbox, dialogue_window, journal_window, trade_window, get("magic_window"),
-			get("book_window"), get("map_window"), get("repair_window"), get("service_window")]:
+			get("book_window"), get("map_window"), get("repair_window"), get("service_window"), get("alchemy_window")]:
 		if w != null and is_instance_valid(w) and w.visible and not (w.get("pinned_mode") == true):
 			return false
 	if menu_mode != null and menu_mode.visible:

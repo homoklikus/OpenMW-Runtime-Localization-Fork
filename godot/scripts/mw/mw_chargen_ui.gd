@@ -328,6 +328,38 @@ static func arrow_texture(dir: String) -> Texture2D:
 	_arrows[dir] = t
 	return t
 
+## MW_ComboBox (openmw_resources.xml): MW_Box 100×26, tekst SandText „Left VCenter” od (6,3),
+## przycisk MW_ArrowDown 14×11 przy prawej krawędzi (79,7 z 100), lista MW_PopupListNoTransp.
+func style_combo(ob: OptionButton) -> void:
+	ob.focus_mode = Control.FOCUS_NONE
+	ob.flat = false
+	for st in ["normal", "hover", "pressed", "disabled", "hover_pressed", "focus"]:
+		var sb: StyleBox = UI.inner_box().duplicate()
+		sb.content_margin_left = 6 * sc
+		sb.content_margin_top = 3 * sc
+		sb.content_margin_bottom = 3 * sc
+		sb.content_margin_right = 23 * sc
+		ob.add_theme_stylebox_override(st, sb if st != "focus" else StyleBoxEmpty.new())
+	for k in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color"]:
+		ob.add_theme_color_override(k, UI.color("normal"))
+	var a := arrow_texture("down")
+	if a != null:
+		var img := a.get_image()
+		img.resize(maxi(1, roundi(14 * sc)), maxi(1, roundi(11 * sc)), Image.INTERPOLATE_BILINEAR)
+		ob.add_theme_icon_override("arrow", ImageTexture.create_from_image(img))
+	ob.add_theme_constant_override("arrow_margin", roundi(7 * sc))
+	var pm := ob.get_popup()
+	var pb: StyleBox = UI.inner_box(Color(0, 0, 0, 1)).duplicate()
+	pm.add_theme_stylebox_override("panel", pb)
+	pm.add_theme_color_override("font_color", UI.color("normal"))
+	pm.add_theme_color_override("font_hover_color", UI.color("normal_over"))
+	pm.add_theme_stylebox_override("hover", StyleBoxEmpty.new())
+	if UI.font() != null:
+		pm.add_theme_font_override("font", UI.font())
+		ob.add_theme_font_override("font", UI.font())
+	ob.add_theme_font_size_override("font_size", font_size)
+	pm.add_theme_font_size_override("font_size", font_size)
+
 ## Przycisk strzałki MW_ArrowLeft/Right (tekstura OpenMW, rozciągnięta do prostokąta).
 func arrow(parent: Control, x: float, y: float, w: float, h: float, dir: String, cb: Callable) -> TextureButton:
 	var b := TextureButton.new()

@@ -1957,44 +1957,130 @@ func alchemy_result(f: Dictionary, ingredient_ids: Array, tools := {}) -> Dictio
 
 const POTION_MESHES := ["standard", "bargain", "cheap", "fresh", "exclusive", "quality"]
 
-## Warzenie (Alchemy::create, jedna mikstura): składniki zużyte zawsze; porażka, gdy brak efektów albo
-## czynnik alchemii < rzut. → {"result": "success"|"failure"|"no_mortar"|"few_ingredients"|"no_name", "potion"}
-func brew(f: Dictionary, ingredient_ids: Array, name: String, roll := -1) -> Dictionary:
-	if name.strip_edges().is_empty():
-		return {"result": "no_name", "message": _text("sNotifyMessage37", "Podaj nazwę mikstury.")}
-	var tools := alchemy_tools(f)
+## Alchemy::getReadyStatus: kolejność jak OpenMW – moździerz, co najmniej dwa składniki, nazwa, wspólne efekty.
+func alchemy_ready(ingredient_ids: Array, name: String, tools: Dictionary) -> String:
 	if not tools.has(APP_MORTAR):
-		return {"result": "no_mortar", "message": _text("sNotifyMessage45", "Potrzebujesz moździerza i tłuczka.")}
-	var ids := []
-	for id in ingredient_ids:
-		if not String(id).is_empty() and not String(id) in ids:
-			ids.append(String(id))
+		return "no_mortar"
+	var ids := ingredient_ids.filter(func(x): return not String(x).is_empty())
 	if ids.size() < 2:
-		return {"result": "few_ingredients", "message": _text("sNotifyMessage6a", "Potrzebujesz co najmniej dwóch składników.")}
-	var res := alchemy_result(f, ids, tools)
-	var sid := "player" if f.kind == "player" else String(f.sid)
-	var weight := 0.0
+		return "few_ingredients"
+	if name.is_empty():
+		return "no_name"
+	var ings := []
 	for id in ids:
-		weight += float(main.interaction.inventory.item(id).rec.get("weight", 0.0))
-		main.interaction.inventory.remove(sid, f.rec, id, 1)
-	weight /= ids.size()
-	if not (res.get("effects", []) as Array).is_empty():
-		break_invisibility(f)                # Alchemy::create (gotowe do warzenia)
-	var r := roll if roll >= 0 else roll100()
-	if (res.get("effects", []) as Array).is_empty() or alchemy_factor(f) < float(r):
+		var it: Dictionary = main.interaction.inventory.item(String(id))
+		if not it.is_empty():
+			ings.append(it.rec)
+	if common_effects(ings).is_empty():
+		return "no_effects"
+	return "success"
+
+## Alchemy::countPotionsToBrew: najmniejsza liczba sztuk wśród użytych składników (0, gdy nie gotowe).
+func potions_to_brew(f: Dictionary, ingredient_ids: Array, name: String, tools: Dictionary) -> int:
+	if alchemy_ready(ingredient_ids, name, tools) != "success":
+		return 0
+	var sid := "player" if f.kind == "player" else String(f.sid)
+	var n := -1
+	for id in ingredient_ids:
+		if String(id).is_empty():
+			continue
+		var c: int = main.interaction.inventory.count_of(sid, f.rec, String(id))
+		if (c > 0 and c < n) or n < 0:
+			n = c
+	return maxi(n, 0)
+
+## Alchemy::knownEffect: efekt o indeksie i widoczny przy umiejętności ≥ fWortChanceValue × (i / 2 + 1).
+func known_effect(f: Dictionary, index: int) -> bool:
+	var sk := float(_combat().skill(f, SK_ALCHEMY))
+	var w := _gmst("fWortChanceValue", 15.0)
+	return (index <= 1 and sk >= w) or (index <= 3 and sk >= w * 2.0) or (index <= 5 and sk >= w * 3.0) \
+			or (index <= 7 and sk >= w * 4.0)
+
+## Alchemy::effectsDescription: efekty składnika widoczne przy umiejętności ≥ fWortChanceValue × (i + 1)
+## (klucze „efekt:argument” do opisu i filtra okna alchemii).
+func ingredient_known_effects(rec: Dictionary, skill: float) -> Array:
+	var out := []
+	var effs: Array = rec.get("effects", [])
+	var w := _gmst("fWortChanceValue", 15.0)
+	for i in mini(4, effs.size()):
+		if skill < w * float(i + 1):
+			break
+		var e: Dictionary = effs[i]
+		if int(e.get("effect", -1)) >= 0:
+			out.append(e)
+	return out
+
+## Warzenie jak Alchemy::create(name, count): getReadyStatus (bez wspólnych efektów składniki znikają raz,
+## sNotifyMessage8), potem count razy createSingle – bez efektów po zaokrągleniu albo przy czynniku alchemii
+## < roll0to99 porażka, inaczej mikstura (addPotion: waga = średnia wag składników, wartość z czynnika, jeden
+## z sześciu modeli, rekord dynamiczny o tych samych polach użyty ponownie) i rozwój Alchemii; za każdym razem
+## po sztuce każdego składnika. tools – aparaty z okna (puste – najlepsze z ekwipunku).
+## → {"result": "success"|"failure"|"no_effects"|"no_mortar"|"few_ingredients"|"no_name", "count", "potion",
+##    "message", "sound"}
+func brew(f: Dictionary, ingredient_ids: Array, name: String, roll := -1, count := 1, tools := {}) -> Dictionary:
+	if tools.is_empty():
+		tools = alchemy_tools(f)
+	var slots: Array = ingredient_ids.duplicate()
+	var nm := name.strip_edges()
+	var status := alchemy_ready(slots, nm, tools)
+	var sid := "player" if f.kind == "player" else String(f.sid)
+	match status:
+		"no_mortar":
+			return {"result": status, "count": 0, "message": _text("sNotifyMessage45", "You need a mortar and pestle.")}
+		"few_ingredients":
+			return {"result": status, "count": 0, "message": _text("sNotifyMessage6a", "You need at least two ingredients.")}
+		"no_name":
+			return {"result": status, "count": 0, "message": _text("sNotifyMessage37", "You need to enter a name.")}
+		"no_effects":
+			_remove_ingredients(f, sid, slots)
+			if main.audio != null:
+				main.audio.play("potion fail")
+			return {"result": status, "count": 0, "message": _text("sNotifyMessage8", "Your potion failed."), "sound": "potion fail"}
+	break_invisibility(f)
+	var brewed := 0
+	var pid := ""
+	for i in maxi(1, count):
+		var ids := slots.filter(func(x): return not String(x).is_empty())
+		if ids.size() < 2:
+			break
+		var res := alchemy_result(f, ids, tools)
+		var weight := 0.0
+		for id in ids:
+			weight += float(main.interaction.inventory.item(String(id)).rec.get("weight", 0.0))
+		weight /= ids.size()
+		var r := roll if roll >= 0 else roll100()
+		if (res.get("effects", []) as Array).is_empty() or alchemy_factor(f) < float(r):
+			_remove_ingredients(f, sid, slots)
+			continue
+		var mesh: String = POTION_MESHES[rng.randi() % 6 if test_roll < 0 else 0]
+		var rec := {"name": nm, "weight": weight, "value": int(res.value), "autocalc": false,
+			"model": "m\\misc_potion_%s_01.nif" % mesh, "icon": "m\\tx_potion_%s_01.dds" % mesh, "effects": res.effects}
+		pid = find_or_create("potion", rec, ["name", "weight", "value", "effects"])
+		main.interaction.inventory.add(sid, f.rec, pid, 1)
+		_remove_ingredients(f, sid, slots)
+		if f.kind == "player":
+			main.skill_used(SK_ALCHEMY, "alchemy_create")
+		brewed += 1
+	if brewed == 0:
 		if main.audio != null:
 			main.audio.play("potion fail")
-		return {"result": "failure", "message": _text("sNotifyMessage8", "Nie udało ci się stworzyć mikstury.")}
-	var mesh: String = POTION_MESHES[rng.randi() % 6 if test_roll < 0 else 0]
-	var rec := {"name": name.strip_edges(), "weight": weight, "value": int(res.value), "autocalc": false,
-		"model": "m\\misc_potion_%s_01.nif" % mesh, "icon": "m\\tx_potion_%s_01.dds" % mesh, "effects": res.effects}
-	var pid := find_or_create("potion", rec, ["name", "weight", "value", "effects"])
-	main.interaction.inventory.add(sid, f.rec, pid, 1)
-	if f.kind == "player":
-		main.skill_used(SK_ALCHEMY, "alchemy_create")
+		return {"result": "failure", "count": 0, "message": _text("sNotifyMessage8", "Your potion failed."), "sound": "potion fail"}
 	if main.audio != null:
 		main.audio.play("potion success")
-	return {"result": "success", "potion": pid, "message": _text("sPotionSuccess", "Stworzyłeś miksturę.")}
+	var msg := _text("sPotionSuccess", "You created a potion.")
+	if brewed > 1:
+		msg += " %s (%d)" % [nm, brewed]                 # AlchemyWindow::createPotions
+	return {"result": "success", "count": brewed, "potion": pid, "message": msg, "sound": "potion success"}
+
+## removeIngredients: po sztuce z każdego miejsca; miejsce pustoszeje, gdy składnika zabraknie.
+func _remove_ingredients(f: Dictionary, sid: String, slots: Array) -> void:
+	for i in slots.size():
+		var id := String(slots[i])
+		if id.is_empty():
+			continue
+		main.interaction.inventory.remove(sid, f.rec, id, 1)
+		if main.interaction.inventory.count_of(sid, f.rec, id) < 1:
+			slots[i] = ""
 
 # --- rekordy tworzone w grze (ESMStore::insert – mikstury, zaklęcia, przedmioty zaklęte) -----------------
 

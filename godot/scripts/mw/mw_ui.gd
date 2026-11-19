@@ -188,6 +188,10 @@ static func window_box() -> StyleBox:
 static func dialog_box_opaque() -> StyleBox:
 	return _frame_box("menu_thick_border", Color(0, 0, 0, 1))
 
+## Wewnętrzna ramka skórki MW_Window (menu_thick_border bez tła) – rysowana od (4, 24) do (szer. − 4, wys. − 4).
+static func inner_frame_thick() -> StyleBox:
+	return _frame_box("menu_thick_border", Color(0, 0, 0, 0))
+
 static func inner_box(bg := Color(0, 0, 0, 0.0)) -> StyleBox:
 	return _frame_box("menu_thin_border", bg)
 
@@ -638,7 +642,7 @@ static func add_head(box: VBoxContainer, title: Label, s := -1.0) -> HBoxContain
 	var panel := box.get_parent() as Control
 	if panel != null:
 		panel.add_theme_stylebox_override("panel", window_box_mw(s))
-		var inner: StyleBox = _frame_box("menu_thick_border", Color(0, 0, 0, 0))
+		var inner: StyleBox = inner_frame_thick()
 		panel.draw.connect(func():
 			panel.draw_style_box(inner, Rect2(Vector2(4, 24) * s, panel.size - Vector2(8, 28) * s)))
 	return head
