@@ -63,6 +63,7 @@ func menus_open() -> bool:
 
 ## Ruch gracza do punktu MW (navmesh; bez niego – prosto). true, gdy w promieniu (jednostki MW, 2D).
 var path_dbg_n := 0
+var _teled := false
 func walk_to(dest: Vector3, radius: float) -> bool:
 	var here := ppos()
 	if Vector2(dest.x - here.x, dest.y - here.y).length() <= radius:
@@ -80,8 +81,18 @@ func walk_to(dest: Vector3, radius: float) -> bool:
 		var key: String = main.ai.cell_key_at(here)
 		var r: Dictionary = main.navmesh.find_path(key, here, dest)
 		path = (r.path as Array).duplicate() if not (r.path as Array).is_empty() else [dest]
-		if OS.has_environment("MWDBG_PATH") and key.begins_with("ext:") and (path_dbg_n < 8 or OS.get_environment("MWDBG_PATH") == "all"):
+		if OS.has_environment("MWDBG_PATH") and (key.begins_with("ext:") or OS.get_environment("MWDBG_PATH") == "all") and (path_dbg_n < 8 or OS.get_environment("MWDBG_PATH") == "all"):
 			path_dbg_n += 1
+			if key.begins_with("ext:") and OS.has_environment("MWDBG_TELE") and not _teled:
+				# diagnostyka: postawienie gracza w podanym punkcie (sprawdzenie przejezdności drogi z siatki)
+				_teled = true
+				var tp := OS.get_environment("MWDBG_TELE").split(",")
+				main.player.global_position = MWCoords.mw_to_godot(Vector3(float(tp[0]), float(tp[1]), float(tp[2])))
+				path = []
+			if key.begins_with("ext:") and OS.has_environment("MWDBG_FROM"):
+				var fp := OS.get_environment("MWDBG_FROM").split(",")
+				var rr: Dictionary = main.navmesh.find_path(key, Vector3(float(fp[0]), float(fp[1]), float(fp[2])), dest)
+				print("MWDBG from=%s status=%s %s" % [OS.get_environment("MWDBG_FROM"), rr.status, str((rr.path as Array).slice(0, 8).map(func(v): return v.round()))])
 			print("MWDBG path key=%s status=%s here=%s n=%d %s" % [key, r.status, str(here.round()), path.size(), str(path.map(func(v): return v.round()))])
 	while path.size() > 1 and Vector2((path[0] as Vector3).x - here.x, (path[0] as Vector3).y - here.y).length() < 24.0:
 		path.pop_front()
@@ -112,7 +123,13 @@ func approach_activate(base: String, tag: String) -> void:
 	if n == null:
 		return
 	var p: Vector3 = main.ai.mw_pos(n)
-	if walk_to(p, 64.0) and not menus_open() and main.control_allowed("controls"):
+	# jak gracz: aktywacja w zasięgu iMaxActivateDist od oczu (z zapasem), nie dopiero „przy samym obiekcie” –
+	# droga z siatki kończy się w odległości promienia agenta od mebli (stół z arkuszem)
+	var reach := 0.8 * float(main.ai._gmst("iMaxActivateDist", 192))
+	var near := (ppos() + Vector3(0, 0, 0.9 * 128.0)).distance_to(p) <= reach
+	if near:
+		Input.action_release("move_forward")
+	if (near or walk_to(p, 64.0)) and not menus_open() and main.control_allowed("controls"):
 		if _act_done.get(tag, -10.0) + 2.0 < t:
 			_act_done[tag] = t
 			var eye := ppos() + Vector3(0, 0, 0.9 * 128.0)

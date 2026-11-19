@@ -79,6 +79,7 @@ run_gd test_editor_import.gd
 run_gd test_first_fish.gd
 run_gd test_step_sound.gd
 run_gd test_ai_mechanics.gd
+run_gd test_navmesh.gd
 run_gd test_controllers.gd --data="$OUT"
 run_gd test_game.gd --data="$OUT" --project="$WORK/project_game"
 run_gd test_cs2.gd --data="$OUT" --project="$WORK/project_cs2"

@@ -813,13 +813,92 @@ trafienia (0 %), tarcze żywiołów bez obrony atakującego (2,4 pkt na trafieni
 | Zmiana postawy świadków i ofiary za przestępstwo (reportCrime: trwała / modyfikator do spłaty, getFightDispositionBias) | Zweryfikowane | napaść czarem: fx_npc_ai (grzywna 40, postawa −10 jak OpenMW) |
 | Wilkołactwo (Bloodmoon) | Częściowo zgodne | od etapu MWScript: statystyki z GMST, szata, świadkowie i grzywna, brak rozmów/ekwipunku/snu, agresja NPC – porównane z OpenMW; brak modelu, nakładki ekranu i pazurów (punkt 4a) |
 | Choroby, wampiryzm | Częściowo zgodne | leczenie chorób NPC, Obrażenia od słońca, pogarszanie i Leczenie Korpusu (punkt 5); zarażanie od stworzeń bez porównania |
-| Sonda nowej gry z dodatkową komórką -1,-9 (dane testowe z `--grid`) | Częściowo zgodne | **niestabilna (ok. połowa przebiegów):** po wyjściu ze statku agent sondy idzie po navmeshu przez pokład `chargen_boat` i utyka na kolizji kadłuba (punkt drogi 22 j. przed graczem – siatka uznaje przejście, kolizja nie), strażnik nabrzeża kończy AiTravel w (−8939, −73077) i czeka; bez komórki -1,-9 sonda przechodzi. Prawdopodobnie navmesh pokładu statku na granicy komórek – do zbadania w etapie nawigacji (diagnostyka: `MWDBG_PATH=1`) |
+| Sonda nowej gry (z komórką -1,-9 i bez niej) | Zweryfikowane | **naprawione 2026-11-19** (opis niżej, „Niestabilność sondy nowej gry”): przed – A (bez -1,-9) 0/10, B (z -1,-9) 4/10 na `cc3f6c4`; po – A 10/10, B 20/20 kolejnych przebiegów |
 | Odpoczynek: World::canRest – flaga NoSleep komórki także na zewnątrz (miasta), w takiej komórce tylko czekanie bez odnowy | Zweryfikowane | ctl_rest_nosleep (okno odpoczynku przez I.UI.setMode + Enter): Seyda Neen – „tylko czekanie”, zdrowie i magia bez zmian, GameHour +1 w obu; **naprawione:** Godot sprawdzał flagę tylko we wnętrzach |
+
+### Niestabilność sondy nowej gry (2026-11-19)
+
+Scenariusz: `probe_newgame` (nowa gra → kreator na statku → wyjście na nabrzeże Seyda Neen → biuro celne → koniec)
+na konwersji „Imperial Prison Ship”, „Seyda Neen”, „Seyda Neen, Census and Excise Office”, `--grid=-3,-9`
+`--grid=-1,-9`. Konfiguracja A – indeks świata bez komórki -1,-9, B – z nią. Diagnostyka: `MWDBG_PATH=1`
+(drogi z siatki, blokady sterowania, kolizje przy zatrzymaniu), `MWDBG_TELE=x,y,z` (postawienie gracza w punkcie
+po wejściu na zewnątrz), `MWDBG_FROM=x,y,z` (dodatkowe zapytanie o drogę). Linia `PROBE t=` podaje pozycję gracza,
+pozycję i pakiet AI strażnika nabrzeża.
+
+**Wyniki przed poprawką (kod `cc3f6c4`, ta sama konwersja, VM użytkownika):**
+
+| Konfiguracja | Przebiegi | ok | Etap zatrzymania | Pozycja gracza w t=60 |
+|---|---|---|---|---|
+| A (bez -1,-9) | 10 | 0 | `rasa` (wyjście ze statku) | (−8513, −73582, 231) – pokład `chargen_boat`, prędkość ≠ 0 |
+| B (z -1,-9) | 10 + 5 wcześniej | 4 + 2 | jw. | jw.; udane: (−9008, −73031, 91) |
+
+Strażnik nabrzeża we wszystkich nieudanych przebiegach w (−8937, −73078) – jego zachowanie nie różniło się
+między udanymi i nieudanymi przebiegami, nie blokował drogi.
+
+**Potwierdzone pomiarem przyczyny:**
+
+1. *Wspólna mapa nawigacji dla wnętrz i świata.* Wnętrza leżą w Godocie przy początku układu, a wszystkie siatki
+   trafiały do jednej mapy `World3D.navigation_map`. Po przejściu ze statku na zewnątrz zwolniony region wnętrza
+   był jeszcze w mapie do jej synchronizacji – pierwsze zapytanie o drogę zwracało drogę częściową do (39, −428)
+   (punkty wnętrza). Region świeżo wypieczonej komórki też nie był widoczny od razu: `has_cell` zwracał prawdę,
+   zanim mapa się zsynchronizowała. Przy asynchronicznych iteracjach mapy (domyślnie w Godot 4.7) region dodany
+   w trakcie budowy pojawia się dopiero w drugiej kolejnej iteracji (zmierzone w `test_navmesh`).
+2. *Pominięta geometria sąsiednich komórek.* Siatka komórki zewnętrznej powstawała tylko z kolizji jej własnych
+   referencji. Statek leży przy granicy komórek, więc część kolizji (kadłub, pomosty) nie trafiała do siatki
+   komórki, przez którą prowadzi droga. Obserwacja: droga częściowa do punktu z=502 w nieudanych przebiegach,
+   pełna droga z pokładu na nabrzeże (42 punkty) w udanych.
+3. *Klinowanie narożnika prostopadłościanu w GodotPhysics3D.* Na pokładzie przy zejściu do nabrzeża
+   `move_and_slide` dawał zerowe przesunięcie z normalną podłoża (głębokość 0,0001), a próba stopnia w górę była
+   zablokowana. Odtwarzalne deterministycznie przez `MWDBG_TELE` w punkcie zatrzymania. Na Jolt Physics ten sam
+   scenariusz przechodzi. Ani poprawka stepera, ani `safe_margin` 0,01 tego nie naprawiały.
+4. *Steper cofający aktora.* Gdy wynik stopnia był krótszy niż sam poślizg, steper co klatkę przestawiał aktora
+   w punkt tuż przed startem – zatrzymanie z prędkością ≠ 0 bez kontaktu ze ścianą.
+
+**Dlaczego komórka -1,-9 zmieniała wynik (hipoteza, niepotwierdzona pomiarem):** nie „odsłaniała” błędu, tylko
+zmieniała kolejność i czas wczytywania oraz wypieku siatek przy wyjściu ze statku, a więc to, czy pierwsza droga
+pochodziła ze starej/niepełnej siatki i którędy agent zaczynał schodzić z pokładu. Pomiar na `cc3f6c4` nie
+potwierdził wcześniejszej obserwacji, że bez -1,-9 sonda przechodzi: w tym środowisku A nie przechodziła wcale.
+Nie wykonano ablacji, która z poprawek 1–4 rozstrzyga wynik konfiguracji A.
+
+**Zmiany (bez warunków dla Seyda Neen, współrzędnych statku, wyłączania kolizji ani teleportów):**
+
+* `mw_navmesh.gd`: osobna mapa na przestrzeń świata (jak Navigator na worldspace w OpenMW); `has_cell` /
+  `find_path` dopiero po synchronizacji mapy (iteracja +2); siatka komórki zewnętrznej z kolizjami wczytanych
+  sąsiadów zachodzącymi na jej kwadrat (jak kafelki DetourNavigator) i ponowny wypiek sąsiadów po wczytaniu
+  komórki (stara siatka zostaje do końca wypieku); promień agenta jak getAgentRadius dla Aabb (×√2); rozmiar
+  komórek mapy ustawiany przed dodaniem regionu.
+* `project.godot`: silnik fizyki 3D – Jolt Physics.
+* `mw_actor.gd`: steper stosuje stopień tylko, gdy sięga dalej niż ruch z poślizgiem (opis Stepper w OpenMW).
+* `probe_newgame.gd`: aktywacja z odległości jak gracz (0,8 × iMaxActivateDist od oczu), diagnostyka `MWDBG_*`.
+* `test_navmesh.gd` (nowy, w `tools/run_tests.sh`): rozdzielenie map świat/wnętrza, brak dróg po wielokątach
+  wnętrza w świecie, gotowość dopiero po synchronizacji, geometria sąsiada w siatce. Sprawdzony mutacjami: wspólna
+  mapa → 3 błędy, brak sąsiadów → 1 błąd, gotowość po +1 iteracji → 1 błąd.
+
+**Różnice względem OpenMW 0.51:** OpenMW używa Bullet i nieobracającego się Aabb aktora, kafelków navmesh na
+żądanie i własnego MovementSolver; my – Jolt, obracany prostopadłościan, siatka na komórkę z geometrią sąsiadów.
+Porównania z OpenMW w tym scenariuszu nie wykonano na żywo (brak ekranu X do sond OpenMW); zgodność oceniona
+z kodu źródłowego (DetourNavigator, Stepper, getAgentRadius).
+
+**Wyniki po poprawce (kod końcowy, te same dane):** B – 20/20 kolejnych przebiegów, A – 10/10; każdy kończy
+etap `koniec`, pozycja gracza w t=60 powtarzalna (±3 j.). Wcześniejsza seria B 1–20 i A 1–10 na wersji
+z gotowością po +1 iteracji również 30/30. Pełny zestaw `tools/run_tests.sh` (chmura) – zaliczony, w tym
+test_ai, test_ai_mechanics (drzwi), test_combat_ai, test_navmesh; `test_navmesh` na VM (Godot 4.7.2) 3/3;
+`test_ai` osobno 5/5 (w jednym wcześniejszym przebiegu zestawu z Jolt raz nie przeszedł warunek „podąża za
+graczem” – potem 9 kolejnych zaliczeń, możliwa niestabilność czasowa testu); na VM na prawdziwych danych
+`probe_first_fish` i `probe_chargen` – zaliczone.
+
+**Ograniczenia:** inne układy komórek sprawdzone tylko testem syntetycznym (`test_navmesh`) i zestawem testów,
+nie sondą na innych danych gry; zmiana silnika fizyki może wpływać na zachowanie w miejscach nieobjętych testami;
+na VM biblioteka GDExtension nie wczytuje się (glibc 2.38), sonda działa na ścieżce GDScript.
 
 ### Odchylenia od OpenMW (świadome, udokumentowane)
 
 * Siatka nawigacji: OpenMW buduje kafelki navmesh na żądanie dla każdego rozmiaru aktora; my – jedną siatkę na
   komórkę (w tle) dla aktora o wymiarach NPC. Stworzenia dużo większe/mniejsze używają tej samej siatki.
+  Jak w OpenMW: osobna mapa na przestrzeń świata (świat zewnętrzny / każde wnętrze), siatka komórki zewnętrznej
+  zawiera kolizje wczytanych sąsiadów zachodzące na jej kwadrat, promień agenta jak getAgentRadius dla Aabb (×√2).
+* Fizyka: Jolt Physics zamiast Bullet; prostopadłościan aktora obraca się z aktorem (w OpenMW – Aabb bez obrotu;
+  próba bez obrotu zaklinowała gracza pod belką w ładowni statku – do zbadania w etapie fizyki).
 * Brak flagi „navmesh + pathgrid” (OpenMW łączy je dla części aktorów); pathgrid tylko, gdy siatki nie ma.
 * Ścieżka częściowa (`partial`) rozpoznawana po odległości końca drogi od celu (32 j. / wzrost aktora), w OpenMW
   zwraca ją Detour.

@@ -72,3 +72,7 @@ data_root="user://mwdata"
 project_root="user://mw_project"
 start_cell=""
 load_radius=1
+
+[physics]
+
+3d/physics_engine="Jolt Physics"

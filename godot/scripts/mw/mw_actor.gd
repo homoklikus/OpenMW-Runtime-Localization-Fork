@@ -249,6 +249,12 @@ func _try_step(start: Vector3, motion: Vector3) -> void:
 			return
 	if not ok or (newpos - start).length() < margin:
 		return
+	# krok tylko, gdy sięga dalej niż sam ruch z poślizgiem: wynik schodka krótszy od poślizgu cofał aktora
+	# co klatkę do punktu tuż przed startem (zatrzymanie z prędkością ≠ 0 i bez kontaktu ze ścianą)
+	var stepped := newpos - start
+	stepped.y = 0.0
+	if stepped.length() <= slid.length():
+		return
 	global_position = newpos
 	velocity.y = 0.0
 	apply_floor_snap()
