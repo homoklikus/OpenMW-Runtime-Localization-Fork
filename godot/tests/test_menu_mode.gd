@@ -178,7 +178,7 @@ func _run() -> void:
 	var reg := Rect2(sw.position, sw.size)
 	mm.toggle_maximized("spells")
 	var mr: Rect2 = mm.MAX_RECTS["spells"]
-	check(absf(sw.size.y - maxf(floorf(mr.size.y * vp.y), sw.custom_minimum_size.y)) < 1.5 and absf(sw.position.x - floorf(mr.position.x * vp.x)) < 1.5,
+	check(absf(sw.size.y - maxf(floorf(mr.size.y * vp.y), sw.get_combined_minimum_size().y)) < 1.5 and absf(sw.position.x - floorf(mr.position.x * vp.x)) < 1.5,
 		"maksymalizacja okna magii (%s)" % [Rect2(sw.position, sw.size)])
 	mm.toggle_maximized("spells")
 	check(sw.position.distance_to(reg.position) < 1.5, "powrót z maksymalizacji")
@@ -198,11 +198,14 @@ func _run() -> void:
 	mm.toggle_pin("map")
 	check(main.mw_hud.bars["health"].visible, "odpięcie przywraca paski HUD")
 	mm.close()
-	# openmw_wait_dialog.layout: 600 px, data, tekst, „N sRestMenu2”, pasek 24 pozycji, przyciski
+	# openmw_wait_dialog.layout: VBox AutoResize (szerokość z treści, nie początkowe 600 px), data, tekst,
+	# „N sRestMenu2”, pasek 24 pozycji, przyciski
 	var rw = main.rest_window
 	if rw.open():
 		var rs: float = preload("res://scripts/mw/mw_ui.gd").ui_scale()
-		check(absf(rw.panel.size.x - 600.0 * rs) < 1.5 and rw.hours_label.text.begins_with("1 ") and rw.date_label.text.contains("("),
+		var row_w: float = (rw.rest_btn.get_parent() as Control).get_combined_minimum_size().x
+		check(absf(rw.panel.size.x - rw.panel.get_combined_minimum_size().x) < 1.5 and rw.panel.size.x < 600.0 * rs
+				and rw.panel.size.x >= row_w + 16.0 * rs and rw.hours_label.text.begins_with("1 ") and rw.date_label.text.contains("("),
 			"okno odpoczynku jak OpenMW (%s, %s, %s)" % [rw.panel.size, rw.hours_label.text, rw.date_label.text])
 		rw.slider.value = 5
 		check(int(rw.hours.value) == 6 and rw.hours_label.text.begins_with("6 "), "pasek godzin: pozycja 5 = 6 godzin")

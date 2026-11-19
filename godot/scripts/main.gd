@@ -101,6 +101,9 @@ func _ready() -> void:
 		MWModelCache.base_roots = PackedStringArray([ProjectSettings.globalize_path(base)])
 	settings = _load_settings(arg("settings"))
 	UI.gui_scaling = clampf(float(settings.get("gui_scaling_factor", 1.0)), 0.5, 8.0)
+	# tekstury interfejsu (ramki MW_Box/MW_Dialog, przyciski) dostępne przed budową okien w _ready – bez tego
+	# texture() zapamiętuje brak pliku i okna dostają zapasowe płaskie ramki zamiast menu_thin_border_*
+	UI.setup(data_dir)
 	# paski przewijania jak MW_VScroll: krok 36 px i MoveToClick w każdym oknie (także listy i pola tekstu)
 	get_tree().node_added.connect(_on_node_added_scroll)
 	# [General] preferred locales (OpenMW, domyślnie „en”) – teksty silnika z l10n OMWEngine/Calendar

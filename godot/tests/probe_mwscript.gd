@@ -205,6 +205,12 @@ func _ui_clear() -> void:
 	if main.chargen != null and main.chargen.is_open():
 		main.chargen._pop()
 		main.chargen.visible = false
+	if main.get("trade_window") != null and main.trade_window.visible:
+		main.trade_window.close()
+	if main.get("service_window") != null and main.service_window.visible:
+		main.service_window.close()
+	if main.get("dialogue_window") != null and main.dialogue_window.visible:
+		main.dialogue_window.close(true)
 	for w in [main.menu_mode, main.journal_window, main.rest_window]:
 		if w != null and w.visible:
 			w.close()
@@ -213,8 +219,25 @@ func _ui_clear() -> void:
 	root.get_tree().paused = false
 
 func _ui_mode(m) -> void:
-	var name := String(m[0]) if m is Array else String(m)
 	_ui_clear()
+	if m is Dictionary:
+		# okno z celem (jak I.UI.setMode(tryb, {target = obiekt}) w sondzie OpenMW): Dialogue, Barter, Container
+		var node: Node = main.script_host.find_ref_by_base(String(m.get("target", "")))
+		print("MWUITARGET ", m.get("mode"), " ", node)
+		if node == null:
+			return
+		match String(m.get("mode", "")):
+			"Dialogue":
+				main.open_dialogue(node)
+			"Barter":
+				if main.open_dialogue(node):
+					main.trade_window.open("barter")
+			"Container":
+				# GuiMode Container z celem otwiera okno bez aktywacji (zamek, pułapka i skrypt OnActivate pominięte)
+				var c: Dictionary = main.interaction.snapshot(node)
+				main.menu_mode.open_container(String(c.sid), main.interaction.container_record(String(c.base)), String(c.name))
+		return
+	var name := String(m[0]) if m is Array else String(m)
 	if UI_CHARGEN.has(name):
 		main.open_chargen_step(UI_CHARGEN[name])
 	match name:

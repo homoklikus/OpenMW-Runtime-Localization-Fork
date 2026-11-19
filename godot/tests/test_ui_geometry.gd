@@ -60,6 +60,16 @@ func _run() -> void:
 	var main := (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(main)
 	await _frames(5)
+	# okna budowane w main._ready mają ramki z tekstur danych (menu_thin_border_* / menu_thick_border_*), nie zapasowe
+	# płaskie: UI.setup przed budową okien (wcześniej texture() zapamiętywał brak pliku przy pustym data_root)
+	if FileAccess.file_exists(main.data_dir.path_join("textures/menu_thin_border_top.png")):
+		var hb: Control = main.dialogue_window.find_child("DialogueHistoryBox", true, false)
+		check(hb != null and hb.get_theme_stylebox("panel") is StyleBoxTexture,
+			"ramka historii rozmowy z tekstur menu_thin_border_* (%s)" % [hb.get_theme_stylebox("panel") if hb != null else null])
+		check(main.dialogue_window.panel.get_theme_stylebox("panel") is StyleBoxTexture,
+			"ramka okna rozmowy z tekstur menu_thick_border_*")
+	else:
+		check(false, "dane testowe bez tekstur ramek interfejsu (mwconv synth: menu_thin_border_*)")
 	# skala niezależna od rozdzielczości
 	UI.gui_scaling = 1.0
 	var base := UI.ui_scale()

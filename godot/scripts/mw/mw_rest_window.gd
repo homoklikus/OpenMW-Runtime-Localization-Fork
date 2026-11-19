@@ -28,7 +28,8 @@ const ATTR_NAMES := ["Siła", "Inteligencja", "Siła woli", "Zręczność", "Szy
 const ATTR_GMST := ["sAttributeStrength", "sAttributeIntelligence", "sAttributeWillpower", "sAttributeAgility",
 	"sAttributeSpeed", "sAttributeEndurance", "sAttributePersonality", "sAttributeLuck"]
 
-## Układ openmw_wait_dialog.layout: VBox w skórce MW_Dialog, 600 px, Padding 8, Spacing 8 (wysokość z treści):
+## Układ openmw_wait_dialog.layout: VBox w skórce MW_Dialog, Padding 8, Spacing 8, AutoResize – szerokość i wysokość
+## z treści (600 w układzie to tylko rozmiar początkowy, VBox::setSize po wypełnieniu tekstów go zastępuje):
 ## data i godzina (DateTimeText), tekst odpoczynku (RestText), „N sRestMenu2” (HourText), pasek MW_HScroll
 ## (24 pozycje, MoveToClick, kółko o 1), przyciski przy prawej: sUntilHealed, sRest/sWait, Cancel.
 var date_label: Label
@@ -45,7 +46,6 @@ func _ready() -> void:
 	for side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
 		sb.set_content_margin(side, 8 * s + 4 * s)               # Client MW_Dialog (4) + Padding 8
 	panel.add_theme_stylebox_override("panel", sb)
-	panel.custom_minimum_size.x = 600 * s
 	add_child(panel)
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", roundi(8 * s))

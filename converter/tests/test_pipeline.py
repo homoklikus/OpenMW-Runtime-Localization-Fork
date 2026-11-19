@@ -20,7 +20,7 @@ def test_incremental_and_resume(synth_data, tmp_path):
     opts = Options(out=out, cells=["Synthville"], jobs=1)
     s1 = run(_cfg(src), opts, log=lambda _m: None)
     assert s1["models"]["ok"] == 9 and s1["models"]["errors"] == 0
-    assert s1["textures"]["ok"] == 8
+    assert s1["textures"]["ok"] == 8 + 16      # 8 tekstur komórki + 16 ramek interfejsu (menu_thin/thick_border_*)
     # drugi przebieg: nic do zrobienia
     s2 = run(_cfg(src), opts, log=lambda _m: None)
     assert s2["models"]["skipped_unchanged"] == 9 and "converted" not in s2["models"]

@@ -157,7 +157,18 @@ return {
         if t >= 0 and rt >= u[1] and not uistep[i] then
           uistep[i] = true
           if u[2] == 'mode' then
-            if type(u[3]) == 'table' then I.UI.setMode(u[3][1], {windows = u[3][2]}) else I.UI.setMode(u[3]) end
+            if type(u[3]) == 'table' and u[3].target then
+              -- okno z celem (Dialogue, Barter, Container): obiekt w pobliżu wg identyfikatora rekordu
+              local nearby = require('openmw.nearby')
+              local obj = nil
+              for _, list in ipairs({nearby.actors, nearby.containers}) do
+                for _, o in ipairs(list) do
+                  if not obj and o.recordId == string.lower(u[3].target) then obj = o end
+                end
+              end
+              print('MWUITARGET ' .. u[3].mode .. ' ' .. tostring(obj))
+              if obj then I.UI.setMode(u[3].mode, {target = obj}) end
+            elseif type(u[3]) == 'table' then I.UI.setMode(u[3][1], {windows = u[3][2]}) else I.UI.setMode(u[3]) end
           elseif u[2] == 'clear' then I.UI.setMode()
           elseif u[2] == 'shot' then print('MWSHOT ' .. u[3]) end
         end

@@ -9,6 +9,7 @@ Tworzy w katalogu docelowym strukturę „Data Files”:
   meshes/synth/test_skinned.nif    – rura z 2 kośćmi (NiSkinInstance/NiSkinData) i animacją kości
   meshes/synth/test_crate.nif      – skrzynka 64³ jednostek (proste odniesienie skali)
   textures/tx_synth_*.dds          – tekstury proceduralne DXT1/DXT5
+  textures/menu_thin_border_*.dds  – ramki interfejsu (MW_Box, MW_Dialog: też menu_thick_border_*), proceduralne
   synth.bsa (opcjonalnie)          – archiwum BSA TES3 z częścią plików
 """
 
@@ -162,6 +163,32 @@ def tex_ground(color, size=64, seed=0):
     rng = np.random.default_rng(seed)
     a = np.clip(np.array(color)[None, None, :] + rng.normal(0, 12, (size, size, 3)), 0, 255).astype(np.uint8)
     return Image.fromarray(a)  # uint8 H×W×3 → RGB (parametr mode jest przestarzały w Pillow 11+)
+
+
+# ramki interfejsu (własne, proceduralne – nie tekstury gry): menu_thin_border_* (MW_Box) i menu_thick_border_*
+# (MW_Dialog). Krawędź: jasna linia, ciemna linia, przezroczystość – jak układ ramek Morrowinda; narożniki 4×4 / 6×6.
+BORDER_LIGHT = (190, 168, 116)
+BORDER_DARK = (90, 66, 38)
+
+
+def tex_border(part: str, thick: bool = False):
+    w = 6 if thick else 4
+    long = 32
+    horiz = part in ("top", "bottom")
+    vert = part in ("left", "right")
+    size = (long, w) if horiz else (w, long) if vert else (w, w)
+    a = np.zeros((size[1], size[0], 4), np.uint8)
+    lines = [BORDER_LIGHT, BORDER_DARK] + ([BORDER_LIGHT] if thick else [])
+    for i, c in enumerate(lines):
+        if part in ("top",) or (not horiz and not vert and "top" in part):
+            a[i, :, :3] = c; a[i, :, 3] = 255
+        if part in ("bottom",) or (not horiz and not vert and "bottom" in part):
+            a[size[1] - 1 - i, :, :3] = c; a[size[1] - 1 - i, :, 3] = 255
+        if part in ("left",) or (not horiz and not vert and "left" in part):
+            a[:, i, :3] = c; a[:, i, 3] = 255
+        if part in ("right",) or (not horiz and not vert and "right" in part):
+            a[:, size[0] - 1 - i, :3] = c; a[:, size[0] - 1 - i, 3] = 255
+    return Image.fromarray(a, "RGBA")
 
 
 def save_dds(im: Image.Image, path: Path, fmt: str):
@@ -357,6 +384,10 @@ TEXTURES = {
     "textures/tx_synth_stone.dds": (lambda: tex_ground((130, 130, 125), seed=3), "DXT1"),
     "textures/_land_default.dds": (lambda: tex_ground((100, 100, 80), seed=4), "DXT1"),
 }
+for _part in ("top", "bottom", "left", "right", "top_left_corner", "top_right_corner", "bottom_left_corner",
+              "bottom_right_corner"):
+    TEXTURES[f"textures/menu_thin_border_{_part}.dds"] = (lambda p=_part: tex_border(p), "DXT5")
+    TEXTURES[f"textures/menu_thick_border_{_part}.dds"] = (lambda p=_part: tex_border(p, True), "DXT5")
 
 
 def write_assets(data_dir: Path, make_bsa: bool = True) -> list[str]:
