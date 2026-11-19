@@ -21,6 +21,9 @@ func _run() -> void:
 	for i in 5:
 		await physics_frame
 	check(main.player != null, "gracz utworzony")
+	# World::startNewGame(bypass): nowa gra bez skryptowego kreatora – CharGenState = −1, zapis dozwolony
+	check(main.scripts == null or (main.scripts.get_global("chargenstate") == -1.0 and main.saving_allowed()),
+		"nowa gra bez kreatora: CharGenState −1 i zapis dozwolony (%s)" % [main.scripts.get_global("chargenstate") if main.scripts != null else "-"])
 	# start „w mieście”: punkt wyjścia z budynku (cel drzwi wnętrza „Synthville, …” prowadzących na ulicę)
 	var st = main._named_start("Synthville")
 	var exit_pos := MWCoords.mw_to_godot(Vector3(1200, 8150, 0))

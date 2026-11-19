@@ -294,6 +294,9 @@ func _ready() -> void:
 	if scripted_start:
 		_start_scripted_chargen()          # nowa gra jak w Morrowindzie: statek więzienny i CharGen ze skryptów
 	elif lp.is_empty() and scripts != null:
+		# World::startNewGame(bypass): nowa gra z pominięciem skryptowego kreatora – CharGenState = −1 (w ESM 0),
+		# bez tego zapis i „Zapisz grę” w menu głównym (isSavingAllowed, sCharGenState == −1) były zablokowane
+		scripts.set_global("chargenstate", -1.0)
 		scripts.start_new_game()          # skrypty startowe nowej gry („main”, SSCR)
 	# nowa gra: kreator postaci (gra z launchera, bez wczytywania zapisu); tryby zrzutu/testów – postać domyślna
 	if not (state.player.get("character", {}) as Dictionary).is_empty():

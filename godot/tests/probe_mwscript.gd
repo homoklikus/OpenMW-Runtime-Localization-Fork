@@ -302,7 +302,7 @@ func _apply_rest(rests: Array, t: float) -> void:
 				main.rest_window.rest(h)
 
 ## Klawisze [[t, keysym X]] – jak naciśnięcia XTest w OpenMW: akcja wejścia przez 3 klatki.
-const KEY_ACTIONS := {"space": "activate"}
+const KEY_ACTIONS := {"space": "activate", "escape": "menu"}
 var _keyed := {}
 var _key_release := {}
 

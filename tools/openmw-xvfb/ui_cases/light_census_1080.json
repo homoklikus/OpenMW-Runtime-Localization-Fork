@@ -1,0 +1,47 @@
+{
+ "name": "light_census_1080",
+ "cell": "Seyda Neen, Census and Excise Office",
+ "resolution": [
+  1920,
+  1080
+ ],
+ "note": "etap 8: oświetlenie – zrzut sceny bez okien (luminancja, histogram) | teleport gracza i look_at – ten sam kadr w obu silnikach",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [],
+ "ui": [
+  [
+   2.0,
+   "clear",
+   null
+  ],
+  [
+   6.0,
+   "shot",
+   "scene"
+  ]
+ ],
+ "seconds": 10.0,
+ "interior": true,
+ "teleport": [
+  [
+   0,
+   "player",
+   300.0,
+   0.0,
+   235.0
+  ]
+ ],
+ "look_at": [
+  -176,
+  -145,
+  300
+ ]
+}

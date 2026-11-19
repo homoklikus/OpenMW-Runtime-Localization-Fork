@@ -550,6 +550,16 @@ static func set_pin_skin(b: Control, pinned: bool) -> void:
 	b.set_meta("pinned", pinned)
 
 ## Etykieta nagłówka (FontColor_color_header).
+## Skórki tekstu z openmw_text.skin.xml: NormalText, SandText, SandTextRight, SandBrightText, SandTextButton –
+## TextAlign „Left/Right Bottom” – linia przy dolnej krawędzi pola. Przesunięcie −1 skórki SandText przy
+## wyrównaniu do dołu nie zmienia położenia linii (zmierzone na zrzutach OpenMW 0.51); przy wyśrodkowaniu w pionie
+## (TextAlign „Left”/„Center” w układzie) – tak, uwzględniają je okna wołające.
+static func text_skin(l: Label, skin: String, _s := -1.0) -> Label:
+	l.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	if skin == "SandTextRight":
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	return l
+
 static func header(text: String) -> Label:
 	var l := Label.new()
 	l.text = text

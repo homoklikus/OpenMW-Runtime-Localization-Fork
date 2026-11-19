@@ -160,7 +160,7 @@ Ceny i targowanie bez zmian (`mw_trade.gd`). Testy w test_trade.
 ## 10. Testy
 
 - `tools/run_tests.sh`: wszystkie testy zaliczone (przebiegi `rtx61` i `rtx63`, a po ostatnich zmianach
-  `rtx64`; po cz. 6 – `rtx71`, po cz. 7 – `rtx73`).
+  `rtx64`; po cz. 6 – `rtx71`, po cz. 7 – `rtx73`, po cz. 8 – `rtx75`, po cz. 9 – `rtx78`).
 - Wielokrotne przebiegi test_ai pod obciążeniem: 8/8 (osiem równoległych instancji) oraz 6/6 i 2/2 w osobnych
   seriach.
 - Nowe i rozszerzone testy:
@@ -254,6 +254,40 @@ w tych samych wierszach z dokładnością do 1 px (różnica zaokrąglenia przy 
 Warunek: dane z wartościami `fallback=Question_*` (bez nich Godot pomija opcję pytań – zgodnie z zasadą,
 że teksty gry nie trafiają do repozytorium).
 
+### Tekst (cz. 8–9)
+
+Pomiar: pasma tekstu (wiersze z jasnymi pikselami, dolna i górna krawędź) w obu zrzutach.
+
+| Znalezisko | Przyczyna | Naprawa | Wynik |
+|---|---|---|---|
+| tekst w polach o stałej wysokości 1–4 px za wysoko, glify wygładzone | MysticCards.omwfont: `Antialias=false`, `Resolution=70` (linia 16, wznoszenie 13); Godot: wygładzanie, linia 17, wznoszenie 14 | glify jednobitowe z pełnym hintingiem, `spacing_top = −1` | szerokości ±1 px, dolne krawędzie ±0–1 px (glif w Godocie 1 px wyższy u góry – renderowanie przy 16 px zamiast 15,56) |
+| skórki tekstu wyrównują do dołu pola | `openmw_text.skin.xml`: NormalText, SandText, SandTextRight, SandBrightText, SandTextButton – `Left/Right Bottom`; `TextAlign` „Left”/„Center” w układzie – wyśrodkowanie w pionie | `UI.text_skin`, układy okien usług (prostokąty tytułu i podtytułu) | okna usług i lista statystyk zgodne |
+| lista tematów rozmowy: wiersze co 20 px, bez separatora | MWList: wiersz = tekst + 2, `sVerticalPadding` 3 nad i pod tematem, separator MW_HLine 18 px po usługach, zawijanie | `mw_list.gd` (MW_SimpleList) | dolne krawędzie i separator zgodne |
+| lista umiejętności: nagłówki 16 px, separator HSeparator Godota | `StatsWindow::addGroup` (18 px, SandBrightText), `addSeparator` (MW_HLine od x = 10, szer. − 38) | `_group`, MW_HLine | wszystkie wiersze zgodne (pierwszy nagłówek 1 px) |
+| pole poziom/rasa/klasa: drugi i trzeci wiersz 2 px za wysoko | układ: wiersze w y = 4, 24, 42 | odstęp 2 px po pierwszym wierszu | zgodne |
+
+### Menu główne, zapis i oświetlenie (cz. 9)
+
+- **Sonda menu głównego:** Esc przez XTest w OpenMW (pole `keys`), akcja „menu” w Godocie (przypadek
+  `ui_mainmenu_e8_1080`). Przyciski w tych samych wierszach (435/482/530/575/626) z dokładnością do 1 px.
+- **Brak „Zapisz grę” i zablokowany zapis po nowej grze bez skryptowego kreatora** (start z `--cell`/`--pos`,
+  tryb szybki): `World::startNewGame(bypass)` ustawia `CharGenState = −1`, Godot zostawiał wartość z ESM (0),
+  więc `isSavingAllowed` (`sCharGenState == −1`) nigdy nie przechodził. Naprawione; test w `test_game`.
+- **Wnętrza 2–3 × za ciemne po cz. 2** (mediana luminancji w Arrille's Tradehouse 4–6 wobec 12/255). Przyczyna:
+  OpenMW mnoży teksturę i światło na wartościach zakodowanych (bez framebuffera sRGB), Godot liczy liniowo i koduje
+  krzywą sRGB, która przy czerni ma odcinek liniowy. Kontrolowana scena (albedo 0,5, samo otoczenie c):
+  Godot 0,027 / 0,078 / 0,133 wobec OpenMW 0,05 / 0,10 / 0,15 przy c = 0,1 / 0,2 / 0,3 – w obu rendererach
+  tak samo. Naprawa bez przyciemniania ani rozjaśniania obrazu: korekcja kolorów środowiska zamienia kodowanie
+  sRGB na potęgę 1/2,2 (`MWEnvironment.apply_gamma_space`, też w podglądach postaci). Wynik: pojedyncze światło
+  zgodne (0,063 / 0,106 / 0,153), wnętrza – mediana 13,3 wobec 12,3 (Arrille's), 13,7 wobec 11,3 (urząd celny,
+  ten sam kadr przez teleport i `look_at`), RGB zbliżone. Renderer Compatibility stosuje tablicę w innym miejscu
+  potoku – tam bez korekcji; porównania Godota robione teraz w Forward+ (lavapipe na Xvfb, `GODOT_RENDERER`).
+- **Otwarte (oświetlenie):** suma świateł – Godot sumuje liniowo, OpenMW w gammie, więc miejsca oświetlone
+  naraz otoczeniem i słońcem/lampą są o 25–30% ciemniejsze (otoczenie 0,2 + słońce 0,5: 0,263 wobec 0,35);
+  wierne odwzorowanie wymaga własnego cieniowania (jak shadery OpenMW). Plener (Seyda Neen): cienie w Godocie
+  jaśniejsze (10. percentyl 35 wobec 12) niezależnie od korekcji – do sprawdzenia światło otoczenia, mgła i niebo
+  przy tej samej godzinie gry.
+
 Otwarte z porównań: zawartość siatek (ramki ikon i kolejność przedmiotów kupca), napisy przycisków
 kategorii handlu (±10 px), treść pola filtra, 1 px przy wyśrodkowaniu InfoBoxDialog, mapa (treść obrazu),
-porównanie menu głównego (sonda `MainMenu` pokazuje w OpenMW pusty ekran – potrzebny Esc przez XTest).
+menu główne – zrobione (cz. 9).

@@ -531,6 +531,7 @@ func _build_preview() -> void:
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = _fb_color("Inventory_DirectionalAmbient", Color(0.0, 0.0, 0.0))
 	e.ambient_light_energy = 1.0
+	preload("res://scripts/mw/mw_environment.gd").apply_gamma_space(e)     # oświetlenie w gammie jak OpenMW
 	env.environment = e
 	preview_vp.add_child(env)
 	var light := DirectionalLight3D.new()

@@ -36,7 +36,9 @@ case "$STEP" in
     rm -f "/tmp/.X$DISP-lock" "/tmp/.X11-unix/X$DISP"
     Xvfb ":$DISP" -screen 0 "${RES}x24" +extension GLX -nolisten tcp >/dev/null 2>&1 &
     XP=$!; sleep 2
-    DISPLAY=":$DISP" "$GODOT" --rendering-method gl_compatibility --resolution "$RES" --path "$REPO/godot" \
+    # GODOT_RENDERER=forward_plus (domyślny renderer projektu) wymaga Vulkana – na Xvfb np. lavapipe przez
+    # VK_ICD_FILENAMES; bez niego gl_compatibility
+    DISPLAY=":$DISP" "$GODOT" --rendering-method "${GODOT_RENDERER:-gl_compatibility}" --resolution "$RES" --path "$REPO/godot" \
       -s res://tests/probe_mwscript.gd -- --data="$DATA" --project="$OUT/proj_${N}_ui" "${WHERE[@]}" --case="$C" \
       --out="$S" --shots="$OUT/shots_$N/godot" 2>&1 | grep -E "^RESULT|MWSHOT|SCRIPT ERROR|Parse Error" || true
     kill $XP 2>/dev/null; rm -f "/tmp/.X$DISP-lock" "/tmp/.X11-unix/X$DISP"

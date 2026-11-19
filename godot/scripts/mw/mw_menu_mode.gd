@@ -412,6 +412,8 @@ func _build_stats() -> void:
 		var sb: StyleBox = UI.inner_box().duplicate()
 		for side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
 			sb.set_content_margin(side, 4 * scale_ui)
+		if i == 1:
+			sb.content_margin_bottom = 2 * scale_ui        # trzeci wiersz (4, 42, …, 18) kończy się 2 px przed dołem
 		bp.add_theme_stylebox_override("panel", sb)
 		bp.clip_contents = true
 		client.add_child(bp)
@@ -487,7 +489,7 @@ func _layout_stats(boxes: Array, rp: Control) -> void:
 
 ## Wiersz nazwa–wartość. indent/right_pad – StatsWindow::addValueItem (nazwa od x = 10, wartość przy prawej krawędzi
 ## z miejscem na pasek przewijania), wysokość wiersza = rozmiar czcionki + 2.
-func _row(parent: Control, left: String, right: String, tip := "", col := Color(0, 0, 0, 0), indent := 0.0, right_pad := 0.0) -> HBoxContainer:
+func _row(parent: Control, left: String, right: String, tip := "", col := Color(0, 0, 0, 0), indent := 0.0, right_pad := 0.0, left_skin := "SandText") -> HBoxContainer:
 	var h := HBoxContainer.new()
 	h.custom_minimum_size.y = 18 * scale_ui
 	if indent > 0.0:
@@ -498,9 +500,11 @@ func _row(parent: Control, left: String, right: String, tip := "", col := Color(
 	a.text = left
 	a.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	a.clip_text = true
+	UI.text_skin(a, left_skin, scale_ui)            # nazwa: SandText (NormalText w polu poziom/rasa/klasa)
 	h.add_child(a)
 	var b := Label.new()
 	b.text = right
+	UI.text_skin(b, "SandTextRight", scale_ui)      # wartość
 	if col.a > 0.0:
 		b.add_theme_color_override("font_color", col)
 	h.add_child(b)
@@ -540,6 +544,11 @@ func _bar_row(parent: Control, label: String, kind: String, cur: float, mx: floa
 	parent.add_child(h)
 	_stat_bars[kind] = pb
 
+## StatsWindow::addGroup: nagłówek SandBrightText w wierszu fontSize + 2 (18 px), wyrównany do dołu.
+func _group(l: Label) -> Label:
+	l.custom_minimum_size.y = 18 * scale_ui
+	return UI.text_skin(l, "SandBrightText", scale_ui)
+
 ## MW_HLine w liście umiejętności (StatsWindow::addSeparator): od x = 10, szerokość widoku − 38, wysokość 18.
 func _hline() -> Control:
 	return preload("res://scripts/mw/mw_list.gd").hline(scale_ui, 10.0, 28.0)
@@ -571,11 +580,14 @@ func _refresh_stats() -> void:
 	_bar_row(_stat_boxes[0], _t("sFatigue", "Kondycja"), "fatigue", float(st.get("fatigue", 0)), float(d.fatigue.modified))
 	var prog: Dictionary = st.get("progress", {})
 	var lvl_tip := "%s: %d/10" % [_t("sLevelProgress", "Postęp do awansu"), int(prog.get("level", 0))]
-	_row(_stat_boxes[1], _t("sLevel", "Poziom"), str(int(st.get("level", 1))), lvl_tip)
+	_row(_stat_boxes[1], _t("sLevel", "Poziom"), str(int(st.get("level", 1))), lvl_tip, Color(0, 0, 0, 0), 0.0, 0.0, "NormalText")
+	var lv_gap := Control.new()                     # wiersze HBox w (4, 4), (4, 24), (4, 42)
+	lv_gap.custom_minimum_size.y = 2 * scale_ui
+	_stat_boxes[1].add_child(lv_gap)
 	var race: Dictionary = main.builder.actors.record("race", String(st.get("race", "")))
-	_row(_stat_boxes[1], _t("sRace", "Rasa"), String(race.get("name", st.get("race", ""))))
+	_row(_stat_boxes[1], _t("sRace", "Rasa"), String(race.get("name", st.get("race", ""))), "", Color(0, 0, 0, 0), 0.0, 0.0, "NormalText")
 	var cls: Dictionary = ch._class_of(st)
-	_row(_stat_boxes[1], _t("sClass", "Klasa"), String(cls.get("name", st.get("class", ""))))
+	_row(_stat_boxes[1], _t("sClass", "Klasa"), String(cls.get("name", st.get("class", ""))), "", Color(0, 0, 0, 0), 0.0, 0.0, "NormalText")
 	var base_a: Array = st.get("attributes", [])
 	for i in 8:
 		var b := float(base_a[i]) if i < base_a.size() else 0.0
@@ -594,7 +606,7 @@ func _refresh_stats() -> void:
 	var base_s: Array = st.get("skills", [])
 	var sprog: Array = prog.get("skills", [])
 	for g in groups:
-		_stat_right.add_child(UI.header(_t(g[0], g[1])))
+		_stat_right.add_child(_group(UI.header(_t(g[0], g[1]))))
 		for sk in g[2]:
 			var i := int(sk)
 			if i < 0 or i >= 27:
@@ -608,7 +620,7 @@ func _refresh_stats() -> void:
 		_stat_right.add_child(_hline())
 	var facs: Dictionary = st.get("factions", {})
 	if not facs.is_empty():
-		_stat_right.add_child(UI.header(_t("sFaction", "Frakcje")))
+		_stat_right.add_child(_group(UI.header(_t("sFaction", "Frakcje"))))
 		for fid in facs:
 			var fr: Dictionary = main.builder.actors.record("faction", String(fid))
 			if bool(fr.get("hidden", false)):
@@ -1329,6 +1341,7 @@ func _rebuild_doll() -> void:
 	e.background_mode = Environment.BG_CLEAR_COLOR
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color(0.55, 0.55, 0.55)
+	preload("res://scripts/mw/mw_environment.gd").apply_gamma_space(e)     # oświetlenie w gammie jak OpenMW
 	env.environment = e
 	_doll_vp.add_child(env)
 	var light := DirectionalLight3D.new()

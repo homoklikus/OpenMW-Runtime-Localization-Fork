@@ -1,0 +1,47 @@
+{
+ "name": "light_seyda_1080",
+ "cell": "Seyda Neen",
+ "resolution": [
+  1920,
+  1080
+ ],
+ "note": "etap 8: oświetlenie – zrzut sceny bez okien (luminancja, histogram) | teleport gracza i look_at – ten sam kadr w obu silnikach",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [],
+ "ui": [
+  [
+   2.0,
+   "clear",
+   null
+  ],
+  [
+   6.0,
+   "shot",
+   "scene"
+  ]
+ ],
+ "seconds": 10.0,
+ "interior": false,
+ "teleport": [
+  [
+   0,
+   "player",
+   -10600.0,
+   -70900.0,
+   240.0
+  ]
+ ],
+ "look_at": [
+  -10176,
+  -72128,
+  450
+ ]
+}

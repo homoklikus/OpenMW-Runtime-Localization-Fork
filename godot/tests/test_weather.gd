@@ -147,6 +147,14 @@ func _run() -> void:
 	check(env.interior_ambient(Color(0, 0, 0)).is_equal_approx(Color(0.08, 0.08, 0.08)) and env.interior_ambient(Color8(40, 50, 60)).is_equal_approx(Color8(40, 50, 60)),
 		"minimum interior brightness: czarny → 0,08, jaśniejszy bez zmian")
 	check(env.env.tonemap_mode == Environment.TONE_MAPPER_LINEAR, "bez tonemappingu (jak OpenMW)")
+	# oświetlenie w przestrzeni gamma jak OpenMW: korekcja s → (sRGB⁻¹(s))^(1/2,2) (Forward+/Mobile)
+	if RenderingServer.get_current_rendering_method() != "gl_compatibility":
+		var lut: Texture2D = env.env.adjustment_color_correction
+		var li: Image = lut.get_image() if lut != null else null
+		var at := func(sv: float) -> float: return li.get_pixel(roundi(sv * (li.get_width() - 1)), 0).r
+		check(env.env.adjustment_enabled and li != null and absf(at.call(0.0276) - 0.0599) < 0.004
+				and absf(at.call(0.5) - 0.5) < 0.02 and absf(at.call(1.0) - 1.0) < 0.001,
+			"korekcja gamma 2,2 zamiast krzywej sRGB (%s)" % [[at.call(0.0276), at.call(0.5)] if li != null else null])
 	# światło punktowe: zasięg r × 1,75, zanik r/(3d) w gamma → (r/(3d))^2,2 liniowo
 	var ol := OmniLight3D.new()
 	MWCellBuilder.configure_light(ol, 256.0, Color.WHITE)

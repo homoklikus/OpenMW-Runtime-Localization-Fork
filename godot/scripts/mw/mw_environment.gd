@@ -95,6 +95,30 @@ var night_eye := 0.0:
 func _night_eye_add() -> Color:
 	return Color(0.7, 0.7, 0.7, 0.0) * night_eye if night_eye > 0.0 else Color(0, 0, 0, 0)
 
+## OpenMW liczy oświetlenie w przestrzeni gamma (bez framebuffera sRGB: wynik = tekstura × światło na wartościach
+## zakodowanych), Godot – liniowo z kodowaniem sRGB na wyjściu. Przy potęgowej gammie 2,2 oba dają to samo, ale
+## krzywa sRGB ma przy czerni odcinek liniowy (×12,92): ciemne wnętrza wychodziły ok. 2–3 × ciemniejsze (zmierzone na
+## zrzutach OpenMW 0.51 – mediana luminancji 12 wobec 4–6/255; przy otoczeniu 0,1 i albedo 0,5: 0,027 zamiast 0,05).
+## Korekcja kolorów środowiska zamienia kodowanie sRGB na czystą potęgę 1/2,2: s → (sRGB⁻¹(s))^(1/2,2) – bez
+## przyciemniania ani rozjaśniania półtonów (0,5 × 0,5 → 0,247 zamiast 0,25). Działa w Forward+ i Mobile; renderer
+## Compatibility stosuje tablicę w innym miejscu potoku (tablica tożsamościowa zmienia czernie) – tam bez korekcji.
+static var _gamma_lut: ImageTexture = null
+
+static func apply_gamma_space(e: Environment) -> void:
+	if RenderingServer.get_current_rendering_method() == "gl_compatibility":
+		return
+	if _gamma_lut == null:
+		var n := 4096
+		var img := Image.create(n, 1, false, Image.FORMAT_RGBF)
+		for i in n:
+			var v := i / float(n - 1)
+			var lin := v / 12.92 if v <= 0.04045 else pow((v + 0.055) / 1.055, 2.4)
+			var g := pow(lin, 1.0 / 2.2)
+			img.set_pixel(i, 0, Color(g, g, g))
+		_gamma_lut = ImageTexture.create_from_image(img)
+	e.adjustment_enabled = true
+	e.adjustment_color_correction = _gamma_lut
+
 func _ready() -> void:
 	world_env = WorldEnvironment.new()
 	env = Environment.new()
@@ -113,6 +137,7 @@ func _ready() -> void:
 	env.fog_light_energy = 1.0
 	# OpenMW nie stosuje tonemappingu (bez post-processingu HDR): wynik oświetlenia obcięty do [0, 1]
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
+	apply_gamma_space(env)
 	world_env.environment = env
 	add_child(world_env)
 	sun = DirectionalLight3D.new()
