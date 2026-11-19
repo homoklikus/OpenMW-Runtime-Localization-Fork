@@ -194,19 +194,27 @@ func set_event_var(key: String, script_id: String, var_name: String, value := 1.
 	_locals(key)[var_name] = value
 	return true
 
+## Skrypt przedmiotu z ekwipunku (stan egzemplarza „id#c:N” i dusza „id@…” nie zmieniają rekordu ani skryptu).
 func _item_script(item_id: String) -> String:
+	var b := item_id.to_lower().get_slice("#", 0)
 	for e in game.player_scripted_items():
-		if String(e[0]) == item_id.to_lower():
+		if String(e[0]) == b:
 			return String(e[1])
-	return String(db.get_object(item_id.to_lower()).get("script", "")).to_lower()
+	return String(db.get_object(b.get_slice("@", 0)).get("script", "")).to_lower()
 
 ## Gracz założył przedmiot: OnPCEquip = 1.
 func item_equipped(item_id: String) -> void:
-	set_event_var("inv:" + item_id.to_lower(), _item_script(item_id), "onpcequip")
+	set_event_var("inv:" + item_id.to_lower().get_slice("#", 0), _item_script(item_id), "onpcequip")
+
+## Udana naprawa przedmiotu gracza (Repair::repair): OnPCRepair = 1 w skrypcie przedmiotu.
+func item_repaired(item_id: String) -> void:
+	var scr := _item_script(item_id)
+	if not scr.is_empty():
+		set_event_var("inv:" + item_id.to_lower().get_slice("#", 0), scr, "onpcrepair")
 
 ## Gracz upuścił przedmiot (nowa referencja w świecie): zmienne lokalne idą z przedmiotem, OnPCDrop = 1.
 func item_dropped(item_id: String, new_sid: String) -> void:
-	var k := "inv:" + item_id.to_lower()
+	var k := "inv:" + item_id.to_lower().get_slice("#", 0)
 	var src: Dictionary = _sc().locals.get(k, {})
 	if not src.is_empty():
 		_sc().locals[new_sid] = src.duplicate()
@@ -963,8 +971,9 @@ func _call(ref, fname: String, args: Array, c: Ctx):
 			var inv = game.interaction.inventory
 			# ContainerStore::count/remove po RefId: kamień dusz z duszą („id@stworzenie” w Godocie) to ten sam
 			# przedmiot co pusty – liczony i usuwany razem z nim
+			# (i egzemplarze o niepełnym stanie „id#c:N” – w OpenMW ten sam RefId)
 			var variants: Array = [item] + (inv.contents(who, rec).map(func(e): return String(e.id)).filter(
-					func(i): return i.get_slice("@", 0) == item and i != item) if not item.contains("@") else [])
+					func(i): return inv.base_id(i) == item and i != item) if not (item.contains("@") or item.contains("#")) else [])
 			if fname == "getitemcount":
 				var total := 0
 				for vid in variants:
@@ -1490,7 +1499,7 @@ func _equip(t: Dictionary, item: String):
 	var pick := ""
 	for e in inv.contents(who, rec):
 		var eid := String(e.id).to_lower()
-		if eid.get_slice("@", 0) == item:
+		if inv.base_id(eid) == item:
 			pick = eid
 			if eid.contains("@") or not m.magic.is_soul_gem(eid):
 				break

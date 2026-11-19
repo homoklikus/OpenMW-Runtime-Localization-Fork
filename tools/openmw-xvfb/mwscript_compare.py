@@ -157,7 +157,12 @@ return {
         if t >= 0 and rt >= u[1] and not uistep[i] then
           uistep[i] = true
           if u[2] == 'mode' then
-            if type(u[3]) == 'table' and u[3].target then
+            if type(u[3]) == 'table' and u[3].item then
+              -- okno z przedmiotem gracza jako celem (np. Repair z narzędziem)
+              local obj = types.Actor.inventory(self):find(string.lower(u[3].item))
+              print('MWUITARGET ' .. u[3].mode .. ' ' .. tostring(obj))
+              if obj then I.UI.setMode(u[3].mode, {target = obj}) end
+            elseif type(u[3]) == 'table' and u[3].target then
               -- okno z celem (Dialogue, Barter, Container): obiekt w pobliżu wg identyfikatora rekordu
               local nearby = require('openmw.nearby')
               local obj = nil
@@ -458,6 +463,16 @@ return {
           end
         end
       end
+      -- przedmioty dla gracza: [id, liczba, stan (opcjonalnie – Item.itemData.condition, np. uszkodzona broń)]
+      if frame == CFG.delay then
+        for _, g in ipairs(CFG.give or {}) do
+          for _, pl in ipairs(world.players) do
+            local it = world.createObject(g[1], g[2])
+            it:moveInto(types.Actor.inventory(pl))
+            if g[3] then types.Item.itemData(it).condition = g[3] end
+          end
+        end
+      end
       -- wyłączenie stworzeń (np. ryb atakujących w wodzie) – izolacja testu od AI
       if CFG.disable_creatures and frame == CFG.delay then
         for _, a in ipairs(world.activeActors) do
@@ -619,7 +634,7 @@ def run_openmw(case: dict, omw_dir: Path, cfg_src: Path, work: Path, display: in
     probe = work / "probe"
     (probe / "scripts" / "mwprobe").mkdir(parents=True, exist_ok=True)
     cfg = {"actors": case.get("actors", []), "objects": case.get("objects", []), "items": case.get("items", []),
-           "globals": case.get("globals", []), "locals": case.get("locals", []),
+           "globals": case.get("globals", []), "give": case.get("give", []), "locals": case.get("locals", []),
            "vars": [n for _, n in case.get("vars", [])], "npc_items": case.get("npc_items", []),
            "frames": int(case.get("delay", DELAY)) + int(case.get("frames", 10)),
            "delay": int(case.get("delay", DELAY)), "spells": case.get("spells", []), "remove": case.get("remove", []), "debug": bool(case.get("debug", False)), "teleport": case.get("teleport", []),

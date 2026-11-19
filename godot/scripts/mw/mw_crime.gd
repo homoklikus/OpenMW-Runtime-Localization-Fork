@@ -605,16 +605,15 @@ func use_tool(node: Node, tool_id: String, kind: String, roll := -1) -> Dictiona
 			main.skill_used(18, "security_trap")
 		else:
 			res.message = main.dialogue.gmst_text("sTrapFail", "Nie udało się rozbroić pułapki.")
-	# zużycie (stan przedmiotu w miejscu ekwipunku albo pełna liczba użyć)
-	var eq: Dictionary = main._equipment()
+	# zużycie (stan egzemplarza w ręce – CellRef::charge, „id#c:N”); po ostatnim użyciu przedmiot znika
 	var slot: int = main.equipped_slot_of(tool_id)
-	var uses := int(it.rec.get("uses", 1))
 	if slot >= 0:
-		var h := float(eq[str(slot)].get("health", -1.0))
-		uses = int(h) if h >= 0.0 else uses
-		uses -= 1
-		eq[str(slot)]["health"] = float(uses)
+		var eq: Dictionary = main._equipment()
+		var cur_id := String(eq[str(slot)].id)
+		var uses := int(ia.inventory.item_charge(cur_id)) - 1
 		if uses <= 0:
 			main.unequip_slot(slot)
-			ia.inventory.remove("player", {}, tool_id, 1)
+			ia.inventory.remove("player", {}, cur_id, 1)
+		else:
+			main.combat._set_item_health(main.combat.player_fighter(), slot, float(uses))
 	return res

@@ -126,7 +126,7 @@ func open(service: String) -> bool:
 	if service == "enchanting":                       # usługa zaklinacza – okno zaklinania (etap 7d)
 		main.magic_window.open_enchant(actor)
 		return true
-	if service in ["spells", "travel", "training"] and main.get("service_window") != null:
+	if service in ["spells", "travel", "training", "repair"] and main.get("service_window") != null:
 		main.service_window.open(service, actor)        # SpellBuyingWindow / TravelWindow / TrainingWindow
 		return true
 	mode = service
@@ -171,14 +171,14 @@ func refresh() -> void:
 				var left_n := int(it.count) - int(buy.get(it.id, 0))
 				if left_n <= 0:
 					continue
-				var price: int = trade.barter_offer(actor, trade.item_value(it.id), true)
+				var price: int = trade.barter_offer(actor, trade.item_value(it.id, true), true)
 				left.add_item("%s%s – %d" % [_name(it.id), (" (%d)" % left_n) if left_n > 1 else "", price])
 				_left_ids.append(it.id)
 			for it in _player:
 				var left_p := int(it.count) - int(sell.get(it.id, 0))
 				if left_p <= 0:
 					continue
-				var p2: int = trade.barter_offer(actor, trade.item_value(it.id), false)
+				var p2: int = trade.barter_offer(actor, trade.item_value(it.id, true), false)
 				right.add_item("%s%s – %d" % [_name(it.id), (" (%d)" % left_p) if left_p > 1 else "", p2])
 				_right_ids.append(it.id)
 			_fill_barter_grids()
@@ -223,7 +223,7 @@ func refresh() -> void:
 
 func _entry(it: Dictionary, count: int, src: String, merchant_side: bool, state := "") -> Dictionary:
 	var item: Dictionary = main.interaction.inventory.item(String(it.id))
-	var price: int = trade.barter_offer(actor, trade.item_value(String(it.id)), merchant_side)
+	var price: int = trade.barter_offer(actor, trade.item_value(String(it.id), true), merchant_side)
 	return {"id": String(it.id), "count": count, "rec": item.get("rec", {}), "worn": false,
 		"magic": not String(item.get("rec", {}).get("enchant", "")).is_empty(), "state": state, "source": src,
 		"tip": "%s: %d" % [_t("sBarterDialog7", "Cena"), price]}

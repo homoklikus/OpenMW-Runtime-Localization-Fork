@@ -255,15 +255,29 @@ func weapon(f: Dictionary) -> Dictionary:
 
 func item_health(e: Dictionary) -> float:
 	var h := float(e.get("health", -1.0))
+	if h < 0.0:
+		var c: float = main.interaction.inventory.charge_of(String(e.get("id", ""))) if main != null and main.get("interaction") != null else -1.0
+		if c >= 0.0:
+			return c
 	return float(e.rec.get("health", 0)) if h < 0.0 else h
 
+## Stan przedmiotu w miejscu ekwipunku. Gracz: stan należy do egzemplarza w inwentarzu (CellRef::charge) – założony
+## stos zmienia identyfikator na „id#c:N” (pełny – bez przyrostka), więc po zdjęciu uszkodzenie zostaje w ekwipunku.
 func _set_item_health(f: Dictionary, slot: int, h: float) -> void:
 	if f.kind == "player":
 		var eq: Dictionary = main.player_stats().get("equipment", {})
-		if eq.has(str(slot)):
-			eq[str(slot)]["health"] = h
-		elif eq.has(slot):
-			eq[slot]["health"] = h
+		var key = str(slot) if eq.has(str(slot)) else (slot if eq.has(slot) else null)
+		if key == null:
+			return
+		var inv = main.interaction.inventory
+		var old_id := String(eq[key].id)
+		var it: Dictionary = inv.item(old_id)
+		var new_id: String = inv.charged_id(old_id, h, inv.max_charge(it.rec) if not it.is_empty() else 0.0)
+		if new_id != old_id and inv.count_of("player", {}, old_id) > 0:
+			eq[key]["id"] = new_id                 # najpierw miejsce ekwipunku, potem stosy
+			inv.add("player", {}, new_id, 1)
+			inv.remove("player", {}, old_id, 1)
+		eq[key]["health"] = -1.0
 	else:
 		var st := _actor_state(f)
 		if not st.get("condition") is Dictionary:

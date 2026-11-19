@@ -516,9 +516,9 @@ TRADER_SPELLS = ["synth_bolt", "synth_ability"]
 
 
 def _trader() -> bytes:
-    """Kupiec: handel wszystkim, zaklęcia, trening (AIDT), podróż do miejsca w Synthville, 500 sztuk złota."""
+    """Kupiec: handel wszystkim, zaklęcia, trening, naprawa (AIDT), podróż do miejsca w Synthville, 500 sztuk złota."""
     npdt = struct.pack("<h", 5) + bytes([50, 0, 0]) + b"\0\0\0" + struct.pack("<i", 500)
-    services = 0x2000 | 0x7FF | 0x800 | 0x4000
+    services = 0x2000 | 0x7FF | 0x800 | 0x4000 | 0x20000
     aidt = struct.pack("<HBBB", 30, 0, 0, 0) + b"\0\0\0" + struct.pack("<i", services)
     subs = [W.sub("NAME", W.zs("synth_trader")), W.sub("FNAM", W.zs("Kupiec testowy")), W.sub("RNAM", W.zs(RACE)),
             W.sub("CNAM", W.zs("Synth Warrior")), W.sub("BNAM", W.zs("b_n_synth_m_head_01")),
@@ -636,7 +636,9 @@ GMST_STAGE8 = {"iCrimeThreshold": 1000, "iCrimeThresholdMultiplier": 10, "iCrime
                "fCrimeStealing": 0.5, "iCrimeTresspass": 5, "iDaysinPrisonMod": 100, "fAlarmRadius": 2000.0,
                "fPickLockMult": -1.0, "fTrapCostMult": 0.0, "iFightAttacking": 50, "iFightAttack": 100,
                "iFightKilling": 50, "fFightStealing": 50, "iFightTrespass": 30, "iGreetDistanceMultiplier": 6,
-               "iGreetDuration": 4, "fGreetDistanceReset": 512.0, "fIdleChanceMultiplier": 0.75}
+               "iGreetDuration": 4, "fGreetDistanceReset": 512.0, "fIdleChanceMultiplier": 0.75,
+               # etap 9: naprawa (Repair::repair, MerchantRepair)
+               "fRepairAmountMult": 3.0, "fRepairMult": 1.0}
 
 
 STAGE9_SCRIPTS = {
@@ -779,7 +781,10 @@ def _stage8_records() -> list:
     levc = W.record("LEVC", [W.sub("NAME", W.zs("synth_lev_creature")), W.sub("DATA", struct.pack("<i", 0)),
                              W.sub("NNAM", bytes([0])), W.sub("INDX", struct.pack("<i", 1)),
                              W.sub("CNAM", W.zs("synth_creature")), W.sub("INTV", struct.pack("<h", 1))])
-    return [pick, probe, marker, levc] + [_gmst(k, v) for k, v in GMST_STAGE8.items()]
+    # etap 9: narzędzie naprawcze (RIDT: waga, wartość, użycia, jakość) – naprawa jak Repair::repair
+    hammer = W.record("REPA", [W.sub("NAME", W.zs("synth_repair_hammer")), W.sub("FNAM", W.zs("Mlotek testowy")),
+                               W.sub("RIDT", struct.pack("<fiif", 1.0, 20, 5, 1.2))])
+    return [pick, probe, marker, levc, hammer] + [_gmst(k, v) for k, v in GMST_STAGE8.items()]
 
 
 def _stage3_records() -> list:

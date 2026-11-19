@@ -156,6 +156,7 @@ run_gd test_mwscript_functions.gd --data="$WORK/actors_out" --project="$WORK/pro
 run_gd test_dialogue.gd --data="$WORK/actors_out" --project="$WORK/project_dialogue" --pos=2300,2400,900
 run_gd test_progress.gd --data="$WORK/actors_out" --project="$WORK/project_progress" --pos=2300,2400,900 --scripts=0
 run_gd test_trade.gd --data="$WORK/actors_out" --project="$WORK/project_trade" --pos=2300,2400,900 --scripts=0
+run_gd test_repair.gd --data="$WORK/actors_out" --project="$WORK/project_repair" --pos=2300,2400,900 --scripts=0
 run_gd test_combat.gd --data="$WORK/actors_out" --project="$WORK/project_combat" --pos=2300,2400,900 --scripts=0
 run_gd test_magic.gd --data="$WORK/actors_out" --project="$WORK/project_magic" --pos=2300,2400,900 --scripts=0
 run_gd test_ai.gd --data="$WORK/actors_out" --project="$WORK/project_ai" --pos=2300,2400,900 --scripts=0

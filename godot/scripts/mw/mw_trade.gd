@@ -65,7 +65,9 @@ func service_entries(a: Dictionary) -> Array:
 	if s & SVC_ENCHANTING:
 		out.append(["enchanting", _dl().gmst_text("sEnchanting", "Zaklinanie")])
 	if s & SVC_TRAINING:
-		out.append(["training", _dl().gmst_text("sServiceTrainingTitle", "Trening")])
+		out.append(["training", _dl().gmst_text("sServiceTrainingTitle", "Training")])
+	if s & SVC_REPAIR:
+		out.append(["repair", _dl().gmst_text("sRepair", "Repair")])
 	return out
 
 ## checkServiceRefused: odpowiedź z „Service Refusal” (choice = usługa, postawa odwrócona) – wpis w historii.
@@ -127,10 +129,17 @@ func barter_offer(a: Dictionary, base_price: int, buying: bool) -> int:
 	var sell_term := 0.01 * (50.0 - 0.5 * (npc_term - pc_term))
 	return maxi(1, int(base_price * (buy_term if buying else sell_term)))
 
-## Wartość przedmiotu (getEffectiveValue; stan przedmiotów – pełny, zużycie w walce osobno).
-func item_value(id: String) -> int:
-	var it: Dictionary = main.interaction.inventory.item(id)
-	return int((it.get("rec", {}) as Dictionary).get("value", 0))
+## Wartość przedmiotu. effective (handel – TradeWindow getEffectiveValue): przedmioty ze stanem
+## × getItemNormalizedHealth (stan egzemplarza „id#c:N” / największy); bez – Class::getValue (np. przestępstwa).
+func item_value(id: String, effective := false) -> int:
+	var inv = main.interaction.inventory
+	var it: Dictionary = inv.item(id)
+	var v := float((it.get("rec", {}) as Dictionary).get("value", 0))
+	if effective and not it.is_empty():
+		var mx: float = inv.max_charge(it.rec)
+		if mx > 0.0 and String(it.kind) in ["weapon", "armor", "lockpick", "probe", "repair"]:
+			v *= inv.item_charge(id) / mx
+	return int(v)
 
 func item_kind(id: String) -> String:
 	return String(main.interaction.inventory.item(id).get("kind", ""))
@@ -233,11 +242,11 @@ func player_items(a: Dictionary) -> Array:
 func merchant_offer(a: Dictionary, buy: Dictionary, sell: Dictionary) -> int:
 	var offer := 0
 	for id in buy:
-		var base := item_value(id) * int(buy[id])
+		var base := item_value(id, true) * int(buy[id])
 		var cap := int(maxf(1.0, 0.75 * base))
 		offer -= maxi(cap, barter_offer(a, base, true))
 	for id in sell:
-		var base2 := item_value(id) * int(sell[id])
+		var base2 := item_value(id, true) * int(sell[id])
 		var cap2 := int(maxf(1.0, 0.75 * base2))
 		var price := barter_offer(a, base2, false)
 		offer += mini(cap2, price) if a.npc else price

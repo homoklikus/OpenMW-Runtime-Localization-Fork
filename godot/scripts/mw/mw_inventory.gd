@@ -25,18 +25,51 @@ func _init(records_source, game_state) -> void:
 	records = records_source
 	state = game_state
 
+## Stan przedmiotu (CellRef::charge OpenMW – wytrzymałość broni i pancerza, użycia wytrychów, sond i narzędzi
+## naprawczych): egzemplarz niepełny to osobny stos „id#c:N” (OpenMW nie łączy w stos przedmiotów o różnym stanie);
+## stos bez przyrostka – stan pełny. Jak kamień dusz z duszą („id@stworzenie”) – stan w identyfikatorze stosu.
+static func base_id(id: String) -> String:
+	return id.to_lower().get_slice("#", 0).get_slice("@", 0)
+
+## Stan zapisany w identyfikatorze stosu albo −1 (pełny).
+static func charge_of(id: String) -> float:
+	var i := id.find("#c:")
+	return float(id.substr(i + 3)) if i >= 0 else -1.0
+
+## Identyfikator stosu dla stanu: pełny (charge < 0 albo ≥ max) – bez przyrostka.
+static func charged_id(id: String, charge: float, max_charge: float) -> String:
+	var b := id.to_lower().get_slice("#", 0)
+	if charge < 0.0 or (max_charge > 0.0 and charge >= max_charge):
+		return b
+	return "%s#c:%d" % [b, int(charge)]
+
+## Największy stan przedmiotu (getItemMaxHealth): wytrzymałość broni i pancerza, użycia wytrychów, sond, narzędzi.
+static func max_charge(rec: Dictionary) -> float:
+	return float(rec.get("health", rec.get("uses", 0)))
+
 ## {"kind": plik rekordu, "rec": rekord} albo {} – przedmiot, który może leżeć w inwentarzu.
 ## Kamień dusz z duszą: „id@stworzenie” (OpenMW: dusza w CellRef; tu – w id, osobny stos jak w OpenMW).
 func item(id: String) -> Dictionary:
 	var k := id.to_lower()
-	var base := k.get_slice("@", 0)
+	var base := base_id(k)
 	for f in ITEM_FILES:
 		var r: Dictionary = records.record(f, base)
 		if not r.is_empty():
-			if base != k:
-				return {"kind": f, "id": k, "rec": r, "soul": k.get_slice("@", 1)}
-			return {"kind": f, "id": k, "rec": r}
+			var out := {"kind": f, "id": k, "rec": r}
+			if k.get_slice("#", 0).contains("@"):
+				out["soul"] = k.get_slice("#", 0).get_slice("@", 1)
+			if k.contains("#c:"):
+				out["charge"] = charge_of(k)
+			return out
 	return {}
+
+## Bieżący stan egzemplarza (stos „id#c:N” albo pełny wg rekordu).
+func item_charge(id: String) -> float:
+	var c := charge_of(id)
+	if c >= 0.0:
+		return c
+	var it := item(id)
+	return max_charge(it.rec) if not it.is_empty() else 0.0
 
 func is_item(id: String) -> bool:
 	return not item(id).is_empty()

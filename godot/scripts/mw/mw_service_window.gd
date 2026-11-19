@@ -2,7 +2,8 @@ extends CanvasLayer
 ## Okna usług w układach OpenMW (skórka MW_Dialog, wyśrodkowane, bez paska tytułu):
 ##   zaklęcia – openmw_spell_buying_window.layout (450 × 290), SpellBuyingWindow;
 ##   podróże – openmw_travel_window.layout (500 × 250), TravelWindow;
-##   trening – openmw_trainingwindow.layout (320 × 200), TrainingWindow.
+##   trening – openmw_trainingwindow.layout (320 × 200), TrainingWindow;
+##   naprawa – openmw_merchantrepair.layout (420 × 250), MerchantRepair.
 ## Tytuł (NormalText, środek), podtytuł (SandText), pole MW_Box z listą przycisków SandTextButton po
 ## fontSize + 2 px („nazwa  - cena” + sgp; za drogie – SandTextButtonDisabled), „sGold: N”, OK / Cancel.
 ## Logika cen i usług – mw_trade.gd.
@@ -16,6 +17,7 @@ const TEXT_RECTS := {
 	"spells": [Rect2(0, 6, 442, 18), Rect2(6, 25, 450, 18)],
 	"travel": [Rect2(0, 3, 490, 24), Rect2(6, 22, 490, 24)],
 	"training": [Rect2(6, 3, 300, 24), Rect2(6, 22, 300, 24)],
+	"repair": [Rect2(0, 3, 412, 24), Rect2(6, 22, 412, 24)],
 }
 
 const LAYOUTS := {
@@ -23,6 +25,8 @@ const LAYOUTS := {
 	"spells": [Vector2(450, 290), "sServiceSpellsTitle", "sSpellServiceTitle", Rect2(6, 42, 430, 205), Vector2(6, 253), Vector2(376, 253), "OK"],
 	"travel": [Vector2(500, 250), "sServiceTravelTitle", "sTravelServiceTitle", Rect2(6, 42, 480, 165), Vector2(6, 211), Vector2(425, 212), "Cancel"],
 	"training": [Vector2(320, 200), "sServiceTrainingTitle", "sTrainingServiceTitle", Rect2(6, 42, 300, 115), Vector2(6, 161), Vector2(246, 161), "OK"],
+	# openmw_merchantrepair.layout (MerchantRepair)
+	"repair": [Vector2(420, 250), "sServiceRepairTitle", "sRepairServiceTitle", Rect2(6, 42, 400, 165), Vector2(6, 212), Vector2(350, 212), "OK"],
 }
 
 var main
@@ -118,7 +122,7 @@ func _build() -> void:
 	await get_tree().process_frame
 	if is_instance_valid(b):
 		var bw := maxf(60 * _s, b.get_combined_minimum_size().x)     # ExpandDirection Left od prawej krawędzi
-		var right := (L[5] as Vector2).x * _s + 60 * _s
+		var right := (L[5] as Vector2).x * _s + (56.0 if mode == "repair" else 60.0) * _s    # szerokość przycisku z układu
 		b.position = Vector2(right - bw, (L[5] as Vector2).y * _s)
 		b.size = Vector2(bw, 24 * _s)
 
@@ -137,6 +141,9 @@ func refresh() -> void:
 		"travel":
 			for o in trade.travel_offers(actor):
 				_row(int(o.index), "%s  - %d%s" % [String(o.name), int(o.price), gp], int(o.price) <= gold)
+		"repair":
+			for o in main.repair.merchant_offers(actor):
+				_row(String(o.id), String(o.text), bool(o.ok))
 		"training":
 			var names: Array = main.character.skill_names()
 			for o in trade.training_offers(actor):
@@ -170,6 +177,9 @@ func choose(id) -> void:
 	match mode:
 		"spells":
 			if trade.buy_spell(actor, String(id)):
+				refresh()
+		"repair":
+			if main.repair.merchant_repair(actor, String(id)):
 				refresh()
 		"training":
 			var r: Dictionary = trade.train(actor, int(id))

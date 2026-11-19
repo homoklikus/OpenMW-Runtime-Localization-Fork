@@ -196,6 +196,11 @@ func use_item(i: int) -> void:
 			# ActionRead jak w OpenMW (także zwoje z zaklęciem – rzuca się je z okna magii M)
 			main.read_book(id)
 			return
+		"repair":
+			# Repair::use → ActionRepair: okno naprawy z tym narzędziem (GM_Repair)
+			close()
+			main.repair_window.open(id)
+			return
 		_:
 			toggle_equip(i)
 			return

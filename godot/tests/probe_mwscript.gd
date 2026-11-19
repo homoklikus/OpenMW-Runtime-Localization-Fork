@@ -209,6 +209,8 @@ func _ui_clear() -> void:
 		main.trade_window.close()
 	if main.get("service_window") != null and main.service_window.visible:
 		main.service_window.close()
+	if main.get("repair_window") != null and main.repair_window.visible:
+		main.repair_window.close()
 	if main.get("dialogue_window") != null and main.dialogue_window.visible:
 		main.dialogue_window.close(true)
 	for w in [main.menu_mode, main.journal_window, main.rest_window]:
@@ -220,6 +222,19 @@ func _ui_clear() -> void:
 
 func _ui_mode(m) -> void:
 	_ui_clear()
+	if m is Dictionary and m.has("item"):
+		# okno z przedmiotem gracza jako celem (Repair z narzędziem): pierwszy stos o tym rekordzie
+		var inv = main.interaction.inventory
+		var pick := ""
+		for e in inv.contents("player", {}):
+			if int(e.count) > 0 and inv.base_id(String(e.id)) == String(m.item).to_lower():
+				pick = String(e.id)
+				break
+		print("MWUITARGET ", m.get("mode"), " ", pick)
+		match String(m.get("mode", "")):
+			"Repair":
+				main.repair_window.open(pick)
+		return
 	if m is Dictionary:
 		# okno z celem (jak I.UI.setMode(tryb, {target = obiekt}) w sondzie OpenMW): Dialogue, Barter, Container
 		var node: Node = main.script_host.find_ref_by_base(String(m.get("target", "")))
@@ -232,10 +247,10 @@ func _ui_mode(m) -> void:
 			"Barter":
 				if main.open_dialogue(node):
 					main.trade_window.open("barter")
-			"Training", "SpellBuying", "Travel":
+			"Training", "SpellBuying", "Travel", "MerchantRepair":
 				# GuiMode usługi z celem: okno usługi dla aktora (bez sprawdzania oferty w rozmowie, jak setMode)
 				if main.open_dialogue(node):
-					var svc := {"Training": "training", "SpellBuying": "spells", "Travel": "travel"}
+					var svc := {"Training": "training", "SpellBuying": "spells", "Travel": "travel", "MerchantRepair": "repair"}
 					main.dialogue_window.visible = false
 					main.service_window.open(String(svc[String(m.mode)]), main.dialogue.actor)
 			"Container":
@@ -427,6 +442,14 @@ func _run() -> void:
 			for an in main.ai.actor_nodes():
 				if String(an.get_meta("mw_actor", "")) == "creature":
 					main.state.set_enabled(String(an.get_meta("mw_sid", "")), false)
+		if frame == delay:
+			# przedmioty dla gracza: [id, liczba, stan] – stan jako egzemplarz „id#c:N” (CellRef::charge)
+			for g in case.get("give", []):
+				var gid := String(g[0]).to_lower()
+				if g.size() > 2 and g[2] != null:
+					var git: Dictionary = main.interaction.inventory.item(gid)
+					gid = main.interaction.inventory.charged_id(gid, float(g[2]), main.interaction.inventory.max_charge(git.rec) if not git.is_empty() else 0.0)
+				main.interaction.inventory.add("player", {}, gid, int(g[1]))
 		for tp in case.get("teleport", []):
 			if frame == delay + int(tp[0]):
 				var tn = vm._target(String(tp[1]), _ctx()).get("node")

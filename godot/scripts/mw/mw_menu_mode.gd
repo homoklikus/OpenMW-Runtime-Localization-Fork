@@ -1286,9 +1286,14 @@ func item_tooltip(id: String) -> String:
 				lines.append("%s: %d – %d" % [_t("sThrust", "Pchnięcie"), int(rec.get("thrust_min", 0)), int(rec.get("thrust_max", 0))])
 		"armor":
 			lines.append("%s: %d" % [_t("sArmorRating", "Pancerz"), int(rec.get("armor", 0))])
-	if rec.has("health") and String(it.kind) in ["weapon", "armor", "lockpick", "probe", "repair"]:
-		var h := int(rec.get("health", 0))
-		lines.append("%s: %d/%d" % [_t("sCondition", "Stan") if String(it.kind) in ["weapon", "armor"] else _t("sUses", "Użycia"), h, h])
+	var inv = main.interaction.inventory
+	var mxc: float = inv.max_charge(rec)
+	if mxc > 0.0 and String(it.kind) in ["weapon", "armor"]:
+		# Weapon/Armor::getToolTipInfo: „sCondition: bieżący/największy” (stan egzemplarza)
+		lines.append("%s: %d/%d" % [_t("sCondition", "Condition"), int(inv.item_charge(id)), int(mxc)])
+	elif mxc > 0.0 and String(it.kind) in ["lockpick", "probe", "repair"]:
+		lines.append("%s: %d" % [_t("sUses", "Uses"), int(inv.item_charge(id))])
+		lines.append("%s: %s" % [_t("sQuality", "Quality"), str(snappedf(float(rec.get("quality", 0.0)), 0.01))])
 	lines.append("%s: %s" % [_t("sWeight", "Waga"), str(snappedf(float(rec.get("weight", 0)), 0.01))])
 	lines.append("%s: %d" % [_t("sValue", "Wartość"), int(rec.get("value", 0))])
 	if main.get("magic") != null:
@@ -1313,7 +1318,7 @@ func use_item(id: String) -> void:
 		return
 	var it: Dictionary = main.interaction.inventory.item(id)
 	var k := String(it.get("kind", ""))
-	if k in ["apparatus", "book"] or (k == "misc" and main.get("magic") != null and main.magic.is_soul_gem(id) and main.magic.gem_charge(id) > 0):
+	if k in ["apparatus", "book", "repair"] or (k == "misc" and main.get("magic") != null and main.magic.is_soul_gem(id) and main.magic.gem_charge(id) > 0):
 		close()                    # okno alchemii, książki, zaklinania zamiast trybu menu
 	iw.use_item(i)
 	iw.visible = false

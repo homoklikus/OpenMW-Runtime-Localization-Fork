@@ -57,7 +57,9 @@ var rest_window = null                # etap 7: odpoczynek i awans
 var magic = null                      # etap 7: wzory magii (koszty, efekty)
 var trade = null                      # etap 7: handel i usługi
 var trade_window = null
-var service_window = null          # zakup zaklęć, podróże, trening (układy OpenMW)
+var service_window = null          # zakup zaklęć, podróże, trening, naprawa u NPC (układy OpenMW)
+var repair = null                  # mw_repair.gd – Repair::repair, MerchantRepair
+var repair_window = null           # okno naprawy narzędziem (MWGui::Repair)
 var combat = null                     # etap 7: walka
 var magic_window = null               # etap 7d: magia, alchemia, zaklinanie
 var data_dir := ""                    # katalog przekonwertowanych danych
@@ -181,6 +183,11 @@ func _ready() -> void:
 	service_window.main = self
 	service_window.trade = trade
 	add_child(service_window)
+	repair = preload("res://scripts/mw/mw_repair.gd").new(self)
+	repair_window = preload("res://scripts/mw/mw_repair_window.gd").new()
+	repair_window.name = "RepairWindow"
+	repair_window.main = self
+	add_child(repair_window)
 	add_child(trade_window)
 	rest_window = RestWindowScript.new()
 	rest_window.main = self
@@ -437,7 +444,8 @@ func _reequip_player(race: String) -> void:
 
 ## Czy otwarte jest jakieś okno (wtedy klawisze trybu menu nie działają).
 func _no_window_open() -> bool:
-	for w in [item_window, magic_window, map_window, journal_window, rest_window, dialogue_window, menu_mode]:
+	for w in [item_window, magic_window, map_window, journal_window, rest_window, dialogue_window, menu_mode,
+			get("repair_window"), get("service_window")]:
 		if w != null and w.visible and not (w.get("pinned_mode") == true):     # przypięta mapa nie jest oknem GUI
 			return false
 	return not get_tree().paused
@@ -673,9 +681,14 @@ func item_slots(id: String) -> Array:
 
 func equipped_slot_of(id: String) -> int:
 	var eq := _equipment()
+	var k := id.to_lower()
 	for s in eq:
-		if String(eq[s].id) == id.to_lower():
+		if String(eq[s].id) == k:
 			return int(s)
+	if not k.contains("#"):                  # identyfikator rekordu (skrypty): też egzemplarz o niepełnym stanie
+		for s in eq:
+			if interaction.inventory.base_id(String(eq[s].id)) == k:
+				return int(s)
 	return -1
 
 ## Załóż przedmiot gracza. Broń dwuręczna zdejmuje tarczę i odwrotnie (okno ekwipunku – InventoryWindow::useItem);
@@ -683,6 +696,12 @@ func equipped_slot_of(id: String) -> int:
 ## → komunikat ("" = gotowe)
 func equip_item(id: String, resolve := true) -> String:
 	var k := id.to_lower()
+	if interaction.inventory.count_of("player", {}, k) <= 0 and not k.contains("#"):
+		# identyfikator rekordu: egzemplarz o niepełnym stanie („id#c:N”), jeśli tylko taki jest
+		for e in interaction.inventory.contents("player", {}):
+			if int(e.count) > 0 and interaction.inventory.base_id(String(e.id)) == k:
+				k = String(e.id)
+				break
 	if interaction.inventory.count_of("player", {}, k) <= 0:
 		return "Nie masz tego przedmiotu."
 	var slots := item_slots(k)
@@ -2765,7 +2784,7 @@ func saving_allowed() -> bool:
 	if game_state != "running" or scripts == null or scripts.get_global("chargenstate") != -1.0:
 		return false
 	for w in [item_window, chargen, msgbox, dialogue_window, journal_window, trade_window, get("magic_window"),
-			get("book_window"), get("map_window")]:
+			get("book_window"), get("map_window"), get("repair_window"), get("service_window")]:
 		if w != null and is_instance_valid(w) and w.visible and not (w.get("pinned_mode") == true):
 			return false
 	if menu_mode != null and menu_mode.visible:
