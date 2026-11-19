@@ -46,7 +46,7 @@ func _ready() -> void:
 	box.add_theme_constant_override("separation", 0)
 	panel.add_child(box)
 	title = Label.new()
-	box.add_child(UI.make_head(title, s))
+	UI.add_head(box, title, s)
 	var body := MarginContainer.new()
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	for side in ["margin_left", "margin_top", "margin_right", "margin_bottom"]:

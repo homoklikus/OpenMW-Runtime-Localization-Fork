@@ -65,6 +65,14 @@ HUD (paski, broń, czar, skradanie, minimapa, pole efektów) jest za mały dla d
 `test_ui_geometry` na wymiarach z `openmw_hud.layout` w 4 rozdzielczościach i przy skali 2, a zrzuty
 powiększone (`zoom*_1080_hud_*`) są zgodne co do piksela.
 
+### Etap 8: krawędzie wnętrz okien (1920 × 1080)
+
+Po etapie 8 zgodne co do piksela (profile krawędzi ramek, `RAPORT-ETAP8.md` punkt 13): skórka MW_Window
+(zewnętrzna i wewnętrzna ramka, pasek tytułu, obszar Client), rozmowa, ekwipunek (`adjustPanes`), pojemnik,
+okno kupca, statystyki (`onWindowResize`), magia, mapa, odpoczynek (AutoResize). Wcześniej okna z `main._ready`
+miały zapasowe płaskie ramki zamiast tekstur `menu_thin/thick_border_*`, a ramki wnętrz nie zgadzały się
+o 1–14 px. Zostało: zawartość siatek, napisy przycisków kategorii handlu, menu główne.
+
 ## 4. Okna – stan po audycie
 
 | Okno / element | Status | Co zrobiono / co zostało | Prio |

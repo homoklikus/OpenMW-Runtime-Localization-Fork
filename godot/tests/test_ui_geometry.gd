@@ -70,6 +70,20 @@ func _run() -> void:
 			"ramka okna rozmowy z tekstur menu_thick_border_*")
 	else:
 		check(false, "dane testowe bez tekstur ramek interfejsu (mwconv synth: menu_thin_border_*)")
+	# skórka MW_Window: Caption (4, 4, szer. − 8, 20), Client od (8, 28); openmw_dialogue_window: MW_Box w (8, 8)
+	var dw = main.dialogue_window
+	dw.panel.visible = true
+	dw.visible = true
+	await _frames(2)
+	var s1 := UI.ui_scale()
+	var pr: Rect2 = dw.panel.get_global_rect()
+	var cap: Control = dw.panel.find_child("CaptionArea", true, false).get_child(0)
+	var hb2: Control = dw.panel.find_child("DialogueHistoryBox", true, false)
+	check(near_v(cap.global_position - pr.position, Vector2(4, 4) * s1) and absf(cap.size.x - (pr.size.x - 8 * s1)) < 0.6
+			and absf(cap.size.y - 20 * s1) < 0.6, "pasek tytułu MW_Window (%s %s)" % [cap.global_position - pr.position, cap.size])
+	check(near_v(hb2.global_position - pr.position, Vector2(16, 36) * s1),
+		"ramka historii rozmowy w (16, 36) jak OpenMW (%s)" % [hb2.global_position - pr.position])
+	dw.visible = false
 	# skala niezależna od rozdzielczości
 	UI.gui_scaling = 1.0
 	var base := UI.ui_scale()

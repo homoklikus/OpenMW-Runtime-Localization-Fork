@@ -50,7 +50,7 @@ func _ready() -> void:
 	panel.add_child(box)
 	title = Label.new()
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(UI.make_head(title))
+	UI.add_head(box, title)
 	var row := HBoxContainer.new()
 	row.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_child(row)

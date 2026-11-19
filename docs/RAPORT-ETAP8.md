@@ -147,7 +147,8 @@ Ceny i targowanie bez zmian (`mw_trade.gd`). Testy w test_trade.
   „weź wszystko”, potem ciało nietrwałego aktora znika ze świata, a przy trwałym pojawia się
   `sDisposeCorpseFail`.
 - **Odpoczynek** wg `openmw_wait_dialog`:
-  - `MW_Dialog` 600 px, odstępy 8;
+  - `MW_Dialog`, VBox z AutoResize (szerokość i wysokość z treści; 600 px w układzie to tylko rozmiar
+    początkowy), odstępy 8;
   - data „dzień miesiąc (Day N) godzina” z kalendarza (globale Day, Month, DaysPassed, l10n Calendar);
   - tekst `sRestMenu3` / `sRestIllegal` / `sWerewolfRestMessage`;
   - „N sRestMenu2”;
@@ -159,7 +160,7 @@ Ceny i targowanie bez zmian (`mw_trade.gd`). Testy w test_trade.
 ## 10. Testy
 
 - `tools/run_tests.sh`: wszystkie testy zaliczone (przebiegi `rtx61` i `rtx63`, a po ostatnich zmianach
-  `rtx64`, patrz niżej).
+  `rtx64`; po cz. 6 – `rtx71`, po cz. 7 – `rtx73`).
 - Wielokrotne przebiegi test_ai pod obciążeniem: 8/8 (osiem równoległych instancji) oraz 6/6 i 2/2 w osobnych
   seriach.
 - Nowe i rozszerzone testy:
@@ -173,15 +174,18 @@ Ceny i targowanie bez zmian (`mw_trade.gd`). Testy w test_trade.
   - `test_menu_mode`: okno odpoczynku;
   - `test_ai`: widoczność bez aktorów;
   - pytest `test_records`: flaga trwałości.
-- Porównania wizualne na prawdziwych danych w tej części etapu nie były możliwe (punkt 12). Procedura z
-  etapu 7 jest gotowa (`ui_cases`, `ui_geom_compare.py`) i obejmuje także oświetlenie (te same wnętrza i kadry).
+- Porównania wizualne na prawdziwych danych: punkt 13 (cz. 6–7, po powrocie VM).
+- cz. 6–7: `test_ui_geometry` – ramki okien z tekstur danych (nie zapasowe płaskie), pasek tytułu i obszar Client
+  skórki MW_Window; `test_menu_mode` – szerokość okna odpoczynku z treści, maksymalizacja względem łącznego
+  minimum okna; dane syntetyczne mają teraz proceduralne ramki `menu_thin/thick_border_*`.
 
 ## 11. Pozostałe braki i kolejność prac
 
 Priorytety z zależnościami (P1 – psuje wierność od pierwszych minut, P2 – zwykła gra, P3 – rzadkie):
 
-1. **Porównania na prawdziwych danych** (wymaga VM): oświetlenie wnętrz po zmianach z punktu 4, mapa
-   lokalna wnętrz, okna rozmowy i handlu, przypięte okna, pasek MW_VScroll. P1.
+1. **Porównania na prawdziwych danych** – okna zrobione (punkt 13). Zostało: oświetlenie wnętrz i mapa
+   lokalna wnętrz liczbowo (luminancja, histogram), przypięte okna, pasek MW_VScroll na długiej liście,
+   zawartość siatek (kolejność i ramki ikon), treść mapy. P1.
 2. **Sonda menu głównego:** `I.UI.setMode("MainMenu")` w OpenMW nic nie pokazuje. Trzeba otworzyć menu
    klawiszem Esc przez XTest (KeySender już jest w `mwscript_compare.py`) i porównać układ, tła, przejścia,
    wczytywanie zapisu i nową grę. P2.
@@ -189,7 +193,7 @@ Priorytety z zależnościami (P1 – psuje wierność od pierwszych minut, P2 �
    (`openmw_recharge_dialog`). Zakup zaklęć, podróże i trening są już zrobione (punkt 9). P2.
 4. **Alchemia, zaklinanie, tworzenie czarów** (`openmw_alchemy_window`, `openmw_enchanting_dialog`,
    `openmw_spellcreation_dialog`): dziś wspólne okno `mw_magic_window` z polskimi opisami. P2.
-5. **Okno pojemnika:** wymiary względem ItemView (5 px) i porównanie zrzutem. P3.
+5. ~~Okno pojemnika: wymiary względem ItemView~~ – zrobione, zgodne co do piksela (punkt 13).
 6. **Awans:** `openmw_levelup_dialog` (teksty zapasowe po polsku); pasek postępu odpoczynku
    (`openmw_wait_dialog_progressbar`) i przerwanie snu przez stworzenia z regionu (`fSleepRandMod`) – do
    sprawdzenia. P2.
@@ -214,3 +218,42 @@ pobranych przez most. Na nim powstały logiczne commity etapu 8, przesłane jako
 
     cd "/media/precell/Inne/Projekty AI/OpenMWGoDot"
     git am etap8-patches/*.patch
+
+Stan po powrocie VM (2026-11-19, po 14:50): łatki cz. 1–5 nałożone na urządzeniu (`git am`), drzewo zgodne
+z chmurą. Kolejne części commitowane bezpośrednio (cz. 6 i dalsze). VM kilka razy się zrestartowała (3,9 GB
+RAM bez swapu – konwersja w 4 procesach ją przeciążała), więc środowisko porównań odtwarza skrypt poza
+repozytorium: `OpenMW RLF/Raporty/ui-etap8/env/odtworz.sh` (OpenMW 0.51 dla Xvfb, konfiguracja z danymi
+gracza, konwersja w 1 procesie z wartościami `fallback=` z openmw.cfg wydania, `/tmp/uirun.sh`).
+
+## 13. Porównania okien z OpenMW 0.51 na danych gracza (1920 × 1080)
+
+Przypadki `ui_windows_1080` i nowy `ui_windows_e8_1080` (odpoczynek, rozmowa, handel, pojemnik, menu
+główne – tryby z celem `{"mode", "target"}` w sondach obu silników). Pomiar: `ui_geom_compare.py`
+(prostokąty ramek) i profile krawędzi (jasne linie ramek wzdłuż wybranych wierszy i kolumn – tylko liczby).
+Zrzuty zostają lokalnie (`OpenMW RLF/Raporty/ui-etap8`).
+
+| Znalezisko | Przyczyna | Naprawa | Wynik |
+|---|---|---|---|
+| ramki wszystkich okien budowanych w `main._ready` płaskie (kolor zapasowy 107,87,51) | `UI.setup(data_dir)` wołane dopiero w `_setup_hud`; `texture()` zapamiętywał brak pliku przy pustym `data_root` | `UI.setup` przed budową okien | tekstury `menu_thin/thick_border_*` jak w OpenMW; test regresji |
+| brak wewnętrznej ramki MW_Window, pasek tytułu 3 px za nisko, Client o 1 px przesunięty | Godot składał okno z jednej ramki z marginesem 7 | `UI.add_head`/`window_box_mw`: Caption (4, 4, szer. − 8, 20), wewnętrzna ramka od (4, 24), Client (8, 28) – rozmowa, tryb menu, mapa, handel, magia, przedmioty | krawędzie ramek rozmowy zgodne co do piksela |
+| uchwyt zmiany rozmiaru zabierał 14 px wysokości treści okien trybu menu | uchwyt w kolumnie okna | uchwyt w nakładce | Body = cały Client |
+| okno odpoczynku 600 px zamiast 384 | VBox AutoResize w OpenMW | szerokość z treści | IoU 1,0 |
+| ekwipunek: panele bez marginesów | brak `InventoryWindow::adjustPanes` | LeftPane od 8, RightPane od L + 4 o szer. W − L − 27, kategorie od y = 6, siatka od 38, 8 px nad dołem | ramki 44/201/211/875, y 619/641/649/975 zgodne |
+| pojemnik: siatka i przyciski | układ `openmw_container_window` | ItemView (5, 5) do 4 px przed prawą, wiersz przycisków 28 px | zgodne co do piksela |
+| okno kupca (handel) | układ `openmw_trade_window` | Categories (8, 8, 24), ItemView od 38 do 10 px przed prawą, BottomPane 92 px z wierszami 0/28/60 | siatka 1168–1861 × 357–860 zgodna |
+| pole filtra 27 px rozpychało wiersz kategorii | LineEdit bez wysokości MW_TextBoxEditWithBorder | 23 px w motywie, przyciski kategorii 24 px wyśrodkowane w 28 | zgodne |
+| okno statystyk: panele bez marginesów | brak `StatsWindow::onWindowResize` | lewy panel int(0,44 W), MW_Box od 8 (y 8/78/148), prawy od lewego, umiejętności 8 px z lewej, 24 z prawej, 42 nad dołem (wysokość okna) | krawędzie 44/394/404/829 i 52/112/122/182/192/486 zgodne |
+| okno magii | układ `openmw_spell_window` | marginesy 8/8/8/6, odstępy 7 | krawędzie zgodne |
+| mapa 1 px za szeroka/wysoka | rozmiar nie był obcinany do liczby całkowitej (MyGUI: int) | `rect.size.floor()` | zgodne |
+| okno pojemnika i handlu bez treści po zmianie paska tytułu | ścieżka `Box/Title/Pin` | `Box/CaptionArea/Title/Pin` | wykryte porównaniem, poprawione przed commitem |
+
+Kreator: okna wyboru klasy, znaku urodzenia i podsumowania pokrywają się z odpowiednikami OpenMW
+(IoU 1,0 z właściwym oknem; niski wynik zbiorczy to okno rasy, które OpenMW zostawia pod spodem
+i które prześwituje przez półprzezroczyste MW_Dialog). Okno wyboru sposobu tworzenia klasy: przyciski
+w tych samych wierszach z dokładnością do 1 px (różnica zaokrąglenia przy wyśrodkowaniu – do sprawdzenia).
+Warunek: dane z wartościami `fallback=Question_*` (bez nich Godot pomija opcję pytań – zgodnie z zasadą,
+że teksty gry nie trafiają do repozytorium).
+
+Otwarte z porównań: zawartość siatek (ramki ikon i kolejność przedmiotów kupca), napisy przycisków
+kategorii handlu (±10 px), treść pola filtra, 1 px przy wyśrodkowaniu InfoBoxDialog, mapa (treść obrazu),
+porównanie menu głównego (sonda `MainMenu` pokazuje w OpenMW pusty ekran – potrzebny Esc przez XTest).

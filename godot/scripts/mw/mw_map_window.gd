@@ -71,7 +71,7 @@ func open(rect := Rect2(), menu = null) -> void:
 	_root.theme = UI.theme(UI.ui_scale())
 	add_child(_root)
 	_win = PanelContainer.new()
-	var wsize: Vector2 = rect.size if embedded else WIN * scale_ui
+	var wsize: Vector2 = rect.size.floor() if embedded else WIN * scale_ui     # MyGUI: współrzędne całkowite
 	_win.position = rect.position.floor() if embedded else ((vp - wsize) / 2.0).floor()
 	_win.custom_minimum_size = wsize
 	_win.size = wsize
@@ -80,10 +80,9 @@ func open(rect := Rect2(), menu = null) -> void:
 	_win.add_child(box)
 	_title = Label.new()
 	_title.name = "Text"
-	var head := UI.make_head(_title, scale_ui)
+	var head := UI.add_head(box, _title, scale_ui)
 	head.name = "Title"
 	head.gui_input.connect(_title_input)
-	box.add_child(head)
 	if embedded and _menu != null:
 		var pin := UI.pin_button(scale_ui, _menu.is_pinned("map"))
 		pin.gui_input.connect(func(e):

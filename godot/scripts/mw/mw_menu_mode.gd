@@ -188,11 +188,10 @@ func _window(name: String, rect: Rect2) -> PanelContainer:
 	w.add_child(box)
 	var tl := Label.new()
 	tl.name = "Text"
-	var head := UI.make_head(tl, scale_ui)
+	var head := UI.add_head(box, tl, scale_ui)
 	head.name = "Title"
 	head.gui_input.connect(_drag_window.bind(w))
 	head.gui_input.connect(_title_input.bind(name))
-	box.add_child(head)
 	# MW_Window_Pinnable: przycisk pinezki przy prawym końcu paska tytułu
 	var pin := UI.pin_button(scale_ui, is_pinned(name))
 	pin.gui_input.connect(_pin_input.bind(name, pin))
@@ -201,13 +200,22 @@ func _window(name: String, rect: Rect2) -> PanelContainer:
 	body.name = "Body"
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_child(body)
+	# uchwyt zmiany rozmiaru w prawym dolnym rogu, w nakładce nad treścią: Body wypełnia cały obszar Client
+	# (MW_Window: Client do 8 px od dołu), jak w OpenMW, gdzie zmianę rozmiaru dają krawędzie okna
+	var over := Control.new()
+	over.name = "Overlay"
+	over.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	w.add_child(over)
 	var grip := Control.new()
 	grip.name = "Resize"
-	grip.custom_minimum_size = Vector2(12, 12) * scale_ui
+	grip.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	grip.offset_left = -12 * scale_ui
+	grip.offset_top = -12 * scale_ui
+	grip.offset_right = 0
+	grip.offset_bottom = 0
 	grip.mouse_default_cursor_shape = Control.CURSOR_FDIAGSIZE
-	grip.size_flags_horizontal = Control.SIZE_SHRINK_END
 	grip.gui_input.connect(_resize_window.bind(w))
-	box.add_child(grip)
+	over.add_child(grip)
 	return w
 
 # --- przypinanie, ukrywanie, maksymalizacja (WindowPinnableBase, WindowManager) -----------------------------
@@ -346,7 +354,7 @@ func _process(delta: float) -> void:
 
 func _title(name: String, text: String) -> void:
 	if windows.has(name):
-		(windows[name].get_node("Box/Title/Client/Text") as Label).text = text
+		(windows[name].get_node("Box/CaptionArea/Title/Client/Text") as Label).text = text
 
 func _body(name: String) -> VBoxContainer:
 	return windows[name].get_node("Box/Body") as VBoxContainer
@@ -381,7 +389,7 @@ func _unhandled_input(e: InputEvent) -> void:
 
 var _stat_bars := {}
 var _stat_boxes: Array = []
-var _stat_left: VBoxContainer
+var _stat_left: Control
 var _stat_right: VBoxContainer
 
 ## openmw_stats_window.layout + StatsWindow::onWindowResize: lewa część 0,44 szerokości okna z trzema polami MW_Box
@@ -389,16 +397,16 @@ var _stat_right: VBoxContainer
 ## Zawartość nie narzuca szerokości (napisy przycinane), więc okno ma rozmiar z ustawień OpenMW.
 func _build_stats() -> void:
 	var body := _body("stats")
-	var cols := HBoxContainer.new()
-	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	cols.add_theme_constant_override("separation", int(8 * scale_ui))
-	body.add_child(cols)
-	_stat_left = VBoxContainer.new()
-	_stat_left.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_stat_left.size_flags_stretch_ratio = 0.44
-	_stat_left.add_theme_constant_override("separation", int(8 * scale_ui))
-	cols.add_child(_stat_left)
+	# obszar Client z przycinaniem: panele rozmieszcza _layout_stats (StatsWindow::onWindowResize)
+	var client := Control.new()
+	client.name = "StatsClient"
+	client.clip_contents = true
+	client.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	client.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.add_child(client)
+	_stat_left = client
 	_stat_boxes = []
+	var boxes: Array = []
 	for i in 3:
 		var bp := PanelContainer.new()
 		var sb: StyleBox = UI.inner_box().duplicate()
@@ -406,11 +414,8 @@ func _build_stats() -> void:
 			sb.set_content_margin(side, 4 * scale_ui)
 		bp.add_theme_stylebox_override("panel", sb)
 		bp.clip_contents = true
-		if i < 2:
-			bp.custom_minimum_size.y = 62 * scale_ui
-		else:
-			bp.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		_stat_left.add_child(bp)
+		client.add_child(bp)
+		boxes.append(bp)
 		var v := VBoxContainer.new()
 		v.add_theme_constant_override("separation", 0)
 		v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -425,10 +430,13 @@ func _build_stats() -> void:
 			sc.add_child(v)
 		_stat_boxes.append(v)
 	var rp := PanelContainer.new()
-	rp.add_theme_stylebox_override("panel", UI.inner_box())
-	rp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	rp.size_flags_stretch_ratio = 0.56
-	cols.add_child(rp)
+	rp.name = "Skills"
+	var rsb: StyleBox = UI.inner_box().duplicate()
+	for side in [SIDE_LEFT, SIDE_TOP, SIDE_RIGHT, SIDE_BOTTOM]:
+		rsb.set_content_margin(side, 4 * scale_ui)          # SkillView (4, 4) w MW_Box
+	rp.add_theme_stylebox_override("panel", rsb)
+	rp.clip_contents = true
+	client.add_child(rp)
 	var rs := ScrollContainer.new()
 	rs.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	rp.add_child(rs)
@@ -436,6 +444,46 @@ func _build_stats() -> void:
 	_stat_right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_stat_right.add_theme_constant_override("separation", 0)     # wiersze co 18 px (fontSize + 2)
 	rs.add_child(_stat_right)
+	client.resized.connect(_layout_stats.bind(boxes, rp))
+	_layout_stats(boxes, rp)
+
+## StatsWindow::onWindowResize (openmw_stats_window.layout 500 × 342, LeftPaneRatio 0,44, LeftOffsetWidth 24):
+## panele mają wysokość całego okna (H) i leżą w obszarze Client (przycinane): lewy – szerokość int(0,44 × W), MW_Box
+## w (8, 8 / 78 / 148) do prawej krawędzi panelu, ostatni do 42 px przed dołem; prawy – od lewego, int(0,56 × W),
+## ramka umiejętności (8, 8) do 24 px przed prawą krawędzią i 42 px przed dołem. Węższe okno: minimalna szerokość
+## lewego panelu int(500 × 0,44), a poniżej niej + 24 px – sam lewy panel.
+func _layout_stats(boxes: Array, rp: Control) -> void:
+	if not windows.has("stats"):
+		return
+	var win := windows["stats"] as Control
+	var s := scale_ui
+	var W := int(win.size.x)
+	var H := int(win.size.y)
+	var min_full := int(500 * s)
+	var min_left := int(min_full * 0.44)
+	var lw: int
+	var rx := 0
+	var rw := 0
+	rp.visible = W >= min_left + int(24 * s)
+	if not rp.visible:
+		lw = W - int(24 * s)
+	elif W < min_full:
+		lw = min_left
+		rx = min_left
+		rw = W - min_left
+	else:
+		lw = int(0.44 * W)
+		rx = lw
+		rw = int(0.56 * W)
+	var tops := [8, 78, 148]
+	for i in 3:
+		var bp := boxes[i] as Control
+		var top := roundf(tops[i] * s)
+		var h := roundf(62 * s) if i < 2 else maxf(0.0, H - top - roundf(42 * s))
+		bp.position = Vector2(roundf(8 * s), top)
+		bp.size = Vector2(maxf(0.0, lw - roundf(8 * s)), h)
+	rp.position = Vector2(rx + roundf(8 * s), roundf(8 * s))
+	rp.size = Vector2(maxf(0.0, rw - roundf(32 * s)), maxf(0.0, H - roundf(50 * s)))
 
 ## Wiersz nazwa–wartość. indent/right_pad – StatsWindow::addValueItem (nazwa od x = 10, wartość przy prawej krawędzi
 ## z miejscem na pasek przewijania), wysokość wiersza = rozmiar czcionki + 2.
@@ -590,6 +638,9 @@ func _build_inventory() -> void:
 	var body := _body("inventory")
 	var cols := HBoxContainer.new()
 	cols.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# LeftPane (0, 0, L, H − 44) z polami od x = 8 do 4 px przed prawą krawędzią, RightPane od L + 4 o szerokości
+	# W − L − 27 (7 px przed prawą krawędzią Client); obie części kończą się 8 px nad dołem Client
+	cols.add_theme_constant_override("separation", roundi(8 * scale_ui))
 	body.add_child(cols)
 	# lewa część (openmw_inventory_window.layout, LeftPane 224 px): pasek obciążenia 212 × 24 (MW_ChargeBar_Blue),
 	# odstęp 6, ramka postaci (MW_Box) z wartością pancerza w dolnych 24 px (ProgressText)
@@ -600,7 +651,14 @@ func _build_inventory() -> void:
 	iw.resized.connect(_adjust_inv_panes)
 	_adjust_inv_panes()
 	left.add_theme_constant_override("separation", roundi(6 * scale_ui))
-	cols.add_child(left)
+	var left_m := MarginContainer.new()
+	left_m.name = "LeftPane"
+	left_m.size_flags_horizontal = 0
+	left_m.add_theme_constant_override("margin_left", roundi(8 * scale_ui))
+	left_m.add_theme_constant_override("margin_top", roundi(8 * scale_ui))
+	left_m.add_theme_constant_override("margin_bottom", roundi(8 * scale_ui))
+	cols.add_child(left_m)
+	left_m.add_child(left)
 	var enc := Control.new()
 	enc.name = "EncumbranceBar"
 	enc.custom_minimum_size.y = 24 * scale_ui
@@ -645,15 +703,25 @@ func _build_inventory() -> void:
 	# prawa część: kategorie i siatka
 	var right := VBoxContainer.new()
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	cols.add_child(right)
+	# Categories (0, 6, …, 28), ItemView od y = 38
+	right.add_theme_constant_override("separation", roundi(4 * scale_ui))
+	var right_m := MarginContainer.new()
+	right_m.name = "RightPane"
+	right_m.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right_m.add_theme_constant_override("margin_top", roundi(6 * scale_ui))
+	right_m.add_theme_constant_override("margin_right", roundi(7 * scale_ui))
+	right_m.add_theme_constant_override("margin_bottom", roundi(8 * scale_ui))
+	cols.add_child(right_m)
+	right_m.add_child(right)
 	# wiersz kategorii: przy wąskim oknie (np. 0,45 × 1280) przyciski są przycinane jak w MyGUI, a nie rozpychają okna
 	var tabs_clip := Control.new()
 	tabs_clip.clip_contents = true
 	right.add_child(tabs_clip)
 	var tabs := HBoxContainer.new()
 	tabs.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	tabs.offset_top = 2 * scale_ui                # przyciski 24 px wyśrodkowane w wierszu 28 px (HBox)
 	tabs_clip.add_child(tabs)
-	tabs.minimum_size_changed.connect(func(): tabs_clip.custom_minimum_size.y = tabs.get_combined_minimum_size().y)
+	tabs_clip.custom_minimum_size.y = 28 * scale_ui           # HBox Categories 28 px (przyciski 24 u góry)
 	for c in CATEGORIES:
 		var b := Button.new()
 		b.text = _t(c[1], c[2])
@@ -663,6 +731,7 @@ func _build_inventory() -> void:
 		b.add_theme_color_override("font_pressed_color", UI.color("active"))
 		b.add_theme_color_override("font_hover_pressed_color", UI.color("active_over"))
 		b.pressed.connect(set_category.bind(String(c[0])))
+		b.custom_minimum_size.y = 24 * scale_ui        # AutoSizedButton (0, 0, 60, 24)
 		tabs.add_child(b)
 		_cat_buttons[c[0]] = b
 	# FilterEdit (MW_TextBoxEditWithBorder, HStretch): filtr nazw – SortFilterItemModel::setNameFilter
@@ -671,8 +740,8 @@ func _build_inventory() -> void:
 	inv_filter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	inv_filter.custom_minimum_size.x = 0
 	inv_filter.text_changed.connect(func(_t2): _refresh_inventory())
+	inv_filter.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	tabs.add_child(inv_filter)
-	tabs_clip.custom_minimum_size.y = tabs.get_combined_minimum_size().y
 	# handel (GM_Barter): siatka gracza z modelem handlu – sprzedawane znikają, kupowane z tłem „barter”
 	_grid = _make_grid(right, "player", barter) if barter != null else _make_grid(right, "inventory")
 
@@ -682,7 +751,7 @@ func _adjust_inv_panes() -> void:
 	if _inv_left == null or not is_instance_valid(_inv_left) or not windows.has("inventory"):
 		return
 	var h: float = (windows["inventory"] as Control).size.y
-	_inv_left.custom_minimum_size.x = maxf(0.0, (h - 68.0 * scale_ui) * 0.5 - 12.0 * scale_ui)
+	_inv_left.custom_minimum_size.x = maxf(0.0, floorf((h - 68.0 * scale_ui) * 0.5) - 12.0 * scale_ui)
 
 func set_category(c: String) -> void:
 	category = c
@@ -912,13 +981,27 @@ func open_container(sid: String, rec: Dictionary, name: String, corpse := false)
 	# openmw_container_window.layout: ItemView od 5 px, pod nim (po 5 px) HBox do prawej: sDisposeofCorpse (tylko
 	# przy łupieniu ciała), sTakeAll, Close (l10n Interface)
 	windows["container"] = _window("container", Rect2(Vector2(0.49, 0.54) * vp, Vector2(0.39, 0.38) * vp))
-	(windows["container"].get_node("Box/Title/Pin") as Control).visible = false    # MW_Window – bez pinezki
-	var body := _body("container")
+	(windows["container"].get_node("Box/CaptionArea/Title/Pin") as Control).visible = false    # MW_Window – bez pinezki
+	var cbody := _body("container")
+	var cm := MarginContainer.new()
+	cm.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	cm.add_theme_constant_override("margin_top", roundi(5 * scale_ui))
+	cm.add_theme_constant_override("margin_right", roundi(4 * scale_ui))
+	cm.add_theme_constant_override("margin_bottom", roundi(1 * scale_ui))
+	cbody.add_child(cm)
+	var body := VBoxContainer.new()
 	body.add_theme_constant_override("separation", roundi(5 * scale_ui))
-	_cont_grid = _make_grid(body, "container")
+	cm.add_child(body)
+	var gm := MarginContainer.new()
+	gm.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	gm.add_theme_constant_override("margin_left", roundi(5 * scale_ui))
+	body.add_child(gm)
+	_cont_grid = _make_grid(gm, "container")
 	var btns := HBoxContainer.new()
 	btns.name = "Buttons"
 	btns.alignment = BoxContainer.ALIGNMENT_END
+	btns.custom_minimum_size.y = 28 * scale_ui
+	btns.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	body.add_child(btns)
 	var dc := Button.new()
 	dc.name = "DisposeCorpseButton"
@@ -936,6 +1019,8 @@ func open_container(sid: String, rec: Dictionary, name: String, corpse := false)
 	cb.text = preload("res://scripts/mw/mw_l10n.gd").ctx_text("Interface", "Close", _t("sClose", "Close"))
 	cb.pressed.connect(close)
 	btns.add_child(cb)
+	for b in btns.get_children():
+		(b as Control).size_flags_vertical = Control.SIZE_SHRINK_BEGIN     # przyciski u góry wiersza 28 px
 	get_tree().paused = true
 	if DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -970,10 +1055,20 @@ func open_barter(tw) -> void:
 	_build_inventory()
 	var bw := _window("barter", Rect2(BARTER_RECT.position * vp, BARTER_RECT.size * vp))
 	windows["barter"] = bw
-	(bw.get_node("Box/Title/Pin") as Control).visible = false        # MW_Window – bez pinezki
-	var body := _body("barter")
-	body.add_theme_constant_override("separation", roundi(6 * scale_ui))
+	(bw.get_node("Box/CaptionArea/Title/Pin") as Control).visible = false        # MW_Window – bez pinezki
+	# openmw_trade_window.layout (Client 584 × 324 przy oknie 600 × 360): Categories (8, 8, …, 24), ItemView
+	# (8, 38) do 10 px przed prawą krawędzią, BottomPane (8, 231, …, 92) przy dolnej krawędzi (1 px odstępu):
+	# wiersze w y = 0 (24 px), 28 i 60 (po 28 px)
+	var bm := MarginContainer.new()
+	bm.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	for side in [["margin_left", 8], ["margin_top", 8], ["margin_right", 10], ["margin_bottom", 1]]:
+		bm.add_theme_constant_override(side[0], roundi(side[1] * scale_ui))
+	_body("barter").add_child(bm)
+	var body := VBoxContainer.new()
+	body.add_theme_constant_override("separation", 0)
+	bm.add_child(body)
 	var cats := HBoxContainer.new()
+	cats.custom_minimum_size.y = 24 * scale_ui
 	body.add_child(cats)
 	for c in CATEGORIES:
 		var b := Button.new()
@@ -989,18 +1084,32 @@ func open_barter(tw) -> void:
 					(x as Button).button_pressed = x == b
 			tw.merchant_category = cat
 			tw.refresh())
+		b.custom_minimum_size.y = 24 * scale_ui
 		cats.add_child(b)
 	var flt := LineEdit.new()
 	flt.name = "FilterEdit"
 	flt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	flt.custom_minimum_size.x = 0
 	flt.text_changed.connect(func(t): tw.merchant_filter = t; tw.refresh())
+	flt.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	cats.add_child(flt)
+	var gap_c := Control.new()
+	gap_c.custom_minimum_size.y = 6 * scale_ui
+	body.add_child(gap_c)
 	tw.merchant_grid = _make_grid(body, "merchant", tw)
 	tw.player_grid = _grid
+	var gap_b := Control.new()
+	gap_b.custom_minimum_size.y = 8 * scale_ui
+	body.add_child(gap_b)
 	# BottomPane: +/saldo/złoto gracza, −/kwota/złoto kupca, MaxSale … Offer Cancel
+	var bp := VBoxContainer.new()
+	bp.name = "BottomPane"
+	bp.custom_minimum_size.y = 92 * scale_ui
+	bp.add_theme_constant_override("separation", roundi(4 * scale_ui))
+	body.add_child(bp)
 	var r1 := HBoxContainer.new()
-	body.add_child(r1)
+	r1.custom_minimum_size.y = 24 * scale_ui
+	bp.add_child(r1)
 	var inc := Button.new()
 	inc.text = "+"
 	inc.custom_minimum_size.x = 40 * scale_ui
@@ -1014,7 +1123,8 @@ func open_barter(tw) -> void:
 	barter_player_gold = Label.new()
 	r1.add_child(barter_player_gold)
 	var r2 := HBoxContainer.new()
-	body.add_child(r2)
+	r2.custom_minimum_size.y = 28 * scale_ui
+	bp.add_child(r2)
 	var dec := Button.new()
 	dec.text = "-"
 	dec.custom_minimum_size.x = 40 * scale_ui
@@ -1032,7 +1142,8 @@ func open_barter(tw) -> void:
 	barter_merchant_gold = Label.new()
 	r2.add_child(barter_merchant_gold)
 	var r3 := HBoxContainer.new()
-	body.add_child(r3)
+	r3.custom_minimum_size.y = 28 * scale_ui
+	bp.add_child(r3)
 	var mx := Button.new()
 	mx.name = "MaxSaleButton"
 	mx.text = _t("sMaxSale", "Max Sale")
@@ -1051,6 +1162,9 @@ func open_barter(tw) -> void:
 	cn.text = preload("res://scripts/mw/mw_l10n.gd").ctx_text("Interface", "Cancel", _t("sCancel", "Cancel"))
 	cn.pressed.connect(func(): tw.close())
 	r3.add_child(cn)
+	for row in [r1, r2, r3]:
+		for c in (row as Control).get_children():
+			(c as Control).size_flags_vertical = Control.SIZE_SHRINK_BEGIN     # przyciski i pola 24 px u góry wiersza
 	get_tree().paused = true
 	if DisplayServer.get_name() != "headless":
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -1242,7 +1356,15 @@ var _fx_box: HBoxContainer
 var _spell_list: VBoxContainer
 
 func _build_spells() -> void:
-	var body := _body("spells")
+	# Client 284 × 564 (okno 300 × 600): MW_Box (8, 8, 268, 23), SpellView (8, 38, 268, 490), HBox (8, 535, 268, 23)
+	var sm := MarginContainer.new()
+	sm.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	for side in [["margin_left", 8], ["margin_top", 8], ["margin_right", 8], ["margin_bottom", 6]]:
+		sm.add_theme_constant_override(side[0], roundi(side[1] * scale_ui))
+	_body("spells").add_child(sm)
+	var body := VBoxContainer.new()
+	body.add_theme_constant_override("separation", roundi(7 * scale_ui))
+	sm.add_child(body)
 	# openmw_spell_window.layout: pole efektów MW_Box 268 × 23 (ikony 16 px od 2, 1), lista, na dole pole filtra
 	# (MW_TextBoxEditWithBorder 23 px) i przycisk sDelete przy prawej krawędzi
 	var fp := PanelContainer.new()
@@ -1274,6 +1396,7 @@ func _build_spells() -> void:
 	spell_filter.name = "FilterEdit"
 	spell_filter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	spell_filter.text_changed.connect(func(_t2): _refresh_spells())
+	spell_filter.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	bottom.add_child(spell_filter)
 	spell_delete = Button.new()
 	spell_delete.name = "DeleteSpellButton"

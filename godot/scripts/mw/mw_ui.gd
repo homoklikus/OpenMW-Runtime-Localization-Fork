@@ -307,7 +307,12 @@ static func theme(scale := 1.0) -> Theme:
 	th.set_stylebox("selected", "ItemList", sel)
 	th.set_stylebox("selected_focus", "ItemList", sel)
 	th.set_stylebox("hovered", "ItemList", sel)
-	th.set_stylebox("normal", "LineEdit", inner_box(Color(0, 0, 0, 0.6)))
+	# MW_TextBoxEditWithBorder: pole 23 px (FilterEdit w ekwipunku i handlu) – marginesy jak przycisku
+	var le: StyleBox = inner_box(Color(0, 0, 0, 0.6)).duplicate()
+	le.content_margin_top = floorf((23.0 * scale - fh) / 2.0)
+	le.content_margin_bottom = ceilf((23.0 * scale - fh) / 2.0)
+	th.set_stylebox("normal", "LineEdit", le)
+	th.set_stylebox("read_only", "LineEdit", le)
 	th.set_stylebox("focus", "LineEdit", empty)
 	th.set_stylebox("panel", "ScrollContainer", empty)
 	_apply_scroll_theme(th, scale)
@@ -571,6 +576,50 @@ static func make_head(title: Label, s := -1.0) -> HBoxContainer:
 			m.add_child(title)
 			head.add_child(m)
 		head.add_child(bar)
+	return head
+
+## Skórka MW_Window (openmw_windows.skin.xml, okna z paskiem tytułu): zewnętrzna ramka menu_thick_border, pasek
+## tytułu Caption w (4, 4, szer. − 8, 20), wewnętrzna ramka menu_thick_border od (4, 24) do (szer. − 4, wys. − 4),
+## obszar Client w (8, 28, szer. − 16, wys. − 36). Styl panelu ma marginesy Client (8, 4, 8, 8); pasek tytułu siedzi
+## w opakowaniu wysuniętym o 4 px na boki (jak Caption szerszy od Client), a pod nim 4 px wewnętrznej ramki.
+static func window_box_mw(s := 1.0) -> StyleBox:
+	var key := "mw_window|%.2f" % s
+	if _themes.has(key):
+		return _themes[key]
+	var sb: StyleBox = window_box().duplicate()
+	sb.content_margin_left = 8 * s
+	sb.content_margin_right = 8 * s
+	sb.content_margin_top = 4 * s
+	sb.content_margin_bottom = 8 * s
+	_themes[key] = sb
+	return sb
+
+## Pasek tytułu okna MW_Window dodany do kolumny „box” (dziecko panelu okna); zwraca pasek (HBoxContainer) jak
+## make_head. Ustawia panelowi skórkę MW_Window i rysuje jej wewnętrzną ramkę.
+static func add_head(box: VBoxContainer, title: Label, s := -1.0) -> HBoxContainer:
+	if s <= 0.0:
+		s = ui_scale()
+	var head := make_head(title, s)
+	var area := Control.new()
+	area.name = "CaptionArea"
+	area.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# 20 px paska + 4 px wewnętrznej ramki; odstęp kolumny (separation) dolicza się osobno
+	var sep: int = box.get_theme_constant("separation") if box.has_theme_constant_override("separation") else roundi(2 * s)
+	area.custom_minimum_size.y = maxf(20.0 * s, 24.0 * s - sep)
+	area.custom_minimum_size.x = head.get_combined_minimum_size().x - 8.0 * s
+	head.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	head.offset_left = -4.0 * s
+	head.offset_right = 4.0 * s
+	head.offset_top = 0
+	head.offset_bottom = 20.0 * s
+	area.add_child(head)
+	box.add_child(area)
+	var panel := box.get_parent() as Control
+	if panel != null:
+		panel.add_theme_stylebox_override("panel", window_box_mw(s))
+		var inner: StyleBox = _frame_box("menu_thick_border", Color(0, 0, 0, 0))
+		panel.draw.connect(func():
+			panel.draw_style_box(inner, Rect2(Vector2(4, 24) * s, panel.size - Vector2(8, 28) * s)))
 	return head
 
 ## Ramka wewnętrzna (menu_thin_border) wokół kontrolki – zwraca opakowanie do wstawienia w miejsce kontrolki.
