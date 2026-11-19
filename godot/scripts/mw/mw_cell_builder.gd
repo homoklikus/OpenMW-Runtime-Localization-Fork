@@ -197,16 +197,22 @@ func build_ref(r: Dictionary) -> Node3D:
 		n.add_child(ol)
 	return n
 
-## Światło jak OpenMW (lightutil.cpp configureLight + lighting_util.glsl) z domyślnymi wartościami Morrowind.ini
-## (LightAttenuation: tylko liniowe, LinearValue 3, LinearMethod 1, LinearRadiusMult 1): natężenie
-## 1 / (3·d / r) = r / (3·d), wygaszanie od promienia r do 2r; promień co najmniej 16 jedn. W Godocie: zanik
-## 1/d (omni_attenuation 1) z energią r/3 [m] i zasięgiem 2r.
+## Światło jak OpenMW 0.51 (lightutil.cpp configureLight, lib/light/util.glsl calcAttenuation) z domyślnymi
+## wartościami Morrowind.ini (LightAttenuation: tylko liniowe, LinearValue 3, LinearMethod 1, LinearRadiusMult 1):
+## natężenie I = 1 / (3·d / r) = r / (3·d); promień co najmniej 16 jedn.; zasięg R = r × „light radius multiplier”
+## (1,75), wygaszanie od 0,75 R do R.
+## OpenMW liczy oświetlenie w przestrzeni gamma (wartości z tekstur i rekordów bez linearyzacji), a Godot liniowo
+## z kodowaniem sRGB na końcu. Ten sam udział na ekranie daje w Godocie natężenie I^2,2 – stąd zanik
+## d^-2,2 (omni_attenuation 2,2) i energia (r/3)^2,2 [m]; okno zanikania Godota przy zasięgu R.
+const LIGHT_RADIUS_MULT := 1.75
+const GAMMA := 2.2
+
 static func configure_light(ol: OmniLight3D, radius_units: float, color: Color) -> void:
 	var r := maxf(radius_units, 16.0) / MWCoords.UNITS_PER_METER
 	ol.light_color = color
-	ol.omni_range = 2.0 * r
-	ol.omni_attenuation = 1.0
-	ol.light_energy = r / 3.0
+	ol.omni_range = LIGHT_RADIUS_MULT * r
+	ol.omni_attenuation = GAMMA
+	ol.light_energy = pow(r / 3.0, GAMMA)
 	ol.light_specular = 0.0
 	ol.shadow_enabled = false
 

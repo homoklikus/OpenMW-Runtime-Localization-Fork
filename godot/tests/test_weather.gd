@@ -133,11 +133,30 @@ func _run() -> void:
 	check(not env.sun.shadow_enabled, "cienie wyłączone")
 	env.configure_shadows("medium")
 	# wnętrze
-	env.set_interior({"interior": true, "ambient": {"ambient_rgb": [40, 50, 60], "fog_rgb": [10, 20, 30], "fog_density": 0.75}})
-	check(env.interior and not env.sun.visible and env.env.background_mode == Environment.BG_COLOR, "wnętrze bez nieba")
+	env.set_interior({"interior": true, "ambient": {"ambient_rgb": [40, 50, 60], "fog_rgb": [10, 20, 30], "fog_density": 0.75,
+		"sunlight_rgb": [87, 58, 13]}})
+	# RenderingManager::configureAmbient: we wnętrzu słońce w kolorze „sunlight”, stały kierunek, bez cieni
+	check(env.interior and env.sun.visible and env.sun.light_color.is_equal_approx(Color8(87, 58, 13)) and not env.sun.shadow_enabled
+		and env.env.background_mode == Environment.BG_COLOR, "wnętrze: bez nieba, słońce w kolorze komórki")
+	check((-env.sun.global_transform.basis.z).normalized().is_equal_approx(env.INTERIOR_SUN_DIR.normalized()), "wnętrze: kierunek słońca (−1, 45°, 45°)")
+	env.apply()
+	check(env.sun.visible and env.sun.light_color.is_equal_approx(Color8(87, 58, 13)), "wnętrze: aktualizacja pogody nie zmienia słońca wnętrza")
+	# minimum interior brightness 0,08: ciemny ambient podnoszony do luminancji 0,08, czarny – do szarości 0,08
+	var lo: Color = env.interior_ambient(Color8(10, 10, 20))
+	check(absf(0.2126 * lo.r + 0.7152 * lo.g + 0.0722 * lo.b - 0.08) < 0.001, "minimum interior brightness: luminancja 0,08")
+	check(env.interior_ambient(Color(0, 0, 0)).is_equal_approx(Color(0.08, 0.08, 0.08)) and env.interior_ambient(Color8(40, 50, 60)).is_equal_approx(Color8(40, 50, 60)),
+		"minimum interior brightness: czarny → 0,08, jaśniejszy bez zmian")
+	check(env.env.tonemap_mode == Environment.TONE_MAPPER_LINEAR, "bez tonemappingu (jak OpenMW)")
+	# światło punktowe: zasięg r × 1,75, zanik r/(3d) w gamma → (r/(3d))^2,2 liniowo
+	var ol := OmniLight3D.new()
+	MWCellBuilder.configure_light(ol, 256.0, Color.WHITE)
+	var r_m := 256.0 / MWCoords.UNITS_PER_METER
+	check(is_equal_approx(ol.omni_range, 1.75 * r_m) and is_equal_approx(ol.omni_attenuation, 2.2) and is_equal_approx(ol.light_energy, pow(r_m / 3.0, 2.2)),
+		"światło punktowe: zasięg 1,75 r, zanik d^−2,2, energia (r/3)^2,2")
+	ol.free()
 	check(absf(env.env.fog_depth_begin - fd * 0.25) < 0.5, "wnętrze: mgła z gęstości komórki")
 	env.set_interior({})
-	check(not env.interior and env.sun.visible, "powrót na zewnątrz")
+	check(not env.interior and env.sun.visible and env.sun.shadow_enabled, "powrót na zewnątrz (z cieniami)")
 	main.queue_free()
 	await _frames(2)
 	report["checks"] = checks

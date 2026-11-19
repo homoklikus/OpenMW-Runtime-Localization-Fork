@@ -88,7 +88,7 @@ func _run() -> void:
 	for i in 3:
 		await physics_frame
 	check(main.interior == "Synthville, Test House" and main.loaded.has("int:synthville, test house") and main.loaded.size() == 1, "wnętrze wczytane, świat zwolniony")
-	check(env.interior and not env.sun.visible, "środowisko wnętrza (bez słońca, AMBI)")
+	check(env.interior and env.env.background_mode == Environment.BG_COLOR, "środowisko wnętrza (bez nieba, AMBI)")
 	report["interior_ambient"] = env.env.ambient_light_color
 	check(env.env.ambient_light_color.is_equal_approx(Color8(0x40, 0x40, 0x40)), "kolor otoczenia z AMBI")
 	var t: Transform3D = dest["transform"]

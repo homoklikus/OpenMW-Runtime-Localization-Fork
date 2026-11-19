@@ -111,7 +111,8 @@ func _ready() -> void:
 	env.fog_depth_curve = 1.0
 	env.fog_sky_affect = 0.0
 	env.fog_light_energy = 1.0
-	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	# OpenMW nie stosuje tonemappingu (bez post-processingu HDR): wynik oświetlenia obcięty do [0, 1]
+	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	world_env.environment = env
 	add_child(world_env)
 	sun = DirectionalLight3D.new()
@@ -122,7 +123,7 @@ func _ready() -> void:
 	apply()
 
 ## Cienie słońca: kaskady PSSM (4 przy średniej i wysokiej), zasięg i rozdzielczość wg jakości, łagodne
-## przejścia między kaskadami; we wnętrzach słońca brak (światła komórek bez cieni, jak domyślnie w OpenMW).
+## przejścia między kaskadami; we wnętrzach słońce bez cieni (kolor „sunlight” komórki, jak OpenMW).
 const SHADOW_PRESETS := {"low": [1024, 60.0, 2], "medium": [2048, 120.0, 4], "high": [4096, 220.0, 4]}
 var shadow_quality := "medium"
 
@@ -199,8 +200,7 @@ func apply() -> void:
 	if sun == null:
 		return
 	if interior:
-		sun.visible = false
-		return
+		return                      # słońce wnętrza ustawia set_interior (kolor komórki, stały kierunek)
 	# pogoda ustawiona z zewnątrz (ChangeWeather, nadpisanie regionu) – przejście jak addWeatherTransition
 	var want: int = wm.idx(weather)
 	if (wm.in_transition() and want != wm.next_w) or (not wm.in_transition() and want != wm.current):
@@ -323,6 +323,21 @@ func pick_weather() -> void:
 		_weather_started = true
 	apply()
 
+## Kierunek padania słońca we wnętrzu: pozycja (−1, 0,785, 0,785) w układzie MW → kierunek do sceny w Godocie.
+const INTERIOR_SUN_DIR := Vector3(1.0, -0.785398, 0.785398)
+const MIN_INTERIOR_BRIGHTNESS := 0.08          # [Shaders] minimum interior brightness (OpenMW, domyślnie)
+
+## RenderingManager::configureAmbient: ambient wnętrza podniesiony do luminancji 0,08 (współczynniki Rec. 709
+## na wartościach z rekordu), czarny – do szarości 0,08.
+static func interior_ambient(c: Color) -> Color:
+	var lum := 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
+	if lum >= MIN_INTERIOR_BRIGHTNESS:
+		return c
+	if c.r == 0.0 and c.g == 0.0 and c.b == 0.0:
+		return Color(MIN_INTERIOR_BRIGHTNESS, MIN_INTERIOR_BRIGHTNESS, MIN_INTERIOR_BRIGHTNESS)
+	var k := MIN_INTERIOR_BRIGHTNESS / lum
+	return Color(c.r * k, c.g * k, c.b * k)
+
 ## Wnętrze: światło otoczenia z rekordu komórki (AMBI), mgła liniowa z gęstości komórki (FogManager::configure),
 ## bez słońca i nieba.
 func set_interior(cell: Dictionary) -> void:
@@ -335,7 +350,13 @@ func set_interior(cell: Dictionary) -> void:
 		env.background_mode = Environment.BG_COLOR
 		env.background_color = Color8(fog[0], fog[1], fog[2])
 		env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-		env.ambient_light_color = Color8(amb[0], amb[1], amb[2]) + _night_eye_add()
+		env.ambient_light_color = interior_ambient(Color8(amb[0], amb[1], amb[2])) + _night_eye_add()
+		# RenderingManager::configureAmbient: we wnętrzu słońce w kolorze „sunlight” komórki, stały kierunek
+		# (−1, 45°, 45°) – „total nonsense but it's what Morrowind uses”
+		var sl: Array = a.get("sunlight_rgb", [0, 0, 0])
+		sun.light_color = Color8(sl[0], sl[1], sl[2])
+		sun.light_energy = 1.0
+		sun.look_at_from_position(Vector3.ZERO, INTERIOR_SUN_DIR, Vector3.UP)
 		env.ambient_light_energy = 1.0
 		env.fog_light_color = env.background_color
 		var dens := clampf(float(a.get("fog_density", 0.0)), 0.0, 1.0)
@@ -346,12 +367,14 @@ func set_interior(cell: Dictionary) -> void:
 			env.fog_depth_begin = fog_distance * (1.0 - dens)
 			env.fog_depth_end = fog_distance
 		env.fog_density = 1.0
-		sun.visible = false
+		sun.visible = true
+		sun.shadow_enabled = false
 		_update_water({}, Vector3.UP)
 		_apply_underwater()
 	else:
 		env.background_mode = Environment.BG_SKY
 		env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+		configure_shadows(shadow_quality)
 		apply()
 
 # --- woda -----------------------------------------------------------------------------------------

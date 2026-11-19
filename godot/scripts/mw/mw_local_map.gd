@@ -21,6 +21,10 @@ var _fog := {}                           # klucz segmentu → PackedByteArray (F
 var _pending := {}
 var _t := 0.0
 var rendered := 0                        # testy
+var top_y := 0.0                         # wnętrze: zMax / zMin geometrii (kamera od zMax + 5 jedn. do zMin)
+var bottom_y := 0.0
+const INTERIOR_PADDING := 500.0          # LocalMap: „Do NOT change padding!”
+const MAP_BRIGHTNESS := 0.9              # podłoga w świetle mapy OpenMW: ambient 0,3 + 0,7 × lambert (−0,3, −0,3, 0,7)
 
 ## Obszar po wejściu do komórki: zewnętrze – bez obrotu; wnętrze – obrót z NorthMarker i zakres z referencji.
 func set_area(new_area: String, refs_root: Node = null) -> void:
@@ -30,25 +34,53 @@ func set_area(new_area: String, refs_root: Node = null) -> void:
 	angle = 0.0
 	origin = Vector2.ZERO
 	if area.begins_with("int:") and refs_root != null:
+		# LocalMap::requestInteriorMap: granice sceny (geometria modeli), obrót wg NorthMarker, margines 500 jedn.
 		var pts: Array = []
+		top_y = -INF
+		bottom_y = INF
 		for n in refs_root.get_children():
 			if not n is Node3D:
 				continue
 			if String(n.get_meta("mw_base", "")).to_lower() == "northmarker":
 				angle = (n as Node3D).global_rotation.y
-			pts.append((n as Node3D).global_position)
+			var box := _node_aabb(n as Node3D)
+			if box.size == Vector3.ZERO:
+				pts.append((n as Node3D).global_position)
+				continue
+			for i in 8:
+				pts.append(box.get_endpoint(i))
 		var lo := Vector2(INF, INF)
 		var hi := Vector2(-INF, -INF)
 		for p in pts:
 			var q := to_q(p)
 			lo = lo.min(q)
 			hi = hi.max(q)
+			top_y = maxf(top_y, p.y)
+			bottom_y = minf(bottom_y, p.y)
 		if pts.is_empty():
 			lo = Vector2.ZERO
 			hi = Vector2.ZERO
-		origin = lo - Vector2(4, 4)                         # mały margines
+			top_y = 0.0
+			bottom_y = 0.0
+		var pad := INTERIOR_PADDING / MWCoords.UNITS_PER_METER
+		origin = lo - Vector2(pad, pad)
 		seg_min = Vector2i.ZERO
-		seg_max = Vector2i(floori((hi.x + 4 - origin.x) / seg_m), floori((hi.y + 4 - origin.y) / seg_m))
+		seg_max = Vector2i(floori((hi.x + pad - origin.x) / seg_m), floori((hi.y + pad - origin.y) / seg_m))
+
+## Prostokąt otaczający geometrię węzła (siatki wizualne) w układzie świata.
+static func _node_aabb(n: Node3D) -> AABB:
+	var box := AABB()
+	var first := true
+	for vi in n.find_children("*", "VisualInstance3D", true, false):
+		var v := vi as VisualInstance3D
+		if not v.visible:
+			continue
+		var b := v.global_transform * v.get_aabb()
+		if b.size == Vector3.ZERO:
+			continue
+		box = b if first else box.merge(b)
+		first = false
+	return box
 
 ## Punkt świata (Godot) → układ mapy q (x w prawo, y w dół; północ u góry).
 func to_q(p: Vector3) -> Vector2:
@@ -92,24 +124,34 @@ func has_render(s: Vector2i) -> bool:
 	return _tex.has(seg_key(s))
 
 ## Renderuje segment (asynchronicznie – po klatce); bez renderera (tryb headless) obraz pozostaje pusty.
-func request(s: Vector2i, top_y: float) -> void:
+func request(s: Vector2i, cam_y: float) -> void:
 	var k := seg_key(s)
 	if _tex.has(k) or _pending.has(k) or main == null:
 		return
 	_pending[k] = true
-	_render(s, k, top_y)
+	_render(s, k, cam_y)
 
-func _render(s: Vector2i, k: String, top_y: float) -> void:
+func _render(s: Vector2i, k: String, cam_y: float) -> void:
 	var vp := SubViewport.new()
 	vp.size = Vector2i(RES, RES)
 	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	vp.transparent_bg = false
+	# LocalMapRenderToTexture: bez oświetlenia sceny (własne światło mapy OpenMW ≈ stała jasność podłóg 0,9),
+	# bez mgły; wnętrze – kamera od zMax + 5 jedn. do zMin (near 5, far zMax − zMin + 10)
+	vp.debug_draw = Viewport.DEBUG_DRAW_UNSHADED
 	var cam := Camera3D.new()
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
 	cam.size = seg_m
 	cam.keep_aspect = Camera3D.KEEP_HEIGHT
-	cam.near = 0.5
-	cam.far = 2000.0
+	var u := 1.0 / MWCoords.UNITS_PER_METER
+	var ztop := cam_y
+	if area.begins_with("int:"):
+		ztop = top_y + 5.0 * u
+		cam.near = 5.0 * u
+		cam.far = maxf(top_y - bottom_y, 0.0) + 10.0 * u
+	else:
+		cam.near = 0.5
+		cam.far = 2000.0
 	var center_q := origin + (Vector2(s) + Vector2(0.5, 0.5)) * seg_m
 	cam.rotation = Vector3(-PI / 2.0, angle, 0.0)     # góra obrazu = północ (−Z obrócone o kąt mapy)
 	var env := Environment.new()
@@ -123,7 +165,7 @@ func _render(s: Vector2i, k: String, top_y: float) -> void:
 	cam.environment = env
 	vp.add_child(cam)
 	add_child(vp)
-	cam.global_position = q_to_world(center_q, top_y)
+	cam.global_position = q_to_world(center_q, ztop)
 	cam.current = true
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
@@ -131,6 +173,13 @@ func _render(s: Vector2i, k: String, top_y: float) -> void:
 	vp.queue_free()
 	_pending.erase(k)
 	if img != null and not img.is_empty():
+		img.convert(Image.FORMAT_RGBA8)
+		var data := img.get_data()
+		for i in range(0, data.size(), 4):
+			data[i] = int(data[i] * MAP_BRIGHTNESS)
+			data[i + 1] = int(data[i + 1] * MAP_BRIGHTNESS)
+			data[i + 2] = int(data[i + 2] * MAP_BRIGHTNESS)
+		img.set_data(img.get_width(), img.get_height(), false, Image.FORMAT_RGBA8, data)
 		_tex[k] = ImageTexture.create_from_image(img)
 	else:
 		_tex[k] = null                       # brak renderera – bez obrazu (mgła i znaczniki działają)
