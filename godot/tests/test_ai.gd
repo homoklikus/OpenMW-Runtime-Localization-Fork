@@ -62,6 +62,10 @@ func _run() -> void:
 	check(g.astar(0, 12).is_empty(), "brak ścieżki między składowymi")
 	var bp: Array = g.build_path(Vector3(1750, 1950, 850), Vector3(3050, 2850, 900))
 	check(bp.size() == 7 and (bp[-1] as Vector3).is_equal_approx(Vector3(3050, 2850, 900)), "buildPath: punkty siatki + cel (%d)" % bp.size())
+	var open_spot: Vector3 = main.player.global_position      # start gracza – otwarty teren (--pos)
+	var tr := _ref(main, "synth_traveler")
+	# typ pakietu sprawdzany od razu po wczytaniu – nie po liczbie klatek (pod obciążeniem klatka to więcej czasu gry)
+	check(tr != null and ai.current_type(tr) == 1, "pakiet podróży z rekordu (GetCurrentAIPackage = 1) %s" % [JSON.stringify(ai.ai_state(tr)) if tr else "brak"])
 	Engine.time_scale = 4.0
 	# aktor bez AI stoi w miejscu (kolizje modelu usunięte)
 	var v := _ref(main, "synth_villager")
@@ -69,14 +73,15 @@ func _run() -> void:
 	await _frames(120)
 	check(v.global_position.distance_to(v0) < 0.05, "NPC bez AI nie dryfuje (%.3f m)" % v.global_position.distance_to(v0))
 	# podróżny: AI_T do (3000, 2800)
-	var tr := _ref(main, "synth_traveler")
-	check(tr != null and ai.current_type(tr) == 1, "pakiet podróży z rekordu (GetCurrentAIPackage = 1)")
 	var dest := Vector3(3000, 2800, 0)
 	var t0 := Time.get_ticks_msec()
 	var f := await _until(func(): return bool(ai.ai_state(tr).get("done", false)), 3000)
 	var tp: Vector3 = ai.mw_pos(tr)
 	check(f >= 0 and Vector2(tp.x - dest.x, tp.y - dest.y).length() < 140.0, "podróżny dotarł (%s, %d klatek)" % [tp, f])
-	check(ai.ai_state(tr).packages.is_empty() and ai.current_type(tr) == 1, "pakiet zakończony (done, ostatni = podróż)")
+	# AiSequence::execute: po zakończeniu pusta sekwencja, a przy następnym kroku mLastAiPackage = None (−1)
+	await _frames(3)
+	check(ai.ai_state(tr).packages.is_empty() and bool(ai.ai_state(tr).done) and ai.current_type(tr) == -1,
+		"pakiet zakończony (done; pusta sekwencja → GetCurrentAIPackage −1) %s" % JSON.stringify(ai.ai_state(tr)))
 	# wędrowiec: idzie do punktów siatki w promieniu 1000 od startu
 	var w := _ref(main, "synth_walker")
 	var ws: Vector3 = ai.mw_pos(w)
@@ -113,22 +118,40 @@ func _run() -> void:
 	# może sprawić, że następny od razu uzna cel za osiągnięty
 	check((ai._rt(tr).path as Array).is_empty() and not bool(ai._rt(tr).get("path_built", false)), "nowy pakiet: wyczyszczona droga")
 	await _frames(30)
-	check(not bool(ai.ai_state(tr).done) and ai.current_type(tr) == 1, "AiTravel ze skryptu nie kończy się od razu")
+	# niezmiennik zamiast liczby klatek: zakończony tylko u celu (pod obciążeniem 30 klatek to więcej czasu gry)
+	var trp: Vector3 = ai.mw_pos(tr)
+	var at_dest := Vector2(trp.x - 2200.0, trp.y - 2000.0).length() < 140.0
+	check((not bool(ai.ai_state(tr).done) and ai.current_type(tr) == 1) or at_dest,
+		"AiTravel ze skryptu nie kończy się przed dotarciem (%s, done=%s)" % [trp, ai.ai_state(tr).done])
 	main.scripts._ai_function("aifollow", {"node": tr}, [["id", "player"], ["num", 0.0], ["num", 0.0], ["num", 0.0], ["num", 0.0]], null)
 	check(main.scripts._ai_function("getcurrentaipackage", {"node": tr}, [], null) == 3.0, "AiFollow zastępuje AiTravel (GetCurrentAIPackage = 3)")
-	main.player.global_position = tr.global_position + Vector3(6.0, 0, 0)
-	await _frames(10)
+	# znane, otwarte pozycje (nie tam, gdzie podróżny akurat doszedł – pod obciążeniem bywało to w ścianie chaty)
+	tr.global_position = open_spot + Vector3(0, 0.3, 0)
+	tr.velocity = Vector3.ZERO
+	main.player.global_position = open_spot + Vector3(420.0 / MWCoords.UNITS_PER_METER, 0.3, 0)
+	main.player.velocity = Vector3.ZERO
+	# getLOS (maska World | HeightMap | Door): inny aktor między nimi nie zasłania widoczności
+	var vv := _ref(main, "synth_villager")
+	var v_back: Vector3 = vv.global_position
+	vv.global_position = open_spot + Vector3(210.0 / MWCoords.UNITS_PER_METER, 0.3, 0)
+	await physics_frame
+	await physics_frame
+	check(ai._los(tr, main.player), "widoczność: aktor między NPC a graczem nie zasłania (getLOS bez aktorów)")
+	vv.global_position = v_back
+	await _frames(2)
 	var d0: float = ai.mw_pos(tr).distance_to(ai.mw_pos(main.player))
 	var fol := await _until(func(): return ai.mw_pos(tr).distance_to(ai.mw_pos(main.player)) < 260.0, 1500)
-	check(fol >= 0 and d0 > 260.0, "podąża za graczem (%.0f → blisko)" % d0)
+	check(fol >= 0 and d0 > 260.0 and d0 < 535.0, "podąża za graczem (%.0f → blisko; teraz %.0f, %s)" % [d0, ai.mw_pos(tr).distance_to(ai.mw_pos(main.player)), JSON.stringify(ai.ai_state(tr))])
 	# zapis: pozycja i stan AI
 	Engine.time_scale = 1.0
 	var saved: Vector3 = ai.mw_pos(tr)
 	var path_s := ProjectSettings.globalize_path("user://test_saves/ai.mwsave")
 	check(main.save_game(path_s) == "", "zapis")
+	ai.enabled = false            # sprawdzamy samo przywrócenie pozycji – bez dalszego ruchu podążającego NPC
 	main.load_game(path_s)
 	await _frames(3)
 	var tr2 := _ref(main, "synth_traveler")
+	ai.enabled = true
 	check(tr2 != null and ai.mw_pos(tr2).distance_to(saved) < 40.0, "odczyt: pozycja podróżnego (%s vs %s)" % [ai.mw_pos(tr2) if tr2 else null, saved])
 	check(tr2 != null and ai.current_type(tr2) == 3, "odczyt: pakiet podążania")
 	print("RESULT ", JSON.stringify({"checks": checks, "failures": failures}))

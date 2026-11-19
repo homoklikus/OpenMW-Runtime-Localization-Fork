@@ -657,16 +657,31 @@ func _idle_voice(n: CharacterBody3D, dt: float) -> void:
 	if rng.randf() * 10000.0 < float(_gmst("fVoiceIdleOdds", 0.0)) * dt * 6.0 and _los(main.player, n):
 		main.dialogue.say_voice(n, "idle")
 
+## PhysicsTaskScheduler::hasLineOfSight: promień na wysokości oczu z maską World | HeightMap | Door – aktorzy
+## (także gracz i inni NPC między nimi) i pociski nie zasłaniają. Godot nie ma tu osobnych warstw, więc trafienia
+## w aktorów są pomijane i promień jest powtarzany.
 func _los(a: Node3D, b: Node3D) -> bool:
 	var from := a.global_position + Vector3(0, 1.5, 0)
 	var to := b.global_position + Vector3(0, 1.5, 0)
-	var q := PhysicsRayQueryParameters3D.create(from, to)
+	if from.is_equal_approx(to):
+		return true
 	var ex: Array = []
 	for x in [a, b]:
 		if x is CollisionObject3D:
 			ex.append((x as CollisionObject3D).get_rid())
-	q.exclude = ex
-	return a.get_world_3d().direct_space_state.intersect_ray(q).is_empty()
+	var space := a.get_world_3d().direct_space_state
+	for i in 16:
+		var q := PhysicsRayQueryParameters3D.create(from, to)
+		q.exclude = ex
+		var hit := space.intersect_ray(q)
+		if hit.is_empty():
+			return true
+		var c = hit.get("collider")
+		if c is CharacterBody3D or (c is Node and (c as Node).has_meta("mw_actor")):
+			ex.append(hit.rid)
+			continue
+		return false
+	return false
 
 # --- AiWander ----------------------------------------------------------------------------------------------
 
@@ -986,9 +1001,13 @@ func _follow(n: CharacterBody3D, r: Dictionary, p: Dictionary, dt: float, react:
 	var here := mw_pos(n)
 	var tp := mw_pos(t)
 	var follow_dist := 29.0 + 64.0 + 29.0 * 2.0
+	# AiFollow::execute: pierwsza aktywacja – cel bliżej niż followDistance + 384 i widoczny, sprawdzane co 0,5 s
 	if not bool(p.get("active", false)):
-		if react and here.distance_to(tp) < follow_dist + 384.0 and _los(n, t):
-			p["active"] = true
+		p["act_timer"] = float(p.get("act_timer", 0.0)) - dt
+		if float(p.act_timer) < 0.0:
+			p.act_timer = 0.5
+			if here.distance_to(tp) < follow_dist + 384.0 and _los(n, t):
+				p["active"] = true
 		if not bool(p.get("active", false)):
 			_stop(n)
 			return false
