@@ -540,15 +540,9 @@ func _bar_row(parent: Control, label: String, kind: String, cur: float, mx: floa
 	parent.add_child(h)
 	_stat_bars[kind] = pb
 
-## MW_HLine w liście umiejętności: od x = 10, wysokość wiersza 18.
+## MW_HLine w liście umiejętności (StatsWindow::addSeparator): od x = 10, szerokość widoku − 38, wysokość 18.
 func _hline() -> Control:
-	var m := MarginContainer.new()
-	m.add_theme_constant_override("margin_left", int(10 * scale_ui))
-	m.custom_minimum_size.y = 18 * scale_ui
-	var hs := HSeparator.new()
-	hs.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	m.add_child(hs)
-	return m
+	return preload("res://scripts/mw/mw_list.gd").hline(scale_ui, 10.0, 28.0)
 
 func _val_color(base: float, mod: float) -> Color:
 	if mod > base + 0.01:

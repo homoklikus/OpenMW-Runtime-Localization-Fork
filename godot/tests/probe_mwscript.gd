@@ -232,6 +232,12 @@ func _ui_mode(m) -> void:
 			"Barter":
 				if main.open_dialogue(node):
 					main.trade_window.open("barter")
+			"Training", "SpellBuying", "Travel":
+				# GuiMode usługi z celem: okno usługi dla aktora (bez sprawdzania oferty w rozmowie, jak setMode)
+				if main.open_dialogue(node):
+					var svc := {"Training": "training", "SpellBuying": "spells", "Travel": "travel"}
+					main.dialogue_window.visible = false
+					main.service_window.open(String(svc[String(m.mode)]), main.dialogue.actor)
 			"Container":
 				# GuiMode Container z celem otwiera okno bez aktywacji (zamek, pułapka i skrypt OnActivate pominięte)
 				var c: Dictionary = main.interaction.snapshot(node)

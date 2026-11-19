@@ -10,6 +10,14 @@ extends CanvasLayer
 const UI := preload("res://scripts/mw/mw_ui.gd")
 const L10n := preload("res://scripts/mw/mw_l10n.gd")
 
+## Teksty z układów: [prostokąt tytułu (NormalText), prostokąt podtytułu (SandText, przesunięcie skórki −1)];
+## TextAlign „Center” / „Left” w MyGUI – wyśrodkowanie w pionie.
+const TEXT_RECTS := {
+	"spells": [Rect2(0, 6, 442, 18), Rect2(6, 25, 450, 18)],
+	"travel": [Rect2(0, 3, 490, 24), Rect2(6, 22, 490, 24)],
+	"training": [Rect2(6, 3, 300, 24), Rect2(6, 22, 300, 24)],
+}
+
 const LAYOUTS := {
 	# [rozmiar okna, tytuł (GMST), podtytuł (GMST), pole MW_Box (x, y, w, h), złoto (x, y), przycisk (x, y), przycisk (l10n)]
 	"spells": [Vector2(450, 290), "sServiceSpellsTitle", "sSpellServiceTitle", Rect2(6, 42, 430, 205), Vector2(6, 253), Vector2(376, 253), "OK"],
@@ -65,14 +73,18 @@ func _build() -> void:
 	title_label = Label.new()
 	title_label.text = _t(String(L[1]), "")
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title_label.position = Vector2(0, 3) * _s
-	title_label.size = Vector2(client.size.x, 24 * _s)
+	title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var tr: Rect2 = TEXT_RECTS[mode][0]
+	title_label.position = tr.position * _s
+	title_label.size = tr.size * _s
 	client.add_child(title_label)
 	var sub := Label.new()
 	sub.text = _t(String(L[2]), "")
 	sub.add_theme_color_override("font_color", UI.color("normal"))
-	sub.position = Vector2(6, 22) * _s
-	sub.size = Vector2(client.size.x - 6 * _s, 24 * _s)
+	sub.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var sr: Rect2 = TEXT_RECTS[mode][1]
+	sub.position = (sr.position + Vector2(0, -1)) * _s
+	sub.size = Vector2(minf(sr.size.x, client.size.x / _s - sr.position.x), sr.size.y) * _s
 	client.add_child(sub)
 	var r: Rect2 = L[3]
 	var box := PanelContainer.new()
@@ -94,7 +106,8 @@ func _build() -> void:
 	sc.add_child(_list)
 	gold_label = Label.new()
 	gold_label.add_theme_color_override("font_color", UI.color("normal"))
-	gold_label.position = L[4] * _s + Vector2(2, 0) * _s        # setCoord(8, …)
+	gold_label.position = L[4] * _s + Vector2(2, -1) * _s       # setCoord(8, …); SandText −1, wyśrodkowany w pionie
+	gold_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	gold_label.size = Vector2(200, 24) * _s
 	client.add_child(gold_label)
 	var b := Button.new()
@@ -139,8 +152,11 @@ func _row(id, text: String, ok: bool) -> void:
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	b.custom_minimum_size.y = 18 * _s
 	b.add_theme_constant_override("h_separation", 0)
+	# SandTextButton: TextAlign „Left Bottom” – linia 16 px przy dolnej krawędzi wiersza 18 px
+	var eb := StyleBoxEmpty.new()
+	eb.content_margin_top = 2 * _s
 	for st in ["normal", "hover", "pressed", "focus", "disabled", "hover_pressed"]:
-		b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+		b.add_theme_stylebox_override(st, eb)
 	b.add_theme_color_override("font_color", UI.color("normal") if ok else UI.color("disabled"))
 	b.add_theme_color_override("font_hover_color", UI.color("normal_over") if ok else UI.color("disabled"))
 	b.add_theme_color_override("font_pressed_color", UI.color("normal_pressed") if ok else UI.color("disabled"))

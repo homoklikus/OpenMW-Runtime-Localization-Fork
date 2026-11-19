@@ -20,7 +20,7 @@ var main
 var panel: PanelContainer
 var title: Label
 var history_label: RichTextLabel
-var topics: ItemList
+var topics                          # MWList (mw_list.gd) w skórce MW_SimpleList
 var disp_bar: ProgressBar
 var disp_label: Label
 var bye_btn: Button
@@ -95,11 +95,10 @@ func _ready() -> void:
 	var gap1 := Control.new()
 	gap1.custom_minimum_size.y = 5 * s
 	right.add_child(gap1)
-	topics = ItemList.new()
+	topics = preload("res://scripts/mw/mw_list.gd").new(s)
 	topics.name = "TopicsList"
 	topics.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	topics.item_activated.connect(_on_topic)
-	topics.item_clicked.connect(func(i, _p, _b): _on_topic(i))
+	topics.item_clicked.connect(_on_topic)
 	right.add_child(topics)
 	var gap2 := Control.new()
 	gap2.custom_minimum_size.y = 7 * s
@@ -186,14 +185,12 @@ func refresh() -> void:
 			_topic_ids.append("#svc:" + String(e[0]))
 			special += 1
 	if special > 0:
-		topics.add_item("")
-		topics.set_item_selectable(topics.item_count - 1, false)
-		topics.set_item_disabled(topics.item_count - 1, true)
+		topics.add_separator()                 # updateTopicsPane: addSeparator po usługach
 		_topic_ids.append("")
 	_links = {}
 	for t in av:
 		var name: String = dialogue.topic_name(t)
-		topics.add_item(name)
+		topics.add_item(name, 3)               # sVerticalPadding = 3
 		_topic_ids.append(t)
 		dialogue._seed(_links, name.to_lower(), t)
 	var blocked: bool = dialogue.in_choice or dialogue.goodbye_flag

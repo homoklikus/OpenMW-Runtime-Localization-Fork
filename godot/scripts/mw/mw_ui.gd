@@ -52,8 +52,16 @@ static func font() -> Font:
 	if _font == null:
 		var ff := FontFile.new()
 		if ff.load_dynamic_font("res://fonts/MysticCards.ttf") == OK:
-			ff.antialiasing = TextServer.FONT_ANTIALIASING_GRAY
-			_font = ff
+			# MysticCards.omwfont (OpenMW 0.51): Antialias false – glify jednobitowe z pełnym hintingiem FreeType
+			ff.antialiasing = TextServer.FONT_ANTIALIASING_NONE
+			ff.hinting = TextServer.HINTING_NORMAL
+			ff.subpixel_positioning = TextServer.SUBPIXEL_POSITIONING_DISABLED
+			# metryki linii jak MyGUI (Resolution 70: 16 × 70/72 px – wznoszenie 13, zstępowanie 3, linia 16 px);
+			# Godot przy 16 px daje wznoszenie 14 i linię 17 – tekst w polach o stałej wysokości był 1–4 px za wysoko
+			var fv := FontVariation.new()
+			fv.base_font = ff
+			fv.spacing_top = -1
+			_font = fv
 		else:
 			_font = ThemeDB.fallback_font
 	return _font
@@ -302,6 +310,9 @@ static func theme(scale := 1.0) -> Theme:
 	th.set_stylebox("focus", "Button", empty)
 	th.set_stylebox("panel", "ItemList", inner_box())
 	th.set_stylebox("focus", "ItemList", empty)
+	# MWList (components/widgets/list.cpp): wiersz = wysokość tekstu + 2 px (18 przy czcionce 16)
+	th.set_constant("v_separation", "ItemList", roundi(maxf(0.0, 18.0 * scale - float(font().get_height(roundi(16 * scale))))))
+	th.set_constant("line_separation", "ItemList", 0)
 	var sel := StyleBoxFlat.new()
 	sel.bg_color = Color(1, 1, 1, 0.08)
 	th.set_stylebox("selected", "ItemList", sel)
