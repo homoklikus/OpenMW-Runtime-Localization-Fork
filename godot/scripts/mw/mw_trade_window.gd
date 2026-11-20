@@ -299,29 +299,65 @@ func max_sale() -> void:
 	offer_spin.set_value_no_signal(trade.merchant_gold(actor))
 	_barter_labels()
 
-## Kliknięcie ikony w siatce handlu: towar kupca → koszyk zakupu, rzecz gracza → sprzedaż; z tłem – cofnięcie.
-func click_item(id: String, source: String) -> void:
+## Kliknięcie ikony w siatce handlu (TradeWindow::onItemSelected / InventoryWindow::onItemSelected przy handlu):
+## towar kupca → koszyk zakupu, rzecz gracza → sprzedaż, z tłem „barter” – cofnięcie. Stos > 1 bez Shift –
+## okno ilości (okno kupca: sQuanityMenuMessage02, ekwipunek: sQuanityMenuMessage01), domyślnie cały stos;
+## Ctrl – 1 sztuka.
+func click_item(id: String, source: String, mods := {}) -> void:
+	var avail := _available(id, source)
+	if avail <= 0:
+		return
+	var msg := "sQuanityMenuMessage02" if source in ["merchant", "sold"] else "sQuanityMenuMessage01"
+	if main != null and main.get("menu_mode") != null:
+		main.menu_mode.ask_count(id, avail, msg, mods, func(n: int): move_item(id, source, n))
+	else:
+		move_item(id, source, 1 if bool(mods.get("ctrl", false)) else avail)
+
+## Liczba sztuk stosu widocznego w danej siatce.
+func _available(id: String, source: String) -> int:
 	match source:
-		"merchant": buy[id] = int(buy.get(id, 0)) + 1
-		"player": sell[id] = int(sell.get(id, 0)) + 1
+		"merchant":
+			for it in trade.merchant_items(actor):
+				if String(it.id) == id:
+					return int(it.count) - int(buy.get(id, 0))
+		"player":
+			for it in trade.player_items(actor):
+				if String(it.id) == id:
+					return int(it.count) - int(sell.get(id, 0))
 		"bought":
-			buy[id] = int(buy.get(id, 0)) - 1
+			return int(buy.get(id, 0))
+		"sold":
+			return int(sell.get(id, 0))
+	return 0
+
+## sellItem/borrowItem/returnItem: przeniesienie n sztuk między stronami handlu (dźwięk podniesienia).
+func move_item(id: String, source: String, n: int) -> void:
+	n = mini(n, _available(id, source))
+	if n <= 0:
+		return
+	match source:
+		"merchant": buy[id] = int(buy.get(id, 0)) + n
+		"player": sell[id] = int(sell.get(id, 0)) + n
+		"bought":
+			buy[id] = int(buy.get(id, 0)) - n
 			if int(buy[id]) <= 0:
 				buy.erase(id)
 		"sold":
-			sell[id] = int(sell.get(id, 0)) - 1
+			sell[id] = int(sell.get(id, 0)) - n
 			if int(sell[id]) <= 0:
 				sell.erase(id)
+	if main != null and main.get("audio") != null and main.get("interaction") != null:
+		main.audio.play(main.interaction.item_sound(id, true))       # getUpSoundId
 	refresh()
 
-func activate_item(_id: String, _source: String) -> void:
-	pass                                           # dwuklik = dwa kliknięcia (po sztuce)
+func activate_item(_id: String, _source: String, _mods := {}) -> void:
+	pass                                           # OpenMW nie ma dwukliku – pierwsze kliknięcie otwiera okno ilości
 
-## Przeciągnięcie na drugą siatkę – jak kliknięcie przedmiotu.
+## Przeciągnięcie na drugą siatkę – jak kliknięcie przedmiotu (z oknem ilości).
 func dropped_on(target: String, data: Dictionary) -> void:
 	var src := String(data.get("source", ""))
 	if (target == "merchant" and src in ["player", "bought"]) or (target == "player" and src in ["merchant", "sold"]):
-		click_item(String(data.get("mw_item", "")), src)
+		click_item(String(data.get("mw_item", "")), src, data)
 
 func _click_left(i: int) -> void:
 	if i < 0 or i >= _left_ids.size():

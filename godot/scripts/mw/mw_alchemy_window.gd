@@ -231,10 +231,10 @@ func set_count(n: int, write := true) -> void:
 		count_edit.text = str(n)
 
 ## Siatka: klik składnika – Alchemy::addIngredient (pierwsze wolne miejsce, bez powtórzeń), dźwięk podniesienia.
-func click_item(id: String, _source: String) -> void:
+func click_item(id: String, _source: String, _mods := {}) -> void:
 	add_ingredient(id)
 
-func activate_item(id: String, _source: String) -> void:
+func activate_item(id: String, _source: String, _mods := {}) -> void:
 	add_ingredient(id)
 
 func dropped_on(_target: String, data: Dictionary) -> void:
@@ -454,9 +454,9 @@ class _SelOwner:
 	func _init(window, k: int) -> void:
 		w = window
 		kind = k
-	func click_item(id: String, _s: String) -> void:
+	func click_item(id: String, _s: String, _mods := {}) -> void:
 		w.select_apparatus(kind, id)
-	func activate_item(id: String, _s: String) -> void:
+	func activate_item(id: String, _s: String, _mods := {}) -> void:
 		w.select_apparatus(kind, id)
 	func dropped_on(_t: String, _d: Dictionary) -> void:
 		pass

@@ -68,9 +68,9 @@ class _Owner:
 	var d
 	func _init(dialog) -> void:
 		d = dialog
-	func click_item(id: String, _s: String) -> void:
+	func click_item(id: String, _s: String, _mods := {}) -> void:
 		d.select(id)
-	func activate_item(id: String, _s: String) -> void:
+	func activate_item(id: String, _s: String, _mods := {}) -> void:
 		d.select(id)
 	func dropped_on(_t: String, _d: Dictionary) -> void:
 		pass

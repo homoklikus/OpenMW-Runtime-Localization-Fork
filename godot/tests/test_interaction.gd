@@ -67,6 +67,11 @@ func _run() -> void:
 	check(it.inventory.count_of(chest_sid, crec, "misc_synth_spoon") == in_chest0 + 1 and it.inventory.count_of("player", {}, "misc_synth_spoon") == 0,
 			"łyżka przeniesiona do skrzyni")
 	mm.activate_item("misc_synth_spoon", "container")
+	# stos > 1 – okno ilości (ContainerWindow::onItemSelected), domyślnie cały stos
+	if in_chest0 + 1 > 1:
+		check(main.count_dialog != null and main.count_dialog.is_open() and main.count_dialog.value() == in_chest0 + 1,
+			"dwuklik w pojemniku: okno ilości z całym stosem")
+		main.count_dialog.press_ok()
 	check(it.inventory.count_of("player", {}, "misc_synth_spoon") == in_chest0 + 1, "dwuklik w pojemniku – cały stos do gracza")
 	mm.put_item("misc_synth_spoon")
 	mm.close()

@@ -125,6 +125,8 @@ func _set_hud(_on: bool) -> void:
 func close() -> void:
 	if not visible:
 		return
+	if main != null and main.get("count_dialog") != null and is_instance_valid(main.count_dialog) and main.count_dialog.is_open():
+		main.count_dialog.press_cancel()        # okno ilości dotyczy zamykanego okna
 	_save_layout()
 	visible = false
 	if main != null and main.get("gui") != null and not _gui_mode.is_empty():
@@ -1213,17 +1215,39 @@ func _refresh_container() -> void:
 func _count(sid: String, rec: Dictionary, id: String) -> int:
 	return int(main.interaction.inventory.count_of(sid, rec, id))
 
-## Z pojemnika do gracza (cały stos).
-func take_item(id: String) -> void:
+## Okno ilości przed przeniesieniem stosu (Inventory/Container/TradeWindow::onItemSelected): Ctrl – 1 sztuka,
+## stos > 1 bez Shift – CountDialog z komunikatem (sTake, sQuanityMenuMessage01/02), inaczej od razu cb(liczba).
+## mods: {"shift", "ctrl"} – stan klawiszy w chwili wybrania przedmiotu (OpenMW: kliknięcie podnoszące przedmiot).
+func ask_count(id: String, count: int, message_gmst: String, mods: Dictionary, cb: Callable) -> void:
+	if count <= 0:
+		return
+	if bool(mods.get("ctrl", false)):
+		count = 1
+	if count > 1 and not bool(mods.get("shift", false)) and main != null and main.has_method("get_count_dialog"):
+		var it: Dictionary = main.interaction.inventory.item(id)
+		var name: String = main.interaction.item_name(String(it.get("kind", "")), id, it.get("rec", {})) if not it.is_empty() else id
+		main.get_count_dialog().open_count(name, _t(message_gmst, _COUNT_FALLBACK.get(message_gmst, "")), count, cb)
+	else:
+		cb.call(count)
+
+const _COUNT_FALLBACK := {"sTake": "Take", "sDrop": "Drop", "sQuanityMenuMessage01": "Sell how many?",
+	"sQuanityMenuMessage02": "Buy how many?"}
+
+## Z pojemnika do gracza (n < 0 – cały stos).
+func take_item(id: String, count := -1) -> void:
 	var n := _count(cont_sid, cont_rec, id)
+	if count > 0:
+		n = mini(n, count)
 	if n > 0 and main.interaction.move(cont_sid, cont_rec, "player", {}, id, n) > 0 and main.get("audio") != null:
 		main.audio.play(main.interaction.item_sound(id, true))
 	refresh()
 
 ## Od gracza do pojemnika (cały stos; założone – zdejmowane). Pojemność: OpenMW nie pozwala przekroczyć
 ## (sContentsMessage3).
-func put_item(id: String) -> void:
+func put_item(id: String, count := -1) -> void:
 	var n := _count("player", {}, id)
+	if count > 0:
+		n = mini(n, count)
 	if n <= 0:
 		return
 	var cap := float(cont_rec.get("capacity", 0.0))
@@ -1259,24 +1283,31 @@ func take_all() -> void:
 	close()
 
 ## Upuszczenie przeciąganego przedmiotu na obszar okna.
+## Przenoszony stos > 1 – najpierw okno ilości (sTake, jak przy podniesieniu w OpenMW); Ctrl – 1, Shift – cały.
 func dropped_on(target: String, data: Dictionary) -> void:
 	var id := String(data.get("mw_item", ""))
 	var src := String(data.get("source", "inventory"))
 	if target == "container" and src == "inventory":
-		put_item(id)
+		ask_count(id, _count("player", {}, id), "sTake", data, func(n: int): put_item(id, n))
 	elif target in ["inventory", "avatar"] and src == "container":
-		take_item(id)
+		ask_count(id, _count(cont_sid, cont_rec, id), "sTake", data, func(n: int): take_item(id, n))
 	elif target == "avatar" and src == "inventory":
 		use_item(id)
 
-## Dwuklik: w trybie pojemnika – przełożenie, inaczej – użyj/załóż.
-func activate_item(id: String, source: String) -> void:
+## Dwuklik: w trybie pojemnika – przełożenie (z oknem ilości), inaczej – użyj/załóż.
+func activate_item(id: String, source: String, mods := {}) -> void:
 	if source == "container":
-		take_item(id)
+		ask_count(id, _count(cont_sid, cont_rec, id), "sTake", mods, func(n: int): take_item(id, n))
 	elif _cont_grid != null and is_instance_valid(_cont_grid):
-		put_item(id)
+		ask_count(id, _count("player", {}, id), "sTake", mods, func(n: int): put_item(id, n))
 	else:
 		use_item(id)
+
+## Kliknięcie z Alt (ContainerWindow/InventoryWindow::transferItem): przełożenie do drugiego okna, z oknem ilości.
+func click_item(id: String, source: String, mods := {}) -> void:
+	if not bool(mods.get("alt", false)) or _cont_grid == null or not is_instance_valid(_cont_grid):
+		return
+	activate_item(id, source, mods)
 
 ## Pancerz gracza (getArmorRating): suma pancerza założonych zbroi wg miejsc (waga miejsca) + bez zbroi.
 func player_armor_rating() -> float:
@@ -1338,10 +1369,14 @@ func use_item(id: String) -> void:
 	iw.visible = false
 	refresh()
 
-func drop_to_world(id: String, source := "inventory") -> void:
+func drop_to_world(id: String, source := "inventory", mods := {}) -> void:
 	if source != "inventory":
 		return
-	var n: int = main.interaction.inventory.count_of("player", {}, id)
+	ask_count(id, main.interaction.inventory.count_of("player", {}, id), "sTake", mods,
+		func(n: int): _drop_count(id, n))
+
+func _drop_count(id: String, count: int) -> void:
+	var n: int = mini(count, main.interaction.inventory.count_of("player", {}, id))
 	if n <= 0:
 		return
 	main.drop_item(id, n)

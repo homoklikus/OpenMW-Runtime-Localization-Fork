@@ -2793,6 +2793,15 @@ var loading = null                    # mw_loading_screen.gd – LoadingScreen
 var main_menu = null                  # mw_main_menu.gd – MainMenu (także menu pauzy)
 var save_dialog = null                # mw_save_dialog.gd – SaveGameDialog
 var confirm = null                    # mw_confirm_dialog.gd – ConfirmationDialog
+var count_dialog = null               # mw_count_dialog.gd – CountDialog (WindowManager::getCountDialog)
+
+func get_count_dialog():
+	if count_dialog == null or not is_instance_valid(count_dialog):
+		count_dialog = preload("res://scripts/mw/mw_count_dialog.gd").new()
+		count_dialog.name = "CountDialog"
+		count_dialog.main = self
+		add_child(count_dialog)
+	return count_dialog
 var saves = null                      # mw_saves.gd – CharacterManager
 var time_played := 0.0                # StateManager::mTimePlayed (s)
 var last_savegame := ""               # StateManager::mLastSavegame
