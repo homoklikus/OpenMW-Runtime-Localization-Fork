@@ -127,8 +127,8 @@ klasa, statystyki po 9 powrotach = buildPlayer od zera) i `probe_newgame.gd` (15
 | Pasek przewijania w stylu Morrowinda (MW_VScroll) | Zweryfikowane | etap 8: skórka, krok 36, MoveToClick, test | – |
 | Przypinanie, maksymalizacja, ukrywanie okien, klik w HUD | Zweryfikowane | etap 9: globalnie jak [Windows] (window_settings.json), migracja starych zapisów, test_window_settings | – |
 | Pasek zdrowia wroga w HUD | Brakujące | | P2 |
-| Szybkie klawisze (F1, 1–9) | Brakujące | | P1 |
-| Okno ilości (dzielenie stosów, Shift przy przeciąganiu) | Brakujące | dziś zawsze cały stos / 1 sztuka | P2 |
+| Szybkie klawisze (F1, 1–9, 0) i wybór magii | Zaimplementowane | etap 10 cz. 8: QuickKeysMenu, QuickKeysMenuAssign, ItemSelectionDialog (Filter_OnlyUsableItems), MagicSelectionDialog; activateQuickKey (odroczenie w ataku, findReplacement, sQuickMenu5, walka wręcz), zapis REC_KEYS; test_quick_keys (41). Porównanie zrzutem z OpenMW – do zrobienia | – |
+| Okno ilości (dzielenie stosów, Shift/Ctrl/Alt) | Zaimplementowane | etap 10 cz. 7: CountDialog wg openmw_count_window.layout w pojemniku, ekwipunku, upuszczeniu w świat i handlu (sTake, sQuanityMenuMessage01/02); stan przedmiotu zachowany; test_count_dialog (46). Różnica: okno pojawia się przy upuszczeniu (przeciąganie Godota), w OpenMW – przy podniesieniu; ten sam komunikat i wynik. Porównanie zrzutem – do zrobienia | – |
 | Dziennik jak książka (zadania, indeks tematów, strony) | Zweryfikowane | etap 7: JournalWindow (tx_menubook, zakładka, indeks), zrzuty IoU ≥ 0,997 | – |
 | Okno awansu (obraz klasy, mnożniki atrybutów) | Zweryfikowane | etap 9: LevelupDialog, porównanie zrzutem (obraz i opis piksel w piksel) | – |
 | Odpoczynek/czekanie (układ OpenMW, „do wyleczenia”) | Częściowo zgodne | etap 9: pasek postępu, przyciemnienie, przerywanie snu (BNAM regionu – wymaga ponownej konwersji), sNotifyMessage2 – test_progress; układ okna bez porównania zrzutem, autozapis i strzałki – do zrobienia | P2 |

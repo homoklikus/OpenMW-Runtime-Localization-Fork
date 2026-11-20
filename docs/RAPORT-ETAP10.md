@@ -229,9 +229,32 @@ i we wnętrzu. Szybka podróż i Interwencje Almsivi/Boska używają tej samej �
 Nie zmierzono: 1440p/2160p (lavapipe na 2 rdzeniach nie mieści się w limicie czasu wywołania), obrazu OpenMW
 w tym samym przejściu (porównano przebieg z kodem 0.51).
 
-## 7. Pozostałe punkty etapu (do wykonania)
+## 7. Pozostałe GUI
 
-§3 szybkie klawisze i wybór magii, §4 podpowiedzi `openmw_tooltips`, §5 okno ilości, §6 konsola, §7 więzienie,
+### 7.1 Okno ilości (cz. 7)
+CountDialog jak OpenMW 0.51 (`mw_count_dialog.gd`): okno modalne MW_DialogNoTransp, wysokość 128, szerokość
+max(nazwa + 160, 320), środek ekranu; komunikat, nazwa (z duszą), pole liczby 1…max (strzałki ±1, tekst
+nieliczbowy – poprzednia wartość), suwak (pozycja = liczba − 1), OK/Cancel, domyślnie cały stos, Enter/Esc.
+Wywołania: pojemnik ↔ ekwipunek (przeciągnięcie, dwuklik, Alt + kliknięcie – transferItem), upuszczenie w świat,
+handel (sQuanityMenuMessage02 w oknie kupca, 01 w ekwipunku – zamiast przenoszenia po jednej sztuce). Ctrl – 1 sztuka,
+Shift – cały stos bez pytania. Stan (wytrzymałość „#c:N”, dusza „@stworzenie”) zachowany w obu częściach.
+Różnica wobec OpenMW: przeciąganie Godota (wciśnij–przesuń–puść) zamiast „kliknij, by podnieść”, więc okno pojawia się
+przy upuszczeniu; komunikat (sTake) i wynik są te same. Upuszczenie na postać (użycie) – bez okna ilości.
+Test: test_count_dialog (46); test_interaction i test_menu_mode – dwuklik/upuszczenie stosu przez okno ilości.
+
+### 7.2 Szybkie klawisze i wybór magii (cz. 8)
+`mw_quick_keys.gd`: QuickKeysMenu (GM_QuickKeysMenu, F1 przełącza; 380 × 224 + przyrost instrukcji, 10 pól, OK),
+QuickKeysMenuAssign, ItemSelectionDialog (sQuickMenu6, Filter_OnlyUsableItems), MagicSelectionDialog (330 × 370,
+SpellView bez kosztu – wspólny `spell_model()` z oknem magii). activateQuickKey: klawisze 1–9 i 0 poza trybem GUI,
+po tworzeniu postaci, nie jako wilkołak; w trakcie ataku/powalenia – odroczenie do następnej klatki; sparaliżowany lub
+martwy – nic; brak przedmiotu – „sQuickMenu5 nazwa”, zastępstwo findReplacement (najmniejszy dodatni stan); przedmiot –
+użycie jak z ekwipunku i dobycie broni z prawej ręki, przedmiot magiczny – założenie i wybór jako magia, czar – wybór,
+pole 10 – walka wręcz. Zapis: 9 pól w `state.player.quick_keys` (REC_KEYS). Test: test_quick_keys (41).
+Brak: obsługa pada (mControllerFocus), ustawianie klawiszy w ustawieniach (zakładka sterowania – osobny punkt).
+
+### 7.3 Pozostałe punkty etapu (do wykonania)
+
+§4 podpowiedzi `openmw_tooltips`, §6 konsola, §7 więzienie,
 §8 towarzysz, §9 notatki mapy i pole tekstowe, §10 ustawienia, autozapis, ekrany ładowania, Enter/Tab/strzałki,
 pad, §11 porównania 720p/1440p/2160p i nowych okien, §12 dodatki i mody.
 
@@ -243,8 +266,12 @@ pad, §11 porównania 720p/1440p/2160p i nowych okien, §12 dodatki i mody.
 * Etap 10 cz. 4: launcher – pełne tłumaczenie PL/EN i zmiana języka bez restartu
 * Etap 10 cz. 5: przejścia między komórkami jak OpenMW – zaciemnienie, gotowość pierwszej klatki
 * Etap 10 cz. 6: stworzenia – kształt z „Bounding Box” i adjustPosition (weryfikacja na prawdziwych danych)
+* Etap 10 cz. 7: okno ilości (CountDialog)
+* Etap 10 cz. 8: szybkie klawisze i wybór magii
+
+Pełny zestaw tools/run_tests.sh po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości).
 
 ## 9. Zalecana kolejność dalszych prac
 
-1. Okno ilości i szybkie klawisze (codzienna rozgrywka), 2. podpowiedzi openmw_tooltips, 3. więzienie i towarzysz,
-4. konsola (też do testów), 5. ustawienia/autozapis/klawiatura/pad, 6. porównania zrzutami wszystkich okien.
+1. Podpowiedzi openmw_tooltips, 2. więzienie i towarzysz,
+3. konsola (też do testów), 4. ustawienia/autozapis/klawiatura/pad, 5. porównania zrzutami wszystkich okien.
