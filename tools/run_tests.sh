@@ -176,6 +176,7 @@ run_gd test_ui_geometry.gd --data="$WORK/actors_out" --project="$WORK/project_ui
 run_gd test_window_settings.gd --data="$WORK/actors_out" --project="$WORK/project_window_settings" --pos=2300,2400,900 --scripts=0 --window-settings="$WORK/window_settings_test.json"
 run_gd test_messagebox.gd --data="$WORK/actors_out" --project="$WORK/project_messagebox" --pos=2300,2400,900 --scripts=0
 run_gd test_gui_modes.gd --data="$WORK/actors_out" --project="$WORK/project_gui_modes" --pos=2300,2400,900 --scripts=0
+run_gd test_language.gd --data="$WORK/actors_out" --project="$WORK/project_language" --pos=2300,2400,900 --scripts=0
 run_gd test_chargen_class.gd --data="$WORK/actors_out" --project="$WORK/project_chargen_class" --pos=2300,2400,900 --scripts=0
 run_gd test_chargen_windows.gd --data="$WORK/actors_out" --project="$WORK/project_chargen_windows" --pos=2300,2400,900 --scripts=0
 run_gd test_settings.gd --data="$WORK/actors_out" --project="$WORK/project_settings" --settings="$WORK/settings_cfg/runtime_settings.json" --pos=2300,2400,900 --scripts=0

@@ -9,6 +9,7 @@ extends RefCounted
 const ITEM_TYPES := ["WEAP", "ARMO", "CLOT", "BOOK", "MISC", "APPA", "LOCK", "PROB", "REPA", "ALCH", "INGR"]
 const GOLD := {"gold_001": 1, "gold_005": 5, "gold_010": 10, "gold_025": 25, "gold_100": 100}
 const PLAYER := "player"
+const Loc := preload("res://scripts/mw/mw_localization.gd")
 
 var db
 var state
@@ -111,6 +112,12 @@ func trap(node: Node) -> String:
 func count_of_ref(node: Node) -> int:
 	return maxi(1, int(extra_of(node).get("count", 1)))
 
+## Tekst GMST (z tłumaczeniem, gdy aktywne) – zapas tylko przy braku ustawienia w danych.
+func _gmst_s(id: String, def: String) -> String:
+	var g: Dictionary = records.record("gmst", id.to_lower()) if records != null else {}
+	var v := String(g.get("value", def)) if not g.is_empty() else def
+	return loc.plain(Loc.key("GMST", id, "STRV"), v) if loc != null and loc.has_method("plain") else v
+
 ## Podpowiedź pod celownikiem (nazwa, liczba, zamek) – tylko dla tego, co aktywacja faktycznie obsługuje.
 func hint(node: Node) -> String:
 	var k := kind_of(node)
@@ -122,9 +129,9 @@ func hint(node: Node) -> String:
 	var n := count_of_ref(node)
 	var s := name + (" (%d)" % n if n > 1 else "")
 	if lock_level(node) > 0:
-		s += "  [zamknięte, poziom %d]" % lock_level(node)
+		s += "\n%s: %d" % [_gmst_s("sLockLevel", "Lock Level"), lock_level(node)]     # ToolTips: #{sLockLevel}
 	if trap(node) != "":
-		s += "  [pułapka]"
+		s += "\n" + _gmst_s("sTrapped", "Trapped")
 	return s
 
 func _player_items() -> Array:
@@ -152,15 +159,15 @@ func try_unlock(c: Dictionary) -> Dictionary:
 	if not key.is_empty() and inventory.count_of(PLAYER, {}, key) > 0:
 		state.set_lock(c.sid, 0)
 		var kr: Dictionary = inventory.item(key).get("rec", {})
-		return {"ok": true, "message": "Użyto klucza: %s" % String(kr.get("name", key))}
-	return {"ok": false, "message": "Zamknięte"}
+		return {"ok": true, "message": String(kr.get("name", key)) + " " + _gmst_s("sKeyUsed", "used")}
+	return {"ok": false, "message": ""}          # Door/Container::activate: zamknięte – FailedAction bez komunikatu, tylko dźwięk
 
 ## Pułapka uruchamia się przy aktywacji obiektu i znika (efekt czaru – etap 7).
 func trigger_trap(c: Dictionary) -> String:
 	if String(c.trap).is_empty():
 		return ""
 	state.set_trap(c.sid, "")
-	return "Uruchomiono pułapkę (%s)" % c.trap
+	return ""                             # OpenMW: pułapka działa jako czar, bez komunikatu
 
 ## Aktywacja: {"action": "travel"|"take"|"open_container"|"locked"|"none", "message", …}.
 func activate(node: Node) -> Dictionary:
@@ -206,7 +213,7 @@ func take_ref(c: Dictionary) -> Dictionary:
 		state.remove_dynamic(c.sid)
 	else:
 		state.delete_ref(c.sid)
-	return {"action": "take", "item": g[0], "count": g[1], "sound": item_sound(g[0], true), "message": "Podniesiono: %s%s" % [c.name, (" × %d" % n if n > 1 else "")]}
+	return {"action": "take", "item": g[0], "count": g[1], "sound": item_sound(g[0], true), "message": ""}          # ActionTake: bez komunikatu (OpenMW pokazuje tylko dźwięk podniesienia)
 
 ## Rekord pojemnika (CONT) referencji.
 func container_record(base: String) -> Dictionary:

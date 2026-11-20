@@ -47,7 +47,9 @@ func open(load: bool) -> void:
 			continue
 		var sig: Dictionary = mgr.signature(c)
 		var cls := String(sig.get("player_class_name", ""))
-		var title := "%s (Poziom %d %s)" % [String(sig.get("player_name", "?")), int(sig.get("player_level", 1)), cls]
+		# SaveGameDialog: „imię (#{OMWEngine:Level} poziom klasa)”
+		var title := "%s (%s %d %s)" % [String(sig.get("player_name", "?")),
+			preload("res://scripts/mw/mw_l10n.gd").text("Level", "Level"), int(sig.get("player_level", 1)), cls]
 		character_select.add_item(title.replace(" )", ")"))
 		_chars.append(c)
 		if current_character == c or (current_character == null and not saving \
@@ -173,7 +175,7 @@ func _build() -> void:
 	row.add_child(ok_button)
 	var cancel := Button.new()
 	cancel.name = "CancelButton"
-	cancel.text = "Anuluj"
+	cancel.text = preload("res://scripts/mw/mw_l10n.gd").ctx_text("Interface", "Cancel", "Cancel")
 	cancel.pressed.connect(close)
 	row.add_child(cancel)
 
@@ -251,7 +253,7 @@ static func format_time_played(secs: float) -> String:
 	var mins := (d / 60) % 60
 	var s := d % 60
 	if hrs:
-		out += "%d godz. " % hrs
+		out += "%d h " % hrs
 	if mins:
 		out += "%d min " % mins
 	if s:

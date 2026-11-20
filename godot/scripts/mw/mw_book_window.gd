@@ -169,10 +169,10 @@ func _build_book(win: Control, text: String) -> void:
 		num.add_theme_color_override("font_color", Color.BLACK)
 		win.add_child(num)
 		_num.append(num)
-	_take = _button(win, "take", _t("sTake", "Weź"), Vector2(40, 358), Vector2(64, 32), take)
-	_prev = _button(win, "prev", _t("sPrev", "Poprzednia"), Vector2(205, 358), Vector2(48, 32), prev_page)
-	_next = _button(win, "next", _t("sNext", "Następna"), Vector2(330, 358), Vector2(48, 32), next_page)
-	_close = _button(win, "close", _t("sClose", "Zamknij"), Vector2(488, 358), Vector2(48, 32), close)
+	_take = _button(win, "take", _t("sTake", "Take"), Vector2(40, 358), Vector2(64, 32), take)
+	_prev = _button(win, "prev", _t("sPrev", "Prev"), Vector2(205, 358), Vector2(48, 32), prev_page)
+	_next = _button(win, "next", _t("sNext", "Next"), Vector2(330, 358), Vector2(48, 32), next_page)
+	_close = _button(win, "close", _t("sClose", "Close"), Vector2(488, 358), Vector2(48, 32), close)
 	_take.visible = take_visible and take_allowed
 	update_pages()
 
@@ -188,8 +188,8 @@ func _build_scroll(win: Control, text: String) -> void:
 	paper.custom_minimum_size = Vector2(fmt.page_w, maxf(fmt.paper_h, 1.0))
 	_scroll_view.add_child(paper)
 	_papers = [paper]
-	_take = _button(win, "take", _t("sTake", "Weź"), Vector2(12, 14), Vector2(128, 32), take)
-	_close = _button(win, "close", _t("sClose", "Zamknij"), Vector2(415, 20), Vector2(128, 32), close)
+	_take = _button(win, "take", _t("sTake", "Take"), Vector2(12, 14), Vector2(128, 32), take)
+	_close = _button(win, "close", _t("sClose", "Close"), Vector2(415, 20), Vector2(128, 32), close)
 	_take.visible = take_visible and take_allowed
 
 ## „Papier”: wszystkie elementy tekstu i obrazy w pozycjach z formatowania (piksele × skala).

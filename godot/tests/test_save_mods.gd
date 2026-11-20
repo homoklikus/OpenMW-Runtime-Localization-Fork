@@ -40,13 +40,13 @@ func _run() -> void:
 			check(main.save_game(path) == "", "zapis z zestawem A")
 		"add":
 			w = main.load_game(path)
-			check(w.any(func(x): return String(x).contains("nowa wtyczka mwg_synthtown_patch2.esp")), "ostrzeżenie: nowa wtyczka (%s)" % [w])
+			check(w.any(func(x): return String(x).contains("new content file mwg_synthtown_patch2.esp")), "ostrzeżenie: nowa wtyczka (%s)" % [w])
 			check(not main.state.is_enabled(SID), "stan obiektu z pluginu zachowany po dodaniu wtyczki")
 			check(int(main.state.journal.get("synth_quest", 0)) == 20 and float(main.state.globals.get("synthstate", 0)) == 5.0, "dziennik i zmienne zachowane")
 			check(main.save_game(path) == "", "ponowny zapis z zestawem B")
 		"missing":
 			w = main.load_game(path)
-			check(w.any(func(x): return String(x).contains("brak wtyczki mwg_synthtown_patch.esp")), "ostrzeżenie: brak wtyczki (%s)" % [w])
+			check(w.any(func(x): return String(x).contains("missing content file mwg_synthtown_patch.esp")), "ostrzeżenie: brak wtyczki (%s)" % [w])
 			check(main.state.refs.has(SID), "obiekt brakującej wtyczki zostaje w stanie gry")
 			check(main.save_game(path) == "", "zapis bez wtyczki")
 			main.state.refs.clear()

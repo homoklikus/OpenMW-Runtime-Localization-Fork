@@ -145,7 +145,8 @@ klasa, statystyki po 9 powrotach = buildPlayer od zera) i `probe_newgame.gd` (15
 | Książka/zwój: „Weź” tylko przy odblokowanym ekwipunku | Zweryfikowane | test_chargen + sonda | – |
 | Podpowiedzi w układach OpenMW (`openmw_tooltips`: ikony, MagicEffectToolTip, kolory) | Częściowo zgodne | etap 9 – audyt: dziś zwykłe podpowiedzi tekstowe Godota | P2 |
 | Sterowanie z pada (menu kontrolera) | Brakujące | | P3 |
-| Stos trybów GUI (pushGuiMode/popGuiMode) | Częściowo zgodne | okna otwierane z ekwipunku zamykają tryb menu zamiast wracać do niego | P2 |
+| Stos trybów GUI (pushGuiMode/popGuiMode/removeGuiMode/containsMode, exitCurrentGuiMode, updateVisible) | Zweryfikowane | etap 10: jeden mechanizm (`mw_gui_modes.gd`) – ekwipunek → alchemia/naprawa/kamień dusz → ekwipunek, rozmowa → handel/trening/podróż → rozmowa, okno z pytaniem nad trybem, Esc na każdym poziomie; test_gui_modes (24). Porównanie zrzutami – do zrobienia | – |
+| Jeden język interfejsu: angielski (GMST z danych → l10n OpenMW → zapas angielski) | Zweryfikowane | etap 10: usunięte polskie napisy i zapasy z kodu (ok. 170), podpowiedź celownika na aktorze = sama nazwa (ToolTips), zamek/pułapka z #{sLockLevel}/#{sTrapped}, bez komunikatów „zamknięte”/„podniesiono” (jak FailedAction/ActionTake); test_language (38). Diagnostyka (logi, błędy skryptów) zostaje po polsku. Tłumaczenia danych gry (fork RLF) zależą od „Język gry” w launcherze – „auto” bierze język launchera | – |
 
 ## 4. Skrypty (Morrowind, Tribunal, Bloodmoon)
 
@@ -874,6 +875,7 @@ w OpenMW za błąd #9154) – świadoma różnica.
 | Statystyki gracza przed kreatorem (Npc::getNpcData, buildPlayer z mRaceSelected/mClassSelected) | Zweryfikowane | **naprawione w etapie 8**; test_chargen |
 | AiPackage::openDoors – NPC otwiera drzwi na drodze (poza AiWander), z kluczem; evadeObstacles: najpierw drzwi | Zaimplementowane | brak sceny testowej z NPC przechodzącym przez drzwi na prawdziwych danych |
 | AiWander (bezczynność, punkty w promieniu, spacer) | Zaimplementowane | sonda Seyda Neen 60 s: 13/15 aktorów w ruchu, wszyscy w promieniu wędrówki, nikt nie spadł pod teren |
+| Stworzenia wodne i latające (MovementSolver, World::isFlying/isSwimming, canActorMoveByZAxis) | Zweryfikowane | **naprawione w etapie 10 („latający Slaughterfish”)**: grawitacja dla Swims poza wodą, brak wypływania ponad poziom pływania (także po stoku), poziom pływania z wymiarów kapsuły, pochylenie AI, shortcutPath, wanderNearStart, ciała wypływają/spadają; test_water_creatures (22), test_water_game (20). W danych użytkownika 2 ze 131 umieszczeń stworzeń wyłącznie wodnych mają początek do 68,6 j. nad wodą – w OpenMW spadają do wody | – |
 | Aresztowanie przez strażnika, grzywna, więzienie | Nieprzetestowane | do sondy | 
 | Czas świata a zmienne skryptów (GameHour, DaysPassed, Day/Month/Year – DateTimeManager) | Zweryfikowane | fx_corprus, fx_sun: GameHour i DaysPassed jak OpenMW; kalendarz o północy |
 | Zmiana postawy świadków i ofiary za przestępstwo (reportCrime: trwała / modyfikator do spłaty, getFightDispositionBias) | Zweryfikowane | napaść czarem: fx_npc_ai (grzywna 40, postawa −10 jak OpenMW) |
@@ -968,7 +970,9 @@ na VM biblioteka GDExtension nie wczytuje się (glibc 2.38), sonda działa na ś
 * Brak flagi „navmesh + pathgrid” (OpenMW łączy je dla części aktorów); pathgrid tylko, gdy siatki nie ma.
 * Ścieżka częściowa (`partial`) rozpoznawana po odległości końca drogi od celu (32 j. / wzrost aktora), w OpenMW
   zwraca ją Detour.
-* Skrót prosto do celu dla latających/pływających (canActorMoveByZAxis) – niezaimplementowany.
+* Ciało (po śmierci kształt kolizji wyłączony): spadanie do podłoża liczone promieniem w dół zamiast przesuwania
+  kształtu aktora (OpenMW: enableActorCollision(false) wyłącza tylko zderzenia innych z ciałem).
+* Stworzenia latające nadal korzystają z siatki nawigacji NPC, gdy skrót do celu jest zasłonięty.
 * Drzwi: kierunek „na aktora” liczony z kąta skrzydła (środek modelu) zamiast punktu kontaktu i normalnej
   Bullet; dźwięk drzwi bez przesunięcia początku (setSoundOffset).
 * NPC otwierający drzwi uruchamia domyślną akcję drzwi, bez lokalnego `OnActivate` skryptu drzwi.

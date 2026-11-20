@@ -8,26 +8,26 @@ extends CanvasLayer
 signal closed
 
 const OPTIONS := [
-	["audio", "Dźwięk"],
-	["master_volume", "Głośność ogólna", "float", 0.0, 1.0, 0.05, 1.0],
-	["music_volume", "Muzyka", "float", 0.0, 1.0, 0.05, 0.5],
-	["voice_volume", "Głosy", "float", 0.0, 1.0, 0.05, 0.8],
-	["sfx_volume", "Efekty", "float", 0.0, 1.0, 0.05, 1.0],
-	["footsteps_volume", "Kroki", "float", 0.0, 1.0, 0.05, 0.2],
-	["subtitles", "Napisy kwestii", "bool", 0, 0, 0, true],
-	["controls", "Sterowanie"],
-	["mouse_sensitivity", "Czułość myszy", "float", 0.0005, 0.01, 0.0005, 0.0025],
-	["invert_y", "Odwróć oś Y", "bool", 0, 0, 0, false],
-	["fov", "Pole widzenia [°]", "int", 40, 110, 1, 60],
-	["graphics", "Grafika"],
-	["view_distance", "Odległość widzenia [m]", "int", 200, 6000, 100, 1500],
-	["shadows", "Jakość cieni", "choice", ["off", "low", "medium", "high"], 0, 0, "medium"],
-	["water_shader", "Woda z falami (shader)", "bool", 0, 0, 0, true],
-	["fog", "Mgła i pogoda", "bool", 0, 0, 0, true],
-	["vsync", "Synchronizacja pionowa", "bool", 0, 0, 0, true],
-	["max_fps", "Limit FPS (0 = brak)", "int", 0, 360, 10, 0],
+	["audio", "Audio"],
+	["master_volume", "Master", "float", 0.0, 1.0, 0.05, 1.0],
+	["music_volume", "Music", "float", 0.0, 1.0, 0.05, 0.5],
+	["voice_volume", "Voice", "float", 0.0, 1.0, 0.05, 0.8],
+	["sfx_volume", "Effects", "float", 0.0, 1.0, 0.05, 1.0],
+	["footsteps_volume", "Footsteps", "float", 0.0, 1.0, 0.05, 0.2],
+	["subtitles", "Subtitles", "bool", 0, 0, 0, true],
+	["controls", "Controls"],
+	["mouse_sensitivity", "Camera Sensitivity", "float", 0.0005, 0.01, 0.0005, 0.0025],
+	["invert_y", "Invert Y Axis", "bool", 0, 0, 0, false],
+	["fov", "Field of View [°]", "int", 40, 110, 1, 60],
+	["graphics", "Video"],
+	["view_distance", "View Distance [m]", "int", 200, 6000, 100, 1500],
+	["shadows", "Shadows", "choice", ["off", "low", "medium", "high"], 0, 0, "medium"],
+	["water_shader", "Water Shader", "bool", 0, 0, 0, true],
+	["fog", "Fog and Weather", "bool", 0, 0, 0, true],
+	["vsync", "VSync", "bool", 0, 0, 0, true],
+	["max_fps", "Frame Rate Limit (0 = none)", "int", 0, 360, 10, 0],
 ]
-const CHOICE_LABELS := {"off": "wyłączone", "low": "niska", "medium": "średnia", "high": "wysoka"}
+const CHOICE_LABELS := {"off": "Off", "low": "Low", "medium": "Medium", "high": "High"}
 
 var main
 var _root: Control
@@ -87,11 +87,11 @@ func open() -> void:
 	row.alignment = BoxContainer.ALIGNMENT_END
 	box.add_child(row)
 	var cancel := Button.new()
-	cancel.text = "Anuluj"
+	cancel.text = preload("res://scripts/mw/mw_l10n.gd").ctx_text("Interface", "Cancel", "Cancel")
 	cancel.pressed.connect(cancel_changes)
 	row.add_child(cancel)
 	var save := Button.new()
-	save.text = "Zapisz"
+	save.text = "OK"
 	save.pressed.connect(save_and_close)
 	row.add_child(save)
 	visible = true

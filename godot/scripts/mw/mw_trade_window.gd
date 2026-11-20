@@ -164,7 +164,7 @@ func refresh() -> void:
 	(panel.find_child("Clear", true, false) as Button).visible = mode == "barter"
 	match mode:
 		"barter":
-			title.text = "%s – %s" % [_t("sBarter", "Handel"), main.dialogue.actor_name(actor)]
+			title.text = "%s – %s" % [_t("sBarter", "Barter"), main.dialogue.actor_name(actor)]
 			_merchant = trade.merchant_items(actor)
 			_player = trade.player_items(actor)
 			for it in _merchant:
@@ -187,46 +187,46 @@ func refresh() -> void:
 			_barter_labels()
 			var lines := []
 			for id in buy:
-				lines.append("kupujesz: %s × %d" % [_name(id), int(buy[id])])
+				lines.append("buying: %s × %d" % [_name(id), int(buy[id])])
 			for id in sell:
-				lines.append("sprzedajesz: %s × %d" % [_name(id), int(sell[id])])
+				lines.append("selling: %s × %d" % [_name(id), int(sell[id])])
 			basket_label.text = ("\n".join(lines) + "\n" if not lines.is_empty() else "") + \
-				"%s: %d (ujemna – płacisz). Możesz zmienić kwotę i się targować." % [_t("sTotalCost", "Suma"), mo]
-			offer_btn.text = _t("sBarterDialog8", "Oferta")
-			gold_label.text = "%s %d   %s %d" % [_t("sYourGold", "Twoje złoto:"), pg, _t("sSellerGold", "Złoto kupca:"), trade.merchant_gold(actor)]
+				"%s: %d (negative – you pay). You can change the amount and haggle." % [_t("sTotalCost", "Total"), mo]
+			offer_btn.text = _t("sBarterDialog8", "Offer")
+			gold_label.text = "%s %d   %s %d" % [_t("sYourGold", "Your gold:"), pg, _t("sSellerGold", "Seller gold:"), trade.merchant_gold(actor)]
 		"spells":
-			title.text = "%s – %s" % [_t("sSpells", "Zaklęcia"), main.dialogue.actor_name(actor)]
+			title.text = "%s – %s" % [_t("sSpells", "Spells"), main.dialogue.actor_name(actor)]
 			for s in trade.spells_for_sale(actor):
 				left.add_item("%s – %d" % [s.name, int(s.price)])
 				left.set_item_disabled(left.item_count - 1, int(s.price) > pg)
 				_left_ids.append(s.id)
-			basket_label.text = "Kliknij zaklęcie, aby je kupić."
-			gold_label.text = "%s %d" % [_t("sGold", "Złoto:"), pg]
+			basket_label.text = "Click a spell to buy it."
+			gold_label.text = "%s %d" % [_t("sGold", "Gold:"), pg]
 		"training":
-			title.text = "%s – %s" % [_t("sServiceTrainingTitle", "Trening"), main.dialogue.actor_name(actor)]
+			title.text = "%s – %s" % [_t("sServiceTrainingTitle", "Training"), main.dialogue.actor_name(actor)]
 			var names: Array = main.character.skill_names()
 			for o in trade.training_offers(actor):
 				var sid := String(names[int(o.skill)])
 				left.add_item("%s – %d" % [_t("sSkill" + sid.capitalize().replace(" ", ""), sid), int(o.price)])
 				left.set_item_disabled(left.item_count - 1, int(o.price) > pg)
 				_left_ids.append(int(o.skill))
-			basket_label.text = "Trening trwa 2 godziny."
-			gold_label.text = "%s %d" % [_t("sGold", "Złoto:"), pg]
+			basket_label.text = "Training takes 2 hours."
+			gold_label.text = "%s %d" % [_t("sGold", "Gold:"), pg]
 		"travel":
-			title.text = "%s – %s" % [_t("sTravel", "Podróż"), main.dialogue.actor_name(actor)]
+			title.text = "%s – %s" % [_t("sTravel", "Travel"), main.dialogue.actor_name(actor)]
 			for o in trade.travel_offers(actor):
 				left.add_item("%s – %d" % [String(o.name), int(o.price)])
 				left.set_item_disabled(left.item_count - 1, int(o.price) > pg)
 				_left_ids.append(int(o.index))
 			basket_label.text = ""
-			gold_label.text = "%s %d" % [_t("sGold", "Złoto:"), pg]
+			gold_label.text = "%s %d" % [_t("sGold", "Gold:"), pg]
 
 func _entry(it: Dictionary, count: int, src: String, merchant_side: bool, state := "") -> Dictionary:
 	var item: Dictionary = main.interaction.inventory.item(String(it.id))
 	var price: int = trade.barter_offer(actor, trade.item_value(String(it.id), true), merchant_side)
 	return {"id": String(it.id), "count": count, "rec": item.get("rec", {}), "worn": false,
 		"magic": not String(item.get("rec", {}).get("enchant", "")).is_empty(), "state": state, "source": src,
-		"tip": "%s: %d" % [_t("sBarterDialog7", "Cena"), price]}
+		"tip": "%s: %d" % [_t("sBarterDialog7", "Price"), price]}
 
 func _fill_barter_grids() -> void:
 	var mm = main.menu_mode

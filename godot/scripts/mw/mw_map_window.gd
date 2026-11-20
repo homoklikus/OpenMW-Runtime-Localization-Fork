@@ -300,10 +300,10 @@ func known_places() -> Array:
 
 func _build_world() -> void:
 	place_markers = []
-	_title.text = _t("sWorld", "Świat")
+	_title.text = _t("sWorld", "World")
 	if _world_tex == null:
 		var l := Label.new()
-		l.text = "Brak mapy świata – kliknij „Aktualizuj” w launcherze."
+		l.text = "No world map – click \"Update\" in the launcher."
 		_view.add_child(l)
 		return
 	var avail: Vector2 = _view.custom_minimum_size

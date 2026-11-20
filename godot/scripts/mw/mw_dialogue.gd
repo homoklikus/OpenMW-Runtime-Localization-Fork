@@ -1274,7 +1274,7 @@ func set_journal_index(quest: String, index: int) -> void:
 	state.journal[quest.to_lower()] = index
 
 func _notify_journal() -> void:
-	var t := gmst_text("sJournalEntry", "Dziennik zaktualizowany.")
+	var t := gmst_text("sJournalEntry", "Your journal has been updated.")
 	if actor.is_empty():
 		main.show_message_box(t, [])
 	else:

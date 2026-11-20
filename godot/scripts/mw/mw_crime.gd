@@ -578,15 +578,15 @@ func use_tool(node: Node, tool_id: String, kind: String, roll := -1) -> Dictiona
 		unlock_attempted(c.extra, true)
 		res.sound = "Open Lock Fail"
 		if x <= 0.0:
-			res.message = main.dialogue.gmst_text("sLockImpossible", "Ten zamek jest zbyt trudny.")
+			res.message = main.dialogue.gmst_text("sLockImpossible", "This lock is too complex.")
 		elif float(roll if roll >= 0 else _roll()) <= x:
 			main.state.set_lock(String(c.sid), 0)
 			res.ok = true
 			res.sound = "Open Lock"
-			res.message = main.dialogue.gmst_text("sLockSuccess", "Otworzyłeś zamek.")
+			res.message = main.dialogue.gmst_text("sLockSuccess", "You picked the lock.")
 			main.skill_used(18, "security_lock")
 		else:
-			res.message = main.dialogue.gmst_text("sLockFail", "Nie udało się otworzyć zamka.")
+			res.message = main.dialogue.gmst_text("sLockFail", "You failed to pick the lock.")
 	else:
 		if String(c.trap).is_empty():
 			return res
@@ -596,15 +596,15 @@ func use_tool(node: Node, tool_id: String, kind: String, roll := -1) -> Dictiona
 		unlock_attempted(c.extra, true)
 		res.sound = "Disarm Trap Fail"
 		if x <= 0.0:
-			res.message = main.dialogue.gmst_text("sTrapImpossible", "Tej pułapki nie da się rozbroić.")
+			res.message = main.dialogue.gmst_text("sTrapImpossible", "This trap cannot be disarmed.")
 		elif float(roll if roll >= 0 else _roll()) <= x:
 			main.state.set_trap(String(c.sid), "")
 			res.ok = true
 			res.sound = "Disarm Trap"
-			res.message = main.dialogue.gmst_text("sTrapSuccess", "Rozbroiłeś pułapkę.")
+			res.message = main.dialogue.gmst_text("sTrapSuccess", "You disarmed the trap.")
 			main.skill_used(18, "security_trap")
 		else:
-			res.message = main.dialogue.gmst_text("sTrapFail", "Nie udało się rozbroić pułapki.")
+			res.message = main.dialogue.gmst_text("sTrapFail", "You failed to disarm the trap.")
 	# zużycie (stan egzemplarza w ręce – CellRef::charge, „id#c:N”); po ostatnim użyciu przedmiot znika
 	var slot: int = main.equipped_slot_of(tool_id)
 	if slot >= 0:

@@ -32,14 +32,14 @@ const MAX_RECTS := {            # [Windows] <okno> maximized x/y/w/h
 }
 var _pin_layer: CanvasLayer = null      # przypięte okna poza trybem GUI (WindowManager::updateVisible)
 var _pin_t := 0.0
-const CATEGORIES := [["all", "sAllTab", "Wszystko"], ["weapon", "sWeaponTab", "Broń"], ["apparel", "sApparelTab", "Ubiór"],
-	["magic", "sMagicTab", "Magia"], ["misc", "sMiscTab", "Inne"]]
+const CATEGORIES := [["all", "sAllTab", "All"], ["weapon", "sWeaponTab", "Weapon"], ["apparel", "sApparelTab", "Apparel"],
+	["magic", "sMagicTab", "Magic"], ["misc", "sMiscTab", "Misc"]]
 # kolejność typów jak SortFilterItemModel::getTypeOrder
 const TYPE_ORDER := {"weapon": 0, "armor": 1, "clothing": 2, "potion": 3, "ingredient": 4, "apparatus": 5, "book": 6,
 	"light": 7, "misc": 8, "lockpick": 9, "repair": 10, "probe": 11}
 const ATTR_GMST := ["sAttributeStrength", "sAttributeIntelligence", "sAttributeWillpower", "sAttributeAgility",
 	"sAttributeSpeed", "sAttributeEndurance", "sAttributePersonality", "sAttributeLuck"]
-const ATTR_PL := ["Siła", "Inteligencja", "Siła woli", "Zręczność", "Szybkość", "Wytrzymałość", "Osobowość", "Szczęście"]
+const ATTR_EN := ["Strength", "Intelligence", "Willpower", "Agility", "Speed", "Endurance", "Personality", "Luck"]
 const CELL := 42.0
 
 var scale_ui := 1.0
@@ -592,34 +592,34 @@ func _refresh_stats() -> void:
 		return
 	var ch = main.character
 	var d: Dictionary = ch.derived(st)
-	_bar_row(_stat_boxes[0], _t("sHealth", "Zdrowie"), "health", float(st.get("health", 0)), float(d.health.modified))
-	_bar_row(_stat_boxes[0], _t("sMagic", "Magia"), "magic", float(st.get("magicka", 0)), float(d.magicka.modified))
-	_bar_row(_stat_boxes[0], _t("sFatigue", "Kondycja"), "fatigue", float(st.get("fatigue", 0)), float(d.fatigue.modified))
+	_bar_row(_stat_boxes[0], _t("sHealth", "Health"), "health", float(st.get("health", 0)), float(d.health.modified))
+	_bar_row(_stat_boxes[0], _t("sMagic", "Magicka"), "magic", float(st.get("magicka", 0)), float(d.magicka.modified))
+	_bar_row(_stat_boxes[0], _t("sFatigue", "Fatigue"), "fatigue", float(st.get("fatigue", 0)), float(d.fatigue.modified))
 	var prog: Dictionary = st.get("progress", {})
-	var lvl_tip := "%s: %d/10" % [_t("sLevelProgress", "Postęp do awansu"), int(prog.get("level", 0))]
-	_row(_stat_boxes[1], _t("sLevel", "Poziom"), str(int(st.get("level", 1))), lvl_tip, Color(0, 0, 0, 0), 0.0, 0.0, "NormalText")
+	var lvl_tip := "%s: %d/10" % [_t("sLevelProgress", "Level progress"), int(prog.get("level", 0))]
+	_row(_stat_boxes[1], _t("sLevel", "Level"), str(int(st.get("level", 1))), lvl_tip, Color(0, 0, 0, 0), 0.0, 0.0, "NormalText")
 	var lv_gap := Control.new()                     # wiersze HBox w (4, 4), (4, 24), (4, 42)
 	lv_gap.custom_minimum_size.y = 2 * scale_ui
 	_stat_boxes[1].add_child(lv_gap)
 	var race: Dictionary = main.builder.actors.record("race", String(st.get("race", "")))
-	_row(_stat_boxes[1], _t("sRace", "Rasa"), String(race.get("name", st.get("race", ""))), "", Color(0, 0, 0, 0), 0.0, 0.0, "NormalText")
+	_row(_stat_boxes[1], _t("sRace", "Race"), String(race.get("name", st.get("race", ""))), "", Color(0, 0, 0, 0), 0.0, 0.0, "NormalText")
 	var cls: Dictionary = ch._class_of(st)
-	_row(_stat_boxes[1], _t("sClass", "Klasa"), String(cls.get("name", st.get("class", ""))), "", Color(0, 0, 0, 0), 0.0, 0.0, "NormalText")
+	_row(_stat_boxes[1], _t("sClass", "Class"), String(cls.get("name", st.get("class", ""))), "", Color(0, 0, 0, 0), 0.0, 0.0, "NormalText")
 	var base_a: Array = st.get("attributes", [])
 	for i in 8:
 		var b := float(base_a[i]) if i < base_a.size() else 0.0
 		var m := float(d.attributes[i])
-		_row(_stat_boxes[2], _t(ATTR_GMST[i], ATTR_PL[i]), str(int(m)), "", _val_color(b, m))
+		_row(_stat_boxes[2], _t(ATTR_GMST[i], ATTR_EN[i]), str(int(m)), "", _val_color(b, m))
 	# umiejętności
 	var names: Array = main.builder.actors.records_index().get("skills", [])
 	var major: Array = cls.get("major_skills", [])
 	var minor: Array = cls.get("minor_skills", [])
-	var groups := [["sSkillClassMajor", "Umiejętności główne", major], ["sSkillClassMinor", "Umiejętności poboczne", minor]]
+	var groups := [["sSkillClassMajor", "Major Skills", major], ["sSkillClassMinor", "Minor Skills", minor]]
 	var misc := []
 	for i in 27:
 		if not (i in major or float(i) in major) and not (i in minor or float(i) in minor):
 			misc.append(i)
-	groups.append(["sSkillClassMisc", "Pozostałe umiejętności", misc])
+	groups.append(["sSkillClassMisc", "Misc Skills", misc])
 	var base_s: Array = st.get("skills", [])
 	var sprog: Array = prog.get("skills", [])
 	for g in groups:
@@ -632,12 +632,12 @@ func _refresh_stats() -> void:
 			var b2 := float(base_s[i]) if i < base_s.size() else 0.0
 			var m2 := float(d.skills[i])
 			var req: float = ch.skill_requirement(st, i)
-			var tip := "%s: %d/%d" % [_t("sSkillProgress", "Postęp"), int(float(sprog[i]) if i < sprog.size() else 0.0), int(req)]
+			var tip := "%s: %d/%d" % [_t("sSkillProgress", "Progress"), int(float(sprog[i]) if i < sprog.size() else 0.0), int(req)]
 			_row(_stat_right, _t("sSkill" + sid.capitalize().replace(" ", ""), sid.capitalize()), str(int(m2)), tip, _val_color(b2, m2), 10.0, 12.0)
 		_stat_right.add_child(_hline())
 	var facs: Dictionary = st.get("factions", {})
 	if not facs.is_empty():
-		_stat_right.add_child(_group(UI.header(_t("sFaction", "Frakcje"))))
+		_stat_right.add_child(_group(UI.header(_t("sFaction", "Factions"))))
 		for fid in facs:
 			var fr: Dictionary = main.builder.actors.record("faction", String(fid))
 			if bool(fr.get("hidden", false)):
@@ -651,9 +651,9 @@ func _refresh_stats() -> void:
 		_stat_right.add_child(_hline())
 	var sign: Dictionary = main.builder.actors.record("birthsign", String(st.get("birthsign", "")))
 	if not sign.is_empty():
-		_row(_stat_right, _t("sBirthSign", "Znak urodzenia"), String(sign.get("name", "")), "", Color(0, 0, 0, 0), 10.0, 12.0)
-	_row(_stat_right, _t("sReputation", "Reputacja"), str(int(st.get("reputation", 0))), "", Color(0, 0, 0, 0), 10.0, 12.0)
-	_row(_stat_right, _t("sBounty", "Grzywna"), str(int(st.get("bounty", 0))), "", Color(0, 0, 0, 0), 10.0, 12.0)
+		_row(_stat_right, _t("sBirthSign", "Birthsign"), String(sign.get("name", "")), "", Color(0, 0, 0, 0), 10.0, 12.0)
+	_row(_stat_right, _t("sReputation", "Reputation"), str(int(st.get("reputation", 0))), "", Color(0, 0, 0, 0), 10.0, 12.0)
+	_row(_stat_right, _t("sBounty", "Bounty"), str(int(st.get("bounty", 0))), "", Color(0, 0, 0, 0), 10.0, 12.0)
 
 # --- ekwipunek ------------------------------------------------------------------------------------------
 
@@ -1233,7 +1233,7 @@ func put_item(id: String) -> void:
 		var w: float = inv.total_weight(inv.contents(cont_sid, cont_rec)) + float(it.get("rec", {}).get("weight", 0.0)) * n
 		if w > cap + 0.001:
 			if main.has_method("_toast"):
-				main._toast(_t("sContentsMessage3", "Nie ma tu wystarczająco miejsca."))
+				main._toast(_t("sContentsMessage3", "There is not enough room here."))
 			return
 	if main.interaction.move("player", {}, cont_sid, cont_rec, id, n) > 0 and main.get("audio") != null:
 		main.audio.play(main.interaction.item_sound(id, false))
@@ -1294,13 +1294,13 @@ func item_tooltip(id: String) -> String:
 		"weapon":
 			var t := int(rec.get("weapon_type", 0))
 			if t in [9, 10, 11, 12, 13]:
-				lines.append("%s: %d – %d" % [_t("sAttack", "Atak"), int(rec.get("chop_min", 0)), int(rec.get("chop_max", 0))])
+				lines.append("%s: %d – %d" % [_t("sAttack", "Attack"), int(rec.get("chop_min", 0)), int(rec.get("chop_max", 0))])
 			else:
-				lines.append("%s: %d – %d" % [_t("sChop", "Cięcie"), int(rec.get("chop_min", 0)), int(rec.get("chop_max", 0))])
-				lines.append("%s: %d – %d" % [_t("sSlash", "Zamach"), int(rec.get("slash_min", 0)), int(rec.get("slash_max", 0))])
-				lines.append("%s: %d – %d" % [_t("sThrust", "Pchnięcie"), int(rec.get("thrust_min", 0)), int(rec.get("thrust_max", 0))])
+				lines.append("%s: %d – %d" % [_t("sChop", "Chop"), int(rec.get("chop_min", 0)), int(rec.get("chop_max", 0))])
+				lines.append("%s: %d – %d" % [_t("sSlash", "Slash"), int(rec.get("slash_min", 0)), int(rec.get("slash_max", 0))])
+				lines.append("%s: %d – %d" % [_t("sThrust", "Thrust"), int(rec.get("thrust_min", 0)), int(rec.get("thrust_max", 0))])
 		"armor":
-			lines.append("%s: %d" % [_t("sArmorRating", "Pancerz"), int(rec.get("armor", 0))])
+			lines.append("%s: %d" % [_t("sArmorRating", "Armor Rating"), int(rec.get("armor", 0))])
 	var inv = main.interaction.inventory
 	var mxc: float = inv.max_charge(rec)
 	if mxc > 0.0 and String(it.kind) in ["weapon", "armor"]:
@@ -1309,8 +1309,8 @@ func item_tooltip(id: String) -> String:
 	elif mxc > 0.0 and String(it.kind) in ["lockpick", "probe", "repair"]:
 		lines.append("%s: %d" % [_t("sUses", "Uses"), int(inv.item_charge(id))])
 		lines.append("%s: %s" % [_t("sQuality", "Quality"), str(snappedf(float(rec.get("quality", 0.0)), 0.01))])
-	lines.append("%s: %s" % [_t("sWeight", "Waga"), str(snappedf(float(rec.get("weight", 0)), 0.01))])
-	lines.append("%s: %d" % [_t("sValue", "Wartość"), int(rec.get("value", 0))])
+	lines.append("%s: %s" % [_t("sWeight", "Weight"), str(snappedf(float(rec.get("weight", 0)), 0.01))])
+	lines.append("%s: %d" % [_t("sValue", "Value"), int(rec.get("value", 0))])
 	if main.get("magic") != null:
 		var en: Dictionary = main.magic.item_enchantment(it)
 		var effects: Array = en.get("effects", []) if not en.is_empty() else rec.get("effects", [])
@@ -1517,13 +1517,13 @@ func _refresh_spells() -> void:
 	powers.sort_custom(by_name)
 	spells.sort_custom(by_name)
 	if not powers.is_empty():
-		_spell_list.add_child(UI.header(_t("sPowers", "Moce")))
+		_spell_list.add_child(UI.header(_t("sPowers", "Powers")))
 		for p in powers:
 			_spell_button(String(p[1].get("name", p[0])), "" if magic.can_use_power(me, p[0]) else "–", "spell", p[0],
 				sel.get("kind") == "spell" and sel.get("id") == p[0])
 	if not spells.is_empty():
-		_spell_list.add_child(UI.header(_t("sSpells", "Zaklęcia")))
-		var cc := "%s/%s" % [_t("sCostCharge", "Koszt"), _t("sChance", "Szansa")]
+		_spell_list.add_child(UI.header(_t("sSpells", "Spells")))
+		var cc := "%s/%s" % [_t("sCostCharge", "Cost"), _t("sChance", "Chance")]
 		for p in spells:
 			_spell_button(String(p[1].get("name", p[0])), "%d/%d" % [magic.spell_cost(p[1]), int(magic.spell_chance(p[1], me))],
 				"spell", p[0], sel.get("kind") == "spell" and sel.get("id") == p[0], cc)
@@ -1543,7 +1543,7 @@ func _refresh_spells() -> void:
 	if not flt.is_empty():
 		items = items.filter(func(x): return String(x[1]).to_lower().contains(flt))
 	if not items.is_empty():
-		_spell_list.add_child(UI.header(_t("sMagicItem", "Przedmioty magiczne")))
+		_spell_list.add_child(UI.header(_t("sMagicItem", "Magic Items")))
 		for x in items:
 			_spell_button(x[1], x[2], "item", x[0], sel.get("kind") == "item" and sel.get("id") == x[0])
 

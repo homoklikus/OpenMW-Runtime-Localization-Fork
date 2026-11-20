@@ -249,7 +249,7 @@ func _sync_spell_store(f: Dictionary) -> void:
 					_mod_adjust(f, "attributes" if id2 == FX_FORTIFY_ATTRIBUTE else "skills",
 						int(we.attribute) if id2 == FX_FORTIFY_ATTRIBUTE else int(we.skill), wm)
 			if f.kind == "player":
-				main._toast(_text("sMagicCorprusWorsens", "Korpus postępuje."), 3.0)
+				main._toast(_text("sMagicCorprusWorsens", "Your Corprus worsens."), 3.0)
 	for sid in store.keys():
 		if have.has(sid):
 			continue
@@ -824,9 +824,9 @@ func inflict(target: Dictionary, caster: Dictionary, source: Dictionary, list: A
 			if mult <= 0.0:
 				res.resisted += 1
 				if target.kind == "player":
-					main._toast(_text("sMagicPCResisted", "Oparłeś się zaklęciu."), 2.0)
+					main._toast(_text("sMagicPCResisted", "You resisted the spell."), 2.0)
 				elif not caster.is_empty() and caster.kind == "player":
-					main._toast(_text("sMagicTargetResisted", "Cel oparł się zaklęciu."), 2.0)
+					main._toast(_text("sMagicTargetResisted", "The target resisted the spell."), 2.0)
 				continue
 			if not _flag(mg, "no_magnitude"):
 				ae.min *= mult
@@ -943,11 +943,11 @@ func _should_remove(f: Dictionary, e: Dictionary) -> bool:
 	var id := int(e.effect)
 	if id == FX_LEVITATE and not levitation_enabled():
 		if f.kind == "player" and float(e.get("magnitude", 0.0)) >= 0.0:
-			main._toast(_text("sLevitateDisabled", "Lewitacja jest tu niemożliwa."), 2.0)
+			main._toast(_text("sLevitateDisabled", "Levitation is not possible here."), 2.0)
 		return true
 	if id == FX_WATER_WALKING and not bool(e.get("applied", false)) and not water_walking_castable(f):
 		if f.kind == "player":
-			main._toast(_text("sMagicInvalidEffect", "Nie można rzucić tego zaklęcia."), 2.0)
+			main._toast(_text("sMagicInvalidEffect", "This spell cannot be cast."), 2.0)
 		return true
 	return false
 
@@ -1183,7 +1183,7 @@ func _actor_effect(f: Dictionary, entry: Dictionary, e: Dictionary, amount: floa
 		FX_MARK, FX_RECALL:
 			# DisableTeleporting (World::isTeleportingEnabled): Znakowanie/Przywołanie nie działają, komunikat
 			if f.kind == "player" and not bool(main.state.player.get("teleport_enabled", true)):
-				main._toast(main.dialogue.gmst_text("sTeleportDisabled", "Teleportacja jest tu niemożliwa.") if main.dialogue != null else "")
+				main._toast(main.dialogue.gmst_text("sTeleportDisabled", "Teleportation is not possible here.") if main.dialogue != null else "")
 			elif id == FX_MARK and f.kind == "player":
 				# Player::markPosition: komórka i pozycja z obrotem (Recall – ActionTeleport do tej pozycji)
 				main.state.player["mark"] = {"interior": main.interior, "pos": main.position_string(),
@@ -1194,7 +1194,7 @@ func _actor_effect(f: Dictionary, entry: Dictionary, e: Dictionary, amount: floa
 			# tylko gracz (applyActorMagicEffect); teleportToClosestMarker „divinemarker”/„templemarker”
 			if f.kind == "player":
 				if not bool(main.state.player.get("teleport_enabled", true)):
-					main._toast(_text("sTeleportDisabled", "Teleportacja jest tu niemożliwa."))
+					main._toast(_text("sTeleportDisabled", "Teleportation is not possible here."))
 				elif main.crime != null:
 					main.crime.teleport_to_marker("divinemarker" if id == FX_DIVINE else "templemarker")
 		49, 50, 51, 52, 53, 54, 55, 56:
@@ -1752,17 +1752,17 @@ func _fail_sound(school: int) -> void:
 func cast_spell(caster: Dictionary, spell_id: String, touch := {}, roll := -1) -> Dictionary:
 	var sp: Dictionary = records.record("spell", spell_id.to_lower())
 	if sp.is_empty():
-		return {"success": false, "message": "Nieznane zaklęcie."}
+		return {"success": false, "message": "Unknown spell."}
 	var typ := int(sp.get("spell_type", 0))
 	if typ != SPELL_SPELL and typ != SPELL_POWER:
-		return {"success": false, "message": "Tego nie można rzucić."}
+		return {"success": false, "message": _text("sMagicInvalidEffect", "This spell cannot be cast.")}
 	var cost := spell_cost(sp) if typ == SPELL_SPELL else 0
 	var base := spell_base_chance(sp, caster)
 	var school := int(base.school)
 	if typ == SPELL_SPELL and magicka(caster) < float(cost):
-		return {"success": false, "cost": cost, "message": _text("sMagicInsufficientSP", "Za mało magii.")}
+		return {"success": false, "cost": cost, "message": _text("sMagicInsufficientSP", "You do not have enough magicka.")}
 	if typ == SPELL_POWER and not can_use_power(caster, spell_id):
-		return {"success": false, "message": _text("sPowerAlreadyUsed", "Tej mocy już dziś użyłeś.")}
+		return {"success": false, "message": _text("sPowerAlreadyUsed", "You have already used this power today.")}
 	break_invisibility(caster)               # CharacterController: rzucanie (także nieudane) zdejmuje niewidzialność
 	if cost > 0:
 		set_magicka(caster, magicka(caster) - float(cost))
@@ -1771,7 +1771,7 @@ func cast_spell(caster: Dictionary, spell_id: String, touch := {}, roll := -1) -
 	if float(r) >= chance:
 		_fail_sound(school)
 		return {"success": false, "chance": chance, "cost": cost, "school": school,
-			"message": _text("sMagicSkillFail", "Nie udało ci się rzucić zaklęcia.")}
+			"message": _text("sMagicSkillFail", "You failed to cast the spell.")}
 	if typ == SPELL_POWER:
 		var h := holder(caster)
 		if not h.get("powers_used") is Dictionary:
@@ -1851,7 +1851,7 @@ func eat(f: Dictionary, id: String, roll := -1) -> Dictionary:
 		main.skill_used(SK_ALCHEMY, "alchemy_use")
 	var e := ingredient_effect(f, it.rec, roll)
 	if e.is_empty():
-		var msg := _text("sNotifyMessage50", "%s nie działa na ciebie.").replace("%s", String(it.rec.get("name", it.id)))
+		var msg := _text("sNotifyMessage50", "%s has no effect on you.").replace("%s", String(it.rec.get("name", it.id)))
 		return {"success": true, "effect": {}, "message": msg}
 	break_invisibility(f)
 	inflict(f, f, {"id": it.id, "name": String(it.rec.get("name", it.id)), "kind": "ingredient"}, [e])
@@ -2144,10 +2144,10 @@ func use_item(caster: Dictionary, id: String, touch := {}) -> Dictionary:
 	var it: Dictionary = main.interaction.inventory.item(id)
 	var en := item_enchantment(it)
 	if en.is_empty():
-		return {"success": false, "message": "Ten przedmiot nie jest zaklęty."}
+		return {"success": false, "message": "This item is not enchanted."}
 	var typ := int(en.get("type", -1))
 	if typ != ENCH_WHEN_USED and typ != ENCH_CAST_ONCE:
-		return {"success": false, "message": "Tego zaklęcia nie można użyć."}
+		return {"success": false, "message": _text("sMagicInvalidEffect", "This spell cannot be cast.")}
 	var sid := "player" if caster.kind == "player" else String(caster.sid)
 	break_invisibility(caster)               # użycie zaklętego przedmiotu (castSpell)
 	if typ == ENCH_WHEN_USED:
@@ -2155,7 +2155,7 @@ func use_item(caster: Dictionary, id: String, touch := {}) -> Dictionary:
 		var ch := item_charge(caster, it.id, en)
 		if ch < float(cost):
 			_fail_sound(school_skill(int((en.get("effects", [{}]) as Array)[0].get("effect", -1))) if not (en.get("effects", []) as Array).is_empty() else 11)
-			return {"success": false, "message": _text("sMagicInsufficientCharge", "Przedmiot ma za mało ładunku.")}
+			return {"success": false, "message": _text("sMagicInsufficientCharge", "The item does not have enough charge.")}
 		_set_item_charge(caster, it.id, ch - float(cost))
 		if caster.kind == "player":
 			main.skill_used(SK_ENCHANT, "enchant_use")
@@ -2179,7 +2179,7 @@ func on_strike(att: Dictionary, vic: Dictionary, w: Dictionary, projectile := fa
 		var ch := item_charge(att, w.id, en)
 		if ch < float(cost):
 			if att.kind == "player":
-				main._toast(_text("sMagicInsufficientCharge", "Przedmiot ma za mało ładunku."), 2.0)
+				main._toast(_text("sMagicInsufficientCharge", "The item does not have enough charge."), 2.0)
 			return false
 		_set_item_charge(att, w.id, ch - float(cost))
 		if att.kind == "player":
@@ -2234,7 +2234,7 @@ func soul_trap(victim: Dictionary) -> String:
 	var filled := best + "@" + String(victim.base)
 	main.interaction.inventory.remove("player", {}, best, 1)
 	main.interaction.inventory.add("player", {}, filled, 1)
-	main._toast(_text("sSoultrapSuccess", "Uwięziłeś duszę."), 2.0)
+	main._toast(_text("sSoultrapSuccess", "You trapped a soul."), 2.0)
 	if main.audio != null:
 		main.audio.play("conjuration hit")
 	return filled

@@ -87,14 +87,14 @@ func _run() -> void:
 	main.state.set_lock(chest_sid, 25)
 	chest = _ref(main, "synth_chest")
 	var r: Dictionary = it.activate(chest)
-	check(r.action == "locked" and String(r.message).contains("Zamknięte") and r.get("sound") == "LockedChest"
-			and it.hint(chest).contains("poziom 25"), "zamknięty pojemnik bez klucza")
+	check(r.action == "locked" and String(r.message).is_empty() and r.get("sound") == "LockedChest"
+			and it.hint(chest).contains("Lock Level: 25"), "zamknięty pojemnik bez klucza: tylko dźwięk (FailedAction), w podpowiedzi #{sLockLevel} (%s)" % it.hint(chest))
 	main.state.set_lock(chest_sid, 0)
 	main.state.set_trap(chest_sid, "trap_fire00")
 	chest = _ref(main, "synth_chest")
 	r = it.activate(chest)
-	check(r.action == "open_container" and String(r.message).contains("pułapkę") and it.trap(_ref(main, "synth_chest")) == "",
-			"pułapka uruchomiona i rozbrojona")
+	check(r.action == "open_container" and String(r.message).is_empty() and it.trap(_ref(main, "synth_chest")) == "",
+			"pułapka uruchomiona i rozbrojona (bez komunikatu – działa czar)")
 	# odłóż na ziemię → referencja dynamiczna, podniesienie jej z powrotem
 	it.inventory.add("player", {}, "misc_synth_spoon", 2)
 	var dsid: String = main.drop_item("misc_synth_spoon", 2)

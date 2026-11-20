@@ -57,15 +57,15 @@ func service_entries(a: Dictionary) -> Array:
 	var s := services(a)
 	var out := []
 	if s & ALL_ITEMS:
-		out.append(["barter", _dl().gmst_text("sBarter", "Handel")])
+		out.append(["barter", _dl().gmst_text("sBarter", "Barter")])
 	if s & SVC_SPELLS:
-		out.append(["spells", _dl().gmst_text("sSpells", "Zaklęcia")])
+		out.append(["spells", _dl().gmst_text("sSpells", "Spells")])
 	if has_travel(a):
-		out.append(["travel", _dl().gmst_text("sTravel", "Podróż")])
+		out.append(["travel", _dl().gmst_text("sTravel", "Travel")])
 	if s & SVC_SPELLMAKING:
 		out.append(["spellmaking", _dl().gmst_text("sSpellmakingMenuTitle", "Spellmaking")])
 	if s & SVC_ENCHANTING:
-		out.append(["enchanting", _dl().gmst_text("sEnchanting", "Zaklinanie")])
+		out.append(["enchanting", _dl().gmst_text("sEnchanting", "Enchanting")])
 	if s & SVC_TRAINING:
 		out.append(["training", _dl().gmst_text("sServiceTrainingTitle", "Training")])
 	if s & SVC_REPAIR:
@@ -86,7 +86,7 @@ func refused(service: String) -> bool:
 		if not l.is_empty():
 			var info: Dictionary = l[0][1]
 			dl.add_topics_from_text(String(info.get("text", "")))
-			dl.history.append({"kind": "response", "title": dl.gmst_text("sServiceRefusal", "Odmowa"),
+			dl.history.append({"kind": "response", "title": dl.gmst_text("sServiceRefusal", "Refusal"),
 				"text": dl.info_text("service refusal", info, a)})
 			dl._run_result(info)
 			return true
@@ -287,11 +287,11 @@ func haggle(a: Dictionary, player_offer: int, merch_offer: int, roll := -1) -> D
 ## balance – oferta gracza (dodatnia: kupiec płaci). → {ok, message}
 func offer(a: Dictionary, buy: Dictionary, sell: Dictionary, balance: int, roll := -1) -> Dictionary:
 	if buy.is_empty() and sell.is_empty():
-		return {"ok": false, "message": _dl().gmst_text("sBarterDialog11", "Nic nie wybrano.")}
+		return {"ok": false, "message": _dl().gmst_text("sBarterDialog11", "Nothing is selected.")}
 	if balance < 0 and player_gold() < -balance:
-		return {"ok": false, "message": _dl().gmst_text("sBarterDialog1", "Nie masz dość złota.")}
+		return {"ok": false, "message": _dl().gmst_text("sBarterDialog1", "You do not have enough gold.")}
 	if balance > 0 and merchant_gold(a) < balance:
-		return {"ok": false, "message": _dl().gmst_text("sBarterDialog2", "Kupiec nie ma dość złota.")}
+		return {"ok": false, "message": _dl().gmst_text("sBarterDialog2", "The merchant does not have enough gold.")}
 	var mo := merchant_offer(a, buy, sell)
 	var h := haggle(a, balance, mo, roll)
 	if a.npc:
@@ -301,7 +301,7 @@ func offer(a: Dictionary, buy: Dictionary, sell: Dictionary, balance: int, roll 
 		dl.current_disp += delta
 		dl.set_base_disposition(a, dl.current_disp)
 	if not bool(h.ok):
-		return {"ok": false, "message": _dl().gmst_text("sNotifyMessage9", "Kupiec odrzucił ofertę.")}
+		return {"ok": false, "message": _dl().gmst_text("sNotifyMessage9", "The merchant refused your offer.")}
 	var inv = main.interaction.inventory
 	for id in buy:
 		var left := int(buy[id])
@@ -374,11 +374,11 @@ func train(a: Dictionary, skill: int) -> Dictionary:
 		if int(o.price) > player_gold():
 			return {"ok": false, "message": ""}
 		if float(o.value) <= float(st.skills[skill]):
-			return {"ok": false, "message": _dl().gmst_text("sServiceTrainingWords", "Nie mogę cię już niczego nauczyć.")}
+			return {"ok": false, "message": _dl().gmst_text("sServiceTrainingWords", "I cannot teach you anything more.")}
 		var srec: Dictionary = records.record("skill", String(main.character.skill_names()[skill]))
 		var attr := int(srec.get("attribute", -1))
 		if attr >= 0 and float(st.skills[skill]) >= float(main.character.derived(st).attributes[attr]):
-			return {"ok": false, "message": _dl().gmst_text("sNotifyMessage17", "Atrybut nadrzędny jest za niski.")}
+			return {"ok": false, "message": _dl().gmst_text("sNotifyMessage17", "Your governing attribute is too low.")}
 		for m in main.character.skill_level_up(st, skill, "trainer"):
 			main._skill_message(m)
 		main.interaction.inventory.remove("player", {}, "gold_001", int(o.price))

@@ -14,6 +14,7 @@ var envr: MWEnvironment
 var hud: RichTextLabel
 ## preload zamiast class_name: gra działa też bez ponownego importu projektu po aktualizacji skryptów
 const Loc := preload("res://scripts/mw/mw_localization.gd")
+const L10n := preload("res://scripts/mw/mw_l10n.gd")
 const Flora := preload("res://scripts/mw/mw_flora.gd")
 const GameStateScript := preload("res://scripts/mw/mw_game_state.gd")
 const Events := preload("res://scripts/mw/mw_events.gd")
@@ -267,7 +268,7 @@ func _ready() -> void:
 	add_child(menu_mode)
 	if db.cell_index().is_empty():
 		push_error("Brak danych świata w %s – uruchom konwerter (README)." % data)
-		_add_message("Brak danych świata w:\n%s\nUruchom konwerter mwconv (patrz docs/DEBIAN13.md)." % data)
+		_add_message("No world data in:\n%s\nRun the mwconv converter (see docs/DEBIAN13.md)." % data)
 		if launched_by_launcher:
 			printerr("MWGODOT_ERROR brak danych świata: ", data)
 			get_tree().quit(2)  # launcher pokaże błąd z kodem wyjścia
@@ -443,7 +444,7 @@ func _on_chargen_step(step: String, ch: Dictionary) -> void:
 	state.player["chargen_flags"] = flags
 	var st: Dictionary = character.build(merged, flags)
 	if String(st.get("name", "")).is_empty():
-		st["name"] = String(old.get("name", "")) if not String(old.get("name", "")).is_empty() else "Przybysz"
+		st["name"] = String(old.get("name", "")) if not String(old.get("name", "")).is_empty() else "Outlander"
 	state.player["character"] = st
 	_reequip_player(String(st.get("race", "")))
 	_rebuild_player_visual()
@@ -610,12 +611,12 @@ func _skill_message(m: Dictionary) -> void:
 		var gm := "sSkill" + sid.capitalize().replace(" ", "")
 		if dialogue != null:
 			sname = dialogue.gmst_text(gm, sid)
-		var tmpl: String = dialogue.gmst_text("sNotifyMessage39", "Twoja umiejętność %s wzrosła do %d.") if dialogue != null else "%s: %d"
+		var tmpl: String = dialogue.gmst_text("sNotifyMessage39", "Your %s skill increased to %d.") if dialogue != null else "%s: %d"
 		_toast(tmpl.replace("%s", sname).replace("%d", str(int(m.level))) if tmpl.contains("%s") else "%s: %d" % [sname, int(m.level)])
 		if audio != null:
 			audio.play("skillraise")
 	elif m.kind == "levelup_ready":
-		_toast(dialogue.gmst_text("sLevelUpMsg", "Powinieneś odpocząć i przemyśleć to, czego się nauczyłeś.") if dialogue != null else "Awans po odpoczynku.")
+		_toast(dialogue.gmst_text("sLevelUpMsg", "You should rest and reflect on what you have learned.") if dialogue != null else "Rest to level up.")
 
 func _on_player_jumped() -> void:
 	var st := player_stats()
@@ -725,10 +726,10 @@ func equip_item(id: String, resolve := true) -> String:
 				k = String(e.id)
 				break
 	if interaction.inventory.count_of("player", {}, k) <= 0:
-		return "Nie masz tego przedmiotu."
+		return "You do not have this item."
 	var slots := item_slots(k)
 	if slots.is_empty():
-		return "Tego przedmiotu nie można założyć."
+		return "This item cannot be equipped."
 	var eq := _equipment()
 	var slot: int = slots[0]
 	if slots.size() > 1 and eq.has(str(slots[0])) and not eq.has(str(slots[1])):
@@ -863,7 +864,7 @@ func _shoot(att: Dictionary, w: Dictionary, wt: int, strength: float) -> Diction
 	if wt != 11:
 		var a: Dictionary = combat.equipment(att).get(EQ.SLOT_AMMUNITION, {})
 		if a.is_empty() or int(a.rec.get("weapon_type", -1)) != (12 if wt == 9 else 13):
-			_toast(dialogue.gmst_text("sNotifyMessage60", "Brak amunicji."))
+			_toast(dialogue.gmst_text("sNotifyMessage60", "You have no ammunition."))
 			return {"success": false, "no_ammo": true}
 		ammo = a
 	interaction.inventory.remove("player", {}, String(ammo.id), 1)
@@ -1208,7 +1209,7 @@ func player_cast(roll := -1) -> Dictionary:
 		return {"success": false}                 # powalony gracz nie rzuca czarów
 	var sel := selected_magic()
 	if sel.is_empty():
-		_toast(dialogue.gmst_text("sNoSpellSelected", "Nie wybrano zaklęcia.") if dialogue != null else "Nie wybrano zaklęcia.", 2.0)
+		_toast(dialogue.gmst_text("sNoSpellSelected", "No spell selected.") if dialogue != null else "No spell selected.", 2.0)
 		return {"success": false}
 	var me: Dictionary = combat.player_fighter()
 	var touch := melee_target(float(combat._gmst("fCombatDistance", 128.0)))
@@ -1274,7 +1275,7 @@ func _lock_effect(node: Node, e: Dictionary, caster_is_player := true) -> bool:
 			if lvl > 0:
 				state.set_lock(sid, 0)
 				if caster_is_player:
-					_toast(dialogue.gmst_text("sMagicOpenSuccess", "Zamek otwarty."), 2.0)
+					_toast(dialogue.gmst_text("sMagicOpenSuccess", "The lock is open."), 2.0)
 				if audio != null:
 					audio.play("Open Lock")
 		elif audio != null:
@@ -1282,7 +1283,7 @@ func _lock_effect(node: Node, e: Dictionary, caster_is_player := true) -> bool:
 	elif lvl < mag:
 		state.set_lock(sid, mag)
 		if caster_is_player:
-			_toast(dialogue.gmst_text("sMagicLockSuccess", "Zamek zamknięty."), 2.0)
+			_toast(dialogue.gmst_text("sMagicLockSuccess", "The lock is closed."), 2.0)
 		if audio != null:
 			audio.play("Open Lock")
 	return true
@@ -1376,7 +1377,8 @@ func ask_load_recent() -> void:
 	var h = saves.read_header(last_savegame) if saves != null else null
 	if h != null:
 		desc = String(h.get("description", desc))
-	show_message_box("Ostatni zapis to ''%s''. Czy chcesz go wczytać?" % desc, ["Tak", "Nie"], func(i):
+	show_message_box(L10n.text("AskLoadLastSave", "The most recent save is ''{save}''. Do you want to load it?", {"save": desc}),
+			[dialogue.gmst_text("sYes", "Yes") if dialogue != null else "Yes", dialogue.gmst_text("sNo", "No") if dialogue != null else "No"], func(i):
 		if i == 0:
 			load_slot(saves.current, last_savegame)
 		else:
@@ -1826,7 +1828,7 @@ func _process(_d: float) -> void:
 		# podpowiedź tylko dla tego, co klawisz E faktycznie obsługuje (drzwi, przedmioty, pojemniki)
 		var h: String = interaction.hint(r) if r and interaction != null else ""
 		if h.is_empty() and r and dialogue != null and dialogue.is_actor_node(r) and dialogue.available():
-			h = "Rozmawiaj: " + dialogue.actor_name(dialogue.make_actor(r))
+			h = dialogue.actor_name(dialogue.make_actor(r))     # ToolTips::getToolTipViaPtr: aktor – sama nazwa
 		if not h.is_empty():
 			hint = "\n[lb]E] %s" % Loc.escape_bbcode(h)
 		_focus_hint = h if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or DisplayServer.get_name() == "headless" else ""
@@ -1834,16 +1836,16 @@ func _process(_d: float) -> void:
 	var pst := player_stats()
 	if not pst.is_empty() and character != null:
 		var dd: Dictionary = character.derived(pst)
-		stats_line = "\n%s  |  zdrowie %d/%d  |  magia %d/%d  |  kondycja %d/%d" % [Loc.escape_bbcode(String(pst.get("name", ""))),
+		stats_line = "\n%s  |  health %d/%d  |  magicka %d/%d  |  fatigue %d/%d" % [Loc.escape_bbcode(String(pst.get("name", ""))),
 				roundi(float(pst.get("health", 0))), roundi(dd.health.modified), roundi(float(pst.get("magicka", 0))),
 				roundi(dd.magicka.modified), roundi(float(pst.get("fatigue", 0))), roundi(dd.fatigue.modified)]
 		var sm := selected_magic_name()
 		if not sm.is_empty():
-			stats_line += "  |  %s: %s" % ["magia gotowa" if magic_ready else "[lb]R] magia", Loc.escape_bbcode(sm)]
+			stats_line += "  |  %s: %s" % ["magic ready" if magic_ready else "[lb]R] magic", Loc.escape_bbcode(sm)]
 		elif weapon_drawn:
-			stats_line += "  |  broń dobyta"
+			stats_line += "  |  weapon drawn"
 	var rname := display_location()
-	hud.text = "%s  |  dzień %d, %02d:%02d  |  %s%s%s" % [rname, envr.day + 1, int(envr.game_hour), int(fmod(envr.game_hour, 1.0) * 60), envr.weather, coords_text() + stats_line, hint]
+	hud.text = "%s  |  day %d, %02d:%02d  |  %s%s%s" % [rname, envr.day + 1, int(envr.game_hour), int(fmod(envr.game_hour, 1.0) * 60), envr.weather, coords_text() + stats_line, hint]
 	_perf_mark("hud")
 	_perf_report(_d)
 
@@ -1930,11 +1932,11 @@ func coords_text() -> String:
 	var cell := ""
 	if interior.is_empty():
 		var g := MWCoords.cell_of(player.global_position)
-		cell = "komórka %d,%d" % [g.x, g.y]
+		cell = "cell %d,%d" % [g.x, g.y]
 	else:
-		cell = "wnętrze „%s”" % interior
+		cell = "interior \"%s\"" % interior
 	var yaw := fposmod(-rad_to_deg(player.rotation.y), 360.0)
-	return "\n%s  |  pozycja %s  |  kierunek %d°  [lb]F3 ukryj, F4 kopiuj]" % [Loc.escape_bbcode(cell), position_string(), roundi(yaw)]
+	return "\n%s  |  position %s  |  heading %d°  [lb]F3 hide, F4 copy]" % [Loc.escape_bbcode(cell), position_string(), roundi(yaw)]
 
 func _unhandled_input(e: InputEvent) -> void:
 	if game_state == "nogame":
@@ -2137,7 +2139,7 @@ func read_book(id: String, node: Node = null) -> bool:
 	if rec.is_empty():
 		return false
 	if node == null and _player_in_combat():
-		_toast(dialogue.gmst_text("sInventoryMessage4", "Nie możesz tego zrobić podczas walki.") if dialogue != null else "Walka.")
+		_toast(dialogue.gmst_text("sInventoryMessage4", "You cannot do that during combat.") if dialogue != null else "You cannot do that during combat.")
 		return false
 	_book_node = node
 	book_window.open(rid, rec, node != null)
@@ -2213,7 +2215,7 @@ func travel(dest: Dictionary) -> void:
 		interior = String(dest["cell_name"])
 		if loading != null:                   # Scene::changeToInteriorCell: „Wczytywanie obszaru wewnętrznego”
 			loading.loading_on()
-			loading.set_label("Wczytywanie obszaru wewnętrznego")
+			loading.set_label(L10n.text("LoadingInterior", "Loading Area"))
 			loading.set_progress_range(1)
 		_load(dest["cell_key"])
 		if loading != null:
@@ -2269,7 +2271,7 @@ func _update_streaming(_force: bool) -> void:
 	var todo := want.keys().filter(func(k): return not loaded.has(k))
 	if not todo.is_empty() and loading != null:   # Scene::changeCellGrid: „Wczytywanie obszaru zewnętrznego”
 		loading.loading_on()
-		loading.set_label("Wczytywanie obszaru zewnętrznego")
+		loading.set_label(L10n.text("LoadingExterior", "Loading Area"))
 		loading.set_progress_range(todo.size())
 	for key in todo:
 		_load(key)
@@ -2491,7 +2493,7 @@ func capture_state() -> void:
 ## Zwraca "" albo opis błędu.
 func save_game(path: String, profile := {}) -> String:
 	if player == null:
-		return "gra nie jest uruchomiona"
+		return "the game is not running"
 	capture_state()
 	var header := save_header()
 	if profile.is_empty():
@@ -2500,7 +2502,7 @@ func save_game(path: String, profile := {}) -> String:
 	header["character"] = String(header.get("player_name", ""))
 	var err := GameStateScript.write_file(path, state.to_dict(header))
 	if err != OK:
-		return "kod %d" % err
+		return "error %d" % err
 	print("MWGODOT_SAVE ", path)
 	write_scripts_report()
 	events.game_saved.emit(path)
@@ -3015,8 +3017,8 @@ func save_profile(description: String) -> Dictionary:
 ## StateManager::saveGame(description, slot): postać tworzona przy pierwszym zapisie, slot nadpisywany albo nowy.
 func save_to_slot(description: String, slot = null) -> String:
 	if not saving_allowed():
-		message_box("Gra nie może być teraz zapisana.")
-		return "zapis niedozwolony"
+		message_box(L10n.text("SaveGameDenied", "The game cannot be saved right now."))
+		return "saving is not allowed"
 	var ch = saves.current
 	if ch == null or bool(ch.get("legacy", false)):
 		ch = saves.create_character(String(player_stats().get("name", "")))
@@ -3024,12 +3026,12 @@ func save_to_slot(description: String, slot = null) -> String:
 	var path: String = String(slot.path) if slot != null else saves.new_slot_path(ch, description)
 	if loading != null:
 		loading.loading_on()
-		loading.set_label("Zapisywanie...", true)
+		loading.set_label(L10n.text("SavingInProgress", "Saving..."), true)
 	var err := save_game(path, save_profile(description))
 	if loading != null:
 		loading.loading_off()
 	if not err.is_empty():
-		show_message_box("Nie udało się zapisać gry: " + err, ["OK"], Callable(), true)
+		show_message_box(L10n.text("SavingFailed", "Failed to save game") + ": " + err, ["OK"], Callable(), true)
 		return err
 	last_savegame = path
 	_write_saves_character(String(ch.dir))
@@ -3043,8 +3045,8 @@ func save_to_slot(description: String, slot = null) -> String:
 ## StateManager::quickSave: opis „Quicksave”, najstarszy z max quicksaves nadpisywany.
 func quick_save() -> String:
 	if not saving_allowed():
-		message_box("Gra nie może być teraz zapisana.")
-		return "zapis niedozwolony"
+		message_box(L10n.text("SaveGameDenied", "The game cannot be saved right now."))
+		return "saving is not allowed"
 	return save_to_slot("Quicksave", saves.quick_slot(saves.current, "Quicksave"))
 
 ## StateManager::quickLoad: najnowszy zapis bieżącej postaci.
@@ -3059,7 +3061,7 @@ func quick_load() -> Array:
 func load_slot(ch, path: String) -> Array:
 	if loading != null:
 		loading.loading_on()
-		loading.set_label("Wczytywanie zapisu gry")
+		loading.set_label(L10n.text("LoadingInProgress", "Loading Save Game"))
 	var raw_ok := not GameStateScript.read_file(path).has("error")
 	var prev_state := game_state
 	if raw_ok:
@@ -3072,7 +3074,7 @@ func load_slot(ch, path: String) -> Array:
 			cleanup()
 		_enter_nogame()
 		open_main_menu()
-		show_message_box("Nie udało się wczytać zapisu gry: " + String(w[0]).substr(6), ["OK"], Callable(), true)
+		show_message_box(L10n.text("LoadingFailed", "Failed to load saved game") + ": " + String(w[0]).substr(6), ["OK"], Callable(), true)
 		return w
 	var f = saves.find_slot(path) if saves != null else []
 	saves.current = f[0] if not f.is_empty() and not bool(f[0].get("legacy", false)) else null

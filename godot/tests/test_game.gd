@@ -35,7 +35,7 @@ func _run() -> void:
 	var ct: String = main.coords_text()
 	var ps: String = main.position_string()
 	var pos_back := MWCoords.mw_to_godot(Vector3(float(ps.get_slice(",", 0)), float(ps.get_slice(",", 1)), float(ps.get_slice(",", 2))))
-	check(ct.contains("komórka") and ct.contains(ps), "pasek: komórka i pozycja (%s)" % ct.strip_edges())
+	check(ct.contains("cell ") and ct.contains(ps), "pasek: komórka i pozycja (%s)" % ct.strip_edges())
 	check(pos_back.distance_to(main.player.global_position) < 0.05, "pozycja z paska wraca w to samo miejsce (--pos)")
 	main.show_coords = false
 	check(main.coords_text() == "", "F3: współrzędne ukryte")
@@ -237,11 +237,11 @@ func _test_save(main) -> void:
 	h2["content"][1]["sha256"] = "x"
 	h2["content"].append({"name": "Brakujacy.esp", "sha256": "y"})
 	var ws: Array = GS.compatibility(h2, h)
-	check(ws.size() == 2 and String(ws[0]).contains("zmieniła") and String(ws[1]).contains("brak wtyczki"),
+	check(ws.size() == 2 and String(ws[0]).contains("has changed") and String(ws[1]).contains("missing content file"),
 			"zgodność: zmieniona i brakująca wtyczka (%s)" % [ws])
 	var h3 := h.duplicate(true)
 	h3["content"].reverse()
-	check(str(GS.compatibility(h3, h)).contains("kolejność"), "zgodność: zmiana kolejności ładowania")
+	check(str(GS.compatibility(h3, h)).contains("load order"), "zgodność: zmiana kolejności ładowania")
 	# nieznana sekcja (z nowszej gry tej samej wersji formatu) i wpis dla brakującej wtyczki – zachowane
 	raw = GS.read_file(path)
 	raw["ai_future"] = {"x": 1}

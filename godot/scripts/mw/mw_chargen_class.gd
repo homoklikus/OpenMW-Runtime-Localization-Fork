@@ -192,13 +192,13 @@ func spawn_choice() -> void:
 	var labels := []
 	_choice_map = []
 	if questions_available():
-		labels.append(_t("sClassChoiceMenu1", "Odpowiedz na pytania (klasa zostanie dobrana)"))
+		labels.append(_t("sClassChoiceMenu1", "Answer questions (a class is chosen for you)"))
 		_choice_map.append(0)
-	labels.append(_t("sClassChoiceMenu2", "Podaj informacje (wybierz z listy klas)"))
+	labels.append(_t("sClassChoiceMenu2", "Pick from a list of classes"))
 	_choice_map.append(1)
-	labels.append(_t("sClassChoiceMenu3", "Wypełnij formularz sam (utwórz własną klasę)"))
+	labels.append(_t("sClassChoiceMenu3", "Create your own class"))
 	_choice_map.append(2)
-	labels.append(_t("sBack", "Wstecz"))
+	labels.append(_t("sBack", "Back"))
 	_choice_map.append(3)
 	choice_buttons = _info_box("", labels, _choice_button)
 
@@ -317,10 +317,10 @@ func _show_result() -> void:
 	if cg.win != null:
 		CUI.close(cg.win)
 		cg.win = null
-	var reflect := _t("sMessageQuestionAnswer1", "Twoja osobowość i przeszłość pasują do klasy:")
+	var reflect := _t("sMessageQuestionAnswer1", "Your personality and past fit the class:")
 	var rh: float = maxf(18.0, ui.wrapped_height(reflect, 265.0))
-	var back_b: Button = ui.button(_t("sMessageQuestionAnswer3", "Wybierz inną klasę"), func(): generate_back())
-	var ok_b: Button = ui.button(_t("sMessageQuestionAnswer2", "Przyjmij tę klasę"), func(): generate_ok())
+	var back_b: Button = ui.button(_t("sMessageQuestionAnswer3", "Choose another class"), func(): generate_back())
+	var ok_b: Button = ui.button(_t("sMessageQuestionAnswer2", "Accept this class"), func(): generate_ok())
 	back_b.name = "BackButton"
 	ok_b.name = "OKButton"
 	var row_w: float = (back_b.size.x + ok_b.size.x) / ui.sc + 4.0
@@ -385,27 +385,27 @@ func spawn_pick() -> void:
 	class_image = ui.image_box(c, 210, 8, 265, 138)
 	class_image.name = "ClassImage"
 	var g = ui.group(c, 8, 156, 484, 178)
-	var sh: Label = ui.label(g, 0, 0, 166, 18, _t("sChooseClassMenu1", "Specjalizacja:"), "header")
+	var sh: Label = ui.label(g, 0, 0, 166, 18, _t("sChooseClassMenu1", "Specialization:"), "header")
 	sh.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	_pick_widgets = {}
 	_pick_widgets["spec"] = ui.label(g, 0, 18, 166, 18, "")
-	var fh := _t("sChooseClassMenu2", "Ulubione atrybuty:")
+	var fh := _t("sChooseClassMenu2", "Favorite Attributes:")
 	var fhh: float = maxf(18.0, ui.wrapped_height(fh, 166.0))
 	var fl: Label = ui.wrap_label(g, 0, 39, 166, fh, "header")
 	fl.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	_pick_widgets["attr"] = [ui.label(g, 0, 39 + fhh, 166, 18, ""), ui.label(g, 0, 39 + fhh + 18, 166, 18, "")]
-	var mh: Label = ui.label(g, 166, 0, 162, 18, _t("sChooseClassMenu3", "Umiejętności główne:"), "header")
+	var mh: Label = ui.label(g, 166, 0, 162, 18, _t("sChooseClassMenu3", "Major Skills:"), "header")
 	mh.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	var nh: Label = ui.label(g, 332, 0, 166, 18, _t("sChooseClassMenu4", "Umiejętności drugorzędne:"), "header")
+	var nh: Label = ui.label(g, 332, 0, 166, 18, _t("sChooseClassMenu4", "Minor Skills:"), "header")
 	nh.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	_pick_widgets["major"] = []
 	_pick_widgets["minor"] = []
 	for i in 5:
 		_pick_widgets["major"].append(ui.label(g, 166, 18 + 18 * i, 166, 18, ""))
 		_pick_widgets["minor"].append(ui.label(g, 332, 18 + 18 * i, 166, 18, ""))
-	var back_b: Button = ui.button(_t("sBack", "Wstecz"), func(): pick_back())
+	var back_b: Button = ui.button(_t("sBack", "Back"), func(): pick_back())
 	back_b.name = "BackButton"
-	var ok_b: Button = ui.button(_t("sNext", "Dalej") if cg.next_shown(cg.CSE_CLASS) else _t("sOK", "OK"), func(): pick_ok())
+	var ok_b: Button = ui.button(_t("sNext", "Next") if cg.next_shown(cg.CSE_CLASS) else _t("sOK", "OK"), func(): pick_ok())
 	ok_b.name = "OKButton"
 	ui.button_row(c, 0, 276, 475, 28, [back_b, ok_b])
 	# setClassId(klasa gracza); updateClasses: bez klasy – pierwsza z listy
@@ -475,7 +475,7 @@ func pick_back() -> void:
 # --- CreateClassDialog (498 × 198) --------------------------------------------------------------------------
 
 func _default_state() -> Dictionary:
-	return {"name": _t("sCustomClassName", "Poszukiwacz przygód"), "description": "", "specialization": 0,
+	return {"name": _t("sCustomClassName", "Adventurer"), "description": "", "specialization": 0,
 		"attributes": DEFAULT_ATTRS.duplicate(), "major_skills": DEFAULT_MAJOR.duplicate(),
 		"minor_skills": DEFAULT_MINOR.duplicate()}
 
@@ -485,7 +485,7 @@ func spawn_create() -> void:
 	var win: Control = ui.modal(cg, 498, 198)
 	cg.win = win
 	var c: Control = win.get_meta("client")
-	var lt: Label = ui.label(c, 8, 8, 52, 23, _t("sName", "Imię"), "header")
+	var lt: Label = ui.label(c, 8, 8, 52, 23, _t("sName", "Name"), "header")
 	lt.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	c_name = LineEdit.new()
 	c_name.name = "EditName"
@@ -495,11 +495,11 @@ func spawn_create() -> void:
 	c_name.text_changed.connect(func(t): create_state["name"] = t)
 	ui.at(c_name, c, 72, 8, 410, 23)
 	var g = ui.group(c, 8, 38, 480, 116)
-	var sh: Label = ui.label(g, 0, 0, 156, 18, _t("sChooseClassMenu1", "Specjalizacja:"), "header")
+	var sh: Label = ui.label(g, 0, 0, 156, 18, _t("sChooseClassMenu1", "Specialization:"), "header")
 	sh.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	spec_button = ui.text_button(g, 0, 18, 166, 18, "", func(): _open_select_spec())
 	spec_button.name = "SpecializationName"
-	var fh := _t("sChooseClassMenu2", "Ulubione atrybuty:")
+	var fh := _t("sChooseClassMenu2", "Favorite Attributes:")
 	var fhh: float = maxf(18.0, ui.wrapped_height(fh, 166.0))
 	var fl: Label = ui.wrap_label(g, 0, 41, 166, fh, "header")
 	fl.vertical_alignment = VERTICAL_ALIGNMENT_TOP
@@ -507,20 +507,20 @@ func spawn_create() -> void:
 	for i in 2:
 		attr_buttons.append(ui.text_button(g, 0, 41 + fhh + 18 * i, 166, 18, "", _open_select_attr.bind(i)))
 	# CreateClassDialog: nagłówki sSkillClassMajor / sSkillClassMinor (inaczej niż PickClassDialog)
-	var mh: Label = ui.label(g, 166, 0, 166, 18, _t("sSkillClassMajor", "Umiejętności główne"), "header")
+	var mh: Label = ui.label(g, 166, 0, 166, 18, _t("sSkillClassMajor", "Major Skills"), "header")
 	mh.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	var nh: Label = ui.label(g, 332, 0, 166, 18, _t("sSkillClassMinor", "Umiejętności drugorzędne"), "header")
+	var nh: Label = ui.label(g, 332, 0, 166, 18, _t("sSkillClassMinor", "Minor Skills"), "header")
 	nh.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	major_buttons = []
 	minor_buttons = []
 	for i in 5:
 		major_buttons.append(ui.text_button(g, 166, 18 + 18 * i, 166, 18, "", _open_select_skill.bind(i)))
 		minor_buttons.append(ui.text_button(g, 332, 18 + 18 * i, 166, 18, "", _open_select_skill.bind(5 + i)))
-	var desc_b: Button = ui.button(_t("sCreateClassMenu1", "Opis klasy"), func(): _open_description())
+	var desc_b: Button = ui.button(_t("sCreateClassMenu1", "Description"), func(): _open_description())
 	desc_b.name = "DescriptionButton"
-	var back_b: Button = ui.button(_t("sBack", "Wstecz"), func(): create_back())
+	var back_b: Button = ui.button(_t("sBack", "Back"), func(): create_back())
 	back_b.name = "BackButton"
-	var ok_b: Button = ui.button(_t("sNext", "Dalej") if cg.next_shown(cg.CSE_CLASS) else _t("sOK", "OK"), func(): create_ok())
+	var ok_b: Button = ui.button(_t("sNext", "Next") if cg.next_shown(cg.CSE_CLASS) else _t("sOK", "OK"), func(): create_ok())
 	ok_b.name = "OKButton"
 	ui.button_row(c, 0, 158, 482, 28, [desc_b, back_b, ok_b])
 	_refresh_create()
@@ -636,7 +636,7 @@ func _sub_modal(w: float, h: float, kind: String) -> Control:
 	return sub.get_meta("client")
 
 func _cancel_row(c: Control, x: float, y: float, w: float) -> void:
-	var cancel: Button = ui.button("Anuluj", func(): _close_sub())
+	var cancel: Button = ui.button(preload("res://scripts/mw/mw_l10n.gd").ctx_text("Interface", "Cancel", "Cancel"), func(): _close_sub())
 	cancel.name = "CancelButton"
 	ui.button_row(c, x, y, w, 28, [cancel])
 
@@ -644,7 +644,7 @@ func _cancel_row(c: Control, x: float, y: float, w: float) -> void:
 func _open_select_spec() -> void:
 	var c: Control = _sub_modal(247, 144, "specialization")
 	var g = ui.group(c, 14, 14, 216, 116)
-	ui.label(g, 0, 0, 216, 18, _t("sSpecializationMenu1", "Wybierz specjalizację"), "header", HORIZONTAL_ALIGNMENT_CENTER)
+	ui.label(g, 0, 0, 216, 18, _t("sSpecializationMenu1", "Choose a specialization"), "header", HORIZONTAL_ALIGNMENT_CENTER)
 	for i in 3:
 		var b: Button = ui.text_button(g, 0, 28 + 18 * i, 216, 18, ui.spec_name(i), _pick_spec.bind(i), HORIZONTAL_ALIGNMENT_CENTER)
 		b.name = "Specialization%d" % i
@@ -655,7 +655,7 @@ func _open_select_attr(slot: int) -> void:
 	_affected = slot
 	var c: Control = _sub_modal(247, 231, "attribute")
 	var g = ui.group(c, 14, 14, 216, 204)
-	ui.label(g, 0, 0, 216, 18, _t("sAttributesMenu1", "Wybierz atrybut"), "header", HORIZONTAL_ALIGNMENT_CENTER)
+	ui.label(g, 0, 0, 216, 18, _t("sAttributesMenu1", "Choose an attribute"), "header", HORIZONTAL_ALIGNMENT_CENTER)
 	var area = ui.group(g, 0, 28, 216, 144)
 	for i in 8:
 		var b: Button = ui.text_button(area, 0, 18 * i, 216, 18, ui.attr_name(i), _pick_attr.bind(slot, i), HORIZONTAL_ALIGNMENT_CENTER)
@@ -667,7 +667,7 @@ func _open_select_skill(slot: int) -> void:
 	_affected = slot
 	var c: Control = _sub_modal(487, 275, "skill")
 	var g = ui.group(c, 17, 14, 457, 246)
-	ui.label(g, 0, 0, 457, 18, _t("sSkillsMenu1", "Wybierz umiejętność"), "header", HORIZONTAL_ALIGNMENT_CENTER)
+	ui.label(g, 0, 0, 457, 18, _t("sSkillsMenu1", "Choose a skill"), "header", HORIZONTAL_ALIGNMENT_CENTER)
 	var cols := [[0, 0, 154], [1, 158, 154], [2, 316, 131]]
 	var ids: Array = ui.skill_ids()
 	for col in cols:

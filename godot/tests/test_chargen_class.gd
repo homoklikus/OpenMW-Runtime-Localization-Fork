@@ -68,7 +68,7 @@ func _run() -> void:
 	check(cg.mode == "class", "znak: Wstecz → wybór sposobu klasy")
 	dlg.choice_selected(2)
 	await _frames(1)
-	check(cg.mode == "class_create" and dlg.c_name.text == main.dialogue.gmst_text("sCustomClassName", "Poszukiwacz przygód"),
+	check(cg.mode == "class_create" and dlg.c_name.text == main.dialogue.gmst_text("sCustomClassName", "Adventurer"),
 		"nazwa domyślna sCustomClassName (%s)" % dlg.c_name.text)
 	check(dlg.create_state.attributes == [0, 3] and dlg.create_state.major_skills == [0, 1, 2, 3, 4] \
 		and dlg.create_state.minor_skills == [5, 6, 7, 8, 9] and dlg.create_state.specialization == 0, "wartości domyślne jak OpenMW")

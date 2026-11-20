@@ -75,7 +75,7 @@ func play(name: String, skippable := true, override_sounds := true) -> bool:
 	var path := resolve(name)
 	if path.is_empty():
 		push_warning("Film %s: brak pliku (konwersja filmów: ffmpeg)" % name)
-		played.append([name.to_lower(), false, 0.0, "brak"])
+		played.append([name.to_lower(), false, 0.0, "missing"])
 		return false
 	var st := VideoStreamTheora.new()
 	st.file = path

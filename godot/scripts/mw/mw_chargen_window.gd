@@ -227,7 +227,7 @@ func accept() -> bool:
 ## Zgodność z sondami (dawny kreator).
 func _create() -> void:
 	if mode == "name" and name_edit != null and name_edit.text.strip_edges().is_empty():
-		name_edit.text = String(cur.get("name", "")) if not String(cur.get("name", "")).is_empty() else "Przybysz"
+		name_edit.text = String(cur.get("name", "")) if not String(cur.get("name", "")).is_empty() else "Outlander"
 	accept()
 
 ## „Wstecz” w bieżącym oknie.
@@ -281,7 +281,7 @@ func choice() -> Dictionary:
 func _spawn_name() -> void:
 	win = ui.modal(self, 320, 97)
 	var c: Control = win.get_meta("client")
-	var lbl: Label = ui.label(c, 6, 6, 300, 18, ui.t("sName", "Imię"), "header")
+	var lbl: Label = ui.label(c, 6, 6, 300, 18, ui.t("sName", "Name"), "header")
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	name_edit = LineEdit.new()
 	name_edit.name = "TextEdit"
@@ -291,7 +291,7 @@ func _spawn_name() -> void:
 	name_edit.add_theme_color_override("font_color", UI.color("normal"))
 	name_edit.text_submitted.connect(func(_t): _name_ok())
 	ui.at(name_edit, c, 6, 28, 300, 30)
-	var cap: String = ui.t("sNext", "Dalej") if next_shown(CSE_NAME) else ui.t("sOK", "OK")
+	var cap: String = ui.t("sNext", "Next") if next_shown(CSE_NAME) else ui.t("sOK", "OK")
 	ok_button = ui.button(cap, func(): _name_ok())
 	ok_button.name = "OKButton"
 	# OKButton 264,60 (ExpandDirection Left: prawy brzeg w 306)
@@ -307,7 +307,7 @@ func _name_ok() -> bool:
 	var n := name_edit.text.strip_edges()
 	if n.is_empty():
 		if main != null and main.has_method("show_message_box"):
-			main.show_message_box(ui.t("sNotifyMessage37", "Musisz podać imię."), [])
+			main.show_message_box(ui.t("sNotifyMessage37", "You must enter a name."), [])
 		name_edit.grab_focus()
 		return false
 	apply("name", {"name": n})
@@ -324,7 +324,7 @@ func _race_ids() -> Array:
 func _spawn_race() -> void:
 	win = ui.modal(self, 640, 433)
 	var c: Control = win.get_meta("client")
-	var hdr: Label = ui.label(c, 8, 16, 241, 18, ui.t("sRaceMenu1", "Wygląd"), "header")
+	var hdr: Label = ui.label(c, 8, 16, 241, 18, ui.t("sRaceMenu1", "Appearance"), "header")
 	hdr.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	# podgląd głowy (RaceSelectionPreview 512 × 512 w obrazie 237 × 216)
 	ui.box(c, 8, 39, 241, 220)
@@ -343,9 +343,9 @@ func _spawn_race() -> void:
 	head_rotate.step = 1
 	_style_scroll(head_rotate)
 	ui.at(head_rotate, c, 8, 270, 241, 14)
-	var rows := [["sRaceMenu2", "Zmień płeć", 298, 294, _gender_prev, _gender_next],
-		["sRaceMenu3", "Zmień twarz", 320, 316, _face_prev, _face_next],
-		["sRaceMenu4", "Zmień włosy", 342, 338, _hair_prev, _hair_next]]
+	var rows := [["sRaceMenu2", "Change sex", 298, 294, _gender_prev, _gender_next],
+		["sRaceMenu3", "Change face", 320, 316, _face_prev, _face_next],
+		["sRaceMenu4", "Change hair", 342, 338, _hair_prev, _hair_next]]
 	for r in rows:
 		ui.box(c, 8, r[2], 15, 14)
 		ui.arrow(c, 10, r[2] + 2, 10, 10, "left", r[4])
@@ -353,7 +353,7 @@ func _spawn_race() -> void:
 		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		ui.box(c, 234, r[2], 15, 14)
 		ui.arrow(c, 236, r[2] + 2, 10, 10, "right", r[5])
-	var rt: Label = ui.label(c, 261, 16, 160, 18, ui.t("sRaceMenu5", "Rasa"), "header")
+	var rt: Label = ui.label(c, 261, 16, 160, 18, ui.t("sRaceMenu5", "Race"), "header")
 	rt.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	race_list = ui.list(c, 264, 39, 160, 150)
 	race_list.name = "RaceList"
@@ -362,15 +362,15 @@ func _spawn_race() -> void:
 		race_list.add_item(ui.rec_name("race", "RACE", id))
 	race_list.item_selected.connect(_on_race_selected)
 	race_list.item_activated.connect(func(_i): _race_ok())
-	var st: Label = ui.label(c, 261, 210, 160, 18, ui.t("sRaceMenu7", "Specjalne"), "header")
+	var st: Label = ui.label(c, 261, 210, 160, 18, ui.t("sRaceMenu7", "Specials"), "header")
 	st.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	power_box = ui.group(c, 261, 230, 350, 140)
-	var sk: Label = ui.label(c, 432, 39, 190, 18, ui.t("sBonusSkillTitle", "Premie umiejętności"), "header")
+	var sk: Label = ui.label(c, 432, 39, 190, 18, ui.t("sBonusSkillTitle", "Skill Bonus"), "header")
 	sk.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	skill_box = ui.group(c, 432, 59, 190, 360)
-	back_button = ui.button(ui.t("sBack", "Wstecz"), func(): _race_back())
+	back_button = ui.button(ui.t("sBack", "Back"), func(): _race_back())
 	back_button.name = "BackButton"
-	ok_button = ui.button(ui.t("sNext", "Dalej") if next_shown(CSE_RACE) else ui.t("sOK", "OK"), func(): _race_ok())
+	ok_button = ui.button(ui.t("sNext", "Next") if next_shown(CSE_RACE) else ui.t("sOK", "OK"), func(): _race_ok())
 	ok_button.name = "OKButton"
 	ui.button_row(c, 0, 393, 626, 28, [back_button, ok_button])
 	# onOpen: wybór z postaci (prototyp gracza), części ciała, obrót początkowy 500 + 100
@@ -664,9 +664,9 @@ func _spawn_birth() -> void:
 	birth_image = ui.image_box(c, 248, 8, 263, 137)
 	birth_image.name = "BirthsignImage"
 	spell_area = ui.scroll_view(c, 8, 160, 507, 170)
-	back_button = ui.button(ui.t("sBack", "Wstecz"), func(): _birth_back())
+	back_button = ui.button(ui.t("sBack", "Back"), func(): _birth_back())
 	back_button.name = "BackButton"
-	ok_button = ui.button(ui.t("sNext", "Dalej") if next_shown(CSE_BIRTH) else ui.t("sOK", "OK"), func(): _birth_ok())
+	ok_button = ui.button(ui.t("sNext", "Next") if next_shown(CSE_BIRTH) else ui.t("sOK", "OK"), func(): _birth_ok())
 	ok_button.name = "OKButton"
 	ui.button_row(c, 0, 338, 511, 28, [back_button, ok_button])
 	# updateBirths: bez znaku postaci – pierwszy z listy; onOpen: znak postaci
@@ -708,7 +708,7 @@ func _update_spells() -> void:
 		var ty := int(sp.get("spell_type", 0))
 		if cats.has(ty):
 			cats[ty].append(String(sid).to_lower())
-	var labels := {1: ["sBirthsignmenu1", "Zdolności:"], 5: ["sPowers", "Moce"], 0: ["sBirthsignmenu2", "Czary:"]}
+	var labels := {1: ["sBirthsignmenu1", "Abilities:"], 5: ["sPowers", "Powers"], 0: ["sBirthsignmenu2", "Spells:"]}
 	var y := 0.0
 	for ty in [1, 5, 0]:
 		if (cats[ty] as Array).is_empty():
@@ -757,10 +757,10 @@ func _spawn_review() -> void:
 	# imię, rasa, klasa, znak
 	ui.box(c, 8, 8, 265, 126)
 	var bx = ui.group(c, 8, 8, 265, 126)
-	var entries := [["NameButton", "sName", "Imię", 8, review_values.name, func(): _review_activate("name")],
-		["RaceButton", "sRace", "Rasa", 37, ui.rec_name("race", "RACE", review_values.race), func(): _review_activate("race")],
-		["ClassButton", "sClass", "Klasa", 66, _class_display_name(review_values["class"]), func(): _review_activate("class")],
-		["SignButton", "sBirthSign", "Znak", 95, ui.rec_name("birthsign", "BSGN", review_values.sign), func(): _review_activate("birth")]]
+	var entries := [["NameButton", "sName", "Name", 8, review_values.name, func(): _review_activate("name")],
+		["RaceButton", "sRace", "Race", 37, ui.rec_name("race", "RACE", review_values.race), func(): _review_activate("race")],
+		["ClassButton", "sClass", "Class", 66, _class_display_name(review_values["class"]), func(): _review_activate("class")],
+		["SignButton", "sBirthSign", "Birthsign", 95, ui.rec_name("birthsign", "BSGN", review_values.sign), func(): _review_activate("birth")]]
 	for en in entries:
 		var b: Button = ui.button(ui.t(en[1], en[2]), en[5])
 		b.name = en[0]
@@ -777,9 +777,9 @@ func _spawn_review() -> void:
 	review_values["health"] = [int(maxf(0, hp[0])), int(hp[1])]
 	review_values["magicka"] = [int(maxf(0, mp[0])), int(mp[1])]
 	review_values["fatigue"] = [int(fp[0]), int(fp[1])]
-	_dyn_stat(dyn, 8, 8, ui.t("sHealth", "Zdrowie"), "health", review_values.health)
-	_dyn_stat(dyn, 8, 27, ui.t("sMagic", "Magia"), "magic", review_values.magicka)
-	_dyn_stat(dyn, 8, 46, ui.t("sFatigue", "Kondycja"), "fatigue", review_values.fatigue)
+	_dyn_stat(dyn, 8, 8, ui.t("sHealth", "Health"), "health", review_values.health)
+	_dyn_stat(dyn, 8, 27, ui.t("sMagic", "Magicka"), "magic", review_values.magicka)
+	_dyn_stat(dyn, 8, 46, ui.t("sFatigue", "Fatigue"), "fatigue", review_values.fatigue)
 	# atrybuty
 	ui.box(c, 8, 224, 265, 156)
 	var at = ui.group(c, 8, 224, 265, 156)
@@ -803,8 +803,8 @@ func _spawn_review() -> void:
 	var y := 0.0
 	var first := true
 	var skills_out := {}
-	for g in [["sSkillClassMajor", "Umiejętności główne", major], ["sSkillClassMinor", "Umiejętności drugorzędne", minor],
-			["sSkillClassMisc", "Pozostałe umiejętności", misc]]:
+	for g in [["sSkillClassMajor", "Major Skills", major], ["sSkillClassMinor", "Minor Skills", minor],
+			["sSkillClassMisc", "Misc Skills", misc]]:
 		if (g[2] as Array).is_empty():
 			continue
 		if not first:
@@ -828,7 +828,7 @@ func _spawn_review() -> void:
 	# zdolności, moce, czary (rasa, znak, czary początkowe)
 	var spells: Array = st.get("spells", [])
 	review_values["spells"] = spells.duplicate()
-	for g2 in [[1, "sTypeAbility", "Zdolności"], [5, "sTypePower", "Moce"], [0, "sTypeSpell", "Czary"]]:
+	for g2 in [[1, "sTypeAbility", "Abilities"], [5, "sTypePower", "Powers"], [0, "sTypeSpell", "Spells"]]:
 		y = _separator(sv, y)
 		ui.label(sv, 0, y, 198, 18, ui.t(g2[1], g2[2]), "header")
 		y += 18.0
@@ -839,7 +839,7 @@ func _spawn_review() -> void:
 				l.tooltip_text = _spell_tooltip(String(sid))
 				y += 18.0
 	ui.finish_canvas(sv, y)
-	back_button = ui.button(ui.t("sBack", "Wstecz"), func(): _review_back())
+	back_button = ui.button(ui.t("sBack", "Back"), func(): _review_back())
 	back_button.name = "BackButton"
 	ok_button = ui.button("OK", func(): _review_done())
 	ok_button.name = "OKButton"
@@ -893,7 +893,7 @@ func _review_done() -> void:
 		if main != null and not (main.player_stats() as Dictionary).is_empty():
 			st = (main.player_stats() as Dictionary).duplicate(true)
 		if String(st.get("name", "")).is_empty():
-			st["name"] = String(cur.get("name", "Przybysz"))
+			st["name"] = String(cur.get("name", "Outlander"))
 		created.emit(st)
 
 func _review_back() -> void:

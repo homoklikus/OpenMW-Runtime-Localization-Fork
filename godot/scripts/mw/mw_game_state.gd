@@ -222,11 +222,11 @@ func from_dict(d: Dictionary) -> Array:
 ## Migracje do bieżącej wersji: v0 → v1 itd. Zwraca {"data": …} albo {"error": …}.
 static func migrate(d: Dictionary) -> Dictionary:
 	if String(d.get("format", "")) != FORMAT:
-		return {"error": "to nie jest zapis OpenMWGodot"}
+		return {"error": "not an OpenMWGodot saved game"}
 	var v := int(d.get("version", 0))
 	var v0 := v
 	if v > VERSION:
-		return {"error": "zapis z nowszej wersji gry (format %d, ta gra obsługuje %d) – oryginał pozostaje bez zmian" % [v, VERSION]}
+		return {"error": "save from a newer game version (format %d, this game supports %d) – the original is left unchanged" % [v, VERSION]}
 	if v <= 1:
 		d = _v1_to_v2(d)
 		v = 2
@@ -266,12 +266,12 @@ static func compatibility(save_header: Dictionary, current_header: Dictionary) -
 		var n := String(c.get("name", "")).to_lower()
 		names_save.append(n)
 		if not cur.has(n):
-			out.append("brak wtyczki %s – jej obiekty w zapisie zostają zachowane, ale nie będą widoczne" % c.get("name", ""))
+			out.append("missing content file %s – its objects are kept in the save but will not be visible" % c.get("name", ""))
 		elif String(cur[n].get("sha256", "")) != String(c.get("sha256", "")):
-			out.append("wtyczka %s zmieniła się od zapisu" % c.get("name", ""))
+			out.append("content file %s has changed since the save" % c.get("name", ""))
 	for n in cur:
 		if not n in names_save:
-			out.append("nowa wtyczka %s (nie było jej przy zapisie)" % cur[n].get("name", n))
+			out.append("new content file %s (not present when saved)" % cur[n].get("name", n))
 	var order_cur := []
 	for c in current_header.get("content", []):
 		var n := String(c.get("name", "")).to_lower()
@@ -279,7 +279,7 @@ static func compatibility(save_header: Dictionary, current_header: Dictionary) -
 			order_cur.append(n)
 	var order_save := names_save.filter(func(x): return cur.has(x))
 	if order_cur != order_save:
-		out.append("zmieniła się kolejność ładowania wtyczek")
+		out.append("the content file load order has changed")
 	return out
 
 ## Zapis atomowy: plik tymczasowy → zmiana nazwy; poprzednia wersja jako .bak.
@@ -300,14 +300,14 @@ static func write_file(path: String, d: Dictionary) -> Error:
 
 static func read_file(path: String) -> Dictionary:
 	if not FileAccess.file_exists(path):
-		return {"error": "brak pliku zapisu %s" % path}
+		return {"error": "saved game file %s not found" % path}
 	var f := FileAccess.open_compressed(path, FileAccess.READ, FileAccess.COMPRESSION_ZSTD)
 	if f == null:
-		return {"error": "nie można otworzyć zapisu (%d)" % FileAccess.get_open_error()}
+		return {"error": "cannot open the saved game (%d)" % FileAccess.get_open_error()}
 	var d = JSON.parse_string(f.get_as_text())
 	f.close()
 	if not d is Dictionary:
-		return {"error": "uszkodzony plik zapisu"}
+		return {"error": "damaged saved game file"}
 	return d
 
 ## Kopia bezpieczeństwa przed migracją (oryginał zostaje nietknięty pod nazwą .v<wersja>.bak).

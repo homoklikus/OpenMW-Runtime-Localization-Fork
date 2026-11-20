@@ -295,7 +295,7 @@ func _run() -> void:
 		var cell: Dictionary = main.db.get_cell(interior_key)
 		main.travel({"cell_key": interior_key, "cell_name": String(cell.get("name", "")), "transform": Transform3D()})
 		await _frames(3)
-		check(main.loading.nested == 0 and not main.loading.visible and main.loading.label == "Wczytywanie obszaru wewnętrznego", "ekran ładowania przy przejściu do wnętrza (etykieta, zamknięty po)")
+		check(main.loading.nested == 0 and not main.loading.visible and main.loading.label == "Loading Area", "ekran ładowania przy przejściu do wnętrza (etykieta, zamknięty po)")
 		check(not main.loading.show_wallpaper, "w grze bez tapety (zamrożona klatka)")
 	report["loading_draws_in_game"] = main.loading.shown_count - shown0
 	# --- śmierć: endGame → askLoadRecent ---
@@ -303,7 +303,7 @@ func _run() -> void:
 	check(main.game_state == "ended", "śmierć: stan „Ended”")
 	await _wait_s(main.DEATH_ANIM_SECONDS + 0.3)
 	var asked := await _until(func(): return main.msgbox != null and is_instance_valid(main.msgbox) and main.msgbox.visible, 30)
-	check(asked >= 0 and main.msgbox.find_children("*", "Label", true, false)[0].text.contains("Ostatni zapis"), "po animacji śmierci pytanie o wczytanie ostatniego zapisu")
+	check(asked >= 0 and main.msgbox.find_children("*", "Label", true, false)[0].text.contains("most recent save"), "po animacji śmierci pytanie o wczytanie ostatniego zapisu")
 	main.press_message_button(1)
 	await _frames(3)
 	check(main.main_menu.is_open() and main.main_menu.shown == ["newgame", "loadgame", "options", "exitgame"], "„Nie” – menu główne w stanie Ended (%s)" % [main.main_menu.shown])

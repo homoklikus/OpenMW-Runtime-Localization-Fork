@@ -48,10 +48,10 @@ func _ready() -> void:
 	var buttons := HBoxContainer.new()
 	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
 	box.add_child(buttons)
-	take_all_btn = _button(buttons, "Weź wszystko", _take_all)
-	drop_btn = _button(buttons, "Odłóż na ziemię", func(): _move_from_right(_selected(right)))
-	equip_btn = _button(buttons, "Użyj / załóż", func(): use_item(_selected(right)))
-	_button(buttons, "Zamknij (Esc)", close)
+	take_all_btn = _button(buttons, "Take All", _take_all)
+	drop_btn = _button(buttons, "Drop", func(): _move_from_right(_selected(right)))
+	equip_btn = _button(buttons, "Use / Equip", func(): use_item(_selected(right)))
+	_button(buttons, "Close (Esc)", close)
 	panel.position = (get_viewport().get_visible_rect().size - panel.custom_minimum_size) / 2.0
 	visible = false
 
@@ -117,7 +117,7 @@ func _fill(l: ItemList, items: Array) -> Array:
 	for e in interaction.inventory.ordered(items):
 		var name: String = interaction.item_name(e.kind, e.id, e.rec)
 		var worn: bool = l == right and main != null and main.has_method("equipped_slot_of") and main.equipped_slot_of(e.id) >= 0
-		l.add_item("%s%s%s" % [name, (" × %d" % e.count) if e.count > 1 else "", "  [założone]" if worn else ""])
+		l.add_item("%s%s%s" % [name, (" × %d" % e.count) if e.count > 1 else "", "  [equipped]" if worn else ""])
 		ids.append(e.id)
 	return ids
 
@@ -128,13 +128,13 @@ func refresh() -> void:
 	if mode == "container":
 		var theirs: Array = inv.contents(cont_sid, cont_rec)
 		_left_ids = _fill(left, theirs)
-		title.text = "%s  ⟷  Ekwipunek" % cont_name
+		title.text = "%s  ⟷  Inventory" % cont_name
 		var cap := float(cont_rec.get("capacity", 0.0))
-		info.text = "Waga w pojemniku: %.1f / %.0f   |   Twój ekwipunek: %.1f   |   dwuklik – przenieś stos" % [
+		info.text = "Container weight: %.1f / %.0f   |   Your inventory: %.1f   |   double-click – move stack" % [
 				inv.total_weight(theirs), cap, inv.total_weight(mine)]
 	else:
-		title.text = "Ekwipunek"
-		info.text = "Waga: %.1f   |   „Odłóż na ziemię” – zaznaczony stos" % inv.total_weight(mine)
+		title.text = "Inventory"
+		info.text = "Weight: %.1f   |   \"Drop\" – selected stack" % inv.total_weight(mine)
 
 func _count_in(items: Array, id: String) -> int:
 	for e in items:

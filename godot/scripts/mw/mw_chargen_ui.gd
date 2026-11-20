@@ -11,16 +11,16 @@ const UI := preload("res://scripts/mw/mw_ui.gd")
 
 const ATTR_GMST := ["sAttributeStrength", "sAttributeIntelligence", "sAttributeWillpower", "sAttributeAgility",
 	"sAttributeSpeed", "sAttributeEndurance", "sAttributePersonality", "sAttributeLuck"]
-const ATTR_PL := ["Siła", "Inteligencja", "Siła woli", "Zręczność", "Szybkość", "Wytrzymałość", "Osobowość", "Szczęście"]
-const SKILL_PL := {"block": "Blok", "armorer": "Płatnerstwo", "mediumarmor": "Średni pancerz",
-	"heavyarmor": "Ciężki pancerz", "bluntweapon": "Broń obuchowa", "longblade": "Długie ostrza", "axe": "Topory",
-	"spear": "Włócznie", "athletics": "Atletyka", "enchant": "Zaklinanie", "destruction": "Zniszczenie",
-	"alteration": "Przemiana", "illusion": "Iluzja", "conjuration": "Przywołanie", "mysticism": "Mistycyzm",
-	"restoration": "Odnowienie", "alchemy": "Alchemia", "unarmored": "Walka bez pancerza", "security": "Zabezpieczenia",
-	"sneak": "Skradanie się", "acrobatics": "Akrobatyka", "lightarmor": "Lekki pancerz", "shortblade": "Krótkie ostrza",
-	"marksman": "Strzelectwo", "mercantile": "Handel", "speechcraft": "Retoryka", "handtohand": "Walka wręcz"}
+const ATTR_EN := ["Strength", "Intelligence", "Willpower", "Agility", "Speed", "Endurance", "Personality", "Luck"]
+const SKILL_EN := {"block": "Block", "armorer": "Armorer", "mediumarmor": "Medium Armor",
+	"heavyarmor": "Heavy Armor", "bluntweapon": "Blunt Weapon", "longblade": "Long Blade", "axe": "Axe",
+	"spear": "Spear", "athletics": "Athletics", "enchant": "Enchant", "destruction": "Destruction",
+	"alteration": "Alteration", "illusion": "Illusion", "conjuration": "Conjuration", "mysticism": "Mysticism",
+	"restoration": "Restoration", "alchemy": "Alchemy", "unarmored": "Unarmored", "security": "Security",
+	"sneak": "Sneak", "acrobatics": "Acrobatics", "lightarmor": "Light Armor", "shortblade": "Short Blade",
+	"marksman": "Marksman", "mercantile": "Mercantile", "speechcraft": "Speechcraft", "handtohand": "Hand-to-hand"}
 const SPEC_GMST := ["sSpecializationCombat", "sSpecializationMagic", "sSpecializationStealth"]
-const SPEC_PL := ["Walka", "Magia", "Skradanie"]
+const SPEC_EN := ["Combat", "Magic", "Stealth"]
 
 var sc := 1.0                 # skala interfejsu (wysokość okna / 720, co najmniej 1 – jak inne okna)
 var main = null               # main.gd (GMST przez dialogue.gmst_text, lokalizacja nazw rekordów)
@@ -40,7 +40,7 @@ func t(gm: String, def: String) -> String:
 	return def
 
 func attr_name(i: int) -> String:
-	return t(ATTR_GMST[i], ATTR_PL[i]) if i >= 0 and i < 8 else ""
+	return t(ATTR_GMST[i], ATTR_EN[i]) if i >= 0 and i < 8 else ""
 
 func skill_ids() -> Array:
 	if main != null and main.get("character") != null:
@@ -53,10 +53,10 @@ func skill_name(i: int) -> String:
 	if i < 0 or i >= ids.size():
 		return ""
 	var sid := String(ids[i])
-	return t("sSkill" + sid.capitalize().replace(" ", ""), String(SKILL_PL.get(sid, sid.capitalize())))
+	return t("sSkill" + sid.capitalize().replace(" ", ""), String(SKILL_EN.get(sid, sid.capitalize())))
 
 func spec_name(i: int) -> String:
-	return t(SPEC_GMST[i], SPEC_PL[i]) if i >= 0 and i < 3 else ""
+	return t(SPEC_GMST[i], SPEC_EN[i]) if i >= 0 and i < 3 else ""
 
 ## Nazwa rekordu z lokalizacją (FNAM), jak w pozostałych oknach.
 func rec_name(file: String, rtype: String, id: String) -> String:
@@ -442,21 +442,21 @@ func effect_text(e: Dictionary, constant: bool) -> String:
 	if ta or tsk:
 		var pre := ""
 		if id in [ABSORB_ATTR, ABSORB_SKILL]:
-			pre = t("sAbsorb", "Pochłonięcie")
+			pre = t("sAbsorb", "Absorb")
 		elif id in [DAMAGE_ATTR, DAMAGE_SKILL]:
-			pre = t("sDamage", "Uszkodzenie")
+			pre = t("sDamage", "Damage")
 		elif id in [DRAIN_ATTR, DRAIN_SKILL]:
-			pre = t("sDrain", "Osłabienie")
+			pre = t("sDrain", "Drain")
 		elif id in [FORTIFY_ATTR, FORTIFY_SKILL]:
-			pre = t("sFortify", "Wzmocnienie")
+			pre = t("sFortify", "Fortify")
 		elif id in [RESTORE_ATTR, RESTORE_SKILL]:
-			pre = t("sRestore", "Przywrócenie")
+			pre = t("sRestore", "Restore")
 		if not pre.is_empty():
 			line = pre
 		line += " " + (skill_name(int(e.skill)) if tsk else attr_name(int(e.attribute)))
 	var mn := int(e.get("min", 0))
 	var mx := int(e.get("max", 0))
-	var to := " " + t("sTo", "do") + " "
+	var to := " " + t("sTo", "to") + " "
 	if (mn != 0 or mx != 0):
 		var disp := magnitude_display(id, bool(mg.get("no_magnitude", false)))
 		if disp == "times_int":
@@ -471,22 +471,22 @@ func effect_text(e: Dictionary, constant: bool) -> String:
 			if disp == "percent":
 				line += t("spercent", "%")
 			elif disp == "feet":
-				line += " " + t("sfeet", "stóp")
+				line += " " + t("sfeet", "feet")
 			elif disp == "level":
-				line += " " + (t("sLevel", "poziom") if mn == mx and absi(mn) == 1 else t("sLevels", "poziomów"))
+				line += " " + (t("sLevel", "level") if mn == mx and absi(mn) == 1 else t("sLevels", "levels"))
 			else:
-				line += " " + (t("spoint", "pkt") if mn == mx and absi(mn) == 1 else t("spoints", "pkt"))
+				line += " " + (t("spoint", "pt") if mn == mx and absi(mn) == 1 else t("spoints", "pts"))
 	if not constant:
 		var dur := int(e.get("duration", 0))
 		if not bool(mg.get("applied_once", false)):
 			dur = maxi(1, dur)
 		if dur > 0 and not bool(mg.get("no_duration", false)):
-			line += " " + t("sfor", "przez") + " " + str(dur) + " " + (t("ssecond", "s") if dur == 1 else t("sseconds", "s"))
+			line += " " + t("sfor", "for") + " " + str(dur) + " " + (t("ssecond", "sec") if dur == 1 else t("sseconds", "secs"))
 		if int(e.get("area", 0)) > 0:
-			line += " " + t("sin", "w") + " " + str(int(e.area)) + " " + t("sfootarea", "stóp obszaru")
-		line += " " + t("sonword", "na") + " "
+			line += " " + t("sin", "in") + " " + str(int(e.area)) + " " + t("sfootarea", "foot area")
+		line += " " + t("sonword", "on") + " "
 		match int(e.get("range", 0)):
-			0: line += t("sRangeSelf", "siebie")
-			1: line += t("sRangeTouch", "dotyk")
-			_: line += t("sRangeTarget", "cel")
+			0: line += t("sRangeSelf", "on Self")
+			1: line += t("sRangeTouch", "on Touch")
+			_: line += t("sRangeTarget", "on Target")
 	return line

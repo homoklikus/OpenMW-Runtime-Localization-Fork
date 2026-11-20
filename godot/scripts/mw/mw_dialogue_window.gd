@@ -154,7 +154,7 @@ func refresh() -> void:
 	_topic_ids = []
 	var special := 0
 	if dialogue.actor.get("npc", false):
-		topics.add_item(_t("sPersuasion", "Perswazja"))
+		topics.add_item(_t("sPersuasion", "Persuasion"))
 		_topic_ids.append("#persuasion")
 		special += 1
 	if main != null and main.get("trade") != null:

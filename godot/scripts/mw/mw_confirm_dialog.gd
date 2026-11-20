@@ -50,7 +50,7 @@ func ask(text: String, on_ok := Callable(), on_cancel := Callable()) -> void:
 	row.add_child(ok)
 	var cancel := Button.new()
 	cancel.name = "CancelButton"
-	cancel.text = "Anuluj"
+	cancel.text = preload("res://scripts/mw/mw_l10n.gd").ctx_text("Interface", "Cancel", "Cancel")
 	cancel.pressed.connect(func(): _answer(false))
 	row.add_child(cancel)
 	visible = true

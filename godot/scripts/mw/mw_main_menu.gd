@@ -132,8 +132,8 @@ func _crop(t: Texture2D) -> Texture2D:
 	at.region = Rect2(0, 0, t.get_width(), floorf(t.get_height() - 16.0 * scale))
 	return at
 
-const FALLBACK_LABELS := {"return": "Wróć", "newgame": "Nowa gra", "savegame": "Zapisz grę", "loadgame": "Wczytaj grę",
-	"options": "Opcje", "credits": "Zasługi", "exitgame": "Wyjdź"}
+const FALLBACK_LABELS := {"return": "Return", "newgame": "New Game", "savegame": "Save Game", "loadgame": "Load Game",
+	"options": "Options", "credits": "Credits", "exitgame": "Exit"}
 
 func _make_button(id: String) -> Control:
 	var t := _tex("menu_" + id)

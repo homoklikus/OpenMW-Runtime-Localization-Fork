@@ -70,6 +70,6 @@ func _run() -> void:
 	check(back.name == "Nerevar" and back.health == 12.0 and back.skills[5] == 45.0, "odczyt: imię, zdrowie bieżące, umiejętności (%s)" % [w])
 	await process_frame
 	await process_frame
-	check(main.hud.text.contains("Nerevar") and main.hud.text.contains("zdrowie 12/50"), "pasek: imię i zdrowie (%s)" % main.hud.text.right(120))
+	check(main.hud.text.contains("Nerevar") and main.hud.text.contains("health 12/50"), "pasek: imię i zdrowie (%s)" % main.hud.text.right(120))
 	print("RESULT ", JSON.stringify({"checks": checks, "failures": failures}))
 	quit(1 if failures.size() > 0 else 0)
