@@ -45,11 +45,20 @@ var levitate_speed := 0.0
 var slow_fall := 1.0
 var water_walk := false
 var on_water := false
-## Kapsuła kolizji (NPC: stała; stworzenia: z wymiarów modelu – etap 8) i aktorzy bez grawitacji (stworzenia
-## latające/wodne, które nie chodzą – jak isPureFlyingCreature/isPureWaterCreature).
+## Kapsuła kolizji (NPC: stała; stworzenia: z wymiarów modelu – etap 8).
 var capsule_radius := 0.35
 var capsule_height := 1.8
+## Lot bez grawitacji – World::isFlying dla stworzeń: canFly (flaga Flies) i żywe, niesparaliżowane
+## (ustawiane co klatkę przez MWMagic.apply_movement z can_fly). Stworzenia wodne NIE są zwolnione z grawitacji:
+## w OpenMW (MovementSolver) poza wodą spadają jak każdy aktor, a pod wodą nie mogą „wypłynąć w powietrze”.
+var can_fly := false
 var no_gravity := false
+## Pochylenie ruchu aktora sterowanego przez AI (rotation x w OpenMW: smoothTurn w AiPackage::pathTo i walce),
+## używane tylko gdy aktor może się poruszać w osi Z (canActorMoveByZAxis: pływa albo leci). Dodatnie = w górę.
+var ai_pitch := 0.0
+## Bezwładny (ActorFrameData::mInert): martwy albo sparaliżowany – pod wodą wypływa na powierzchnię
+## (CharacterController mFloatToSurface: 25 j./s), poza wodą spada. Ustawiane przez MWMagic.apply_movement.
+var inert := false
 ## Wchodzenie na stopnie (jak OpenMW Stepper: Constants::sStepSizeUp = 34 jedn., sMaxSlope = 46°) – bez tego
 ## kapsuła zatrzymuje się na każdej krawędzi wyższej niż kilka cm (np. trap okrętu więziennego, progi, schody).
 var step_height := 34.0 / MWCoords.UNITS_PER_METER
@@ -82,11 +91,22 @@ func _ready() -> void:
 	col.shape = box
 	col.position.y = h * 0.5
 	add_child(col)
+	# World::isUnderwater / MovementSolver: poziom pływania z połówek wymiarów fizycznych aktora (halfExtents.z × 2),
+	# nie ze stałego wzrostu – płytko pływająca ryba (kapsuła ~0,4 m) bez tego „nie pływała” i wychodziła z wody
+	height = h
 
 ## Baza kierunku latania: kamera, jeśli aktor ją ma (gracz), inaczej sam aktor.
 func look_basis() -> Basis:
 	var cam := get_node_or_null("Camera3D") as Node3D
-	return cam.global_transform.basis if cam else global_transform.basis
+	if cam:
+		return cam.global_transform.basis
+	if ai_pitch != 0.0:
+		return global_transform.basis * Basis(Vector3.RIGHT, ai_pitch)
+	return global_transform.basis
+
+## canActorMoveByZAxis: (canSwim i pływa) albo leci (World::isFlying, także Lewitacja).
+func can_move_by_z() -> bool:
+	return swimming or no_gravity or levitate or fly
 
 func _physics_process(delta: float) -> void:
 	if controller != null and controller.has_method("control"):
@@ -95,6 +115,9 @@ func _physics_process(delta: float) -> void:
 
 ## Ruch z bieżących intencji (wspólny dla wszystkich aktorów).
 func step(delta: float) -> void:
+	if has_meta("mw_dead") and collide:
+		_corpse_step(delta)
+		return
 	# CreatureStats::getStance: postawa = klawisz/AI albo flaga wymuszenia; ForceJump – skok przy każdym kontakcie
 	# z podłożem, ForceMoveJump – tylko w ruchu (CharacterController::update, poza wodą i lotem)
 	if not move_flags.is_empty():
@@ -138,13 +161,25 @@ func step(delta: float) -> void:
 		var d := look_basis() * Vector3(move_input.x, 0, move_input.y)
 		if want_jump:
 			d += Vector3.UP
+		if inert:
+			d = Vector3.ZERO                         # MovementSolver: bezwładny pod wodą tylko wypływa
 		# getSwimSpeedImpl: swim_speed już uwzględnia bieg (getRunSpeed przy biegu) – bez dodatkowego mnożnika
 		velocity = d.normalized() * swim_speed if d.length() > 0.01 else Vector3.ZERO
+		if inert:
+			velocity = Vector3.UP * 25.0 / MWCoords.UNITS_PER_METER
 		var max_y := water_level - height * swim_height_scale - 0.01     # przy powierzchni nadal pływa
-		if global_position.y + velocity.y * delta > max_y and velocity.y > 0.0:
+		if no_gravity:
+			pass                                    # MovementSolver: latający może wynurzyć się z wody
+		elif global_position.y + velocity.y * delta > max_y and velocity.y > 0.0:
 			velocity.y = maxf(0.0, (max_y - global_position.y) / maxf(delta, 1e-4))
 		want_jump = false
+		var y0 := global_position.y
 		move_and_slide()
+		# MovementSolver: „If not able to fly, don't allow to swim up into the air” – składowa w górę odrzucana
+		# także po poślizgu po zboczu dna/brzegu (bez tego pływak wjeżdżał po stoku ponad wodę)
+		if not no_gravity and global_position.y > maxf(y0, max_y):
+			global_position.y = maxf(y0, max_y)
+			velocity.y = minf(velocity.y, 0.0)
 		return
 	var speed := run_speed if want_run else walk_speed
 	var wish := (transform.basis * Vector3(move_input.x, 0, move_input.y)).normalized() * speed
@@ -155,7 +190,11 @@ func step(delta: float) -> void:
 	velocity.x = wish.x
 	velocity.z = wish.z
 	if no_gravity:
-		velocity.y = 0.0
+		# MovementSolver (mFlying): prędkość wg obrotu z pochyleniem (rot x/z), bez grawitacji i bez spowolnienia
+		# w powietrzu
+		var d3 := look_basis() * Vector3(move_input.x, 0, move_input.y)
+		velocity = d3.normalized() * speed if d3.length() > 0.01 else Vector3.ZERO
+		wish = Vector3(velocity.x, 0.0, velocity.z)
 	elif not grounded:
 		velocity.y = maxf(velocity.y - gravity * delta, -max_fall_speed)
 		if velocity.y < 0.0:
@@ -188,6 +227,38 @@ func step(delta: float) -> void:
 		if not is_nan(_fall_start):
 			landed.emit((_fall_start - global_position.y) * MWCoords.UNITS_PER_METER)
 		_fall_start = NAN
+
+## Ciało (kształt kolizji wyłączony po śmierci – enableActorCollision(false) w OpenMW wyłącza tylko zderzenia
+## innych z ciałem, samo ciało nadal zderza się ze światem): pod wodą wypływa na poziom pływania (25 j./s), poza
+## wodą spada z grawitacją do podłoża wyznaczonego promieniem w dół (bez tego martwy latający wisiał, a po
+## włączeniu grawitacji spadał przez teren).
+func _corpse_step(delta: float) -> void:
+	velocity.x = 0.0
+	velocity.z = 0.0
+	var max_y := water_level - height * swim_height_scale
+	if global_position.y < max_y:
+		velocity.y = 0.0
+		global_position.y = minf(max_y, global_position.y + 25.0 / MWCoords.UNITS_PER_METER * delta)
+		return
+	var space := get_world_3d().direct_space_state
+	var from := global_position + Vector3.UP * 0.5
+	var q := PhysicsRayQueryParameters3D.create(from, global_position + Vector3.DOWN * 1000.0)
+	q.exclude = [get_rid()]
+	var hit := space.intersect_ray(q)
+	var ground: float = hit.position.y if not hit.is_empty() else -INF
+	if global_position.y <= ground + 0.01:
+		velocity.y = 0.0
+		return
+	velocity.y = maxf(velocity.y - gravity * delta, -max_fall_speed)
+	if velocity.y < 0.0:
+		velocity.y *= slow_fall
+	var ny := global_position.y + velocity.y * delta
+	if water_level > -INF:
+		ny = maxf(ny, minf(global_position.y, max_y))     # wpada do wody – dalej wypływa
+	if ny <= ground:
+		ny = ground
+		velocity.y = 0.0
+	global_position.y = ny
 
 ## Stopień: gdy ruch poziomy zatrzymała ściana, spróbuj „w górę o step_height → do przodu → w dół na podłoże”
 ## (OpenMW MovementSolver/Stepper). Krok przyjmujemy, jeśli dalej sięga niż sam ruch z poślizgiem

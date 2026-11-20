@@ -223,8 +223,8 @@ static func _strip_collision(m: Node) -> void:
 		b.get_parent().remove_child(b)
 		b.free()
 
-## Kapsuła stworzenia z wymiarów modelu (OpenMW: kształt kolizji z granic modelu) i brak grawitacji dla
-## stworzeń tylko latających/pływających.
+## Kapsuła stworzenia z wymiarów modelu (OpenMW: kształt kolizji z granic modelu) i lot bez grawitacji tylko dla
+## stworzeń z flagą Flies (World::isFlying) – pływające podlegają grawitacji poza wodą.
 static func _fit_capsule(n: Node3D, m: Node3D, rec: Dictionary) -> void:
 	var aabb := AABB()
 	var first := true
@@ -240,8 +240,10 @@ static func _fit_capsule(n: Node3D, m: Node3D, rec: Dictionary) -> void:
 	if not first:
 		n.capsule_radius = clampf(maxf(aabb.size.x, aabb.size.z) * 0.5, 0.15, 2.0)
 		n.capsule_height = clampf(aabb.size.y, 0.3, 6.0)
-	var walks := bool(rec.get("walks", true)) or bool(rec.get("bipedal", false))
-	n.no_gravity = not walks and (bool(rec.get("flies", false)) or bool(rec.get("swims", false)))
+	# Class::canFly (flaga Flies) → World::isFlying (bez grawitacji, gdy żywe i niesparaliżowane – apply_movement);
+	# canSwim nie zwalnia z grawitacji (MovementSolver)
+	n.can_fly = bool(rec.get("flies", false))
+	n.no_gravity = n.can_fly
 
 func _placeholder() -> Node3D:
 	var mi := MeshInstance3D.new()

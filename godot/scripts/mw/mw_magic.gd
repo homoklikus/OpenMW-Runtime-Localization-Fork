@@ -1021,6 +1021,11 @@ func apply_movement(f: Dictionary, n: Node) -> void:
 	var paralyzed := float(fx.get(str(FX_PARALYZE), 0.0)) > 0.0
 	var lev := float(fx.get(str(FX_LEVITATE), 0.0))
 	n.levitate = lev > 0.0 and levitation_enabled() and not paralyzed and not dead
+	if "can_fly" in n:
+		# World::isFlying: martwy albo sparaliżowany nie leci (spada pod wpływem grawitacji)
+		n.no_gravity = bool(n.can_fly) and not paralyzed and not dead
+	if "inert" in n:
+		n.inert = dead or paralyzed
 	n.levitate_speed = fly_speed(f, lev, fx) / MWCoords.UNITS_PER_METER if n.levitate else 0.0
 	n.slow_fall = 1.0 - clampf(float(fx.get(str(FX_SLOW_FALL), 0.0)) * 0.005, 0.0, 1.0)
 	n.water_walk = float(fx.get(str(FX_WATER_WALKING), 0.0)) > 0.0 and bool(n.get("collide"))

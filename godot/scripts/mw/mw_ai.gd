@@ -159,6 +159,10 @@ func speeds(n: Node) -> Vector2:
 	if not creature:
 		walk = maxf(0.0, walk * (1.0 - float(_gmst("fEncumberedMoveEffect", 0.3)) * enc))
 	var run := walk if creature else walk * (0.01 * float(main.combat.skill(f, 8)) * float(_gmst("fAthleticsRunBonus", 1.0)) + float(_gmst("fBaseRunMultiplier", 1.75)))
+	# Creature::getMaxSpeed: stworzenie latające (canFly) – prędkość lotu (fMin/fMaxFlySpeed), nie chodu
+	if creature and bool(n.get("can_fly")) and main.magic != null:
+		walk = main.magic.fly_speed(f, 0.0)
+		run = walk
 	if enc > 1.0:
 		if "swim_speed" in n:
 			n.swim_speed = 0.0
@@ -193,6 +197,36 @@ func _turn_to(n: Node3D, mw_target: Vector3, dt: float, eps := 0.05) -> bool:
 		n.rotation.y += signf(diff) * step
 	return absf(wrapf(want - n.rotation.y, -PI, PI)) < eps
 
+## smoothTurn(actor, getXAngleToPoint(...), 0): pochylenie ruchu ku celowi (AiPackage::pathTo, AiCombat) – tylko
+## gdy aktor może się poruszać w osi Z (canActorMoveByZAxis: pływa albo leci); inaczej pochylenie zerowane.
+func _pitch_to(n: Node3D, mw_target: Vector3, dt: float) -> void:
+	if not "ai_pitch" in n:
+		return
+	var want := 0.0
+	if n.has_method("can_move_by_z") and n.can_move_by_z():
+		var d := mw_target - mw_pos(n)
+		if d.length() > 1.0:
+			want = asin(clampf(d.z / d.length(), -1.0, 1.0))
+	var diff := want - float(n.ai_pitch)
+	var step := 8.0 * dt
+	n.ai_pitch = want if absf(diff) <= step else float(n.ai_pitch) + signf(diff) * step
+
+## Class::isPureWaterCreature: canSwim i nie dwunożne, nie lata, nie chodzi (NPC – nigdy).
+func is_pure_water_creature(n: Node) -> bool:
+	var rec: Dictionary = main.builder.actors.record("creature", String(n.get_meta("mw_base", "")).to_lower())
+	if rec.is_empty():
+		return false
+	return bool(rec.get("swims", false)) and not bool(rec.get("bipedal", false)) \
+		and not bool(rec.get("flies", false)) and not bool(rec.get("walks", false))
+
+## Class::isPureFlyingCreature: canFly i nie dwunożne, nie pływa, nie chodzi.
+func is_pure_flying_creature(n: Node) -> bool:
+	var rec: Dictionary = main.builder.actors.record("creature", String(n.get_meta("mw_base", "")).to_lower())
+	if rec.is_empty():
+		return false
+	return bool(rec.get("flies", false)) and not bool(rec.get("bipedal", false)) \
+		and not bool(rec.get("swims", false)) and not bool(rec.get("walks", false))
+
 ## AiPackage::pathTo: ścieżka po siatce (przebudowa, gdy cel się zmienił), punkty pośrednie, utknięcie
 ## i omijanie. → true, gdy cel osiągnięty (odległość ≤ tolerance).
 ## AiPackage::pathTo: idzie do celu po drodze z siatki ścieżek; → true po dojściu.
@@ -219,7 +253,16 @@ func path_to(n: CharacterBody3D, dest: Vector3, dt: float, tolerance := DEFAULT_
 		if can_open_doors(n):
 			open_doors(n, r)
 		var p0: Array = r.path
-		if p0.is_empty() or path_distance((p0.back() as Vector3), dest) > 10.0 \
+		# AiPackage::shortcutPath: aktor poruszający się w osi Z (pływa/leci) przy wolnej drodze (World | Door)
+		# płynie prosto do celu; po utracie skrótu droga budowana od nowa
+		var was_short := bool(r.get("shortcut", false))
+		r.shortcut = n.has_method("can_move_by_z") and n.can_move_by_z() and _world_clear(here, dest, true)
+		if bool(r.shortcut):
+			r.path = [dest]
+			r.path_built = true
+			r.path_nav = false
+			r.path_cell = key
+		elif was_short or p0.is_empty() or path_distance((p0.back() as Vector3), dest) > 10.0 \
 				or String(r.get("path_cell", "")) != key or not bool(r.get("path_built", false)) \
 				or (not bool(r.get("path_nav", false)) and main.navmesh != null and main.navmesh.has_cell(key)):
 			build_path_for(r, here, dest, key)
@@ -239,11 +282,16 @@ func path_to(n: CharacterBody3D, dest: Vector3, dt: float, tolerance := DEFAULT_
 				begin = i
 		for i in begin:
 			r.path.pop_front()
-	if (r.path as Array).size() == 1 and _dist2d(r.path[0], here) < DEFAULT_TOLERANCE:
-		r.path.pop_front()
+	# UpdateFlag_CanMoveByZ: ostatni punkt zdejmowany po odległości 3D (pływak pod celem nie „dochodzi” do niego)
+	if (r.path as Array).size() == 1:
+		var by_z: bool = n.has_method("can_move_by_z") and n.can_move_by_z()
+		var dl: float = (r.path[0] as Vector3).distance_to(here) if by_z else _dist2d(r.path[0], here)
+		if dl < DEFAULT_TOLERANCE:
+			r.path.pop_front()
 	if (r.path as Array).is_empty() and bool(r.get("path_built", false)):
 		r.path_built = false                         # checkPathCompleted
 		_turn_to(n, dest, dt)
+		_pitch_to(n, dest, dt)
 		_stop(n)
 		return true
 	if (r.path as Array).is_empty():
@@ -251,6 +299,7 @@ func path_to(n: CharacterBody3D, dest: Vector3, dt: float, tolerance := DEFAULT_
 		return false
 	var wp: Vector3 = r.path[0]
 	_turn_to(n, wp, dt)
+	_pitch_to(n, wp, dt)
 	n.walk_speed = sp.x / UNITS
 	n.run_speed = sp.y / UNITS
 	n.want_run = run
@@ -321,7 +370,7 @@ func half_width(n: Node) -> float:
 	return float(r) * UNITS if r != null else 29.0
 
 ## Promień świata bez aktorów i drzwi (CollisionType_World) między punktami MW → true, gdy nic nie zasłania.
-func _world_clear(from_mw: Vector3, to_mw: Vector3) -> bool:
+func _world_clear(from_mw: Vector3, to_mw: Vector3, doors_block := false) -> bool:
 	if main.player == null:
 		return true
 	var space: PhysicsDirectSpaceState3D = main.player.get_world_3d().direct_space_state
@@ -337,7 +386,7 @@ func _world_clear(from_mw: Vector3, to_mw: Vector3) -> bool:
 		var c = hit.collider
 		var ref := MWTravel.ref_of(c)
 		var skip: bool = c is CharacterBody3D or (ref != null and (ref.has_meta("mw_actor") or \
-			String(main.db.get_object(String(ref.get_meta("mw_base", ""))).get("type", "")) == "DOOR"))
+			not doors_block and String(main.db.get_object(String(ref.get_meta("mw_base", ""))).get("type", "")) == "DOOR"))
 		if not skip:
 			return false
 		ex.append((c as CollisionObject3D).get_rid())
@@ -700,15 +749,18 @@ func _wander(n: CharacterBody3D, r: Dictionary, st: Dictionary, p: Dictionary, d
 		r.allowed = _allowed_positions(n, start, dist)
 	# reactionTimeActions: bez punktów siatki w promieniu – co reakcję 4% szans na spacer w pobliżu startu
 	# (wanderNearStart), inaczej bezczynność; spacer kończy się u celu albo na przeszkodzie (completeManualWalking)
-	if react and dist > 0.0 and (r.allowed as Array).is_empty() and not bool(r.get("manual", false)):
+	# canActorMoveByZAxis (pływa/leci): co reakcję 8% szans na wanderNearStart (nie po siatce ścieżek –
+	# mCanWanderAlongPathGrid = false), gdy nie idzie
+	var by_z: bool = dist > 0.0 and n.has_method("can_move_by_z") and n.can_move_by_z()
+	if react and by_z:
+		if rng.randi() % 100 >= 92 and String(r.wstate) != "walk":
+			_wander_near_start(n, r, start, dist)
+		elif String(r.wstate) == "move":
+			r.wstate = "idle"
+			r.idle_t = 0.0 if String(r.idle_anim).is_empty() else float(r.idle_t)
+	elif react and dist > 0.0 and (r.allowed as Array).is_empty() and not bool(r.get("manual", false)):
 		if rng.randi() % 100 >= 96:
-			r.dest = _random_point_around(start, (0.2 + rng.randf() * 0.8) * dist)
-			r.path = [r.dest]                       # buildStraightPath
-			r.path_built = true
-			r.path_cell = cell_key_at(mw_pos(n))
-			r.manual = true
-			r.wstate = "walk"
-			r.stuck_count = 0
+			_wander_near_start(n, r, start, dist)
 		elif String(r.wstate) in ["choose", "move"]:
 			r.wstate = "idle"
 			r.idle_t = 0.0 if String(r.idle_anim).is_empty() else float(r.idle_t)
@@ -924,6 +976,71 @@ func _avoid_door(n: CharacterBody3D, r: Dictionary, p: Dictionary, dt: float) ->
 		if o == n or o == main.player or mw_pos(o).distance_to(pos) > 100.0:
 			continue
 		avoid_door(o, sid)
+	return false
+
+## AiWander::wanderNearStart: do 10 prób losowego punktu w promieniu (0,2–1) × dystans od startu; odrzuca punkt nad
+## wodą dla stworzeń niewodnych (destinationIsAtWater), punkt zasłonięty (isDestinationHidden) i zajęty przez
+## innego aktora (isAreaOccupiedByOtherActor); droga prosta (buildStraightPath – także dla wodnych/latających).
+func _wander_near_start(n: CharacterBody3D, r: Dictionary, start: Vector3, dist: float) -> void:
+	var water := is_pure_water_creature(n)
+	var flying := is_pure_flying_creature(n)
+	for attempt in 10:
+		var dest := _random_point_around(start, (0.2 + rng.randf() * 0.8) * dist)
+		if not water and _destination_at_water(n, dest):
+			continue
+		if _destination_hidden(n, dest, water or flying):
+			continue
+		if _area_occupied(n, dest):
+			continue
+		r.dest = dest
+		r.path = [dest]                              # buildStraightPath
+		r.path_built = true
+		r.path_cell = cell_key_at(mw_pos(n))
+		r.manual = true
+		r.wstate = "walk"
+		r.stuck_count = 0
+		return
+
+## destinationIsAtWater: promień w dół (1000 j.) do podłoża albo powierzchni wody; punkt 1 j. pod trafieniem pod wodą.
+func _destination_at_water(n: CharacterBody3D, dest: Vector3) -> bool:
+	var wl := float(n.get("water_level")) if n.get("water_level") != null else -INF
+	if wl == -INF:
+		return false
+	var wl_mw := wl * UNITS
+	var hit_z := dest.z - 1000.0
+	if dest.z >= wl_mw:
+		hit_z = maxf(hit_z, wl_mw)                   # getDistToNearestRayHit(…, includeWater = true)
+	var space := n.get_world_3d().direct_space_state
+	var q := PhysicsRayQueryParameters3D.create(MWCoords.mw_to_godot(dest), MWCoords.mw_to_godot(dest - Vector3(0, 0, 1000)))
+	q.exclude = [n.get_rid()]
+	var hit := space.intersect_ray(q)
+	if not hit.is_empty():
+		hit_z = maxf(hit_z, MWCoords.godot_to_mw(hit.position).z)
+	return hit_z - 1.0 < wl_mw
+
+## isDestinationHidden: promień od pozycji aktora do celu (lądowi: + połowa wysokości) przedłużonego o największą
+## połowę wymiaru – świat, teren, drzwi i aktorzy (bez samego aktora).
+func _destination_hidden(n: CharacterBody3D, dest: Vector3, water_or_flying: bool) -> bool:
+	var here := mw_pos(n)
+	var dir := (dest - here).normalized()
+	var hz := float(n.get("capsule_height")) * UNITS * 0.5 if n.get("capsule_height") != null else 64.0
+	var ext := maxf(half_width(n), hz)
+	var vis := (dest if water_or_flying else dest + Vector3(0, 0, hz)) + dir * ext
+	var q := PhysicsRayQueryParameters3D.create(MWCoords.mw_to_godot(here), MWCoords.mw_to_godot(vis))
+	q.exclude = [n.get_rid()]
+	return not n.get_world_3d().direct_space_state.intersect_ray(q).is_empty()
+
+## World::isAreaOccupiedByOtherActor: inny aktor w kuli o promieniu połowy szerokości wokół celu.
+func _area_occupied(n: CharacterBody3D, dest: Vector3) -> bool:
+	var refs := n.get_parent()
+	if refs == null:
+		return false
+	var hw := half_width(n)
+	for o in refs.get_children():
+		if o == n or not (o is CharacterBody3D) or not o.has_meta("mw_actor"):
+			continue
+		if mw_pos(o).distance_to(dest) < hw + half_width(o):
+			return true
 	return false
 
 func _random_point_around(c: Vector3, d: float) -> Vector3:
@@ -1361,11 +1478,14 @@ func _combat(n: CharacterBody3D, r: Dictionary, p: Dictionary, dt: float, react:
 	var act: Dictionary = r.get("action", {})
 	var w: Dictionary = cb.weapon(f)
 	var reach: float = cb.reach(f, w) if act.get("kind", "melee") == "melee" else (1000.0 if act.get("kind", "") == "ranged" or bool(act.get("ranged", false)) else cb.reach(f, {}))
-	var dist := Vector2(here.x - there.x, here.y - there.y).length() - 29.0 - 29.0
+	# getDistanceToBounds: odległość 3D minus połowy szerokości (pływak pod celem nie sięga go z dna)
+	var dist := here.distance_to(there) - 29.0 - 29.0
 	if dist > reach or not _los(n, target):
 		path_to(n, there, dt, maxf(1.0, reach * 0.8), true)
 		return false
 	_stop(n)
+	# AiCombat: mRotation[0] = getXAngleToDir(kierunek celowania) – dla pływających/latających
+	_pitch_to(n, there + Vector3(0, 0, float(target.get("capsule_height") if target.get("capsule_height") != null else 1.8) * UNITS * 0.5), dt)
 	if not _turn_to(n, there, dt, 0.2):
 		return false
 	if float(r.cooldown) > 0.0:
