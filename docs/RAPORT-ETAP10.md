@@ -28,6 +28,9 @@ funkcji. Commity lokalne, bez push.
 | „Latający Slaughterfish” | punkt 3 | punkt 3 | test_water_* |
 | Ciało martwego aktora z włączoną grawitacją spadałoby przez teren (wykryte przy teście latających) | po śmierci kształt kolizji jest wyłączany, a ruch szedł przez `move_and_slide` | ciało opada do podłoża wyznaczonego promieniem, pod wodą wypływa (mFloatToSurface, 25 j./s) | test_water_game („martwe latające spada na ziemię”) |
 | Walka: pływak pod celem „sięgał” go z dna | odległość walki liczona w poziomie | getDistanceToBounds – odległość 3D | test_water_game |
+| Po wczytaniu zapisu z menu głównego gracz obraca kamerą, ale się nie rusza (zgłoszenie) | `_enter_nogame` wyłączało `_physics_process` gracza, wczytanie przywracało tylko `process_mode` (w trakcie gry problem nie występował) | `load_game`/`new_game` włączają fizykę gracza; odtworzone i sprawdzone na kopii zapisu użytkownika (0,00 m → ruch) | test_load_controls |
+| Kwestie NPC na początku gry ginęły (zgłoszenie) | MenuMode skryptów nie uwzględniało filmu ani stosu trybów GUI – skrypty na statku (Say Jiuba, okno imienia) działały pod filmem wprowadzającym nowej gry | MenuMode = WindowManager::isGuiMode (tryb GUI na stosie, GM_Video, menu główne) | test_load_controls |
+| Podpowiedź broni: obrażenia „0 – 0” | odczyt nieistniejących pól `chop_min`/… zamiast `chop: [min, max]` | podpowiedzi OpenMW (cz. 9) | test_tooltips |
 | Polskie komunikaty przy zamkniętych drzwiach/pojemniku, podniesieniu przedmiotu i pułapce | własne komunikaty spoza OpenMW | jak OpenMW: FailedAction bez tekstu (tylko dźwięk), ActionTake bez tekstu, pułapka działa czarem | test_interaction |
 
 ## 3. Stworzenia wodne
@@ -252,9 +255,17 @@ użycie jak z ekwipunku i dobycie broni z prawej ręki, przedmiot magiczny – z
 pole 10 – walka wręcz. Zapis: 9 pól w `state.player.quick_keys` (REC_KEYS). Test: test_quick_keys (41).
 Brak: obsługa pada (mControllerFocus), ustawianie klawiszy w ustawieniach (zakładka sterowania – osobny punkt).
 
-### 7.3 Pozostałe punkty etapu (do wykonania)
+### 7.3 Podpowiedzi (cz. 9)
+`mw_tooltips.gd` – ToolTips OpenMW dla przedmiotów (ItemModelIndex/ItemPtr) i czarów (Spell, SpellCost w zakupie
+czarów): createToolTip (nagłówek z ikoną, tekst, efekty MW_EffectImage, zaklęcie z ładunkiem), getToolTipInfo
+wszystkich klas przedmiotów, ToolTips::position, tylko w trybie GUI. Podpięte w siatkach przedmiotów (ekwipunek,
+pojemnik, handel, alchemia, zaklinanie, naprawa, ładowanie), szybkich klawiszach, oknie magii i wyborze magii.
+Test: test_tooltips (32). Do zrobienia: podpowiedzi układów (`Layout`: umiejętności, atrybuty, klasa, rasa, znak,
+efekty magiczne, poziom, zdrowie, frakcja) – dziś tekst Godota; podpowiedź obiektów w świecie z ikoną (HUD).
 
-§4 podpowiedzi `openmw_tooltips`, §6 konsola, §7 więzienie,
+### 7.4 Pozostałe punkty etapu (do wykonania)
+
+§4 podpowiedzi układów (Layout), §6 konsola, §7 więzienie,
 §8 towarzysz, §9 notatki mapy i pole tekstowe, §10 ustawienia, autozapis, ekrany ładowania, Enter/Tab/strzałki,
 pad, §11 porównania 720p/1440p/2160p i nowych okien, §12 dodatki i mody.
 
@@ -268,10 +279,12 @@ pad, §11 porównania 720p/1440p/2160p i nowych okien, §12 dodatki i mody.
 * Etap 10 cz. 6: stworzenia – kształt z „Bounding Box” i adjustPosition (weryfikacja na prawdziwych danych)
 * Etap 10 cz. 7: okno ilości (CountDialog)
 * Etap 10 cz. 8: szybkie klawisze i wybór magii
+* Etap 10 cz. 9: podpowiedzi w układzie OpenMW (przedmioty, czary)
+* Etap 10: naprawa – ruch po wczytaniu zapisu z menu i MenuMode skryptów
 
-Pełny zestaw tools/run_tests.sh po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości).
+Pełny zestaw tools/run_tests.sh: 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 
 ## 9. Zalecana kolejność dalszych prac
 
-1. Podpowiedzi openmw_tooltips, 2. więzienie i towarzysz,
+1. Podpowiedzi układów (Layout), 2. więzienie i towarzysz,
 3. konsola (też do testów), 4. ustawienia/autozapis/klawiatura/pad, 5. porównania zrzutami wszystkich okien.
