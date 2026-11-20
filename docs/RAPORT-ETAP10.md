@@ -280,9 +280,26 @@ GM_Companion z oknem 600 × 300, filtrem, paskiem obciążenia, zyskiem (minimum
 przy ujemnym zysku, bez kradzieży; bez powitania – od razu okno. Testy: test_crime (36), test_companion (17).
 Brak: zrzutowe porównanie z OpenMW obu okien (do zrobienia razem z pozostałymi oknami).
 
-### 7.6 Pozostałe punkty etapu (do wykonania)
+### 7.6 Konsola (cz. 12)
+`mw_console.gd` jak Console OpenMW 0.51: klawisz „`” (A_Console; nie przy oknie z pytaniem, w wierszu poleceń też
+zamyka), otwarta konsola = isConsoleMode, czyli tryb GUI (pauza, kursor, MenuMode = 1), Esc zamyka najpierw konsolę.
+Okno wg [Windows] console (0,255; 0,215; 0,49 × 0,3125) i openmw_console.layout: historia (czcionka o stałej
+szerokości, biała, 10000 znaków), pasek wyszukiwania (<, >, pole, Aa, .*), wiersz poleceń z fokusem. Polecenie:
+echo „> …”, kompilacja `mw_mwscript_compiler.gd` – port parsera konwertera (tabela sygnatur generowana z konwertera,
+`tools/gen_gd_mwscript_sig.py`; wektory `tests/data/mwscript_vectors.json` i wszystkie 1231 skryptów Morrowind/
+Tribunal/Bloodmoon dają identyczne drzewa) ze zmiennymi lokalnymi wybranego obiektu, wykonanie w jego kontekście;
+wynik funkcji #FF00FF, błędy #FF2222. Wybór kliknięciem w świat, tytuł „Console (refid)”, ponowne kliknięcie
+odznacza. Historia: strzałki, bez powtórzeń z rzędu, console_history.txt (bufor 4096). Tab: listNames (słowa
+kluczowe, funkcje, identyfikatory obiektów), Ctrl+W, Ctrl+U. Polecenia konsoli: coc (findInteriorPosition, potem
+komórka zewnętrzna o tej nazwie), coe, tgm (bez obrażeń, upadku, kosztów kondycji i magii gracza), tcl (swobodny
+ruch bez kolizji), tai, fillmap, tm, sv, help; ra/fixme i polecenia Lua zgłaszane jako nieobsługiwane.
+Na prawdziwych danych (VM): otwarcie, pauza, MenuMode, GetHealth, coc do wnętrza Seyda Neen, wybór NPC
+i GetDisposition, sv, coe −2 −9, fillmap, tgm – bez błędów. Test: test_console (74).
+Brak: porównanie zrzutem z OpenMW, przełączniki grafiki (tcb, twf, tsky…).
 
-§6 konsola, §9 notatki mapy i pole tekstowe, §10 ustawienia, autozapis, ekrany ładowania, Enter/Tab/strzałki,
+### 7.7 Pozostałe punkty etapu (do wykonania)
+
+§9 notatki mapy i pole tekstowe, §10 ustawienia, autozapis, ekrany ładowania, Enter/Tab/strzałki,
 pad, §11 porównania 720p/1440p/2160p i nowych okien, §12 dodatki i mody.
 
 ## 8. Commity (lokalne, bez push)
@@ -299,10 +316,11 @@ pad, §11 porównania 720p/1440p/2160p i nowych okien, §12 dodatki i mody.
 * Etap 10: naprawa – ruch po wczytaniu zapisu z menu i MenuMode skryptów
 * Etap 10 cz. 10: podpowiedzi układów (Layout) i ikon efektów
 * Etap 10 cz. 11: więzienie i towarzysz
+* Etap 10 cz. 12: konsola (MWScript)
 
-Pełny zestaw tools/run_tests.sh: 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
+Pełny zestaw tools/run_tests.sh: 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 
 ## 9. Zalecana kolejność dalszych prac
 
-1. Konsola (też do testów), 2. notatki mapy i pole tekstowe, 3. ustawienia/autozapis/klawiatura/pad,
-4. porównania zrzutami wszystkich nowych okien z OpenMW (720p/1440p/2160p), 5. dodatki i mody.
+1. Notatki mapy i pole tekstowe, 2. ustawienia/autozapis/klawiatura/pad,
+3. porównania zrzutami wszystkich nowych okien z OpenMW (720p/1440p/2160p), 4. dodatki i mody.

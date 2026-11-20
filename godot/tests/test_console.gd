@@ -125,7 +125,8 @@ func _run() -> void:
 	check(lines.size() == 2 and lines[1] == "tai", "console_history.txt (%s)" % [lines])
 	con._init_history()
 	check(con.command_history.size() == 2, "historia wczytana z pliku")
-	# 5. Tab, Ctrl+W, Ctrl+U
+	# 5. Tab, Ctrl+W, Ctrl+U; listNames obejmuje identyfikatory obiektów
+	check("synth_villager" in con.list_names() and "getpccell" in con.list_names() and "endif" in con.list_names(), "listNames: obiekty, funkcje, słowa kluczowe")
 	con.command.text = "player->getpcce"
 	con.command.caret_column = con.command.text.length()
 	_key(con.command, KEY_TAB)

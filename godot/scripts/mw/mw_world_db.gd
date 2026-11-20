@@ -95,6 +95,10 @@ func _created_object(id: String) -> Dictionary:
 		return o
 	return {}
 
+## Identyfikatory wszystkich obiektów (Console::listNames – ESMStore::listIdentifier).
+func object_ids() -> Array:
+	return _objects.keys()
+
 func get_object(base_id: String) -> Dictionary:
 	var o: Dictionary = _objects.get(base_id.to_lower(), {})
 	if o.is_empty() and (not created.is_empty() or base_id.contains("@")):

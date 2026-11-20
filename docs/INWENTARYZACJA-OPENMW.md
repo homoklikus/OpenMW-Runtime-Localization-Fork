@@ -137,7 +137,7 @@ klasa, statystyki po 9 powrotach = buildPlayer od zera) i `probe_newgame.gd` (15
 | Zaklinanie, kupno zaklęć, trening, podróż w układzie OpenMW | Zweryfikowane | etapy 8–9: porównania zrzutami | – |
 | Więzienie (okno odsiadki, utrata umiejętności) | Zaimplementowane | etap 10 cz. 11: World::goToJail w dwóch krokach, GM_Jail (zaciemnienie, prisonmarker, pasek), jailTimeServed, ReleasedFromPrison; test_crime. Porównanie zrzutem – do zrobienia | – |
 | Towarzysz (dzielenie ekwipunku), przechodzenie przez drzwi | Częściowo zgodne | etap 10 cz. 11: sCompanionShare, CompanionWindow (zysk minimumprofit, ostrzeżenie), bez powitania – okno; test_companion. Przechodzenie przez drzwi: towarzysze z AiFollow – referencje dynamiczne (etap 9) | P3 |
-| Konsola (~) | Brakujące | przydatna też do testów | P3 |
+| Konsola (`) | Częściowo zgodne | etap 10 cz. 12: okno i układ OpenMW, isConsoleMode = tryb GUI, kompilator MWScript 1:1 z konwerterem (1231 skryptów identycznie), wybór obiektu, historia, Tab, wyszukiwanie; coc, coe, tgm, tcl, tai, fillmap, tm, sv, help; test_console. Brak: Lua, ra/fixme, przełączniki grafiki (tcb, twf, tsky…), porównanie zrzutem | P3 |
 | Ustawienia jak OpenMW (zakładki, klawisze) | Częściowo zgodne | mniej opcji | P3 |
 | Kursor z gry (`tx_cursor`) | Brakujące | | P3 |
 | Podpowiedź nad obiektem w świecie: waga, wartość, właściciel na czerwono | Częściowo zgodne | dziś tekst akcji | P2 |
@@ -987,7 +987,7 @@ na VM biblioteka GDExtension nie wczytuje się (glibc 2.38), sonda działa na ś
 4. ~~Efekty magii z punktu 5~~ – etap 6 (2026-11-19): 137/143 zweryfikowanych porównaniem; pozostało porównanie obrazu
    (Wykrywanie – znaczniki mapy lokalnej, Światło, Widzenie w ciemności, głowa wampira).
 5. Interfejs z punktu 3 – etap 9 (`RAPORT-ETAP9.md`): okna rzemiosła, awansu, perswazji i komunikatów wykonane;
-   pozostały szybkie klawisze, okno ilości, podpowiedzi, więzienie, towarzysz, konsola (czekanie – częściowo).
+   etap 10: szybkie klawisze, okno ilości, podpowiedzi, więzienie, towarzysz i konsola wykonane (czekanie – częściowo).
 6. Grafika: animacje, widok 1-/3-osobowy, pogoda, oświetlenie.
 7. Tribunal/Bloodmoon (wilkołactwo i pozostałe).
 

@@ -381,11 +381,9 @@ func list_names() -> Array:
 		seen[String(k)] = true
 	for k in SIG.SIG:
 		seen[String(k)] = true
-	if main != null and main.get("builder") != null and main.builder.get("actors") != null:
-		var recs = main.builder.actors
-		if recs.has_method("all_ids"):
-			for id in recs.all_ids():
-				seen[String(id)] = true
+	if main != null and main.get("db") != null and main.db != null:
+		for id in main.db.object_ids():
+			seen[String(id).to_lower()] = true
 	_names = seen.keys()
 	_names.sort()
 	return _names
