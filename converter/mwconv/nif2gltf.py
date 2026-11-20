@@ -212,6 +212,17 @@ class NifToGltf:
         flags = b.get("flags", 0)
         if flags & 1:
             extras["mw_hidden"] = True
+        # BulletNifLoader::findBoundingBox: węzeł „Bounding Box” z prostopadłościanem (wszystkie półwymiary > 0) –
+        # kształt kolizji aktora (mCollisionBox: półwymiary i środek = mMeshTranslation), poziom pływania
+        bv = b.get("bounds")
+        if str(b.get("name", "")).lower() == "bounding box":
+            if isinstance(bv, dict) and bv.get("type") == "box" and all(float(e) > 0 for e in bv["extents"]):
+                e = [float(x) * coords.SCALE for x in bv["extents"]]
+                extras["mw_bounding_box"] = {"center": [round(float(x), 6) for x in coords.pos_to_godot(bv["center"])],
+                                             "extents": [round(e[0], 6), round(e[2], 6), round(e[1], 6)]}
+            else:
+                self.rep.note("lossy", "nieprawidłowe granice węzła Bounding Box – kolizja aktora z siatki")
+                extras["mw_bounding_box"] = None
         if t == "RootCollisionNode":
             collision = True
         if collision:

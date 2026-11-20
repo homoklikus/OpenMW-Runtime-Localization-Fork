@@ -48,6 +48,11 @@ var on_water := false
 ## Kapsuła kolizji (NPC: stała; stworzenia: z wymiarów modelu – etap 8).
 var capsule_radius := 0.35
 var capsule_height := 1.8
+## Środek kształtu względem początku aktora (Actor::mMeshTranslation z „Bounding Box”); NAN – połowa wysokości.
+var capsule_center := Vector3(NAN, NAN, NAN)
+## Półwymiary prostopadłościanu z „Bounding Box” (x, wysokość, z – niezależne jak Actor::mHalfExtents); zero – z
+## capsule_radius/capsule_height.
+var capsule_extents := Vector3.ZERO
 ## Lot bez grawitacji – World::isFlying dla stworzeń: canFly (flaga Flies) i żywe, niesparaliżowane
 ## (ustawiane co klatkę przez MWMagic.apply_movement z can_fly). Stworzenia wodne NIE są zwolnione z grawitacji:
 ## w OpenMW (MovementSolver) poza wodą spadają jak każdy aktor, a pod wodą nie mogą „wypłynąć w powietrze”.
@@ -59,6 +64,12 @@ var ai_pitch := 0.0
 ## Bezwładny (ActorFrameData::mInert): martwy albo sparaliżowany – pod wodą wypływa na powierzchnię
 ## (CharacterController mFloatToSurface: 25 j./s), poza wodą spada. Ustawiane przez MWMagic.apply_movement.
 var inert := false
+## World::adjustPosition przy pierwszej aktualizacji aktora po wczytaniu komórki (Actors::update –
+## !getPositionAdjusted): z = max(z, wysokość terenu) + 20 j., potem – gdy nie leci i nie pływa – na podłoże
+## (traceDown). Dotyczy aktorów z referencji (mw_actor); gracz – osobno (travel/_place_on_ground).
+var terrain_height := -INF
+var position_adjusted := false
+var _adjust_wait := 2                    # kolizje Jolt dostępne dla zapytań po kroku fizyki
 ## Wchodzenie na stopnie (jak OpenMW Stepper: Constants::sStepSizeUp = 34 jedn., sMaxSlope = 46°) – bez tego
 ## kapsuła zatrzymuje się na każdej krawędzi wyższej niż kilka cm (np. trap okrętu więziennego, progi, schody).
 var step_height := 34.0 / MWCoords.UNITS_PER_METER
@@ -88,8 +99,11 @@ func _ready() -> void:
 	var box := BoxShape3D.new()
 	var h := maxf(capsule_height, capsule_radius * 2.0)
 	box.size = Vector3(capsule_radius * 2.0, h, capsule_radius * 2.0)
+	if capsule_extents != Vector3.ZERO:
+		box.size = capsule_extents * 2.0
+		h = box.size.y
 	col.shape = box
-	col.position.y = h * 0.5
+	col.position = capsule_center if not is_nan(capsule_center.x) else Vector3(0, h * 0.5, 0)
 	add_child(col)
 	# World::isUnderwater / MovementSolver: poziom pływania z połówek wymiarów fizycznych aktora (halfExtents.z × 2),
 	# nie ze stałego wzrostu – płytko pływająca ryba (kapsuła ~0,4 m) bez tego „nie pływała” i wychodziła z wody
@@ -113,8 +127,36 @@ func _physics_process(delta: float) -> void:
 		controller.control(self, delta)
 	step(delta)
 
+func _adjust_position() -> void:
+	position_adjusted = true
+	var u := 1.0 / MWCoords.UNITS_PER_METER
+	var p := global_position
+	p.y = maxf(p.y, terrain_height) + 20.0 * u          # „place slightly above terrain”
+	global_position = p
+	var swims := p.y + height * swim_height_scale < water_level
+	if no_gravity or swims:
+		return
+	var q := PhysicsRayQueryParameters3D.create(p, p - Vector3(0, MWCoords.CELL_SIZE * u, 0))
+	q.exclude = [get_rid()]
+	var space := get_world_3d().direct_space_state
+	for i in 8:                                          # traceDown: tylko świat (inni aktorzy pomijani)
+		var hit := space.intersect_ray(q)
+		if hit.is_empty():
+			return
+		if hit.collider is CharacterBody3D:
+			q.exclude = q.exclude + [hit.rid]
+			continue
+		p.y = minf(p.y, float(hit.position.y))
+		global_position = p
+		velocity = Vector3.ZERO
+		return
+
 ## Ruch z bieżących intencji (wspólny dla wszystkich aktorów).
 func step(delta: float) -> void:
+	if not position_adjusted and collide and has_meta("mw_actor"):
+		_adjust_wait -= 1
+		if _adjust_wait <= 0:
+			_adjust_position()
 	if has_meta("mw_dead") and collide:
 		_corpse_step(delta)
 		return

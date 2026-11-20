@@ -125,7 +125,11 @@ func _run() -> void:
 	if f != null:
 		check(f.can_fly and f.no_gravity and ai.is_pure_flying_creature(f), "Flies: lot bez grawitacji")
 		ai.enabled = false
-		var gy: float = f.global_position.y
+		# podłoże pod latającym (adjustPosition: latający nie jest stawiany na ziemi – z + 20 j.)
+		var q := PhysicsRayQueryParameters3D.create(f.global_position + Vector3.UP, f.global_position + Vector3.DOWN * 50.0)
+		q.exclude = [f.get_rid()]
+		var gh: Dictionary = f.get_world_3d().direct_space_state.intersect_ray(q)
+		var gy: float = float(gh.position.y) if not gh.is_empty() else f.global_position.y
 		f.global_position.y = gy + 3.0
 		await _frames(60)
 		check(f.global_position.y > gy + 2.9, "latające nie spada (y %.2f)" % f.global_position.y)

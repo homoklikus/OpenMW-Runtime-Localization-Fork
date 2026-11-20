@@ -38,7 +38,7 @@ from .world import (cell_file_rel, cell_to_json, content_fingerprint, load_world
 
 # Wersje konwerterów zasobów – zmiana wymusza ponowną konwersję modeli/tekstur, więc są niezależne od wersji
 # pakietu. Eksport świata ma własną wersję (WORLD_EXPORT_VERSION): nowe dane świata bez ponownej konwersji zasobów.
-MODEL_CONVERTER = "nif2gltf-0.1.2"
+MODEL_CONVERTER = "nif2gltf-0.1.3"     # 0.1.3: extras.mw_bounding_box (węzeł „Bounding Box” – kolizja aktora)
 # Starsze wersje, których wynik jest identyczny dla danego modelu (bez ponownej konwersji całej instalacji):
 # 0.1.0 zerowało transformację każdego korzenia (poza Bip01) – identyczne, gdy korzeń jest jednostkowy albo silnik
 # też go zeruje (NiNode o numerze 0); 0.1.1 stosowało transformację każdego korzenia – identyczne, gdy korzeń jest

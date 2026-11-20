@@ -180,6 +180,56 @@ func _test_record_flags() -> void:
 		a.free()
 	m.free()
 
+# 8: kształt aktora z węzła „Bounding Box” modelu (Actor: mCollisionBox, mMeshTranslation) – poziom pływania
+func _test_bounding_box() -> void:
+	var m := Node3D.new()
+	var mesh := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(3.0, 2.5, 1.0)                   # siatka (np. ogon, płetwy) większa niż kolizja
+	mesh.mesh = bm
+	m.add_child(mesh)
+	var bbn := Node3D.new()
+	bbn.set_meta("extras", {"mw_name": "Bounding Box", "mw_bounding_box": {"center": [0.0, 0.3, 0.0], "extents": [0.4, 0.5, 0.9]}})
+	m.add_child(bbn)
+	var a: CharacterBody3D = ACTOR.new()
+	BUILDER._fit_capsule(a, m, SLAUGHTERFISH)
+	check(absf(a.capsule_height - 1.0) < 0.001 and absf(a.capsule_radius - 0.9) < 0.001 and a.capsule_center.is_equal_approx(Vector3(0, 0.3, 0)),
+		"Bounding Box: wysokość 2 × półwymiar, środek przesunięty (h %.2f r %.2f c %s)" % [a.capsule_height, a.capsule_radius, a.capsule_center])
+	check(not a.no_gravity, "Bounding Box: Swims nadal z grawitacją")
+	var w := _world()
+	w.add_child(a)
+	a.water_level = 0.0
+	a.global_position = Vector3(0, -1.0, 0)            # 1 m pod wodą: pływa (1,0 × 0,9 < 1); z siatki (2,5 m) – nie
+	await _frames(a, 3)
+	check(a.swimming and absf(a.height - 1.0) < 0.001, "Bounding Box: poziom pływania z prostopadłościanu (pływa 1 m pod wodą)")
+	var col := a.get_node("Capsule") as CollisionShape3D
+	check(col.position.is_equal_approx(Vector3(0, 0.3, 0)), "Bounding Box: kształt kolizji w środku z modelu")
+	await _free(w)
+	m.free()
+
+# 9: World::adjustPosition przy pierwszej aktualizacji aktora z referencji
+func _test_adjust_position() -> void:
+	var u := 1.0 / MWCoords.UNITS_PER_METER
+	var w := _world()
+	_box(w, Vector3(40, 1, 40), Vector3(0, -6.5, 0))            # dno / ziemia y = −6
+	# poza wodą (woda −20): z + 20 j., potem traceDown na podłoże – od razu, bez spadania
+	var a := _fish(w, Vector3(0, 3.0, 0), -20.0)
+	a.set_meta("mw_actor", "creature")
+	await _frames(a, 3)
+	check(a.position_adjusted and absf(a.global_position.y - (-6.0)) < 0.05, "adjustPosition: poza wodą na podłoże (y %.2f)" % a.global_position.y)
+	# pod wodą (woda 0): pływa – tylko z + 20 j., bez stawiania na dnie
+	var b := _fish(w, Vector3(3, -3.0, 0), 0.0)
+	b.set_meta("mw_actor", "creature")
+	await _frames(b, 3)
+	check(absf(b.global_position.y - (-3.0 + 20.0 * u)) < 0.02, "adjustPosition: pływający tylko + 20 j. (y %.3f)" % b.global_position.y)
+	# poniżej terenu: podniesiony na teren + 20 j. (getTerrainHeightAt)
+	var c := _fish(w, Vector3(-3, -8.0, 0), 0.0)
+	c.set_meta("mw_actor", "creature")
+	c.terrain_height = -6.0
+	await _frames(c, 3)
+	check(c.global_position.y > -6.0 and c.global_position.y < -5.5, "adjustPosition: spod terenu ponad teren (y %.3f)" % c.global_position.y)
+	await _free(w)
+
 func _run() -> void:
 	await _test_in_water()
 	await _test_shore()
@@ -187,6 +237,8 @@ func _run() -> void:
 	await _test_out_of_water()
 	await _test_flying_and_effects()
 	_test_record_flags()
+	await _test_bounding_box()
+	await _test_adjust_position()
 	print("RESULT ", JSON.stringify({"checks": checks, "failures": failures}))
 	for f in failures:
 		print("  - ", f)

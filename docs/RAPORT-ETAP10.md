@@ -73,8 +73,33 @@ prędkość lotu). Nie użyto stałej wysokości, teleportacji pod wodę, blokad
 | 9. inne stworzenia (Swims+Walks, Flies, Swims+Flies, Walks – flagi → grawitacja) | test_water_creatures |
 
 Test syntetyczny przechodzi na nowym kodzie i nie przechodzi na starym (7 niezaliczonych, m.in. ryba wisi na
-y = 4,0 m) – sprawdzone. Porównanie obrazu z OpenMW w realnej komórce czeka na odtworzenie środowiska VM
-(`odtworz.sh` – /tmp maszyny został wyczyszczony przy restarcie).
+y = 4,0 m) – sprawdzone.
+
+**Weryfikacja na prawdziwych danych (kontynuacja etapu):** OpenMW 0.51 w maszynie wirtualnej (Xvfb, scenariusz
+Lua `rlf_ai`: pozycje aktorów co 1 s) i port (`tools/ai_compare.gd`) w Seyda Neen przy 14 punktach odradzania
+stworzeń wodnych (listy poziomowane); porównywane wyłącznie liczby. Instancja OpenMW na pulpicie użytkownika nie
+miała dostępu do ekranu X – sesji użytkownika nie zmieniałem. Wykryte i naprawione dwie dalsze różnice:
+1. **Kształt aktora z węzła „Bounding Box”** (BulletNifLoader::findBoundingBox, Actor: mCollisionBox,
+   mMeshTranslation): port liczył prostopadłościan z granic całej siatki (ogon, płetwy), więc poziom pływania był
+   za wysoko – ryba przy powierzchni (−136 j.) opadała w porcie o 20 j. 36 z 37 modeli stworzeń ma ten węzeł.
+   Konwerter zapisuje go w `extras.mw_bounding_box` (MODEL_CONVERTER 0.1.3 – modele konwertowane ponownie),
+   aktor używa półwymiarów (niezależne x/wysokość/z) i przesunięcia środka.
+2. **World::adjustPosition przy pierwszej aktualizacji aktora** (Actors::update): z = max(z, teren) + 20 j., a
+   aktor, który nie leci i nie pływa, stawiany na podłożu (traceDown). Ryba z punktu odradzania nad wodą (+54 j.)
+   w OpenMW trafia na dno (−140 j.); w porcie zatrzymywała się na poziomie pływania (−36 j.), po poprawce trafia
+   na dno (−142 j.).
+
+| Przypadek | OpenMW | Port przed | Port po |
+|---|---|---|---|
+| ryby pod wodą (−129…−1293 j.) | bez wynurzania ponad poziom pływania | jw. | jw. (+20 j. z adjustPosition jak OpenMW) |
+| ryba przy powierzchni (−136 j.) | zostaje | opada o 20 j. (za duża wysokość) | wysokość z „Bounding Box” |
+| odradzanie nad wodą (+54 j.) | dno (−140 j.) | poziom pływania (−36 j.) | dno (−142 j.) |
+| ciało (śmierć), ponowne wczytanie, zapis/odczyt, atak | – | – | test_water_game; ciało wypływa / opada |
+
+**Pozostała różnica (niepotwierdzona):** po trafieniu na dno ryba z odradzania nad wodą płynie w porcie w górę
+ku pozycji startowej AiWander zapamiętanej przed adjustPosition (kolejność jak w Actors::update: AI przed
+adjustPosition); w 8 s próbkowania OpenMW ryba nie płynęła. Krótka próba i losowość list poziomowanych nie
+pozwalają rozstrzygnąć – bez zmiany zachowania.
 
 ## 4. Język angielski
 
@@ -217,6 +242,7 @@ pad, §11 porównania 720p/1440p/2160p i nowych okien, §12 dodatki i mody.
 * Etap 10 cz. 3: interfejs po angielsku (GMST → l10n → zapas angielski)
 * Etap 10 cz. 4: launcher – pełne tłumaczenie PL/EN i zmiana języka bez restartu
 * Etap 10 cz. 5: przejścia między komórkami jak OpenMW – zaciemnienie, gotowość pierwszej klatki
+* Etap 10 cz. 6: stworzenia – kształt z „Bounding Box” i adjustPosition (weryfikacja na prawdziwych danych)
 
 ## 9. Zalecana kolejność dalszych prac
 

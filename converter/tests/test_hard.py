@@ -146,3 +146,33 @@ def test_scan_reports_groups(tmp_path):
     assert r["failed"] == 6 and r["ok"] == r["files"] - 6
     assert any(g.startswith("NiTriShapeData") for g in r["error_groups"])
     assert r["block_types"]["NiTriShape"] > 10
+
+
+def test_bounding_box_node_to_extras():
+    """BulletNifLoader::findBoundingBox: węzeł „Bounding Box” z prostopadłościanem → extras.mw_bounding_box
+    (półwymiary i środek w układzie Godota) – kształt kolizji aktora i poziom pływania stworzeń."""
+    from mwconv import coords
+    from mwconv.nif.writer import NifBuilder
+    from mwconv.synthetic import box
+    nb = NifBuilder()
+    root = nb.add("NiNode", name="fish")
+    V, N, UV, T = box((200, 60, 300), (0, 0, 0))            # siatka większa niż prostopadłościan kolizji
+    d = nb.add("NiTriShapeData", vertices=V, normals=N, uvs=[UV], triangles=T)
+    sh = nb.add("NiTriShape", name="tri fish", data=d)
+    bb = nb.add("NiNode", name="Bounding Box", bounds={"center": (0.0, 10.0, 20.0), "extents": (30.0, 80.0, 40.0)})
+    nb.set(root, children=[sh, bb])
+    glb, rep = NifToGltf(parse(nb.to_bytes(), "fish.nif"), "fish.nif", lambda n: None).convert()
+    doc, _ = read_glb(glb)
+    e = node(doc, "Bounding Box")["extras"]["mw_bounding_box"]
+    s = coords.SCALE
+    assert np.allclose(e["extents"], [30 * s, 40 * s, 80 * s], atol=1e-5)       # MW (x, y, z) → Godot (x, z, y)
+    assert np.allclose(e["center"], coords.pos_to_godot((0.0, 10.0, 20.0)), atol=1e-5)
+    # nieprawidłowe granice (półwymiar 0) – bez prostopadłościanu, uwaga w raporcie
+    nb2 = NifBuilder()
+    r2 = nb2.add("NiNode", name="x")
+    bad = nb2.add("NiNode", name="bounding box", bounds={"center": (0.0, 0.0, 0.0), "extents": (0.0, 1.0, 1.0)})
+    nb2.set(r2, children=[bad])
+    glb2, rep2 = NifToGltf(parse(nb2.to_bytes(), "x.nif"), "x.nif", lambda n: None).convert()
+    doc2, _ = read_glb(glb2)
+    assert node(doc2, "bounding box")["extras"]["mw_bounding_box"] is None
+    assert any("Bounding Box" in x for x in rep2.lossy)

@@ -72,9 +72,14 @@ func build_cell(key: String) -> Node3D:
 	var wl := float(c.get("water_height_m", 0.0)) if c.get("has_water", false) else -INF
 	if wov != null and c.get("has_water", false):
 		wl = float(wov) / MWCoords.UNITS_PER_METER
+	# World::getTerrainHeightAt pod każdym aktorem (adjustPosition przy pierwszej aktualizacji aktora)
+	var tdat: Dictionary = db.get_terrain(c["terrain"]) if not c.get("interior", false) and c.get("terrain") != null else {}
 	for n in refs_node.get_children():
 		if n.has_meta("mw_actor") and "water_level" in n:
 			n.water_level = wl
+			if "terrain_height" in n and not tdat.is_empty():
+				var o: Array = tdat["origin_godot"]
+				n.terrain_height = MWTerrain.height_at(tdat, (n as Node3D).position - Vector3(o[0], o[1], o[2]))
 	if flora != null and not editor_mode and not c.get("interior", false):
 		var fl: Node3D = flora.build_cell(key)
 		if fl:
@@ -226,6 +231,19 @@ static func _strip_collision(m: Node) -> void:
 ## Kapsuła stworzenia z wymiarów modelu (OpenMW: kształt kolizji z granic modelu) i lot bez grawitacji tylko dla
 ## stworzeń z flagą Flies (World::isFlying) – pływające podlegają grawitacji poza wodą.
 static func _fit_capsule(n: Node3D, m: Node3D, rec: Dictionary) -> void:
+	# Actor (mwphysics): prostopadłościan z węzła „Bounding Box” modelu (BulletNifLoader::findBoundingBox – pierwszy
+	# węzeł o tej nazwie), środek przesunięty o mMeshTranslation; bez niego – granice siatki
+	var bb = _bounding_box(m)
+	if bb is Dictionary:
+		var e: Array = bb["extents"]
+		var c: Array = bb["center"]
+		n.capsule_radius = clampf(maxf(float(e[0]), float(e[2])), 0.05, 4.0)
+		n.capsule_height = clampf(float(e[1]) * 2.0, 0.1, 12.0)
+		n.capsule_center = Vector3(float(c[0]), float(c[1]), float(c[2]))
+		n.capsule_extents = Vector3(clampf(float(e[0]), 0.05, 4.0), clampf(float(e[1]), 0.05, 6.0), clampf(float(e[2]), 0.05, 4.0))
+		n.can_fly = bool(rec.get("flies", false))
+		n.no_gravity = n.can_fly
+		return
 	var aabb := AABB()
 	var first := true
 	for mi in m.find_children("*", "MeshInstance3D", true, false):
@@ -244,6 +262,17 @@ static func _fit_capsule(n: Node3D, m: Node3D, rec: Dictionary) -> void:
 	# canSwim nie zwalnia z grawitacji (MovementSolver)
 	n.can_fly = bool(rec.get("flies", false))
 	n.no_gravity = n.can_fly
+
+## Pierwszy węzeł „Bounding Box” (przeszukiwanie w głąb jak findBoundingBox): jego prostopadłościan albo null.
+static func _bounding_box(root: Node) -> Variant:
+	var ex := MWModelCache.extras_of(root)
+	if String(ex.get("mw_name", "")).to_lower() == "bounding box":
+		return ex.get("mw_bounding_box") if ex.get("mw_bounding_box") is Dictionary else false
+	for ch in root.get_children():
+		var r = _bounding_box(ch)
+		if r != null:
+			return r
+	return null
 
 func _placeholder() -> Node3D:
 	var mi := MeshInstance3D.new()
