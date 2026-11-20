@@ -263,10 +263,26 @@ pojemnik, handel, alchemia, zaklinanie, naprawa, ładowanie), szybkich klawiszac
 Test: test_tooltips (32). Do zrobienia: podpowiedzi układów (`Layout`: umiejętności, atrybuty, klasa, rasa, znak,
 efekty magiczne, poziom, zdrowie, frakcja) – dziś tekst Godota; podpowiedź obiektów w świecie z ikoną (HUD).
 
-### 7.4 Pozostałe punkty etapu (do wykonania)
+### 7.4 Podpowiedzi układów (cz. 10)
+Układy `openmw_tooltips.layout` (Text, Faction, Race, Specialization, Class, Health, Attribute, Skill z paskiem postępu
+albo sSkillMaxReached, SkillNoProgress, Level, BirthSign, MagicEffect) i ToolTipInfo ikon działających efektów
+(SpellIcons: źródła z wielkością). Podpięte: okno statystyk (wszystkie wiersze), HUD (paski, ikony efektów), okno
+magii (ikony efektów), kreator (premie rasy, atrybuty w przeglądzie, czary), edytor efektu (MagicEffectToolTip),
+zaklinanie (teksty pomocy), mapa (znaczniki). Test: test_tooltips (43). Brak: podpowiedź obiektu w świecie z ikoną
+(HUD), HandToHandToolTip i Spell/ItemPtr na polach broni i czaru w HUD.
 
-§4 podpowiedzi układów (Layout), §6 konsola, §7 więzienie,
-§8 towarzysz, §9 notatki mapy i pole tekstowe, §10 ustawienia, autozapis, ekrany ładowania, Enter/Tab/strzałki,
+### 7.5 Więzienie i towarzysz (cz. 11)
+Więzienie (`mw_jail_screen.gd`): World::goToJail w dwóch krokach (najpierw grzywna, przedmioty i GetPCInJail przy
+otwartej rozmowie, przeniesienie po pierwszej klatce bez pauzy), GM_Jail z zaciemnieniem, przeniesieniem do
+prisonmarker, oknem sInPrisonTitle z paskiem (100 kroków co 1/60 s), odpoczynkiem, upływem czasu, jailTimeServed
+i oknem ReleasedFromPrison ze zmianami umiejętności. Towarzysz: sCompanionShare (zmienna lokalna „companion”),
+GM_Companion z oknem 600 × 300, filtrem, paskiem obciążenia, zyskiem (minimumprofit, sProfitValue), ostrzeżeniem
+przy ujemnym zysku, bez kradzieży; bez powitania – od razu okno. Testy: test_crime (36), test_companion (17).
+Brak: zrzutowe porównanie z OpenMW obu okien (do zrobienia razem z pozostałymi oknami).
+
+### 7.6 Pozostałe punkty etapu (do wykonania)
+
+§6 konsola, §9 notatki mapy i pole tekstowe, §10 ustawienia, autozapis, ekrany ładowania, Enter/Tab/strzałki,
 pad, §11 porównania 720p/1440p/2160p i nowych okien, §12 dodatki i mody.
 
 ## 8. Commity (lokalne, bez push)
@@ -281,10 +297,12 @@ pad, §11 porównania 720p/1440p/2160p i nowych okien, §12 dodatki i mody.
 * Etap 10 cz. 8: szybkie klawisze i wybór magii
 * Etap 10 cz. 9: podpowiedzi w układzie OpenMW (przedmioty, czary)
 * Etap 10: naprawa – ruch po wczytaniu zapisu z menu i MenuMode skryptów
+* Etap 10 cz. 10: podpowiedzi układów (Layout) i ikon efektów
+* Etap 10 cz. 11: więzienie i towarzysz
 
-Pełny zestaw tools/run_tests.sh: 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
+Pełny zestaw tools/run_tests.sh: 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 
 ## 9. Zalecana kolejność dalszych prac
 
-1. Podpowiedzi układów (Layout), 2. więzienie i towarzysz,
-3. konsola (też do testów), 4. ustawienia/autozapis/klawiatura/pad, 5. porównania zrzutami wszystkich okien.
+1. Konsola (też do testów), 2. notatki mapy i pole tekstowe, 3. ustawienia/autozapis/klawiatura/pad,
+4. porównania zrzutami wszystkich nowych okien z OpenMW (720p/1440p/2160p), 5. dodatki i mody.

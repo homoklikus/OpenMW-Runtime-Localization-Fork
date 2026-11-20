@@ -110,7 +110,7 @@ klasa, statystyki po 9 powrotach = buildPlayer od zera) i `probe_newgame.gd` (15
 | Przegląd (541×428): imię/rasa/klasa/znak z przyciskami, zdrowie/magia/kondycja, atrybuty i umiejętności z kolorami zmian, umiejętności główne/drugorzędne/pozostałe, zdolności/moce/czary | Zweryfikowane | zrzut zgodny | – |
 | Czary początkowe gracza (autoCalcPlayerSpells: PCStart, magia bazowa, fAutoPCSpellChance, attrSkillCheck, iAutoPCSpellMax) | Zaimplementowane | **naprawione:** wcześniej brak; teraz w MWCharacter.build (test_character, przegląd) – nie porównano listy czarów z działającym OpenMW | P2 |
 | Konwersja: części ciała wszystkich grywalnych ras | Zweryfikowane | **naprawione:** przy konwersji wybranych komórek brakowało modeli ras bez NPC w tych komórkach (pusty podgląd orka/khajiitki i brak ciała po wyborze) | – |
-| Podpowiedzi (tooltipy) ras, klas, umiejętności, atrybutów jak ToolTips OpenMW (ikona, opis) | Częściowo zgodne | u nas zwykły tekst (nazwa i efekty czarów); brak okienek z ikoną i opisem | P3 |
+| Podpowiedzi (tooltipy) ras, klas, umiejętności, atrybutów jak ToolTips OpenMW (ikona, opis) | Zaimplementowane | etap 10 cz. 10: układy Race/Class/Skill/Attribute/BirthSign/MagicEffect w kreatorze i statystykach; test_tooltips | – |
 | Teksty „Anuluj”/„OK” w oknach wyboru (Interface:Cancel/OK) | Częściowo zgodne | po polsku jak reszta interfejsu silnika; GMST z danych gracza bez zmian | P3 |
 | Paski przewijania MW_VScroll/MW_HScroll | Częściowo zgodne | strzałki OpenMW, tor i suwak rysowane kolorem (bez tekstur suwaka) | P3 |
 | Sterowanie padem (controller menus) | Brakujące | | P3 |
@@ -135,15 +135,15 @@ klasa, statystyki po 9 powrotach = buildPlayer od zera) i `probe_newgame.gd` (15
 | Tworzenie zaklęć (usługa) | Zweryfikowane | etap 9: SpellCreationDialog i pozycja w rozmowie | – |
 | Naprawa u kupca / młotkiem, ładowanie kamieniem duszy | Zweryfikowane | etap 9: Repair, MerchantRepair, Recharge, SoulgemDialog | – |
 | Zaklinanie, kupno zaklęć, trening, podróż w układzie OpenMW | Zweryfikowane | etapy 8–9: porównania zrzutami | – |
-| Więzienie (okno odsiadki, utrata umiejętności) | Nieprzetestowane | | P2 |
-| Towarzysz (dzielenie ekwipunku), przechodzenie przez drzwi | Brakujące | | P2 |
+| Więzienie (okno odsiadki, utrata umiejętności) | Zaimplementowane | etap 10 cz. 11: World::goToJail w dwóch krokach, GM_Jail (zaciemnienie, prisonmarker, pasek), jailTimeServed, ReleasedFromPrison; test_crime. Porównanie zrzutem – do zrobienia | – |
+| Towarzysz (dzielenie ekwipunku), przechodzenie przez drzwi | Częściowo zgodne | etap 10 cz. 11: sCompanionShare, CompanionWindow (zysk minimumprofit, ostrzeżenie), bez powitania – okno; test_companion. Przechodzenie przez drzwi: towarzysze z AiFollow – referencje dynamiczne (etap 9) | P3 |
 | Konsola (~) | Brakujące | przydatna też do testów | P3 |
 | Ustawienia jak OpenMW (zakładki, klawisze) | Częściowo zgodne | mniej opcji | P3 |
 | Kursor z gry (`tx_cursor`) | Brakujące | | P3 |
 | Podpowiedź nad obiektem w świecie: waga, wartość, właściciel na czerwono | Częściowo zgodne | dziś tekst akcji | P2 |
 | Okno komunikatu (MessageBox) w stylu i położeniu OpenMW | Zweryfikowane | etap 9: MessageBoxManager (komunikaty i okno z pytaniem), test_messagebox, porównanie zrzutem; klawisz domyślny – do zrobienia | P3 |
 | Książka/zwój: „Weź” tylko przy odblokowanym ekwipunku | Zweryfikowane | test_chargen + sonda | – |
-| Podpowiedzi w układach OpenMW (`openmw_tooltips`: ikony, MagicEffectToolTip, kolory) | Częściowo zgodne | etap 9 – audyt: dziś zwykłe podpowiedzi tekstowe Godota | P2 |
+| Podpowiedzi w układach OpenMW (`openmw_tooltips`: ikony, MagicEffectToolTip, kolory) | Zaimplementowane | etap 10 cz. 9–10: createToolTip (przedmioty, czary, efekty, ładunek) i wszystkie układy Layout; ikony efektów (SpellIcons); test_tooltips (43). Brak: podpowiedź obiektu w świecie z ikoną, pola broni/czaru w HUD | P3 |
 | Sterowanie z pada (menu kontrolera) | Brakujące | | P3 |
 | Stos trybów GUI (pushGuiMode/popGuiMode/removeGuiMode/containsMode, exitCurrentGuiMode, updateVisible) | Zweryfikowane | etap 10: jeden mechanizm (`mw_gui_modes.gd`) – ekwipunek → alchemia/naprawa/kamień dusz → ekwipunek, rozmowa → handel/trening/podróż → rozmowa, okno z pytaniem nad trybem, Esc na każdym poziomie; test_gui_modes (24). Porównanie zrzutami – do zrobienia | – |
 | Jeden język interfejsu: angielski (GMST z danych → l10n OpenMW → zapas angielski) | Zweryfikowane | etap 10: usunięte polskie napisy i zapasy z kodu (ok. 170), podpowiedź celownika na aktorze = sama nazwa (ToolTips), zamek/pułapka z #{sLockLevel}/#{sTrapped}, bez komunikatów „zamknięte”/„podniesiono” (jak FailedAction/ActionTake); test_language (38). Diagnostyka (logi, błędy skryptów) zostaje po polsku. Tłumaczenia danych gry (fork RLF) zależą od „Język gry” w launcherze – „auto” bierze język launchera | – |
