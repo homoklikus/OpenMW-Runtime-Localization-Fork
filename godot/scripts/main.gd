@@ -40,6 +40,7 @@ var events = Events.new()           # szyna zdarzeń (etap 0)
 var native_mods = null               # mw_native_mods.gd – natywne mody (eksperyment first-fish)
 var interaction = null                # MWInteraction (etap 3)
 var item_window = null                # okno pojemnika / ekwipunku
+var quick_keys = null                 # mw_quick_keys.gd – QuickKeysMenu (F1, klawisze 1–0)
 var audio = null                      # MWAudio (etap 3)
 var music = null                      # MWMusic (etap 10)
 var anim_sounds = null                # etap 10: dźwięki z kluczy animacji (kroki NPC, stworzenia)
@@ -258,6 +259,10 @@ func _ready() -> void:
 	music.setup(data)
 	music.enabled = audio.enabled and bool(settings.get("music", true))
 	add_child(music)
+	quick_keys = preload("res://scripts/mw/mw_quick_keys.gd").new()
+	quick_keys.name = "QuickKeysMenu"
+	quick_keys.main = self
+	add_child(quick_keys)
 	item_window = ItemWindowScript.new()
 	item_window.interaction = interaction
 	item_window.main = self

@@ -1534,6 +1534,20 @@ func _refresh_spells() -> void:
 		var n := String(mg.get("name", ""))
 		ic.tooltip_text = "%s\n%s%s" % [n, ", ".join(e.names), ("\n%d s" % ceili(float(e.left))) if float(e.left) >= 0.0 else ""]
 		_fx_box.add_child(ic)
+	var flt := spell_filter.text.strip_edges().to_lower() if spell_filter != null else ""
+	var cc := "%s/%s" % [_t("sCostCharge", "Cost"), _t("sChance", "Chance")]
+	for g in spell_model(flt):
+		_spell_list.add_child(UI.header(String(g.title)))
+		for r in g.rows:
+			_spell_button(String(r.name), String(r.right), String(r.kind), String(r.id),
+				sel.get("kind") == r.kind and sel.get("id") == r.id, cc if String(g.group) == "spells" else "")
+
+## SpellModel gracza: grupy mocy (sPowers), czarów (sSpells) i przedmiotów magicznych (sMagicItem – zaklęcie
+## „przy użyciu” albo jednorazowe), nazwy posortowane; flt – filtr nazw. Wiersz: {kind, id, name, right}.
+## Wspólne dla okna magii i MagicSelectionDialog (szybkie klawisze).
+func spell_model(flt := "") -> Array:
+	var magic = main.magic
+	var me: Dictionary = main.combat.player_fighter()
 	var st: Dictionary = main.player_stats()
 	var powers := []
 	var spells := []
@@ -1544,24 +1558,25 @@ func _refresh_spells() -> void:
 			powers.append([String(sid), sp])
 		elif typ == magic.SPELL_SPELL:
 			spells.append([String(sid), sp])
-	var flt := spell_filter.text.strip_edges().to_lower() if spell_filter != null else ""
 	if not flt.is_empty():
 		powers = powers.filter(func(x): return String(x[1].get("name", x[0])).to_lower().contains(flt))
 		spells = spells.filter(func(x): return String(x[1].get("name", x[0])).to_lower().contains(flt))
 	var by_name := func(a, b): return String(a[1].get("name", a[0])).to_lower() < String(b[1].get("name", b[0])).to_lower()
 	powers.sort_custom(by_name)
 	spells.sort_custom(by_name)
+	var out := []
 	if not powers.is_empty():
-		_spell_list.add_child(UI.header(_t("sPowers", "Powers")))
+		var rows := []
 		for p in powers:
-			_spell_button(String(p[1].get("name", p[0])), "" if magic.can_use_power(me, p[0]) else "–", "spell", p[0],
-				sel.get("kind") == "spell" and sel.get("id") == p[0])
+			rows.append({"kind": "spell", "id": p[0], "name": String(p[1].get("name", p[0])),
+				"right": "" if magic.can_use_power(me, p[0]) else "–"})
+		out.append({"group": "powers", "title": _t("sPowers", "Powers"), "rows": rows})
 	if not spells.is_empty():
-		_spell_list.add_child(UI.header(_t("sSpells", "Spells")))
-		var cc := "%s/%s" % [_t("sCostCharge", "Cost"), _t("sChance", "Chance")]
+		var rows2 := []
 		for p in spells:
-			_spell_button(String(p[1].get("name", p[0])), "%d/%d" % [magic.spell_cost(p[1]), int(magic.spell_chance(p[1], me))],
-				"spell", p[0], sel.get("kind") == "spell" and sel.get("id") == p[0], cc)
+			rows2.append({"kind": "spell", "id": p[0], "name": String(p[1].get("name", p[0])),
+				"right": "%d/%d" % [magic.spell_cost(p[1]), int(magic.spell_chance(p[1], me))]})
+		out.append({"group": "spells", "title": _t("sSpells", "Spells"), "rows": rows2})
 	var items := []
 	var inv = main.interaction.inventory
 	for e in inv.ordered(inv.contents("player", {})):
@@ -1574,13 +1589,12 @@ func _refresh_spells() -> void:
 			right = "%d/%d" % [magic.effective_cast_cost(en, me), int(magic.item_charge(me, String(e.id), en))]
 		else:
 			right = "×%d" % int(e.count)
-		items.append([String(e.id), main.interaction.item_name(String(it.kind), String(e.id), it.rec), right])
+		items.append({"kind": "item", "id": String(e.id), "name": main.interaction.item_name(String(it.kind), String(e.id), it.rec), "right": right})
 	if not flt.is_empty():
-		items = items.filter(func(x): return String(x[1]).to_lower().contains(flt))
+		items = items.filter(func(x): return String(x.name).to_lower().contains(flt))
 	if not items.is_empty():
-		_spell_list.add_child(UI.header(_t("sMagicItem", "Magic Items")))
-		for x in items:
-			_spell_button(x[1], x[2], "item", x[0], sel.get("kind") == "item" and sel.get("id") == x[0])
+		out.append({"group": "items", "title": _t("sMagicItem", "Magic Items"), "rows": items})
+	return out
 
 # --- elementy przeciągania ------------------------------------------------------------------------------
 

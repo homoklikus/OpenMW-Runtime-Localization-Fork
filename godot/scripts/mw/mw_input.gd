@@ -19,6 +19,17 @@ const DEFAULTS := {
 	"sneak": KEY_CTRL,                     # skradanie (przytrzymaj)
 	"menu_mode": -MOUSE_BUTTON_RIGHT,      # tryb menu: statystyki, ekwipunek, magia, mapa (OpenMW A_Inventory)
 	"toggle_hud": KEY_F11,                 # pokaż/ukryj HUD (OpenMW A_ToggleHUD)
+	"quick_keys_menu": KEY_F1,             # menu szybkich klawiszy (OpenMW A_QuickKeysMenu)
+	"quick_key_1": KEY_1,                  # szybkie klawisze 1–9 i 0 (A_QuickKey1…10)
+	"quick_key_2": KEY_2,
+	"quick_key_3": KEY_3,
+	"quick_key_4": KEY_4,
+	"quick_key_5": KEY_5,
+	"quick_key_6": KEY_6,
+	"quick_key_7": KEY_7,
+	"quick_key_8": KEY_8,
+	"quick_key_9": KEY_9,
+	"quick_key_10": KEY_0,
 }
 
 static func register_defaults() -> void:

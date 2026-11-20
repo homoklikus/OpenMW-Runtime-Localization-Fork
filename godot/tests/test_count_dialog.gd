@@ -151,7 +151,7 @@ func _run() -> void:
 	cd.press_ok()
 	check(inv.count_of("player", {}, worn_id) == 2 and inv.count_of(csid, crec, worn_id) == 1
 		and inv.item_charge(worn_id) == 50.0, "wytrzymałość 50 zachowana w obu częściach stosu")
-	var gem := "misc_soulgem_petty@synth_rat"
+	var gem := "misc_soulgem_synth@synth_creature"
 	if not inv.item(gem).is_empty():
 		inv.add(csid, crec, gem, 2)
 		inv_gp._drop_data(Vector2.ZERO, {"mw_item": gem, "source": "container"})

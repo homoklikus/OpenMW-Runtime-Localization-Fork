@@ -122,6 +122,10 @@ func _run() -> void:
 	# upuszczenie na ziemię (tło)
 	var n0: int = inv.count_of("player", {}, "misc_synth_spoon")
 	mm._root._drop_data(Vector2.ZERO, {"mw_item": "misc_synth_spoon"})
+	# stos 2 – okno ilości (sTake), domyślnie cały stos
+	check(main.count_dialog != null and main.count_dialog.is_open() and main.count_dialog.value() == 2, "upuszczenie stosu – okno ilości")
+	if main.count_dialog != null:
+		main.count_dialog.press_ok()
 	check(inv.count_of("player", {}, "misc_synth_spoon") == 0 and n0 == 2, "upuszczenie poza okna – na ziemię")
 	# statystyki
 	var labels: Array = mm._stat_left.find_children("*", "Label", true, false)
