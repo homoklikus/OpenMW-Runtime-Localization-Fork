@@ -9,6 +9,7 @@ from collections import deque
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, Signal
+from .i18n import tr
 
 
 class ConversionRunner(QObject):
@@ -47,7 +48,7 @@ class ConversionRunner(QObject):
 
     def start(self, steps: list[dict]) -> None:
         if self.is_running():
-            raise RuntimeError("konwersja już trwa")
+            raise RuntimeError(tr('konwersja już trwa'))
         self.queue = deque(steps)
         self.cancelled = False
         self.errors = 0
@@ -110,7 +111,7 @@ class ConversionRunner(QObject):
 
     def _error(self, err) -> None:
         if err == QProcess.FailedToStart:
-            self.log_line.emit(f"Nie udało się uruchomić konwertera: {self.python}")
+            self.log_line.emit(tr('Nie udało się uruchomić konwertera: {python}', python=self.python))
             self.queue.clear()
             self.finished.emit("failed", -1)
 

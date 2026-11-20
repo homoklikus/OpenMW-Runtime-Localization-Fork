@@ -100,19 +100,67 @@ y = 4,0 m) – sprawdzone. Porównanie obrazu z OpenMW w realnej komórce czeka 
 * Pozostaje: syntetyczne dane testowe konwertera (nazwy i dialogi postaci testowych) są po polsku – to dane, nie
   interfejs; ich tłumaczenie wymaga zmiany oczekiwań wielu testów.
 
-## 5. Pozostałe punkty etapu (do wykonania)
+## 5. Launcher EN
+
+**Przyczyna (kilka współdziałających błędów, nie brakujące pojedyncze napisy):**
+1. Słownik `i18n.py` miał 20 kluczy, a `tr()` było wywoływane w 7 miejscach – pozostałe ok. 400 tekstów launchera
+   i komunikatów `mwcore` (strony, kreator, okna dialogowe, podpowiedzi, stany konwersji, błędy instalacji,
+   archiwów i modów, dziennik działań) było wpisane po polsku na stałe.
+2. `page_settings.py` importował `LANG` przez wartość (`from .i18n import LANG`) – zmienna była kopiowana przy
+   imporcie, przed `set_lang()` w oknie głównym, więc etykiety ustawień zawsze były polskie.
+3. Stałe modułów (`CHOICE_LABELS`, `STAGE_NAMES`, `STEP_NAMES`, podpis logo) tłumaczone przy imporcie – zamrożone
+   w języku sprzed wczytania konfiguracji.
+4. Kreator pierwszego uruchomienia powstawał przed `set_lang()` (zawsze po polsku), a wybór „English” na jego
+   pierwszej stronie nie zmieniał pozostałych, już zbudowanych stron.
+5. Zmiana języka w Ustawieniach działała dopiero po ponownym uruchomieniu i zmieniała tylko te kilka kluczy.
+6. Dziennik działań zapisywał gotowy polski tekst – wpisy nie zmieniały języka; domyślny profil zapisany jako
+   „Domyślny” był wyświetlany po polsku także w EN.
+7. Język gry „auto” przejmował język launchera, więc zmiana języka launchera zmieniała język gry.
+
+**Naprawa:**
+* `mwcore/i18n.py` + `mwcore/i18n_en.py` – wspólny katalog launchera i `mwcore` (klucz = tekst polski, jak gettext;
+  316 wpisów, parametry nazwane). Wszystkie teksty interfejsu przez `tr()`; stałe modułów przez `N_()` i
+  tłumaczenie przy użyciu. Narzędzie przepisujące zachowało kod i komentarze (zamiana po zakresach AST).
+* Zmiana języka bez restartu: `MainWindow.set_language()` zapisuje `language` w konfiguracji launchera i buduje
+  cały interfejs od nowa; procesy gry, edytora i konwersji należą do okna i działają dalej, dziennik konwersji jest
+  przenoszony; sygnały konwertera podłączone do metod (nie lambd), więc usunięta strona jest odłączana.
+* Kreator: język ustawiany przed zbudowaniem stron, zmiana na stronie języka przebudowuje pozostałe strony.
+* Dziennik działań zapisuje szablon źródłowy i argumenty (`Activity.add(kind, text, **args)`), tłumaczenie przy
+  wyświetlaniu (`tr_stored`) – także stare wpisy o stałej treści. Domyślny profil: `Profile.display_name`.
+* Nazwy języków w selektorze w ich własnym języku („Polski”, „English”); format liczb i dat zależny od języka.
+* Niezależność od języka gry: przed zmianą języka launchera profile z „Język gry = auto” dostają jawnie
+  dotychczasowy język (gra wygląda tak samo jak przed zmianą); wpis w dzienniku działań. Mechanizm
+  `game_language` poza tym bez zmian.
+* Nie tłumaczone: surowy log konwertera (diagnostyka `mwconv`, w tym raport JSON) i nazwy modów nadane przez
+  autorów.
+
+**Testy PL/EN (`launcher/tests/test_i18n.py`, 7 testów; prawdziwe okna Qt, platforma offscreen):**
+kompletność katalogu i zgodność parametrów, brak polskich literałów poza `tr()` i brak literałów w wywołaniach Qt
+pokazujących tekst, brak `tr()` przy imporcie; scenariusz: start z `language: pl` → przełączenie na EN bez
+restartu (wszystkie strony bez polskich słów, nie tylko diakrytyków) → komunikaty dynamiczne (pasek stanu,
+problemy „Graj”, dziennik działań z wpisem zapisanym po polsku, konwersja) → zamknięcie i ponowne uruchomienie
+(EN zapamiętany) → powrót na PL → język gry niezmieniony (efektywny język w ustawieniach runtime: pl przed i po);
+kreator w EN i zmiana języka w kreatorze; komunikaty `mwcore` w obu językach. Zrzuty ekranów launchera w EN i PL
+(`tools/screenshots.py KATALOG pl|en`) obejrzane – jedyny pominięty napis („Instaluj…”) znaleziony na zrzucie
+i poprawiony. Testy launchera: 22 zaliczone, 1 pominięty (jak wcześniej); testy konwertera – zaliczone.
+
+**Po ponownym uruchomieniu:** język przywracany z konfiguracji launchera (`launcher.json`), kreator i okno główne
+od pierwszej klatki w wybranym języku.
+
+## 6. Pozostałe punkty etapu (do wykonania)
 
 §3 szybkie klawisze i wybór magii, §4 podpowiedzi `openmw_tooltips`, §5 okno ilości, §6 konsola, §7 więzienie,
 §8 towarzysz, §9 notatki mapy i pole tekstowe, §10 ustawienia, autozapis, ekrany ładowania, Enter/Tab/strzałki,
 pad, §11 porównania 720p/1440p/2160p i nowych okien, §12 dodatki i mody.
 
-## 6. Commity (lokalne, bez push)
+## 7. Commity (lokalne, bez push)
 
 * Etap 10 cz. 1: stos trybów GUI jak WindowManager OpenMW 0.51
 * Etap 10 cz. 2: stworzenia wodne i latające jak MovementSolver OpenMW
 * Etap 10 cz. 3: interfejs po angielsku (GMST → l10n → zapas angielski)
+* Etap 10 cz. 4: launcher – pełne tłumaczenie PL/EN i zmiana języka bez restartu
 
-## 7. Zalecana kolejność dalszych prac
+## 8. Zalecana kolejność dalszych prac
 
 1. Okno ilości i szybkie klawisze (codzienna rozgrywka), 2. podpowiedzi openmw_tooltips, 3. więzienie i towarzysz,
 4. konsola (też do testów), 5. ustawienia/autozapis/klawiatura/pad, 6. porównania zrzutami wszystkich okien.

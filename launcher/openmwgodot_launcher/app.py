@@ -19,14 +19,15 @@ from mwcore import conversion, launch
 
 from . import APP_NAME, __version__, art, theme
 from .core import LauncherCore
-from .i18n import set_lang, tr
+from .i18n import N_, get_lang, set_lang, tr, tr_stored
 from .runners import ConversionRunner, GameRunner, log_tail
 
 
 def human_size(n: float) -> str:
     for unit in ("B", "KB", "MB", "GB", "TB"):
         if n < 1024 or unit == "TB":
-            return (f"{int(n)} B" if unit == "B" else f"{n:.1f} {unit}").replace(".", ",")
+            s = f"{int(n)} B" if unit == "B" else f"{n:.1f} {unit}"
+            return s.replace(".", ",") if get_lang() == "pl" else s
         n /= 1024
     return str(n)
 
@@ -36,16 +37,15 @@ def human_time(t: float) -> str:
         return "—"
     lt, now = time.localtime(t), time.localtime()
     if lt.tm_yday == now.tm_yday and lt.tm_year == now.tm_year:
-        return time.strftime("dzisiaj, %H:%M", lt)
-    return time.strftime("%d.%m.%Y, %H:%M", lt)
+        return time.strftime(tr('dzisiaj, %H:%M'), lt)
+    return time.strftime("%d.%m.%Y, %H:%M" if get_lang() == "pl" else "%Y-%m-%d, %H:%M", lt)
 
 
-def files_word(n: int) -> str:
-    if n == 1:
-        return "plik"
-    if n % 10 in (2, 3, 4) and n % 100 not in (12, 13, 14):
-        return "pliki"
-    return "plików"
+def files_word(n: int, stored: bool = False) -> str:
+    """Forma liczebnika (polska odmiana; po angielsku file/files). stored=True – tekst źródłowy do dziennika
+    działań (tłumaczony przy wyświetlaniu)."""
+    w = N_("plik") if n == 1 else (N_("pliki") if n % 10 in (2, 3, 4) and n % 100 not in (12, 13, 14) else N_("plików"))
+    return w if stored else tr(w)
 
 
 def card(title: str, icon: str | None = None) -> tuple[QFrame, QVBoxLayout]:
@@ -81,7 +81,7 @@ class PlayButton(QPushButton):
     """Ozdobny przycisk „Graj”: mosiężna rama ze ściętymi narożnikami, gradient, ikona i napis szeryfowy."""
 
     def __init__(self, parent=None):
-        super().__init__(tr("play"), parent)
+        super().__init__(tr("Graj"), parent)
         self.setObjectName("play")
         self.setCursor(Qt.PointingHandCursor)
         self.setMinimumSize(QSize(260, 92))
@@ -172,7 +172,7 @@ class Banner(QWidget):
         p.drawText(QRectF(152, 14, 700, 72), Qt.AlignLeft | Qt.AlignVCenter, APP_NAME)
         p.setFont(art.serif_font(20))
         p.setPen(QColor("#e8dcc3"))
-        p.drawText(QRectF(250, 84, 600, 30), Qt.AlignLeft | Qt.AlignVCenter, tr("subtitle"))
+        p.drawText(QRectF(250, 84, 600, 30), Qt.AlignLeft | Qt.AlignVCenter, tr("Morrowind na silniku Godot"))
         p.end()
 
 
@@ -183,17 +183,16 @@ class ProfilesPage(QWidget):
         self.win = win
         lay = QVBoxLayout(self)
         lay.setContentsMargins(18, 12, 18, 12)
-        lay.addWidget(page_title("Profile"))
-        info = QLabel("Profil to zestaw aktywnych modów i ich kolejności, ustawienia gry i zapisy. Przekonwertowana gra "
-                      "jest wspólna – profil z modami przechowuje tylko różnice. Usunięcie profilu nie usuwa zapisów gry.")
+        lay.addWidget(page_title(tr("Profile")))
+        info = QLabel(tr('Profil to zestaw aktywnych modów i ich kolejności, ustawienia gry i zapisy. Przekonwertowana gra jest wspólna – profil z modami przechowuje tylko różnice. Usunięcie profilu nie usuwa zapisów gry.'))
         info.setWordWrap(True)
         info.setProperty("class", "muted")
         lay.addWidget(info)
         self.list = QListWidget()
         lay.addWidget(self.list, 1)
         row = QHBoxLayout()
-        for text, fn in (("Nowy", self.new), ("Kopiuj", self.copy), ("Zmień nazwę", self.rename),
-                         ("Usuń", self.delete), ("Ustaw aktywny", self.activate)):
+        for text, fn in ((tr('Nowy'), self.new), (tr('Kopiuj'), self.copy), (tr('Zmień nazwę'), self.rename),
+                         (tr('Usuń'), self.delete), (tr('Ustaw aktywny'), self.activate)):
             b = QPushButton(text)
             b.clicked.connect(fn)
             row.addWidget(b)
@@ -208,8 +207,8 @@ class ProfilesPage(QWidget):
     def refresh(self):
         self.list.clear()
         for p in self.core.profiles.list():
-            mark = "   ✓ aktywny" if p.id == self.core.profile.id else ""
-            self.list.addItem(f"{p.name}   [{p.id}]   mody: {len(p.enabled_mods())}{mark}")
+            mark = tr('   ✓ aktywny') if p.id == self.core.profile.id else ""
+            self.list.addItem(tr('{name}   [{id}]   mody: {v}{mark}', name=p.display_name, id=p.id, v=len(p.enabled_mods()), mark=mark))
             self.list.item(self.list.count() - 1).setData(Qt.UserRole, p.id)
 
     def _sel(self):
@@ -217,26 +216,26 @@ class ProfilesPage(QWidget):
         return it.data(Qt.UserRole) if it else None
 
     def new(self):
-        name, ok = QInputDialog.getText(self, "Nowy profil", "Nazwa:")
+        name, ok = QInputDialog.getText(self, tr('Nowy profil'), tr('Nazwa:'))
         if ok and name.strip():
             p = self.core.profiles.create(name)
-            self.core.activity.add("info", f"Utworzono profil „{p.name}”")
+            self.core.activity.add("info", 'Utworzono profil „{name}”', name=p.name)
             self.refresh()
 
     def copy(self):
         pid = self._sel()
         if pid:
             src = self.core.profiles.get(pid)
-            name, ok = QInputDialog.getText(self, "Kopiuj profil", "Nazwa kopii:", text=f"{src.name} (kopia)")
+            name, ok = QInputDialog.getText(self, tr('Kopiuj profil'), tr('Nazwa kopii:'), text=tr('{name} (kopia)', name=src.display_name))
             if ok:
                 p = self.core.profiles.create(name, copy_from=pid)
-                self.core.activity.add("info", f"Skopiowano profil „{src.name}” jako „{p.name}”")
+                self.core.activity.add("info", 'Skopiowano profil „{name}” jako „{name2}”', name=src.name, name2=p.name)
                 self.refresh()
 
     def rename(self):
         pid = self._sel()
         if pid:
-            name, ok = QInputDialog.getText(self, "Zmień nazwę", "Nowa nazwa:", text=self.core.profiles.get(pid).name)
+            name, ok = QInputDialog.getText(self, tr('Zmień nazwę'), tr('Nowa nazwa:'), text=self.core.profiles.get(pid).name)
             if ok:
                 self.core.profiles.rename(pid, name)
                 self.refresh()
@@ -245,16 +244,15 @@ class ProfilesPage(QWidget):
         pid = self._sel()
         if not pid:
             return
-        name = self.core.profiles.get(pid).name
-        if not self._confirm("Usuń profil", f"Usunąć profil „{name}”?\n\nZostaną usunięte jego ustawienia i nakładka "
-                                            "konwersji. Zapisy gry NIE zostaną usunięte."):
+        name = self.core.profiles.get(pid).display_name
+        if not self._confirm(tr('Usuń profil'), tr('Usunąć profil „{name}”?\n\nZostaną usunięte jego ustawienia i nakładka konwersji. Zapisy gry NIE zostaną usunięte.', name=name)):
             return
         try:
             self.core.profiles.delete(pid)
         except ValueError as e:
-            QMessageBox.warning(self, "Profil", str(e))
+            QMessageBox.warning(self, tr("Profil"), str(e))
             return
-        self.core.activity.add("info", f"Usunięto profil „{name}” (zapisy gry zachowane)")
+        self.core.activity.add("info", 'Usunięto profil „{name}” (zapisy gry zachowane)', name=name)
         if self.core.config["active_profile"] == pid:
             self.core.set_active_profile(self.core.profiles.list()[0].id)
         self.refresh()
@@ -269,7 +267,7 @@ class ProfilesPage(QWidget):
 class ProfilesDialog(QDialog):
     def __init__(self, core: LauncherCore, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Profile")
+        self.setWindowTitle(tr("Profile"))
         self.resize(480, 340)
         lay = QVBoxLayout(self)
         lay.addWidget(ProfilesPage(core, None))
@@ -287,7 +285,7 @@ class HomePage(QWidget):
         root.setSpacing(10)
         top = QHBoxLayout()
         top.setSpacing(12)
-        c1, l1 = card("Stan instalacji")
+        c1, l1 = card(tr('Stan instalacji'))
         inner = QHBoxLayout()
         self.checks_host = QWidget()
         self.checks = QGridLayout(self.checks_host)
@@ -297,11 +295,11 @@ class HomePage(QWidget):
         self.preview = QLabel()
         self.preview.setFixedSize(270, 150)
         self.preview.setStyleSheet("border: 1px solid #5a4a38; border-radius: 4px;")
-        self.preview.setToolTip("Widok z ostatniej sesji gry (zapisywany lokalnie) albo ilustracja")
+        self.preview.setToolTip(tr('Widok z ostatniej sesji gry (zapisywany lokalnie) albo ilustracja'))
         inner.addWidget(self.preview)
         l1.addLayout(inner)
         top.addWidget(c1, 3)
-        c2, l2 = card("Aktywny profil", "user")
+        c2, l2 = card(tr('Aktywny profil'), "user")
         prow = QHBoxLayout()
         self.profile_box = QComboBox()
         self.profile_box.setMinimumHeight(30)
@@ -309,7 +307,7 @@ class HomePage(QWidget):
         gear = QToolButton()
         gear.setIcon(art.icon("gear", 20))
         gear.setIconSize(QSize(20, 20))
-        gear.setToolTip("Zarządzaj profilami")
+        gear.setToolTip(tr('Zarządzaj profilami'))
         gear.setMinimumSize(32, 30)
         gear.clicked.connect(lambda: win.show_page("profiles"))
         prow.addWidget(self.profile_box, 1)
@@ -330,15 +328,15 @@ class HomePage(QWidget):
         root.addLayout(top)
         mid = QHBoxLayout()
         mid.setSpacing(12)
-        c3, l3 = card("Szybkie akcje")
+        c3, l3 = card(tr('Szybkie akcje'))
         tiles = QHBoxLayout()
         tiles.setSpacing(8)
         self.tiles = {}
         for key, ic, title, sub, fn in (
-                ("conversion", "refresh", "Konwersja", "Aktualizuj\nzasoby gry", lambda: win.show_page("conversion")),
-                ("mods", "cube", "Mody", "Instaluj i zarządzaj\nmodami", lambda: win.show_page("mods")),
-                ("settings", "sliders", "Ustawienia", "Grafika,\nsterowanie", lambda: win.show_page("settings")),
-                ("cs", "tools", "Construction\nSet", "Edytor świata\ni modów", lambda: win.launch_editor())):
+                ("conversion", "refresh", tr('Konwersja'), tr('Aktualizuj\nzasoby gry'), lambda: win.show_page("conversion")),
+                ("mods", "cube", tr('Mody'), tr('Instaluj i zarządzaj\nmodami'), lambda: win.show_page("mods")),
+                ("settings", "sliders", tr('Ustawienia'), tr('Grafika,\nsterowanie'), lambda: win.show_page("settings")),
+                ("cs", "tools", "Construction\nSet", tr('Edytor świata\ni modów'), lambda: win.launch_editor())):
             b = QPushButton()
             b.setProperty("class", "tile")
             b.setMinimumHeight(96)
@@ -377,7 +375,7 @@ class HomePage(QWidget):
         pv.addStretch(1)
         mid.addLayout(pv, 3)
         root.addLayout(mid)
-        c4, l4 = card("Ostatnie działania")
+        c4, l4 = card(tr('Ostatnie działania'))
         self.activity_host = QWidget()
         self.activity_box = QVBoxLayout(self.activity_host)
         self.activity_box.setContentsMargins(0, 0, 0, 0)
@@ -414,15 +412,15 @@ class HomePage(QWidget):
         core = self.win.core
         self._clear(self.checks)
         rep = core.install_report()
-        names = {"Morrowind": "Morrowind (gra podstawowa)", "Tribunal": "Tribunal", "Bloodmoon": "Bloodmoon"}
+        names = {"Morrowind": tr('Morrowind (gra podstawowa)'), "Tribunal": "Tribunal", "Bloodmoon": "Bloodmoon"}
         r = 0
         if rep is None:
-            self._check_row(0, "err", "Nie wskazano instalacji Morrowinda", "Konwersja → Wybierz… / Wykryj")
+            self._check_row(0, "err", tr('Nie wskazano instalacji Morrowinda'), tr('Konwersja → Wybierz… / Wykryj'))
             r = 1
         else:
             for c in rep.components:
                 state = "ok" if c["esm"] else ("err" if c["required"] else "dot")
-                sub = "" if c["esm"] else ("brak – wymagany" if c["required"] else "nie zainstalowano")
+                sub = "" if c["esm"] else (tr('brak – wymagany') if c["required"] else tr('nie zainstalowano'))
                 self._check_row(r, state, names.get(c["name"], c["name"]), sub)
                 r += 1
         running = self.win.conv_runner.is_running()
@@ -430,37 +428,37 @@ class HomePage(QWidget):
         plan = core.plan()
         rec = conversion.read_record(plan) if plan else {}
         if running:
-            self._check_row(r, "dot", "Konwersja w toku", "postęp na stronie Konwersja")
+            self._check_row(r, "dot", tr('Konwersja w toku'), tr('postęp na stronie Konwersja'))
         elif st.state == conversion.READY:
             n = int(rec.get("files", 0))
-            self._check_row(r, "ok", "Zasoby przekonwertowane",
+            self._check_row(r, "ok", tr('Zasoby przekonwertowane'),
                             f"{n} {files_word(n)} • {human_size(int(rec.get('bytes', 0)))}")
         else:
             self._check_row(r, "warn" if st.state in ("outdated", "incomplete") else "err",
-                            "Zasoby: " + tr("st_" + st.state), "; ".join(st.details)[:70])
+                            tr('Zasoby: ') + tr("st_" + st.state), "; ".join(st.details)[:70])
         self.checks.setRowStretch(r + 1, 1)
         self.preview.setPixmap(self._preview_pixmap())
         self._updating = True
         self.profile_box.clear()
         for p in core.profiles.list():
-            self.profile_box.addItem(p.name, p.id)
+            self.profile_box.addItem(p.display_name, p.id)
             if p.id == core.profile.id:
                 self.profile_box.setCurrentIndex(self.profile_box.count() - 1)
         self._updating = False
-        self.pinfo["mods"][1].setText(f"Aktywne mody: {len(core.profile.enabled_mods())}")
-        self.pinfo["size"][1].setText("Rozmiar danych: " + (human_size(int(rec["bytes"])) if rec.get("bytes") else "—"))
-        self.pinfo["last"][1].setText(f"Ostatnia konwersja: {human_time(rec.get('time', 0))}")
+        self.pinfo["mods"][1].setText(tr('Aktywne mody: {v}', v=len(core.profile.enabled_mods())))
+        self.pinfo["size"][1].setText(tr('Rozmiar danych: ') + (human_size(int(rec["bytes"])) if rec.get("bytes") else "—"))
+        self.pinfo["last"][1].setText(tr('Ostatnia konwersja: {human_time}', human_time=human_time(rec.get('time', 0))))
         chk = core.check_play(running)
         il, lab = self.pinfo["ready"]
         il.setPixmap(art.icon_pixmap("ok" if chk.ok else "warn", 18))
         lab.setText(f"<span style='color:{theme.OK if chk.ok else theme.WARN}'>"
-                    f"{'Profil gotowy do gry' if chk.ok else 'Profil wymaga uwagi'}</span>")
-        self.btn_play.setText(tr("game_running") if self.win.game.is_running() else tr("play"))
+                    f"{tr('Profil gotowy do gry') if chk.ok else tr('Profil wymaga uwagi')}</span>")
+        self.btn_play.setText(tr("Gra działa") if self.win.game.is_running() else tr("Graj"))
         self.btn_play.update()
         self.lbl_hint.setText(chk.problems[0][1] if chk.problems else "")
         self._clear(self.activity_box)
         items = core.activity.recent(3) or [{"kind": "info", "t": 0,
-                                             "text": "Brak działań – zacznij od wskazania instalacji Morrowinda."}]
+                                             "text": N_('Brak działań – zacznij od wskazania instalacji Morrowinda.')}]
         for a in items:
             roww = QWidget()
             row = QHBoxLayout(roww)
@@ -468,7 +466,7 @@ class HomePage(QWidget):
             il = QLabel()
             il.setPixmap(art.icon_pixmap({"ok": "ok", "warn": "warn", "error": "err"}.get(a["kind"], "dot"), 18))
             row.addWidget(il)
-            row.addWidget(QLabel(a["text"]), 1)
+            row.addWidget(QLabel(tr_stored(a["text"], a.get("args"))), 1)
             tl = QLabel(human_time(a["t"]) if a.get("t") else "")
             tl.setStyleSheet(f"color: {theme.MUTED};")
             row.addWidget(tl)
@@ -491,11 +489,11 @@ class DiagnosticsPage(QWidget):
         self.win = win
         lay = QVBoxLayout(self)
         lay.setContentsMargins(18, 12, 18, 12)
-        lay.addWidget(page_title("Dziennik i diagnostyka"))
+        lay.addWidget(page_title(tr('Dziennik i diagnostyka')))
         row = QHBoxLayout()
-        for text, fn in (("Sprawdź Godota", self.check_godot), ("Ostatni log gry", lambda: self.show_log("game")),
-                         ("Ostatni log edytora", lambda: self.show_log("editor")),
-                         ("Otwórz katalog logów", lambda: win._open(win.core.paths.logs))):
+        for text, fn in ((tr('Sprawdź Godota'), self.check_godot), (tr('Ostatni log gry'), lambda: self.show_log("game")),
+                         (tr('Ostatni log edytora'), lambda: self.show_log("editor")),
+                         (tr('Otwórz katalog logów'), lambda: win._open(win.core.paths.logs))):
             b = QPushButton(text)
             b.clicked.connect(fn)
             row.addWidget(b)
@@ -508,11 +506,11 @@ class DiagnosticsPage(QWidget):
         core = self.win.core
         gv = core.config["godot_version"]
         lines = [f"Launcher {__version__}, Python {sys.version.split()[0]}",
-                 f"Konfiguracja: {core.paths.config}", f"Dane: {core.paths.data}", f"Logi: {core.paths.logs}",
-                 f"Godot: {core.godot() or 'nie znaleziono'}" + (f" ({gv})" if gv else " (wersja nie sprawdzona)"),
-                 f"Projekt gry: {core.project_dir() or 'nie znaleziono'}", "", "Ostatnie działania:"]
+                 tr('Konfiguracja: {config}', config=core.paths.config), tr('Dane: {data}', data=core.paths.data), tr('Logi: {logs}', logs=core.paths.logs),
+                 f"Godot: {core.godot() or tr('nie znaleziono')}" + (f" ({gv})" if gv else tr(' (wersja nie sprawdzona)')),
+                 tr('Projekt gry: {v}', v=core.project_dir() or tr('nie znaleziono')), "", tr('Ostatnie działania:')]
         for a in core.activity.recent(40):
-            lines.append(f"  {human_time(a['t'])}  [{a['kind']}]  {a['text']}")
+            lines.append(f"  {human_time(a['t'])}  [{a['kind']}]  {tr_stored(a['text'], a.get('args'))}")
         self.text.setPlainText("\n".join(lines))
 
     def check_godot(self):
@@ -522,12 +520,12 @@ class DiagnosticsPage(QWidget):
         if v:
             self.win.core.config["godot_version"] = v
             self.win.core.config.save()
-        self.text.appendPlainText(f"\nSprawdzenie Godota: {g} → {v or 'nie działa'}")
+        self.text.appendPlainText(tr('\nSprawdzenie Godota: {g} → {v}', g=g, v=v or tr('nie działa')))
         self.win.update_statusbar()
 
     def show_log(self, kind):
         logs = sorted(self.win.core.paths.logs.glob(f"{kind}-*.log"))
-        self.text.setPlainText(log_tail(str(logs[-1]), 400) if logs else "Brak logów.")
+        self.text.setPlainText(log_tail(str(logs[-1]), 400) if logs else tr('Brak logów.'))
 
 
 class HelpPage(QWidget):
@@ -535,16 +533,9 @@ class HelpPage(QWidget):
         super().__init__()
         lay = QVBoxLayout(self)
         lay.setContentsMargins(18, 12, 18, 12)
-        lay.addWidget(page_title("Pomoc"))
+        lay.addWidget(page_title(tr('Pomoc')))
         txt = QLabel(
-            "<b>1. Konwersja</b> – wskaż swoją legalną instalację Morrowinda (Steam, GOG lub ręczną). Konwerter lokalnie "
-            "przygotuje modele, tekstury, teren i świat. Oryginalne pliki nie są zmieniane, a wyników nie wolno "
-            "publikować.<br><br><b>2. Mody</b> – instaluj archiwa ZIP/7z; każdy mod to osobna warstwa, mod niżej na liście "
-            "wygrywa konflikty, „Zastosuj” przebudowuje tylko zmienione zasoby.<br><br><b>3. Profile</b> – różne zestawy "
-            "modów i ustawień; przekonwertowana gra jest wspólna.<br><br><b>4. Graj</b> – gra startuje w osobnym procesie "
-            "Godota. Sterowanie: WASD, mysz, Spacja – skok, Shift – bieg, E – drzwi, F – broń, R – magia, M – okno magii, F6 – latanie (test).<br><br>"
-            "<b>Construction Set</b> – edytor świata w Godocie; zmiany zapisuje jako warstwę projektu, bez nadpisywania "
-            "ESM/ESP.<br><br>Dokumentacja: <i>docs/LAUNCHER.md</i> i <i>docs/DEBIAN13.md</i> w katalogu projektu.")
+            tr('<b>1. Konwersja</b> – wskaż swoją legalną instalację Morrowinda (Steam, GOG lub ręczną). Konwerter lokalnie przygotuje modele, tekstury, teren i świat. Oryginalne pliki nie są zmieniane, a wyników nie wolno publikować.<br><br><b>2. Mody</b> – instaluj archiwa ZIP/7z; każdy mod to osobna warstwa, mod niżej na liście wygrywa konflikty, „Zastosuj” przebudowuje tylko zmienione zasoby.<br><br><b>3. Profile</b> – różne zestawy modów i ustawień; przekonwertowana gra jest wspólna.<br><br><b>4. Graj</b> – gra startuje w osobnym procesie Godota. Sterowanie: WASD, mysz, Spacja – skok, Shift – bieg, E – drzwi, F – broń, R – magia, M – okno magii, F6 – latanie (test).<br><br><b>Construction Set</b> – edytor świata w Godocie; zmiany zapisuje jako warstwę projektu, bez nadpisywania ESM/ESP.<br><br>Dokumentacja: <i>docs/LAUNCHER.md</i> i <i>docs/DEBIAN13.md</i> w katalogu projektu.'))
         txt.setWordWrap(True)
         txt.setTextFormat(Qt.RichText)
         lay.addWidget(txt)
@@ -568,9 +559,22 @@ class MainWindow(QWidget):
         self.editor.exited.connect(self._editor_exited)
         self.conv_runner.finished.connect(self._conv_finished)
         self.last_message = ""
-        outer = QVBoxLayout(self)
+        self._outer = QVBoxLayout(self)
+        self._outer.setContentsMargins(0, 0, 0, 0)
+        self._outer.setSpacing(0)
+        self._ui = None
+        self._build_ui()
+        self.show_page("home")
+
+    def _build_ui(self):
+        """Cały interfejs okna (bez procesów gry/edytora/konwersji) – budowany od nowa po zmianie języka."""
+        core = self.core
+        self.setWindowTitle(f"{APP_NAME} Launcher {__version__} (alpha)")
+        self._ui = QWidget()
+        outer = QVBoxLayout(self._ui)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(0)
+        self._outer.addWidget(self._ui)
         self.banner = Banner()
         outer.addWidget(self.banner)
         body = QHBoxLayout()
@@ -583,9 +587,9 @@ class MainWindow(QWidget):
         sl.setContentsMargins(8, 10, 8, 8)
         sl.setSpacing(3)
         self.nav = {}
-        for key, ic, label in (("home", "home", "Strona główna"), ("conversion", "refresh", "Konwersja"),
-                               ("mods", "cube", "Mody"), ("profiles", "layers", "Profile"),
-                               ("settings", "sliders", "Ustawienia"), ("cs", "tools", "Construction Set")):
+        for key, ic, label in (("home", "home", tr('Strona główna')), ("conversion", "refresh", tr('Konwersja')),
+                               ("mods", "cube", tr('Mody')), ("profiles", "layers", tr("Profile")),
+                               ("settings", "sliders", tr('Ustawienia')), ("cs", "tools", "Construction Set")):
             b = QPushButton(" " + label)
             b.setProperty("class", "nav")
             b.setIcon(art.icon(ic, 22))
@@ -603,7 +607,7 @@ class MainWindow(QWidget):
         sep.setProperty("class", "sep")
         sl.addWidget(sep)
         sl.addSpacing(4)
-        for key, ic, label in (("diagnostics", "info", "Dziennik i diagnostyka"), ("help", "help", "Pomoc")):
+        for key, ic, label in (("diagnostics", "info", tr('Dziennik i diagnostyka')), ("help", "help", tr('Pomoc'))):
             b = QPushButton(" " + label)
             b.setProperty("class", "navsmall")
             b.setIcon(art.icon(ic, 18))
@@ -621,7 +625,7 @@ class MainWindow(QWidget):
         logo = art.godot_logo(32) or art.icon_pixmap("godot_chip", 30, "#8f8574")
         self.godot_link.setIcon(QIcon(logo))
         self.godot_link.setIconSize(QSize(32, 32))
-        self.godot_link.setToolTip(f"Godot Engine – {art.GODOT_URL}\n{art.GODOT_LOGO_CREDIT}")
+        self.godot_link.setToolTip(f"Godot Engine – {art.GODOT_URL}\n{tr(art.GODOT_LOGO_CREDIT)}")
         self.godot_link.setStyleSheet(f"QPushButton#godotLink {{ background: transparent; border: none; text-align: left;"
                                       f" color: {theme.MUTED}; font-size: 9pt; padding: 2px; }}"
                                       f" QPushButton#godotLink:hover {{ color: {theme.ACCENT}; }}")
@@ -647,21 +651,51 @@ class MainWindow(QWidget):
         self.status_text = QLabel()
         sbl.addWidget(self.status_icon)
         sbl.addWidget(self.status_text, 1)
-        for ic, text, fn in (("folder", "Otwórz katalog danych", lambda: self._open(self.core.converted_dir)),
-                             ("logs", "Logi", lambda: self._open(self.core.paths.logs)),
-                             ("info", "O projekcie", self.about)):
+        for ic, text, fn in (("folder", tr('Otwórz katalog danych'), lambda: self._open(self.core.converted_dir)),
+                             ("logs", tr('Logi'), lambda: self._open(self.core.paths.logs)),
+                             ("info", tr('O projekcie'), self.about)):
             b = QPushButton(" " + text)
             b.setProperty("class", "flat")
             b.setIcon(art.icon(ic, 18))
             b.clicked.connect(fn)
             sbl.addWidget(b)
         outer.addWidget(sb)
-        self.show_page("home")
+
+    def current_page(self) -> str:
+        cur = self.stack.currentWidget()
+        return next((k for k, p in self.pages.items() if p is cur), "home")
+
+    def set_language(self, lang: str) -> None:
+        """Zmiana języka launchera bez ponownego uruchomienia: zapis w konfiguracji launchera i przebudowa całego
+        interfejsu w nowym języku. Procesy gry, edytora i konwersji działają dalej (należą do okna, nie do stron);
+        dziennik konwersji jest przenoszony. Język gry (game_language profilu) się nie zmienia."""
+        if lang not in ("pl", "en"):
+            return
+        core = self.core
+        prev = core.config["language"]
+        if lang == prev and lang == get_lang():
+            return
+        page = self.current_page()
+        conv = self.pages.get("conversion")
+        log = conv.log.toPlainText() if conv is not None and hasattr(conv, "log") else ""
+        pin_game_language(core, prev)
+        core.config["language"] = lang
+        core.config.save()
+        set_lang(lang)
+        old = self._ui
+        self._outer.removeWidget(old)
+        old.hide()
+        old.setParent(None)                       # od razu poza oknem (usunięcie po powrocie do pętli zdarzeń)
+        old.deleteLater()
+        self._build_ui()
+        if log and hasattr(self.pages["conversion"], "log"):
+            self.pages["conversion"].log.setPlainText(log)
+        self.show_page(page, save_settings=False)
 
     # --- nawigacja ------------------------------------------------------------------------------
-    def show_page(self, name: str):
+    def show_page(self, name: str, save_settings: bool = True):
         cur = self.stack.currentWidget() if hasattr(self, "stack") else None
-        if cur is self.pages.get("settings") and name != "settings":
+        if save_settings and cur is self.pages.get("settings") and name != "settings":
             cur.save()  # ustawienia zapisywane przy opuszczeniu strony
         page = self.pages[name]
         if hasattr(page, "refresh"):
@@ -681,15 +715,15 @@ class MainWindow(QWidget):
     def update_statusbar(self):
         gv = self.core.config["godot_version"]
         g = self.core.godot()
-        head = f"Godot {gv.split('.stable')[0]}" if gv else ("Godot: znaleziono" if g else "Godot: brak")
+        head = f"Godot {gv.split('.stable')[0]}" if gv else (tr('Godot: znaleziono') if g else tr('Godot: brak'))
         self.godot_lbl.setText(head + "\nMWGodot Runtime")
         if self.conv_runner.is_running():
-            ic, txt = "dot", "Konwersja w toku…"
+            ic, txt = "dot", tr('Konwersja w toku…')
         elif self.game.is_running():
-            ic, txt = "dot", "Gra działa"
+            ic, txt = "dot", tr('Gra działa')
         else:
             chk = self.core.check_play(False)
-            ic, txt = ("ok", "Gotowy") if chk.ok else ("warn", "Wymaga uwagi: " + chk.problems[0][1][:90])
+            ic, txt = ("ok", tr('Gotowy')) if chk.ok else ("warn", tr('Wymaga uwagi: ') + chk.problems[0][1][:90])
         self.status_icon.setPixmap(art.icon_pixmap(ic, 20))
         self.status_text.setText(txt)
 
@@ -698,14 +732,7 @@ class MainWindow(QWidget):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
 
     def about(self):
-        self.message("O projekcie", f"{APP_NAME} {__version__} (alpha)\n\nEksperymentalny port Morrowinda na Godot 4. "
-                                   "Projekt nie zawiera danych Bethesdy – gracz dostarcza własną, legalną instalację, "
-                                   "konwertowaną lokalnie.\n\nMorrowind® i The Elder Scrolls® są znakami towarowymi "
-                                   "ZeniMax Media Inc. Projekt nie jest z nimi powiązany.\n\n"
-                                   f"Silnik: Godot Engine ({art.GODOT_URL}) – Godot Foundation i społeczność Godota. "
-                                   "Projekt nie jest oficjalnym produktem Godot Foundation.\n"
-                                   f"{art.GODOT_LOGO_CREDIT}.\n\nKod: licencja GNU GPL w wersji 3 lub późniejszej (jak OpenMW). "
-                                   "Kod źródłowy: github.com/homoklikus/OpenMW-Runtime-Localization-Fork (gałąź OpenMWGoDot).")
+        self.message(tr('O projekcie'), tr('{APP_NAME} {version__} (alpha)\n\nEksperymentalny port Morrowinda na Godot 4. Projekt nie zawiera danych Bethesdy – gracz dostarcza własną, legalną instalację, konwertowaną lokalnie.\n\nMorrowind® i The Elder Scrolls® są znakami towarowymi ZeniMax Media Inc. Projekt nie jest z nimi powiązany.\n\nSilnik: Godot Engine ({GODOT_URL}) – Godot Foundation i społeczność Godota. Projekt nie jest oficjalnym produktem Godot Foundation.\n{GODOT_LOGO_CREDIT}.\n\nKod: licencja GNU GPL w wersji 3 lub późniejszej (jak OpenMW). Kod źródłowy: github.com/homoklikus/OpenMW-Runtime-Localization-Fork (gałąź OpenMWGoDot).', APP_NAME=APP_NAME, version__=__version__, GODOT_URL=art.GODOT_URL, GODOT_LOGO_CREDIT=tr(art.GODOT_LOGO_CREDIT)))
 
     def message(self, title: str, text: str, kind: str = "info"):
         self.last_message = text
@@ -724,43 +751,42 @@ class MainWindow(QWidget):
         rec = conversion.read_record(plan) if plan else {}
         if status == "done":
             n = int(rec.get("files", 0))
-            self.core.activity.add("ok", f"Konwersja zakończona pomyślnie ({n} {files_word(n)}, "
-                                         f"{human_size(int(rec.get('bytes', 0)))})")
+            self.core.activity.add("ok", 'Konwersja zakończona pomyślnie ({n} {files_word}, {human_size})', n=n, files_word=files_word(n, stored=True), human_size=human_size(int(rec.get('bytes', 0))))
         elif status == "cancelled":
-            self.core.activity.add("warn", "Konwersja przerwana – ukończone zasoby zachowane")
+            self.core.activity.add("warn", 'Konwersja przerwana – ukończone zasoby zachowane')
         else:
-            self.core.activity.add("error", f"Konwersja nie powiodła się (kod {code})")
+            self.core.activity.add("error", 'Konwersja nie powiodła się (kod {code})', code=code)
         self.refresh_all()
 
     # --- Graj ------------------------------------------------------------------------------------
     def play(self, extra_user: list[str] | None = None):
         if self.game.is_running():
-            self.message("Gra", "Gra już działa w tym profilu.", "info")
+            self.message(tr('Gra'), tr('Gra już działa w tym profilu.'), "info")
             return False
         chk = self.core.check_play(self.conv_runner.is_running())
         if not chk.ok:
-            self.message("Nie można uruchomić gry", "\n".join(f"• {m}" for _c, m in chk.problems), "warn")
+            self.message(tr('Nie można uruchomić gry'), "\n".join(f"• {m}" for _c, m in chk.problems), "warn")
             if chk.action in ("convert", "mods", "settings"):
                 self.show_page({"convert": "conversion"}.get(chk.action, chk.action))
             return False
         lock = self.core.lock("game")
         holder = lock.holder()
-        if holder and not self.confirm("Gra już działa",
-                                       f"W tym profilu działa już gra (PID {holder}). Uruchomić drugą instancję?"):
+        if holder and not self.confirm(tr('Gra już działa'),
+                                       tr('W tym profilu działa już gra (PID {holder}). Uruchomić drugą instancję?', holder=holder)):
             return False
         # po aktualizacji skryptów projekt trzeba zaimportować, inaczej gra nie zna nowych klas (class_name)
         project = self.core.project_dir()
         if project and launch.project_needs_import(project):
-            self.status_text.setText("Przygotowanie projektu gry po aktualizacji (import Godota)…")
+            self.status_text.setText(tr('Przygotowanie projektu gry po aktualizacji (import Godota)…'))
             QApplication.processEvents()
             ok, out = launch.import_project(self.core.godot(), project)
             self.core.activity.add("ok" if ok else "warn",
-                                   "Zaimportowano projekt gry po aktualizacji" if ok else "Import projektu gry nie powiódł się")
+                                   'Zaimportowano projekt gry po aktualizacji' if ok else 'Import projektu gry nie powiódł się')
             if not ok:
-                self.message("Import projektu", "Godot nie zaimportował projektu gry:\n" + out[-800:], "warn")
+                self.message(tr('Import projektu'), tr('Godot nie zaimportował projektu gry:\n') + out[-800:], "warn")
         cmd = self.core.game_command(extra_user or self._test_extra())
         if not self.game.start(cmd, self.core.paths.logs, project):
-            self.message("Błąd", f"Nie udało się uruchomić Godota:\n{cmd[0]}", "error")
+            self.message(tr('Błąd'), tr('Nie udało się uruchomić Godota:\n{v}', v=cmd[0]), "error")
             return False
         lock.acquire(self.game.pid())
         if self.core.config["minimize_on_play"] and not QApplication.instance().property("headless_test"):
@@ -784,46 +810,61 @@ class MainWindow(QWidget):
                 self.core.config["godot_version"] = v
                 self.core.config.save()
         if code != 0:
-            self.core.activity.add("error", f"Gra zakończyła się błędem (kod {code})")
-            self.message("Gra zakończyła się błędem", f"Kod wyjścia: {code}\nLog: {log}\n\n{log_tail(log)}", "error")
+            self.core.activity.add("error", 'Gra zakończyła się błędem (kod {code})', code=code)
+            self.message(tr('Gra zakończyła się błędem'), tr('Kod wyjścia: {code}\nLog: {log}\n\n{log_tail}', code=code, log=log, log_tail=log_tail(log)), "error")
         self.refresh_all()
 
     # --- Construction Set ---------------------------------------------------------------------------
     def launch_editor(self, extra_user: list[str] | None = None):
         if self.editor.is_running():
-            self.message("Construction Set", "Edytor już działa.", "info")
+            self.message("Construction Set", tr('Edytor już działa.'), "info")
             return False
         chk = self.core.check_play(self.conv_runner.is_running())
         blocking = [m for c, m in chk.problems if c in ("install", "conversion", "godot", "project", "running")]
         if blocking:
-            self.message("Nie można uruchomić edytora", "\n".join(f"• {m}" for m in blocking), "warn")
+            self.message(tr('Nie można uruchomić edytora'), "\n".join(f"• {m}" for m in blocking), "warn")
             return False
         cmd = self.core.editor_command(extra_user or self._test_extra())
         ok = self.editor.start(cmd, self.core.paths.logs, self.core.project_dir())
         if not ok:
-            self.message("Błąd", "Nie udało się uruchomić Construction Set.", "error")
+            self.message(tr('Błąd'), tr('Nie udało się uruchomić Construction Set.'), "error")
         return ok
 
     def _editor_exited(self, code: int, log: str):
         self.last_editor_exit = code
         if code != 0:
-            self.core.activity.add("error", f"Construction Set zakończył się błędem (kod {code})")
-            self.message("Construction Set zakończył się błędem", f"Kod wyjścia: {code}\nLog: {log}\n\n{log_tail(log)}",
+            self.core.activity.add("error", 'Construction Set zakończył się błędem (kod {code})', code=code)
+            self.message(tr('Construction Set zakończył się błędem'), tr('Kod wyjścia: {code}\nLog: {log}\n\n{log_tail}', code=code, log=log, log_tail=log_tail(log)),
                          "error")
 
     def closeEvent(self, e):
         if self.conv_runner.is_running():
-            if not self.confirm("Konwersja w toku", "Przerwać konwersję i zamknąć launcher? Ukończone zasoby zostaną "
-                                                    "zachowane, konwersję można później wznowić."):
+            if not self.confirm(tr('Konwersja w toku'), tr('Przerwać konwersję i zamknąć launcher? Ukończone zasoby zostaną zachowane, konwersję można później wznowić.')):
                 e.ignore()
                 return
             self.conv_runner.cancel()
             self.conv_runner.proc.waitForFinished(25000)
-        if self.game.is_running() and not self.confirm("Gra działa",
-                                                       "Gra nadal działa. Zamknąć launcher? Gra zostanie zamknięta."):
+        if self.game.is_running() and not self.confirm(tr('Gra działa'),
+                                                       tr('Gra nadal działa. Zamknąć launcher? Gra zostanie zamknięta.')):
             e.ignore()
             return
         e.accept()
+
+
+def pin_game_language(core: LauncherCore, launcher_lang: str) -> list[str]:
+    """Języki launchera i gry są niezależne. Profil z „Język gry = auto” przejmował język launchera, więc zmiana
+    języka launchera zmieniałaby język gry. Przed zmianą takie profile dostają jawnie dotychczasowy język gry
+    (ten sam efekt w grze co przed zmianą). Zwraca identyfikatory zmienionych profili."""
+    changed = []
+    for p in core.profiles.list():
+        if str(p.settings.get("game_language", "auto") or "auto") == "auto":
+            p.settings["game_language"] = launcher_lang
+            core.profiles.save(p)
+            changed.append(p.id)
+    if changed:
+        core.activity.add("info", "Język gry profili ({ids}) ustawiony na {lang} – niezależnie od języka launchera",
+                          ids=", ".join(changed), lang=launcher_lang.upper())
+    return changed
 
 
 def main(argv=None) -> int:
@@ -834,6 +875,7 @@ def main(argv=None) -> int:
     from PySide6.QtGui import QIcon
     app.setWindowIcon(QIcon(theme.emblem(128)))
     core = LauncherCore()
+    set_lang(core.config["language"])             # przed kreatorem: kreator jest w języku launchera
     if not core.config["wizard_done"]:
         from .wizard import FirstRunWizard
         FirstRunWizard(core).exec()

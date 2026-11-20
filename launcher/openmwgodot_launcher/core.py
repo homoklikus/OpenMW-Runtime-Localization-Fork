@@ -14,6 +14,7 @@ from mwcore.profiles import Profile, ProfileStore
 from mwcore.settings import LauncherConfig
 
 from .bootstrap import APP_ROOT
+from .i18n import tr
 
 
 @dataclass
@@ -61,7 +62,7 @@ class LauncherCore:
         if r.ok:
             prev = (self.config["install"] or {}).get("path")
             if prev != r.path:
-                self.activity.add("ok", f"Wykryto instalację Morrowinda ({' + '.join(c['name'] for c in r.components if c['esm'])})")
+                self.activity.add("ok", 'Wykryto instalację Morrowinda ({join})', join=' + '.join(c['name'] for c in r.components if c['esm']))
             self.config["install"] = {"kind": r.kind, "path": r.path}
             self.config.save()
             self._install_report = r
@@ -118,13 +119,12 @@ class LauncherCore:
         p = self.resolve_converted(text).resolve()
         repo = conversion.converter_dir().parent.resolve()
         if p == repo or repo in p.parents:
-            return p, (f"Katalog {p} leży w katalogu projektu ({repo}). Przekonwertowane dane zawierają zasoby "
-                       "gry i nie mogą trafić do repozytorium – wybierz katalog poza projektem.")
+            return p, (tr('Katalog {p} leży w katalogu projektu ({repo}). Przekonwertowane dane zawierają zasoby gry i nie mogą trafić do repozytorium – wybierz katalog poza projektem.', p=p, repo=repo))
         inst = self.config["install"].get("path") if isinstance(self.config["install"], dict) else None
         if inst:
             ip = Path(inst).expanduser().resolve()
             if p == ip or ip in p.parents:
-                return p, f"Katalog {p} leży w instalacji gry ({ip}) – wybierz inny, gra musi zostać nietknięta."
+                return p, tr('Katalog {p} leży w instalacji gry ({ip}) – wybierz inny, gra musi zostać nietknięta.', p=p, ip=ip)
         return p, None
 
     def plan(self) -> conversion.Plan | None:
@@ -147,7 +147,7 @@ class LauncherCore:
     def status(self) -> conversion.OutStatus:
         plan = self.plan()
         if plan is None:
-            return conversion.OutStatus(conversion.MISSING, "", ["nie wskazano instalacji Morrowinda"])
+            return conversion.OutStatus(conversion.MISSING, "", [tr('nie wskazano instalacji Morrowinda')])
         return conversion.play_status(plan)
 
     def converter_cwd(self) -> Path:
@@ -168,30 +168,30 @@ class LauncherCore:
         action = ""
         rep = self.install_report()
         if rep is None or not rep.ok:
-            return Check(False, [("install", "Nie wskazano poprawnej instalacji Morrowinda.")], "convert")
+            return Check(False, [("install", tr('Nie wskazano poprawnej instalacji Morrowinda.'))], "convert")
         if conversion_running:
-            return Check(False, [("running", "Trwa konwersja – poczekaj na jej zakończenie albo ją przerwij.")], "convert")
+            return Check(False, [("running", tr('Trwa konwersja – poczekaj na jej zakończenie albo ją przerwij.'))], "convert")
         res = self.resolution()
         if res.missing_mods:
-            probs.append(("profile", "Profil odwołuje się do nieistniejących modów: " + ", ".join(res.missing_mods)))
+            probs.append(("profile", tr('Profil odwołuje się do nieistniejących modów: ') + ", ".join(res.missing_mods)))
             action = "mods"
         for mm in res.missing_masters:
-            probs.append(("deps", f"{mm['plugin']} ({mm['mod']}) wymaga: {', '.join(mm['missing'])}"))
+            probs.append(("deps", tr('{v} ({v2}) wymaga: {join}', v=mm['plugin'], v2=mm['mod'], join=', '.join(mm['missing']))))
             action = "mods"
         st = self.status()
-        msg = {conversion.MISSING: "Brak przekonwertowanych danych gry. Uruchom konwersję.",
-               conversion.INCOMPLETE: "Konwersja jest niekompletna (przerwana?). Wznów ją albo napraw.",
-               conversion.RUNNING: "Trwa konwersja (inny proces).",
-               conversion.OUTDATED: "Dane wymagają aktualizacji: " + "; ".join(st.details),
-               conversion.BROKEN: "Uszkodzone dane konwersji: " + "; ".join(st.details) + ". Użyj „Napraw”."}
+        msg = {conversion.MISSING: tr('Brak przekonwertowanych danych gry. Uruchom konwersję.'),
+               conversion.INCOMPLETE: tr('Konwersja jest niekompletna (przerwana?). Wznów ją albo napraw.'),
+               conversion.RUNNING: tr('Trwa konwersja (inny proces).'),
+               conversion.OUTDATED: tr('Dane wymagają aktualizacji: ') + "; ".join(st.details),
+               conversion.BROKEN: tr('Uszkodzone dane konwersji: ') + "; ".join(st.details) + tr('. Użyj „Napraw”.')}
         if st.state != conversion.READY:
             probs.append(("conversion", msg.get(st.state, st.state)))
             action = action or "convert"
         if self.godot() is None:
-            probs.append(("godot", "Nie znaleziono Godota 4 (ustaw ścieżkę w Ustawieniach → Zaawansowane)."))
+            probs.append(("godot", tr('Nie znaleziono Godota 4 (ustaw ścieżkę w Ustawieniach → Zaawansowane).')))
             action = action or "settings"
         if self.project_dir() is None:
-            probs.append(("project", "Nie znaleziono projektu gry (project.godot)."))
+            probs.append(("project", tr('Nie znaleziono projektu gry (project.godot).')))
             action = action or "settings"
         return Check(not probs, probs, action)
 

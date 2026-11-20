@@ -15,10 +15,10 @@ from mwcore import conversion, launch
 from mwcore.settings import GAME_SCHEMA
 
 from .art import serif_font
-from .i18n import LANG, tr
+from .i18n import N_, get_lang, tr
 
-CHOICE_LABELS = {"windowed": "okno", "fullscreen": "pełny ekran", "exclusive": "pełny ekran (wyłączny)",
-                 "off": "wyłączone", "low": "niska", "medium": "średnia", "high": "wysoka"}
+CHOICE_LABELS = {"windowed": N_('okno'), "fullscreen": N_('pełny ekran'), "exclusive": N_('pełny ekran (wyłączny)'),
+                 "off": N_('wyłączone'), "low": N_('niska'), "medium": N_('średnia'), "high": N_('wysoka')}
 
 
 class SettingsPage(QWidget):
@@ -28,7 +28,7 @@ class SettingsPage(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(14, 10, 14, 10)
         top = QHBoxLayout()
-        self.title = QLabel(tr("settings"))
+        self.title = QLabel(tr("Ustawienia"))
         self.title.setFont(serif_font(24))
         self.title.setProperty("class", "cardtitle")
         top.addWidget(self.title, 1)
@@ -37,14 +37,14 @@ class SettingsPage(QWidget):
         lay.addWidget(self.tabs, 1)
         self.widgets = {}
         forms = {}
-        for sec, name in (("graphics", "Grafika"), ("audio", "Dźwięk"), ("controls", "Sterowanie"),
-                          ("language", "Język"), ("world", "Świat"), ("advanced", "Zaawansowane")):
+        for sec, name in (("graphics", tr('Grafika')), ("audio", tr('Dźwięk')), ("controls", tr('Sterowanie')),
+                          ("language", tr('Język')), ("world", tr('Świat')), ("advanced", tr('Zaawansowane'))):
             w = QWidget()
             f = QFormLayout(w)
             forms[sec] = f
             self.tabs.addTab(w, name)
         for o in GAME_SCHEMA:
-            label = o.label_en if LANG == "en" else o.label_pl
+            label = o.label_en if get_lang() == "en" else o.label_pl
             if o.kind == "bool":
                 wdg = QCheckBox()
             elif o.kind == "int":
@@ -62,44 +62,45 @@ class SettingsPage(QWidget):
                 wdg = QComboBox()          # wypełniana w refresh() językami z bieżącej konwersji
             elif o.kind == "str":
                 wdg = QLineEdit()
-                wdg.setPlaceholderText("puste = wyłączone")
+                wdg.setPlaceholderText(tr('puste = wyłączone'))
             else:
                 wdg = QComboBox()
                 for c in o.choices:
-                    wdg.addItem(CHOICE_LABELS.get(c, c), c)
+                    wdg.addItem(tr(CHOICE_LABELS.get(c, c)), c)
             self.widgets[o.key] = (o, wdg)
             forms[o.section].addRow(label, wdg)
-        info = QLabel("Dźwięk, napisy, mysz i część grafiki można też zmienić w grze (Esc → Ustawienia).")
+        info = QLabel(tr('Dźwięk, napisy, mysz i część grafiki można też zmienić w grze (Esc → Ustawienia).'))
         info.setWordWrap(True)
         info.setProperty("class", "muted")
         forms["audio"].addRow(info)
         self.lang = QComboBox()
-        self.lang.addItem("Polski", "pl")
+        self.lang.addItem("Polski", "pl")              # nazwy języków w ich własnym języku
         self.lang.addItem("English", "en")
-        forms["language"].addRow("Język launchera (po ponownym uruchomieniu)", self.lang)
+        forms["language"].addRow(tr('Język launchera'), self.lang)
+        self.lang.currentIndexChanged.connect(self._lang_changed)   # od razu, bez ponownego uruchomienia
         self.lang_info = QLabel("")
         self.lang_info.setWordWrap(True)
         self.lang_info.setProperty("class", "muted")
         forms["language"].addRow("", self.lang_info)
         # świat: roślinność (odpowiednik world.cfg forka OpenMW RLF) – liczona przy konwersji
         f = forms["world"]
-        self.fl_enabled = QCheckBox("Roślinność generowana przy konwersji ([flora] enabled)")
+        self.fl_enabled = QCheckBox(tr('Roślinność generowana przy konwersji ([flora] enabled)'))
         f.addRow("", self.fl_enabled)
         self.fl_source = QComboBox()
-        self.fl_source.addItem("Automatyczna – trawa Remirosa (dołączona do programu, bez ESP)", "automatic")
-        self.fl_source.addItem("Z wtyczek groundcover", "groundcover")
-        self.fl_source.addItem("Obie (hybryda)", "hybrid")
-        f.addRow("Źródło", self.fl_source)
+        self.fl_source.addItem(tr('Automatyczna – trawa Remirosa (dołączona do programu, bez ESP)'), "automatic")
+        self.fl_source.addItem(tr('Z wtyczek groundcover'), "groundcover")
+        self.fl_source.addItem(tr('Obie (hybryda)'), "hybrid")
+        f.addRow(tr('Źródło'), self.fl_source)
         self.fl_density = QDoubleSpinBox()
         self.fl_density.setRange(0.0, 2.0)
         self.fl_density.setSingleStep(0.1)
-        f.addRow("Gęstość (0–2)", self.fl_density)
-        self.gc_legacy = QCheckBox("Wtyczki groundcover bez roślinności proceduralnej ([Groundcover] enabled)")
+        f.addRow(tr('Gęstość (0–2)'), self.fl_density)
+        self.gc_legacy = QCheckBox(tr('Wtyczki groundcover bez roślinności proceduralnej ([Groundcover] enabled)'))
         f.addRow("", self.gc_legacy)
         self.gc_density = QDoubleSpinBox()
         self.gc_density.setRange(0.0, 1.0)
         self.gc_density.setSingleStep(0.1)
-        f.addRow("Gęstość wtyczek groundcover (0–1)", self.gc_density)
+        f.addRow(tr('Gęstość wtyczek groundcover (0–1)'), self.gc_density)
         self.world_info = QLabel("")
         self.world_info.setWordWrap(True)
         self.world_info.setProperty("class", "muted")
@@ -108,7 +109,7 @@ class SettingsPage(QWidget):
         # zaawansowane
         f = forms["advanced"]
         self.godot = QLineEdit()
-        self.godot.setPlaceholderText("wykrywanie automatyczne")
+        self.godot.setPlaceholderText(tr('wykrywanie automatyczne'))
         bg = QPushButton("…")
         bg.clicked.connect(lambda: self._pick_file(self.godot))
         row = QHBoxLayout()
@@ -118,31 +119,31 @@ class SettingsPage(QWidget):
         self.godot_ver = QLabel("")
         f.addRow("", self.godot_ver)
         self.project = QLineEdit()
-        self.project.setPlaceholderText("wykrywanie automatyczne")
-        f.addRow("Projekt gry", self.project)
+        self.project.setPlaceholderText(tr('wykrywanie automatyczne'))
+        f.addRow(tr('Projekt gry'), self.project)
         self.python = QLineEdit()
-        self.python.setPlaceholderText("interpreter launchera")
-        f.addRow("Python (konwerter)", self.python)
+        self.python.setPlaceholderText(tr("interpreter launchera"))
+        f.addRow(tr("Python (konwerter)"), self.python)
         self.args = QLineEdit()
-        self.args.setPlaceholderText("np. --rendering-method gl_compatibility")
-        f.addRow("Parametry uruchamiania", self.args)
-        self.minimize = QCheckBox("Minimalizuj launcher po starcie gry")
+        self.args.setPlaceholderText(tr("np. {example}", example="--rendering-method gl_compatibility"))
+        f.addRow(tr('Parametry uruchamiania'), self.args)
+        self.minimize = QCheckBox(tr('Minimalizuj launcher po starcie gry'))
         f.addRow("", self.minimize)
-        self.bake = QCheckBox("Wypiekaj sceny z teksturami pod GPU po konwersji")
+        self.bake = QCheckBox(tr('Wypiekaj sceny z teksturami pod GPU po konwersji'))
         f.addRow("", self.bake)
         paths = self.win.core.paths
-        info = QLabel(f"Konfiguracja: {paths.config}\nDane: {paths.data}\nCache: {paths.cache}\nLogi: {paths.logs}"
-                      + ("\n(tryb przenośny)" if paths.portable else ""))
+        info = QLabel(tr('Konfiguracja: {config}\nDane: {data}\nCache: {cache}\nLogi: {logs}', config=paths.config, data=paths.data, cache=paths.cache, logs=paths.logs)
+                      + (tr('\n(tryb przenośny)') if paths.portable else ""))
         info.setProperty("class", "muted")
-        f.addRow("Katalogi", info)
+        f.addRow(tr('Katalogi'), info)
         drow = QHBoxLayout()
-        b_logs = QPushButton("Otwórz logi")
+        b_logs = QPushButton(tr('Otwórz logi'))
         b_logs.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(paths.logs))))
-        b_test = QPushButton("Sprawdź Godota")
+        b_test = QPushButton(tr('Sprawdź Godota'))
         b_test.clicked.connect(self._check_godot)
         drow.addWidget(b_logs)
         drow.addWidget(b_test)
-        f.addRow("Diagnostyka", drow)
+        f.addRow(tr('Diagnostyka'), drow)
 
     def _world_enable(self, on: bool):
         for w in (self.fl_source, self.fl_density):
@@ -150,7 +151,7 @@ class SettingsPage(QWidget):
         self.gc_legacy.setEnabled(not on)     # jak w forku: [Groundcover] działa tylko bez [flora]
 
     def _pick_file(self, edit):
-        p, _ = QFileDialog.getOpenFileName(self, "Plik wykonywalny Godota")
+        p, _ = QFileDialog.getOpenFileName(self, tr('Plik wykonywalny Godota'))
         if p:
             edit.setText(p)
 
@@ -158,27 +159,26 @@ class SettingsPage(QWidget):
         self.save()
         g = self.win.core.godot()
         v = launch.godot_version(g) if g else None
-        self.godot_ver.setText(f"{g} — {v}" if v else "Nie znaleziono działającego Godota 4.")
+        self.godot_ver.setText(f"{g} — {v}" if v else tr('Nie znaleziono działającego Godota 4.'))
 
     def refresh(self):
         core = self.win.core
-        self.title.setText(f"{tr('settings')} — profil {core.profile.name}")
+        self.title.setText(tr('{v} — profil {name}', v=tr('Ustawienia'), name=core.profile.display_name))
         s = core.profile.settings
         langs = core.game_languages()
         o_gl, w_gl = self.widgets["game_language"]
         w_gl.clear()
-        w_gl.addItem(f"Automatycznie (jak launcher: {core.config['language'].upper()})", "auto")
-        w_gl.addItem("Oryginalny (bez tłumaczenia)", "original")
+        w_gl.addItem(tr('Automatycznie (jak launcher: {upper})', upper=core.config['language'].upper()), "auto")
+        w_gl.addItem(tr('Oryginalny (bez tłumaczenia)'), "original")
         for L in langs:
             w_gl.addItem(L.upper(), L.lower())
         cur = str(s.get("game_language", "auto"))
         if w_gl.findData(cur) < 0:
-            w_gl.addItem(f"{cur.upper()} (brak w konwersji)", cur)
+            w_gl.addItem(tr('{upper} (brak w konwersji)', upper=cur.upper()), cur)
         self.lang_info.setText(
-            ("Tłumaczenia w konwersji: " + ", ".join(L.upper() for L in langs) if langs else
-             "Konwersja nie zawiera tłumaczeń. Pliki localization/language/&lt;wtyczka&gt;.yaml (format forka "
-             "OpenMW RLF) dodaj jako mod i uruchom aktualizację konwersji.")
-            + "<br>Zmiana języka nie wymaga ponownej konwersji.")
+            (tr('Tłumaczenia w konwersji: ') + ", ".join(L.upper() for L in langs) if langs else
+             tr('Konwersja nie zawiera tłumaczeń. Pliki localization/language/&lt;wtyczka&gt;.yaml (format forka OpenMW RLF) dodaj jako mod i uruchom aktualizację konwersji.'))
+            + tr('<br>Zmiana języka nie wymaga ponownej konwersji.'))
         self.lang_info.setTextFormat(Qt.RichText)
         for key, (o, w) in self.widgets.items():
             v = s.get(key, o.default)
@@ -193,7 +193,9 @@ class SettingsPage(QWidget):
                     self._fill_resolutions(w, v)
                 w.setCurrentIndex(max(0, w.findData(v)))
         c = core.config
+        self.lang.blockSignals(True)
         self.lang.setCurrentIndex(0 if c["language"] != "en" else 1)
+        self.lang.blockSignals(False)
         self.godot.setText(c["godot_path"] or "")
         self.project.setText(c["project_dir"] or "")
         self.python.setText(c["python_path"] or "")
@@ -210,12 +212,9 @@ class SettingsPage(QWidget):
         res = core.resolution(False)
         gcs = [Path(g).name for g in (res.config.groundcover if res else [])]
         self.world_info.setText(
-            ("Wtyczki groundcover: " + ", ".join(gcs) if gcs else "Brak wtyczek groundcover (rozpoznawane automatycznie "
-             "przy instalacji moda).")
-            + "\nTryb automatyczny: trawa Remirosa liczona z reguł forka na teksturach terenu; modele i tekstury "
-              "Remiros' Groundcover (autor: Remiros) są dołączone do programu – nic nie trzeba instalować."
-            + "\nRoślinność jest liczona przy konwersji – po zmianie ustawień uruchom „Aktualizuj” na stronie Konwersja. "
-              "Zasięg i gęstość rysowania w grze: zakładka Grafika.")
+            (tr('Wtyczki groundcover: ') + ", ".join(gcs) if gcs else tr('Brak wtyczek groundcover (rozpoznawane automatycznie przy instalacji moda).'))
+            + tr("\nTryb automatyczny: trawa Remirosa liczona z reguł forka na teksturach terenu; modele i tekstury Remiros' Groundcover (autor: Remiros) są dołączone do programu – nic nie trzeba instalować.")
+            + tr('\nRoślinność jest liczona przy konwersji – po zmianie ustawień uruchom „Aktualizuj” na stronie Konwersja. Zasięg i gęstość rysowania w grze: zakładka Grafika.'))
 
     @staticmethod
     def screen_sizes() -> list:
@@ -232,7 +231,7 @@ class SettingsPage(QWidget):
         native = set(f"{w}x{h}" for w, h in self.screen_sizes())
         wdg.clear()
         for r in resolution_choices(self.screen_sizes(), current):
-            wdg.addItem(r + ("  (ekran)" if r in native else ""), r)
+            wdg.addItem(r + (tr('  (ekran)') if r in native else ""), r)
 
     def values(self) -> dict:
         out = {}
@@ -247,13 +246,21 @@ class SettingsPage(QWidget):
                 out[key] = w.currentData()
         return out
 
+    def _lang_changed(self, _i):
+        """Język launchera: zapis pozostałych ustawień strony i przebudowa interfejsu (MainWindow.set_language).
+        Język gry zostaje bez zmian."""
+        lang = self.lang.currentData()
+        if lang == self.win.core.config["language"]:
+            return
+        self.save()
+        self.win.set_language(lang)
+
     def save(self):
         core = self.win.core
         p = core.profile
         p.settings.update(self.values())
         core.profiles.save(p)
         c = core.config
-        c["language"] = self.lang.currentData()
         c["godot_path"] = self.godot.text().strip()
         c["project_dir"] = self.project.text().strip()
         c["python_path"] = self.python.text().strip()

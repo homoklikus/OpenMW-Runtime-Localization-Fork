@@ -9,6 +9,7 @@ import random
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import (QBrush, QColor, QFont, QIcon, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap,
                            QRadialGradient)
+from .i18n import N_
 
 GOLD = QColor("#d9b878")
 GOLD_DARK = QColor("#8a6c3a")
@@ -427,9 +428,7 @@ def image_preview(w: int, h: int):
 
 
 GODOT_URL = "https://godotengine.org"
-GODOT_LOGO_CREDIT = ("Logo Godot Engine © 2017 Andrea Calabró, licencja CC BY 4.0 "
-                     "(https://creativecommons.org/licenses/by/4.0/), zmienione: wersja szara; "
-                     "Godot Foundation, godotengine.org")
+GODOT_LOGO_CREDIT = (N_('Logo Godot Engine © 2017 Andrea Calabró, licencja CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/), zmienione: wersja szara; Godot Foundation, godotengine.org'))
 
 
 def godot_logo(size: int, mono: bool = True):

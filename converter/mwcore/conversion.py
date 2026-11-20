@@ -23,6 +23,7 @@ from pathlib import Path
 from mwconv.install import InstallConfig
 
 from .jsonio import read_json, write_json
+from .i18n import tr
 
 READY, MISSING, INCOMPLETE, RUNNING, OUTDATED, BROKEN = "ready", "missing", "incomplete", "running", "outdated", "broken"
 
@@ -68,20 +69,20 @@ def out_status(out: Path) -> OutStatus:
             pass
     if not (out / "world" / "index.json").exists():
         st = INCOMPLETE if (out / ".mwconv" / "cache.sqlite").exists() else MISSING
-        return OutStatus(st, str(out), ["brak world/index.json"])
+        return OutStatus(st, str(out), [tr('brak world/index.json')])
     state_f = out / ".mwconv" / "export_state.json"
     try:
         state = json.loads(state_f.read_text())
     except (OSError, json.JSONDecodeError):
-        return OutStatus(INCOMPLETE, str(out), ["eksport świata niekompletny"])
+        return OutStatus(INCOMPLETE, str(out), [tr('eksport świata niekompletny')])
     if not state.get("complete"):
-        return OutStatus(INCOMPLETE, str(out), ["eksport świata niekompletny"])
+        return OutStatus(INCOMPLETE, str(out), [tr('eksport świata niekompletny')])
     probs = []
     for rel in ("world/manifest.json", "world/index.json", "world/objects.json"):
         try:
             json.loads((out / rel).read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
-            probs.append(f"uszkodzony {rel}")
+            probs.append(tr('uszkodzony {rel}', rel=rel))
     if probs:
         return OutStatus(BROKEN, str(out), probs)
     return OutStatus(READY, str(out))
@@ -212,11 +213,11 @@ def play_status(plan: Plan) -> OutStatus:
     rec = read_json(record_path(plan))
     cfg = plan.profile_cfg or plan.base_cfg
     if not isinstance(rec, dict):
-        return OutStatus(OUTDATED, str(plan.play_out), ["brak zapisu konwersji dla tego zestawu modów"])
+        return OutStatus(OUTDATED, str(plan.play_out), [tr('brak zapisu konwersji dla tego zestawu modów')])
     if rec.get("signature") != plan.signature:
-        return OutStatus(OUTDATED, str(plan.play_out), ["zmienił się zestaw lub kolejność modów"])
+        return OutStatus(OUTDATED, str(plan.play_out), [tr('zmienił się zestaw lub kolejność modów')])
     if rec.get("content") != content_quick_fp(cfg.content):
-        return OutStatus(OUTDATED, str(plan.play_out), ["zmieniły się pliki ESM/ESP"])
+        return OutStatus(OUTDATED, str(plan.play_out), [tr('zmieniły się pliki ESM/ESP')])
     return OutStatus(READY, str(plan.play_out))
 
 

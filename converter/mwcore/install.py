@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from mwconv.install import InstallConfig, from_morrowind_dir, from_openmw_cfg
+from .i18n import tr
 
 COMPONENTS = [("Morrowind", "Morrowind.esm", "Morrowind.bsa", True), ("Tribunal", "Tribunal.esm", "Tribunal.bsa", False),
               ("Bloodmoon", "Bloodmoon.esm", "Bloodmoon.bsa", False)]
@@ -78,7 +79,7 @@ def inspect(path: str | Path) -> InstallReport:
         elif p.is_dir():
             data = _ci(p, "Data Files") or p
             if _ci(data, "Morrowind.esm") is None and _ci(p, "Data Files") is None:
-                return InstallReport("unknown", str(p), False, problems=["brak Morrowind.esm i katalogu „Data Files”"])
+                return InstallReport("unknown", str(p), False, problems=[tr('brak Morrowind.esm i katalogu „Data Files”')])
             kind = "morrowind" if _ci(p, "Data Files") else "data"
             cfg = from_morrowind_dir(p)
             rep = InstallReport(kind, str(p), False, data_dir=str(data), config=cfg)
@@ -86,16 +87,16 @@ def inspect(path: str | Path) -> InstallReport:
                 rep.components.append({"name": n, "esm": _ci(data, esm) is not None, "bsa": _ci(data, bsa) is not None,
                                        "required": req})
         else:
-            return InstallReport("unknown", str(p), False, problems=["ścieżka nie istnieje"])
+            return InstallReport("unknown", str(p), False, problems=[tr('ścieżka nie istnieje')])
     except (OSError, ValueError) as e:
-        return InstallReport("unknown", str(p), False, problems=[f"błąd odczytu: {e}"])
+        return InstallReport("unknown", str(p), False, problems=[tr('błąd odczytu: {e}', e=e)])
     for c in rep.components:
         if c["required"] and not c["esm"]:
-            rep.problems.append(f"brak {c['name']}.esm")
+            rep.problems.append(tr('brak {v}.esm', v=c['name']))
         if c["esm"] and not c["bsa"]:
-            rep.problems.append(f"brak archiwum {c['name']}.bsa (modele/tekstury mogą być niekompletne)")
+            rep.problems.append(tr('brak archiwum {v}.bsa (modele/tekstury mogą być niekompletne)', v=c['name']))
     if rep.config is not None and not rep.config.content:
-        rep.problems.append("nie znaleziono plików ESM do wczytania")
+        rep.problems.append(tr('nie znaleziono plików ESM do wczytania'))
     rep.ok = any(c["required"] and c["esm"] for c in rep.components) and bool(rep.config and rep.config.content)
     return rep
 

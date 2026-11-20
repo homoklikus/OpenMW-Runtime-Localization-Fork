@@ -21,6 +21,7 @@ from mwconv.install import InstallConfig
 from .archive import ArchiveError, Limits, extract
 from .jsonio import read_json, write_json
 from .paths import AppPaths
+from .i18n import tr
 
 DATA_DIRS = {"meshes", "textures", "icons", "bookart", "sound", "music", "fonts", "splash", "video", "distantland", "localization"}
 PLUGIN_EXT = (".esm", ".esp", ".omwaddon")
@@ -72,7 +73,7 @@ def find_data_root(root: Path) -> Path:
             best = d
             break
     if best is None:
-        raise ModError("archiwum nie zawiera danych gry (brak meshes/textures/…, ESP/ESM ani BSA)")
+        raise ModError(tr('archiwum nie zawiera danych gry (brak meshes/textures/…, ESP/ESM ani BSA)'))
     return best
 
 
@@ -107,13 +108,13 @@ class ModStore:
     def data_path(self, m: ModInfo) -> Path:
         p = (self.dir / m.id / m.data_root).resolve()
         if not str(p).startswith(str((self.dir / m.id).resolve())):
-            raise ModError(f"mod {m.id}: data_root poza katalogiem moda")  # ochrona przed złym manifestem
+            raise ModError(tr('mod {id}: data_root poza katalogiem moda', id=m.id))  # ochrona przed złym manifestem
         return p
 
     def install(self, archive: Path, name: str | None = None) -> ModInfo:
         archive = Path(archive)
         if not archive.is_file():
-            raise ModError(f"brak pliku: {archive}")
+            raise ModError(tr('brak pliku: {archive}', archive=archive))
         base = re.sub(r"[^a-z0-9]+", "-", (name or archive.stem).lower()).strip("-")[:40] or "mod"
         mod_id = base
         k = 2
@@ -133,7 +134,7 @@ class ModStore:
                                         "is_master": f.suffix.lower() == ".esm" or bool(h.flags & 1),
                                         "groundcover": _is_groundcover(f)})
                     except Exception as e:  # noqa: BLE001
-                        raise ModError(f"uszkodzony plugin {f.name}: {e}") from None
+                        raise ModError(tr('uszkodzony plugin {name}: {e}', name=f.name, e=e)) from None
             archives = sorted(f.name for f in root.iterdir() if f.is_file() and f.suffix.lower() == ".bsa")
             info = ModInfo(mod_id, name or archive.stem, (Path("files") / root.relative_to(stage / "files")).as_posix(),
                            plugins, archives, n, archive.name, _sha256(archive), time.time())
@@ -153,7 +154,7 @@ class ModStore:
     def remove(self, mod_id: str) -> None:
         m = self.get(mod_id)
         if m is None:
-            raise ModError(f"nie ma moda {mod_id}")
+            raise ModError(tr('nie ma moda {mod_id}', mod_id=mod_id))
         shutil.rmtree(self.dir / m.id)
 
     def file_list(self, m: ModInfo) -> list[str]:
@@ -212,7 +213,7 @@ def resolve(base: InstallConfig, enabled_mod_ids: list[str], store: ModStore,
     providers: dict[str, list[str]] = {}
     if base_files:
         for f in base_files:
-            providers[f] = ["(gra)"]
+            providers[f] = [tr('(gra)')]
     mods = []
     for mid in enabled_mod_ids:
         m = store.get(mid)

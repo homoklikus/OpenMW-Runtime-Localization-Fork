@@ -16,6 +16,9 @@ from pathlib import Path
 from .jsonio import read_json, write_json
 from .paths import AppPaths
 from .settings import validate_game
+from .i18n import tr, translate
+
+DEFAULT_NAME = "Domyślny"      # tekst źródłowy (klucz katalogu mwcore.i18n)
 
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,47}$")
 
@@ -28,6 +31,14 @@ class Profile:
     settings: dict = field(default_factory=dict)  # ustawienia gry (schemat w settings.py)
     created: float = 0.0
     version: int = 1
+
+    @property
+    def display_name(self) -> str:
+        """Nazwa do wyświetlenia: domyślny profil („Domyślny”, zapisany przy pierwszym uruchomieniu) w języku
+        launchera; nazwy nadane przez użytkownika bez zmian."""
+        if self.id == "default" and self.name == DEFAULT_NAME:
+            return translate(DEFAULT_NAME)
+        return self.name
 
     def enabled_mods(self) -> list[str]:
         return [m["id"] for m in self.mods if m.get("enabled", True)]
@@ -47,11 +58,11 @@ class ProfileStore:
         self.dir = paths.profiles_dir
         self.dir.mkdir(parents=True, exist_ok=True)
         if not self.list():
-            self._save(Profile("default", "Domyślny", created=time.time(), settings=validate_game({})))
+            self._save(Profile("default", DEFAULT_NAME, created=time.time(), settings=validate_game({})))
 
     def _file(self, pid: str) -> Path:
         if not ID_RE.match(pid):
-            raise ValueError(f"niepoprawny identyfikator profilu: {pid!r}")
+            raise ValueError(tr('niepoprawny identyfikator profilu: {pid!r}', pid=pid))
         return self.dir / f"{pid}.json"
 
     def _save(self, p: Profile) -> None:
@@ -90,7 +101,7 @@ class ProfileStore:
 
     def create(self, name: str, copy_from: str | None = None) -> Profile:
         src = self.get(copy_from) if copy_from else None
-        p = Profile(self._unique_id(name), name.strip() or "Profil", created=time.time(),
+        p = Profile(self._unique_id(name), name.strip() or tr('Profil'), created=time.time(),
                     mods=[dict(m) for m in src.mods] if src else [],
                     settings=dict(src.settings) if src else validate_game({}))
         self._save(p)
@@ -107,7 +118,7 @@ class ProfileStore:
     def delete(self, pid: str, remove_profile_data: bool = True) -> None:
         """Usuwa profil i jego nakładkę konwersji/projekt. Zapisy gry (<data>/saves/<id>) zostają nietknięte."""
         if len(self.list()) <= 1:
-            raise ValueError("nie można usunąć ostatniego profilu")
+            raise ValueError(tr('nie można usunąć ostatniego profilu'))
         self._file(pid).unlink(missing_ok=True)
         if remove_profile_data:
             d = self.paths.profile_data(pid)

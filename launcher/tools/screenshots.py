@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Zrzuty ekranu launchera na danych syntetycznych (Qt offscreen): python3 tools/screenshots.py KATALOG_WYJŚCIOWY
+"""Zrzuty ekranu launchera na danych syntetycznych (Qt offscreen): python3 tools/screenshots.py KATALOG_WYJŚCIOWY [pl|en]
 
 Tworzy tymczasowe katalogi XDG i „instalację” o układzie jak w grze (syntetyczny ESM pod nazwą Morrowind.esm),
 wykonuje konwersję, instaluje dwa mody i zapisuje zrzuty kolejnych ekranów jako PNG.
@@ -57,6 +57,7 @@ shutil.copy(g / "Data Files" / "synth.bsa", g / "Data Files" / "Morrowind.bsa")
 out.mkdir(parents=True, exist_ok=True)
 core = LauncherCore()
 core.config["bake"] = False
+core.config["language"] = sys.argv[2] if len(sys.argv) > 2 else "pl"     # język launchera (pl | en)
 core.config.save()
 wz = FirstRunWizard(core)
 wz.show()

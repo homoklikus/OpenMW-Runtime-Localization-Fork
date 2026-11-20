@@ -15,10 +15,14 @@ class Activity:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
-    def add(self, kind: str, text: str) -> None:
-        """kind: ok | info | warn | error"""
+    def add(self, kind: str, text: str, **args) -> None:
+        """kind: ok | info | warn | error. text – szablon źródłowy (polski, jak klucz `mwcore.i18n`), args – jego
+        parametry; tłumaczenie przy wyświetlaniu (`tr_stored`), więc wpis zmienia język razem z launcherem."""
+        rec = {"t": time.time(), "kind": kind, "text": text}
+        if args:
+            rec["args"] = {k: (v if isinstance(v, (int, float, bool)) or v is None else str(v)) for k, v in args.items()}
         with open(self.path, "a", encoding="utf-8") as fh:
-            fh.write(json.dumps({"t": time.time(), "kind": kind, "text": text}, ensure_ascii=False) + "\n")
+            fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
         self._trim()
 
     def recent(self, n: int = 5) -> list[dict]:

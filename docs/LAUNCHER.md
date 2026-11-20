@@ -210,11 +210,12 @@ Pliki są czytane wyłącznie lokalnie; launcher nie kopiuje ich do repozytorium
 
 ## 10. Ograniczenia (0.1.0)
 
-* tłumaczenie angielskie obejmuje ekran główny; pozostałe strony są po polsku (zmiana języka po restarcie);
+* interfejs w całości po polsku albo angielsku (katalog `mwcore/i18n_en.py`, test `launcher/tests/test_i18n.py`);
+  zmiana języka w Ustawieniach → Język działa od razu, bez restartu; surowy log konwertera nie jest tłumaczony;
 * brak konfliktów na poziomie rekordów ESP w launcherze (są w CS 2.0 – lista konfliktów komórki);
 * brak kolejności pluginów niezależnej od kolejności modów, brak „merged patch”;
 * brak integracji z Nexus Mods (zgodnie z wymaganiem – osobny etap);
-* dźwięk, język gry, kontroler – sekcje puste/ukryte, bo Runtime ich nie obsługuje;
+* kontroler – sekcja ukryta, bo Runtime go nie obsługuje; język launchera i język gry są niezależne;
 * zamknięcie launchera przy działającej grze kończy grę (po potwierdzeniu);
 * paczka samodzielna (PyInstaller) i Windows – nieprzetestowane.
 
