@@ -43,7 +43,15 @@ func find_ref_by_base(id: String) -> Node:
 	var n = _by_base.get(id.to_lower())
 	return n if n != null and is_instance_valid(n) else null
 
+## MenuMode = WindowManager::isGuiMode: tryb GUI na stosie (także film – GM_Video, menu główne – GM_MainMenu),
+## okno z pytaniem; dodatkowo okna jeszcze otwierane poza stosem trybów.
 func menu_mode() -> bool:
+	if main.get("gui") != null and main.gui != null and main.gui.is_gui_mode():
+		return true
+	if main.get("video") != null and main.video != null and bool(main.video.playing):
+		return true                    # GM_Video: skrypty działają, ale MenuMode = 1 (np. kwestie na początku gry)
+	if main.get("main_menu") != null and main.main_menu != null and main.main_menu.is_open():
+		return true
 	for w in [main.item_window, main.chargen, main.pause_menu, main.msgbox, main.dialogue_window, main.journal_window, main.rest_window, main.trade_window, main.get("enchanting_window"), main.get("spellcreation_window"), main.get("recharge_window"), main.get("alchemy_window"), main.get("repair_window"), main.get("book_window"), main.get("map_window")]:
 		if w != null and is_instance_valid(w) and w.visible:
 			return true

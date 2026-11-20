@@ -2618,6 +2618,7 @@ func load_game(path: String) -> Array:
 	_death_handled = false
 	if player != null:
 		player.process_mode = Node.PROCESS_MODE_INHERIT
+		player.set_physics_process(true)    # _enter_nogame wyłącza fizykę gracza – wczytanie z menu głównego
 		player.visible = true
 	if mw_hud != null:
 		mw_hud.visible = true
@@ -3014,6 +3015,7 @@ func new_game() -> void:
 	_new_player_character()           # gracz istnieje od razu (rekord „player”, Npc::getNpcData)
 	game_state = "running"
 	player.process_mode = Node.PROCESS_MODE_INHERIT
+	player.set_physics_process(true)
 	player.visible = true
 	if mw_hud != null:
 		mw_hud.visible = true
