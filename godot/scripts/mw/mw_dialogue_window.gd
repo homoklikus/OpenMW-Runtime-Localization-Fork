@@ -122,6 +122,12 @@ func _t(gm: String, fb: String) -> String:
 ## Otwiera rozmowę z aktorem (węzeł referencji). false – brak powitania (okno się nie otwiera, jak w OpenMW).
 func open(node: Node) -> bool:
 	if not dialogue.start(node):
+		# brak powitania: towarzysz – od razu okno towarzysza (BM_bear_be_unique), inaczej bez rozmowy
+		if main != null and main.get("menu_mode") != null and node != null:
+			var a: Dictionary = dialogue.make_actor(node)
+			if main.menu_mode.is_companion(a):
+				main.menu_mode.open_companion(a)
+				return true
 		return false
 	title.text = dialogue.actor_name(dialogue.actor)
 	bye_btn.text = _t("sGoodbye", "Goodbye")
@@ -162,6 +168,11 @@ func refresh() -> void:
 			topics.add_item(String(e[1]))
 			_topic_ids.append("#svc:" + String(e[0]))
 			special += 1
+	# updateTopicsPane: sCompanionShare na końcu usług, gdy aktor jest towarzyszem
+	if main != null and main.get("menu_mode") != null and main.menu_mode.is_companion(dialogue.actor):
+		topics.add_item(_t("sCompanionShare", "Companion Share"))
+		_topic_ids.append("#companion")
+		special += 1
 	if special > 0:
 		topics.add_separator()                 # updateTopicsPane: addSeparator po usługach
 		_topic_ids.append("")
@@ -236,6 +247,9 @@ func _on_topic(i: int) -> void:
 	if id == "#persuasion":
 		if not dialogue.in_choice and not dialogue.goodbye_flag:
 			_open_persuasion()
+	elif id == "#companion":
+		if not dialogue.in_choice and not dialogue.goodbye_flag:
+			main.menu_mode.open_companion(dialogue.actor)     # pushGuiMode(GM_Companion, aktor)
 	elif id.begins_with("#svc:"):
 		if not dialogue.in_choice and not dialogue.goodbye_flag:
 			main.trade_window.open(id.substr(5))

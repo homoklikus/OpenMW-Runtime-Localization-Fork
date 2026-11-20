@@ -154,6 +154,8 @@ func close() -> void:
 		_grid = null
 	_cont_grid = null
 	cont_sid = ""
+	companion = {}
+	_comp_bar = null
 	if not "stats" in _pinned_windows:
 		_stat_left = null
 	if not "spells" in _pinned_windows:
@@ -1111,6 +1113,144 @@ func open_container(sid: String, rec: Dictionary, name: String, corpse := false)
 	_set_hud(false)
 	refresh()
 
+# --- towarzysz (GM_Companion): CompanionWindow (openmw_companion_window.layout) + ekwipunek -----------------------
+
+var companion := {}                       # aktor z rozmowy (make_actor)
+var _comp_bar: ProgressBar = null
+var _comp_bar_text: Label = null
+var comp_profit_label: Label = null
+var comp_filter: LineEdit = null
+
+## DialogueWindow::isCompanion: skrypt aktora ze zmienną lokalną „companion” ≠ 0.
+func is_companion(a: Dictionary) -> bool:
+	var scr := String(a.get("script", ""))
+	return main.scripts != null and not scr.is_empty() and main.scripts.local_value(String(a.get("sid", "")), "companion") != 0.0
+
+## CompanionItemModel::hasProfit: skrypt deklaruje „minimumprofit”.
+func companion_has_profit() -> bool:
+	var scr := String(companion.get("script", ""))
+	return main.scripts != null and not scr.is_empty() and main.scripts.script_has_local(scr, "minimumprofit")
+
+func companion_profit() -> int:
+	return int(main.scripts.local_value(String(companion.get("sid", "")), "minimumprofit"))
+
+## pushGuiMode(GM_Companion, aktor): okno towarzysza (setCoord(200, 0, 600, 300)) i ekwipunek gracza.
+func open_companion(a: Dictionary) -> void:
+	if visible:
+		close()
+	companion = a
+	cont_corpse = false
+	cont_sid = String(a.sid)
+	cont_rec = a.rec
+	cont_name = main.dialogue.actor_name(a)
+	var vp := get_viewport().get_visible_rect().size
+	scale_ui = UI.ui_scale()
+	UI.setup(String(main.data_dir) if main != null and main.get("data_dir") != null else "")
+	_root = _Backdrop.new()
+	_root.name = "MenuMode"
+	_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_root.theme = UI.theme(scale_ui)
+	_root.menu = self
+	add_child(_root)
+	visible = true
+	windows["inventory"] = _window("inventory", _rect("inventory", vp))
+	_build_inventory()
+	windows["container"] = _window("container", Rect2(Vector2(200, 0) * scale_ui, Vector2(600, 300) * scale_ui))
+	(windows["container"].get_node("Box/CaptionArea/Title/Pin") as Control).visible = false   # MW_Window
+	windows["container"].name = "CompanionWindow"
+	var cbody := _body("container")
+	var cm := MarginContainer.new()
+	cm.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	for side in [["margin_left", 5], ["margin_top", 5], ["margin_right", 4], ["margin_bottom", 1]]:
+		cm.add_theme_constant_override(side[0], roundi(side[1] * scale_ui))
+	cbody.add_child(cm)
+	var body := VBoxContainer.new()
+	body.add_theme_constant_override("separation", roundi(5 * scale_ui))
+	cm.add_child(body)
+	comp_filter = LineEdit.new()                          # FilterEdit (5, 5, 575, 23)
+	comp_filter.name = "FilterEdit"
+	comp_filter.custom_minimum_size.y = 23 * scale_ui
+	comp_filter.text_changed.connect(func(_t2): _refresh_container())
+	body.add_child(comp_filter)
+	_cont_grid = _make_grid(body, "container")            # ItemView (5, 33, 575, 197)
+	var row := HBoxContainer.new()                        # HBox (5, 235, 575, 24): pasek, zysk, Close
+	row.name = "Bottom"
+	row.custom_minimum_size.y = 24 * scale_ui
+	body.add_child(row)
+	var holder := Control.new()                           # MW_ChargeBar_Blue (EncumbranceBar)
+	holder.name = "EncumbranceBar"
+	holder.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	holder.custom_minimum_size.y = 18 * scale_ui
+	holder.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(holder)
+	_comp_bar = UI.progress_bar("magic", scale_ui)
+	_comp_bar.set_anchors_preset(Control.PRESET_FULL_RECT)
+	holder.add_child(_comp_bar)
+	_comp_bar_text = Label.new()
+	_comp_bar_text.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_comp_bar_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_comp_bar_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	holder.add_child(_comp_bar_text)
+	comp_profit_label = Label.new()
+	comp_profit_label.name = "ProfitLabel"
+	row.add_child(comp_profit_label)
+	var cb := Button.new()
+	cb.name = "CloseButton"
+	cb.text = preload("res://scripts/mw/mw_l10n.gd").ctx_text("Interface", "Close", _t("sClose", "Close"))
+	cb.pressed.connect(companion_close_clicked)
+	row.add_child(cb)
+	_gui_mode = "companion"
+	main.gui.push("companion", [self], companion_close_clicked)    # GM_Companion (rozmowa ukryta pod spodem)
+	_set_hud(false)
+	refresh()
+
+## updateEncumbranceBar: obciążenie (zaokrąglone w górę) / udźwig; sProfitValue N, gdy skrypt ma minimumprofit.
+func _refresh_companion() -> void:
+	if _comp_bar == null or not is_instance_valid(_comp_bar) or companion.is_empty():
+		return
+	var f: Dictionary = main.combat.fighter_of(companion.node) if companion.get("node") != null else {}
+	var cap := 0.0
+	var enc := 0.0
+	if not f.is_empty():
+		var strength := float(main.combat.attributes(f)[0])
+		cap = strength * (5.0 if f.kind == "creature" else float(main.combat._gmst("fEncumbranceStrMult", 5.0)))
+		enc = ceilf(float(main.magic.encumbrance(f)))
+	_comp_bar.max_value = maxf(cap, 1.0)
+	_comp_bar.value = clampf(enc, 0.0, _comp_bar.max_value)
+	_comp_bar_text.text = "%d/%d" % [int(enc), int(cap)]
+	comp_profit_label.text = ("%s %d" % [_t("sProfitValue", "Profit:"), companion_profit()]) if companion_has_profit() else ""
+
+## CompanionItemModel: przy dodaniu do towarzysza zysk + wartość × liczba, przy zabraniu −; bez kradzieży.
+func companion_transfer(id: String, count: int, to_companion: bool) -> int:
+	var inv = main.interaction.inventory
+	var n: int
+	if to_companion:
+		n = inv.transfer("player", {}, cont_sid, cont_rec, id, count)
+	else:
+		n = inv.transfer(cont_sid, cont_rec, "player", {}, id, count)
+	if n > 0 and companion_has_profit():
+		var v: int = main.trade.item_value(id) * n
+		main.scripts.set_local_value(String(companion.sid), "minimumprofit", companion_profit() + (v if to_companion else -v))
+	if n > 0 and main.get("audio") != null:
+		main.audio.play(main.interaction.item_sound(id, not to_companion))
+	if n > 0 and main.has_method("_check_equipment"):
+		main._check_equipment()
+	refresh()
+	return n
+
+## onCloseButtonClicked / exit: przy ujemnym zysku ostrzeżenie (sCompanionWarningMessage) zamiast zamknięcia;
+## pierwszy przycisk – zamknięcie i wyjście z rozmowy (exitCurrentGuiMode – skrypt umowy Calvusa).
+func companion_close_clicked() -> void:
+	if companion_has_profit() and companion_profit() < 0:
+		main.show_message_box(_t("sCompanionWarningMessage", "Your companion is not happy with the trade."),
+			[_t("sCompanionWarningButtonOne", "Leave"), _t("sCompanionWarningButtonTwo", "Stay")],
+			func(b: int):
+				if b == 0:
+					close()
+					main.gui.exit_current(), true)
+		return
+	close()
+
 # --- handel (GM_Barter): okno ekwipunku gracza („inventory barter”) i okno kupca (openmw_trade_window.layout) ---
 
 var barter = null                         # mw_trade_window w trybie handlu
@@ -1269,6 +1409,13 @@ func _refresh_container() -> void:
 	var items: Array = inv.contents(cont_sid, cont_rec)
 	var cap := float(cont_rec.get("capacity", 0.0))
 	var w: float = inv.total_weight(items)
+	if not companion.is_empty():
+		_title("container", cont_name)                    # setTitle(nazwa aktora)
+		var flt := comp_filter.text.strip_edges().to_lower() if comp_filter != null else ""
+		var entries := sorted_items(cont_sid, cont_rec).filter(func(e): return flt.is_empty() or String(e.name).to_lower().contains(flt))
+		cont_ids = _fill_grid(_cont_grid, entries, "container")
+		_refresh_companion()
+		return
 	_title("container", cont_name + ("  (%d/%d)" % [roundi(w), roundi(cap)] if cap > 0.0 else ""))
 	cont_ids = _fill_grid(_cont_grid, sorted_items(cont_sid, cont_rec), "container")
 
@@ -1298,6 +1445,9 @@ func take_item(id: String, count := -1) -> void:
 	var n := _count(cont_sid, cont_rec, id)
 	if count > 0:
 		n = mini(n, count)
+	if not companion.is_empty():
+		companion_transfer(id, n, false)
+		return
 	if n > 0 and main.interaction.move(cont_sid, cont_rec, "player", {}, id, n) > 0 and main.get("audio") != null:
 		main.audio.play(main.interaction.item_sound(id, true))
 	refresh()
@@ -1309,6 +1459,9 @@ func put_item(id: String, count := -1) -> void:
 	if count > 0:
 		n = mini(n, count)
 	if n <= 0:
+		return
+	if not companion.is_empty():
+		companion_transfer(id, n, true)
 		return
 	var cap := float(cont_rec.get("capacity", 0.0))
 	if cap > 0.0 and cont_rec.has("capacity"):

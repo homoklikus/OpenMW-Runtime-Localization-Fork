@@ -41,6 +41,7 @@ var native_mods = null               # mw_native_mods.gd – natywne mody (ekspe
 var interaction = null                # MWInteraction (etap 3)
 var item_window = null                # okno pojemnika / ekwipunku
 var tooltips = null                   # mw_tooltips.gd – ToolTips (podpowiedzi w układzie OpenMW)
+var jail_screen = null                # mw_jail_screen.gd – JailScreen (GM_Jail)
 var quick_keys = null                 # mw_quick_keys.gd – QuickKeysMenu (F1, klawisze 1–0)
 var audio = null                      # MWAudio (etap 3)
 var music = null                      # MWMusic (etap 10)
@@ -264,6 +265,10 @@ func _ready() -> void:
 	tooltips.name = "ToolTips"
 	tooltips.main = self
 	add_child(tooltips)
+	jail_screen = preload("res://scripts/mw/mw_jail_screen.gd").new()
+	jail_screen.name = "JailScreen"
+	jail_screen.main = self
+	add_child(jail_screen)
 	quick_keys = preload("res://scripts/mw/mw_quick_keys.gd").new()
 	quick_keys.name = "QuickKeysMenu"
 	quick_keys.main = self
@@ -2311,6 +2316,11 @@ func _update_reveal() -> void:
 		loading.loading_off()
 	if fade and fader != null:
 		fader.fade_screen_in(0.5)            # Scene: fadeScreenIn(0.5) po zmianie komórki
+
+## JailScreen: zaciemnienie zostaje po przeniesieniu (fadeScreenOut(0) zastępuje fadeScreenIn po zmianie komórki).
+func cancel_reveal_fade() -> void:
+	if not _reveal.is_empty():
+		_reveal["fade"] = false
 
 var reveal_frames_last := 0                  # testy i sonda: ile klatek trwało odsłonięcie
 

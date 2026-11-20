@@ -528,31 +528,44 @@ func teleport_to_marker(kind: String) -> bool:
 	main.travel_to_cell(cell, pos, rad_to_deg(float(m.rot[2])))
 	return true
 
-## GoToJail: dni = max(1, grzywna / iDaysinPrisonMod), grzywna 0, przedmioty zabrane, przeniesienie do znacznika
-## więzienia, upływ czasu (odpoczynek), odsiadka (jailTimeServed: losowe umiejętności −1, Security/Sneak +1).
+## World::goToJail (pierwsze wywołanie, GoToJail ze skryptu): grzywna 0, zapamiętanie przestępstw, przedmioty
+## skradzione zabrane, dni = max(1, grzywna / iDaysinPrisonMod), GetPCInJail = 1. Przeniesienie do więzienia
+## (okno GM_Jail) następuje w pierwszej klatce bez pauzy – mw_jail_screen.gd – żeby dało się przeczytać rozmowę.
 func go_to_jail() -> Dictionary:
-	main.state.player["in_jail"] = true              # World::goToJail – GetPCInJail (bez okna więzienia: klatka)
 	var days := maxi(1, int(bounty() / maxi(1, int(_gmst("iDaysinPrisonMod", 100)))))
+	if main.state.player.has("go_to_jail"):
+		return {"days": int(main.state.player["go_to_jail"])}
+	main.state.player["in_jail"] = true
 	set_bounty(0)
 	confiscate()
-	var m := closest_marker("prisonmarker")
-	if not m.is_empty():
-		var pos := Vector3(float(m.pos[0]), float(m.pos[1]), float(m.pos[2]))
-		var cell := String(m.name) if not String(m.cell).begins_with("ext:") else ""
-		main.travel_to_cell(cell, pos, rad_to_deg(float(m.rot[2])))
+	main.state.player["go_to_jail"] = days
+	return {"days": days}
+
+## JailScreen::onJailFinished: odpoczynek dni × 24 h ze snem (MechanicsManager::rest), upływ czasu, odsiadka
+## (jailTimeServed: dla każdego dnia losowa umiejętność, skillLevelUp ze źródłem Jail – zwykle −1, Bezpieczeństwo
+## i Skradanie +1). → {"days", "skills", "changes": [{skill, name, level, diff}]}
+func serve_jail_time(days: int) -> Dictionary:
 	var ch = main.character
-	var names: Array = main.builder.actors.records_index().get("skills", [])
-	var changed := []
-	for d in days:
-		var i := rng.randi() % maxi(1, names.size())
-		ch.skill_level_up(st(), i, "jail")
-		changed.append(i)
 	for h in days * 24:
 		ch.rest_hour(st(), true, 0.0)
 	main.envr.advance(days * 24.0)
 	if main.has_method("pass_magic_time"):
 		main.pass_magic_time(days * 24.0 * 3600.0)
-	return {"days": days, "skills": changed, "marker": m}
+	var names: Array = main.builder.actors.records_index().get("skills", [])
+	var before: Array = (st().get("skills", []) as Array).duplicate()
+	var picked := []
+	for d in days:
+		var i := rng.randi() % maxi(1, names.size())
+		ch.skill_level_up(st(), i, "jail")
+		picked.append(i)
+	var changes := []
+	var after: Array = st().get("skills", [])
+	for i in mini(before.size(), after.size()):
+		var diff := int(float(after[i]) - float(before[i]))
+		if diff != 0:
+			changes.append({"skill": i, "name": main.tooltips._skill_name(i) if main.get("tooltips") != null else str(i),
+				"level": int(after[i]), "diff": diff})
+	return {"days": days, "skills": picked, "changes": changes}
 
 # --- Security: wytrychy i sondy --------------------------------------------------------------------------------
 

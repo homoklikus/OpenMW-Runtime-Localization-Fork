@@ -170,9 +170,28 @@ func _run() -> void:
 			ai.ai_state(watch).packages.erase(p)
 	cr.set_bounty(250)
 	var h0: float = main.envr.hours_total() if main.envr.has_method("hours_total") else 0.0
+	var p_before: Vector3 = ai.mw_pos(main.player)
 	var j: Dictionary = cr.go_to_jail()
-	await _frames(10)
-	check(int(j.days) == 2 and cr.bounty() == 0, "więzienie: 2 dni, grzywna wyzerowana (%s)" % [j.days])
+	check(int(j.days) == 2 and cr.bounty() == 0 and bool(main.state.player.get("in_jail", false))
+		and ai.mw_pos(main.player).distance_to(p_before) < 1.0, "GoToJail: 2 dni, grzywna 0, GetPCInJail, gracz jeszcze na miejscu (World::goToJail)")
+	# GM_Jail: zaciemnienie 0,5 s, przeniesienie, okno sInPrisonTitle z paskiem, koniec – okno z pytaniem
+	var js = main.jail_screen
+	# okno rozmowy zostaje (World::goToJail) – przeniesienie po jego zamknięciu (pierwsza klatka bez pauzy)
+	await _frames(5)
+	check(main.state.player.has("go_to_jail") == main.get_tree().paused, "przeniesienie czeka, póki gra stoi (rozmowa)")
+	if main.dialogue_window != null and main.dialogue_window.visible:
+		main.dialogue_window.close(true)
+	var got := await _until(func(): return main.gui.contains("jail"), 30)
+	check(got >= 0 and not js.visible and js.fade_remaining > 0.0, "tryb GM_Jail, najpierw zaciemnienie (okno ukryte)")
+	var shown := await _until(func(): return js.visible, 120)
+	check(shown >= 0 and js.history.has("teleport") and js.title.text == main.dialogue.gmst_text("sInPrisonTitle", "In prison"),
+		"po 0,5 s: przeniesienie i okno więzienia (%s)" % [js.history])
+	var done := await _until(func(): return js.history.has("finished"), 400)
+	check(done >= 0 and not main.gui.contains("jail"), "koniec odsiadki – tryb zdjęty")
+	check(main.msgbox != null and is_instance_valid(main.msgbox), "okno z pytaniem: zwolnienie z więzienia (ReleasedFromPrison)")
+	main.press_message_button(0)
+	await _frames(5)
+	check(not bool(main.state.player.get("in_jail", false)), "GetPCInJail = 0 po wyjściu z trybu GM_Jail")
 	var pp: Vector3 = ai.mw_pos(main.player)
 	check(Vector2(pp.x, pp.y).distance_to(Vector2(5400, 5200)) < 150.0, "gracz przy znaczniku więzienia (%.0f, %.0f)" % [pp.x, pp.y])
 	if main.envr.has_method("hours_total"):

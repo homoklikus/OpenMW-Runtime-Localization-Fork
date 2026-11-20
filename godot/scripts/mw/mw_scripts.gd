@@ -56,6 +56,17 @@ func script_rec(id: String) -> Dictionary:
 		_scripts[k] = records.record("script", k)
 	return _scripts[k]
 
+## Zmienne lokalne skryptu obiektu (Locals): czy skrypt deklaruje zmienną, wartość (0 przed pierwszym ustawieniem),
+## ustawienie (CompanionWindow: „companion”, „minimumprofit”).
+func script_has_local(script_id: String, var_name: String) -> bool:
+	return (script_rec(script_id).get("locals", {}) as Dictionary).has(var_name.to_lower())
+
+func local_value(sid: String, var_name: String) -> float:
+	return float((_sc().locals.get(sid, {}) as Dictionary).get(var_name.to_lower(), 0.0))
+
+func set_local_value(sid: String, var_name: String, v: float) -> void:
+	_locals(sid)[var_name.to_lower()] = v
+
 func uses(id: String, fname: String) -> bool:
 	return fname in (script_rec(id).get("functions", []) as Array)
 
@@ -178,6 +189,7 @@ func tick(dt: float, local_refs: Array) -> void:
 	# World::update: „podróż” trwa jedną klatkę skryptów; „więzienie” – do zamknięcia okna więzienia (tu: klatka)
 	state.player.erase("traveling")
 	state.player.erase("in_jail")
+	state.player.erase("go_to_jail")
 
 ## Przedmiot przeszedł ze świata do gracza: zmienne lokalne skryptu idą z nim (RefData przenoszone z obiektem).
 func item_to_player(from_sid: String, item_id: String) -> void:
@@ -1053,9 +1065,7 @@ func _call(ref, fname: String, args: Array, c: Ctx):
 			return null
 		"gotojail":
 			if game.main.get("crime") != null:
-				if game.main.dialogue_window != null and game.main.dialogue_window.visible:
-					game.main.dialogue_window.close()
-				game.main.crime.go_to_jail()
+				game.main.crime.go_to_jail()         # World::goToJail – okno rozmowy zostaje do końca odpowiedzi
 			return null
 		"startcombat", "stopcombat":
 			var tn = _target(ref, c).get("node")
