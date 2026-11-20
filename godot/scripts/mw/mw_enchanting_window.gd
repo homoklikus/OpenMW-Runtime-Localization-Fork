@@ -232,7 +232,7 @@ func _fill_box(b: Control, id: String) -> void:
 				ic.size = Vector2(32, 32) * _s
 				ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 				b.add_child(ic)
-			b.tooltip_text = main.menu_mode.item_tooltip(id)
+			main.menu_mode.set_item_tip(b, id)
 	var ov := Panel.new()
 	ov.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ov.add_theme_stylebox_override("panel", UI.inner_box())

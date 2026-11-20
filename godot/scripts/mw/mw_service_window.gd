@@ -172,6 +172,8 @@ func _row(id, text: String, ok: bool) -> void:
 	b.add_theme_color_override("font_pressed_color", UI.color("normal_pressed") if ok else UI.color("disabled"))
 	if ok:
 		b.pressed.connect(choose.bind(id))
+	if mode == "spells":
+		b.set_meta("mw_tip", {"type": "spell", "id": String(id), "cost": true})     # SpellBuyingWindow: Spell + SpellCost
 	_list.add_child(b)
 	rows.append([id, text, ok])
 

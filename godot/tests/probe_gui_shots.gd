@@ -33,6 +33,15 @@ func _run() -> void:
 		inv.add("player", {}, item, 5)
 	main.menu_mode.open()
 	await _shot("menu")
+	# podpowiedzi (ToolTips) dla kilku przedmiotów
+	for tid in _arg("tips", "synth_sword,synth_potion,synth_ring").split(","):
+		if inv.count_of("player", {}, tid) <= 0 and not inv.item(tid).is_empty():
+			inv.add("player", {}, tid, 1)
+		main.menu_mode.refresh()
+		main.tooltips.enabled = false
+		main.tooltips.show_for({"type": "item", "id": tid, "count": inv.count_of("player", {}, tid)}, Vector2(400, 300))
+		await _shot("tooltip_" + tid.replace("#", "_"))
+	main.tooltips.enabled = true
 	main.menu_mode.drop_to_world(item, "inventory", {})
 	await _shot("count_dialog")
 	main.count_dialog.press_cancel()

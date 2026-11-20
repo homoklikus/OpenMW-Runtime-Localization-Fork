@@ -486,7 +486,7 @@ func effect_text(e: Dictionary, constant: bool) -> String:
 			line += " " + t("sin", "in") + " " + str(int(e.area)) + " " + t("sfootarea", "foot area")
 		line += " " + t("sonword", "on") + " "
 		match int(e.get("range", 0)):
-			0: line += t("sRangeSelf", "on Self")
-			1: line += t("sRangeTouch", "on Touch")
-			_: line += t("sRangeTarget", "on Target")
+			0: line += t("sRangeSelf", "Self")
+			1: line += t("sRangeTouch", "Touch")
+			_: line += t("sRangeTarget", "Target")
 	return line

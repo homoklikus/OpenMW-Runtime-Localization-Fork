@@ -243,6 +243,8 @@ func _refresh_button(i: int) -> void:
 		ch.queue_free()
 		b.remove_child(ch)
 	b.tooltip_text = ""
+	if b.has_meta("mw_tip"):
+		b.remove_meta("mw_tip")
 	var k := key_data(i)
 	match String(k.type):
 		HAND_TO_HAND:
@@ -267,7 +269,7 @@ func _refresh_button(i: int) -> void:
 				frame = _select_frame("textures/menu_icon_select_magic_magic")
 			_image(b, frame, Vector2(9, 9), Vector2(42, 42), "Frame")
 			_image(b, UI.icon(String(it.rec.get("icon", ""))), Vector2(14, 14), Vector2(32, 32), "Item")
-			b.tooltip_text = main.menu_mode.item_tooltip(String(k.id)) if main.get("menu_mode") != null else key_name(i)
+			main.menu_mode.set_item_tip(b, String(k.id))
 		MAGIC:
 			var sp: Dictionary = main.magic.records.record("spell", String(k.id))
 			var effs: Array = sp.get("effects", [])
@@ -276,7 +278,7 @@ func _refresh_button(i: int) -> void:
 				icon = String(main.magic.effect(int(effs[0].get("effect", -1))).get("icon", ""))
 			_image(b, _select_frame("textures/menu_icon_select_magic"), Vector2(9, 9), Vector2(42, 42), "Frame")
 			_image(b, UI.icon(HUD.big_icon(icon)) if not icon.is_empty() else null, Vector2(14, 14), Vector2(32, 32), "Item")
-			b.tooltip_text = String(sp.get("name", k.id))
+			b.set_meta("mw_tip", {"type": "spell", "id": String(k.id)})
 
 ## Ramka menu_icon_select_magic*: część 44 × 44 obrazu 64 × 64 (proporcjonalnie dla innych rozmiarów),
 ## wyświetlana w polu 42 × 42 (Frame skórki MW_ItemIconBox).
@@ -411,6 +413,7 @@ func _open_magic() -> void:
 			for st in ["normal", "hover", "pressed", "focus", "hover_pressed"]:
 				b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
 			b.pressed.connect(magic_selected.bind(String(r.kind), String(r.id)))
+			b.set_meta("mw_tip", {"type": "item", "id": String(r.id)} if String(r.kind) == "item" else {"type": "spell", "id": String(r.id)})
 			list.add_child(b)
 			magic_rows.append([String(r.kind), String(r.id), String(r.name)])
 	var cb: Button = ui.button(L10n.ctx_text("Interface", "Cancel", "Cancel"), _close_magic)

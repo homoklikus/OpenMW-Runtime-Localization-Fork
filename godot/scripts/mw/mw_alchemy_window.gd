@@ -213,7 +213,7 @@ func _fill_slot(b: Control, id: String, count := 0) -> void:
 			cl.size = Vector2(32, 18) * _s
 			cl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			b.add_child(cl)
-		b.tooltip_text = main.menu_mode.item_tooltip(id)
+		main.menu_mode.set_item_tip(b, id)
 	var ov := Panel.new()
 	ov.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ov.add_theme_stylebox_override("panel", UI.inner_box())

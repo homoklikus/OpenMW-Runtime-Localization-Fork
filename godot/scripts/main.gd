@@ -40,6 +40,7 @@ var events = Events.new()           # szyna zdarzeń (etap 0)
 var native_mods = null               # mw_native_mods.gd – natywne mody (eksperyment first-fish)
 var interaction = null                # MWInteraction (etap 3)
 var item_window = null                # okno pojemnika / ekwipunku
+var tooltips = null                   # mw_tooltips.gd – ToolTips (podpowiedzi w układzie OpenMW)
 var quick_keys = null                 # mw_quick_keys.gd – QuickKeysMenu (F1, klawisze 1–0)
 var audio = null                      # MWAudio (etap 3)
 var music = null                      # MWMusic (etap 10)
@@ -259,6 +260,10 @@ func _ready() -> void:
 	music.setup(data)
 	music.enabled = audio.enabled and bool(settings.get("music", true))
 	add_child(music)
+	tooltips = preload("res://scripts/mw/mw_tooltips.gd").new()
+	tooltips.name = "ToolTips"
+	tooltips.main = self
+	add_child(tooltips)
 	quick_keys = preload("res://scripts/mw/mw_quick_keys.gd").new()
 	quick_keys.name = "QuickKeysMenu"
 	quick_keys.main = self

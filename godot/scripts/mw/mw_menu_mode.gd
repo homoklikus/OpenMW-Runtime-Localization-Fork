@@ -866,7 +866,7 @@ func _fill_grid(grid: Control, entries: Array, source: String, owner = null) -> 
 		cell.mouse_filter = Control.MOUSE_FILTER_PASS
 		cell.custom_minimum_size = Vector2(CELL, CELL) * scale_ui
 		cell.size = cell.custom_minimum_size
-		cell.tooltip_text = item_tooltip(e.id) + (("\n" + String(e.tip)) if e.has("tip") else "")
+		set_item_tip(cell, String(e.id), int(e.count), String(e.get("tip", "")))
 		var fr := UI.icon_frame(e.magic, String(e.get("state", "equip" if e.worn else "")))
 		if fr != null:
 			var fb := TextureRect.new()
@@ -1315,43 +1315,37 @@ func player_armor_rating() -> float:
 		return 0.0
 	return float(main.combat.armor_rating(main.combat.player_fighter()))
 
-func item_tooltip(id: String) -> String:
-	var it: Dictionary = main.interaction.inventory.item(id)
-	if it.is_empty():
+func item_tooltip(id: String, count := 1) -> String:
+	if main == null or main.get("tooltips") == null or main.tooltips == null:
 		return id
-	var rec: Dictionary = it.rec
-	var lines := [main.interaction.item_name(String(it.kind), id, rec)]
-	match String(it.kind):
-		"weapon":
-			var t := int(rec.get("weapon_type", 0))
-			if t in [9, 10, 11, 12, 13]:
-				lines.append("%s: %d – %d" % [_t("sAttack", "Attack"), int(rec.get("chop_min", 0)), int(rec.get("chop_max", 0))])
-			else:
-				lines.append("%s: %d – %d" % [_t("sChop", "Chop"), int(rec.get("chop_min", 0)), int(rec.get("chop_max", 0))])
-				lines.append("%s: %d – %d" % [_t("sSlash", "Slash"), int(rec.get("slash_min", 0)), int(rec.get("slash_max", 0))])
-				lines.append("%s: %d – %d" % [_t("sThrust", "Thrust"), int(rec.get("thrust_min", 0)), int(rec.get("thrust_max", 0))])
-		"armor":
-			lines.append("%s: %d" % [_t("sArmorRating", "Armor Rating"), int(rec.get("armor", 0))])
-	var inv = main.interaction.inventory
-	var mxc: float = inv.max_charge(rec)
-	if mxc > 0.0 and String(it.kind) in ["weapon", "armor"]:
-		# Weapon/Armor::getToolTipInfo: „sCondition: bieżący/największy” (stan egzemplarza)
-		lines.append("%s: %d/%d" % [_t("sCondition", "Condition"), int(inv.item_charge(id)), int(mxc)])
-	elif mxc > 0.0 and String(it.kind) in ["lockpick", "probe", "repair"]:
-		lines.append("%s: %d" % [_t("sUses", "Uses"), int(inv.item_charge(id))])
-		lines.append("%s: %s" % [_t("sQuality", "Quality"), str(snappedf(float(rec.get("quality", 0.0)), 0.01))])
-	lines.append("%s: %s" % [_t("sWeight", "Weight"), str(snappedf(float(rec.get("weight", 0)), 0.01))])
-	lines.append("%s: %d" % [_t("sValue", "Value"), int(rec.get("value", 0))])
-	if main.get("magic") != null:
-		var en: Dictionary = main.magic.item_enchantment(it)
-		var effects: Array = en.get("effects", []) if not en.is_empty() else rec.get("effects", [])
-		for e in effects:
-			var mg: Dictionary = main.magic.effect(int(e.get("effect", -1)))
-			if mg.is_empty():
-				continue
-			var n := String(mg.get("name", ""))
-			lines.append(_t("sEffect" + n, n))
+	var info: Dictionary = main.tooltips.item_info(id, count)
+	if info.is_empty():
+		return id
+	var lines := [String(info.caption)]
+	var t := String(info.get("text", ""))
+	if t.begins_with("\n"):
+		t = t.substr(1)
+	if not t.is_empty():
+		lines.append(t)
+	for e in info.get("effects", []):
+		lines.append(main.tooltips.effect_line_text(e, {"no_target": info.get("is_potion", false),
+			"no_magnitude": info.get("is_ingredient", false), "constant": info.get("is_ingredient", false)})
+			if bool(e.get("known", true)) else "?")
+	var en: Dictionary = info.get("enchant", {})
+	for e in en.get("effects", []):
+		lines.append(main.tooltips.effect_line_text(e, {"constant": int(en.get("type", 0)) == 3}))
 	return "\n".join(lines)
+
+## Podpowiedź przedmiotu w układzie OpenMW (ToolTips, typ ItemModelIndex/ItemPtr) na kontrolce: meta „mw_tip”,
+## bez zwykłej podpowiedzi Godota. extra – dodatkowy wiersz (np. cena w handlu).
+static func set_item_tip(c: Control, id: String, count := 1, extra := "") -> void:
+	if c == null:
+		return
+	c.tooltip_text = ""
+	var tip := {"type": "item", "id": id, "count": count}
+	if not extra.is_empty():
+		tip["extra"] = extra
+	c.set_meta("mw_tip", tip)
 
 ## Użycie przedmiotu (InventoryWindow::useItem) – logika okna przedmiotów (mikstury, składniki, aparaty, książki,
 ## kamienie dusz, zakładanie).
@@ -1500,7 +1494,9 @@ func _spell_button(text: String, right: String, kind: String, id: String, select
 	if selected:
 		b.add_theme_color_override("font_color", UI.color("active"))
 		b.add_theme_color_override("font_hover_color", UI.color("active_over"))
-	b.tooltip_text = tip
+	b.tooltip_text = ""
+	# SpellView::adjustSpellWidget: podpowiedź Spell (czary i moce) albo ItemPtr (przedmiot magiczny)
+	b.set_meta("mw_tip", {"type": "item", "id": id} if kind == "item" else {"type": "spell", "id": id})
 	b.pressed.connect(func(): select_spell(kind, id))
 	h.add_child(b)
 	var r := Label.new()

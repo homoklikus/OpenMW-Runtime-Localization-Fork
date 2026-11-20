@@ -108,7 +108,7 @@ func _run() -> void:
 	else:
 		check(cells.size() > 0 and is_equal_approx(cells[0].position.x, 0.0), "pierwsza kolumna")
 	report["rows"] = rows
-	check(String(cells[0].tooltip_text).length() > 0 and mm.item_tooltip("synth_cuirass").contains("\n"), "podpowiedź przedmiotu")
+	check(String(cells[0].get_meta("mw_tip", {}).get("type", "")) == "item" and mm.item_tooltip("synth_cuirass").contains("\n"), "podpowiedź przedmiotu (ToolTips, ItemModelIndex)")
 	# zakładanie przez upuszczenie na postać
 	var avatar: Control = inv_w.find_child("Avatar", true, false)
 	check(avatar != null and avatar._can_drop_data(Vector2.ZERO, {"mw_item": "synth_cuirass"}), "postać przyjmuje przedmiot")

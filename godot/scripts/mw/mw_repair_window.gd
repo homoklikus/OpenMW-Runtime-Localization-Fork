@@ -143,7 +143,7 @@ func refresh() -> void:
 	if has_tool:
 		var it: Dictionary = inv.item(tool_id)
 		_icon_box(_tool_icon, String(it.rec.get("icon", "")))
-		_tool_icon.tooltip_text = main.menu_mode.item_tooltip(tool_id) if main.get("menu_mode") != null else ""
+		main.menu_mode.set_item_tip(_tool_icon, tool_id)
 		_uses.text = "%s %d" % [_t("sUses", "Uses"), int(inv.item_charge(tool_id))]
 		_quality.text = "%s %s" % [_t("sQuality", "Quality"), String.num(float(it.rec.get("quality", 0.0)), 3).rstrip("0").rstrip(".")]
 	else:
@@ -160,7 +160,7 @@ func refresh() -> void:
 		_canvas.add_child(t)
 		var ic := Control.new()
 		ic.mouse_filter = Control.MOUSE_FILTER_STOP
-		ic.tooltip_text = main.menu_mode.item_tooltip(String(l.id)) if main.get("menu_mode") != null else ""
+		main.menu_mode.set_item_tip(ic, String(l.id))
 		var lid := String(l.id)
 		ic.gui_input.connect(func(e):
 			if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
@@ -299,7 +299,7 @@ func open_tool_selection() -> void:
 	for tid in main.repair.tools():
 		var cell := Control.new()
 		cell.custom_minimum_size = Vector2(42, 42) * _s
-		cell.tooltip_text = main.menu_mode.item_tooltip(tid) if main.get("menu_mode") != null else ""
+		main.menu_mode.set_item_tip(cell, tid)
 		var fr: Texture2D = UI.icon_frame(false, "")
 		if fr != null:
 			var fb := TextureRect.new()
