@@ -309,7 +309,8 @@ wnętrze – komórka). Podpowiedzi znaczników drzwi i miejsc mapy świata poka
 (ToolTipInfo::notes: ikona 8 × 8 w kolorze (1; 0,3; 0,3), pierwszy wiersz do 60 znaków + „ ...”). Znaczniki drzwi
 z textures\door_icon.dds 8 × 8 w kolorze normal / normal_over (wcześniej czerwony kwadrat 6 px). Zapis w stanie gracza
 (odpowiednik REC_MARK). Pole tekstowe TextInputDialog (imię w kreatorze) było już zgodne (cz. kreatora).
-Test: test_map_notes (44).
+Na prawdziwych danych (VM): okno notatki, znacznik z map_marker_red, znacznik drzwi z door_icon, minimapa – bez
+błędów. Test: test_map_notes (44).
 
 ### 7.8 Pozostałe punkty etapu (do wykonania)
 
