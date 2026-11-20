@@ -12,7 +12,7 @@ var _queue: Array = []              # [{time, target, delay, remaining, start, r
 var _rect: ColorRect = null
 
 func _ready() -> void:
-	layer = 110                      # nad grą i interfejsem, pod filmami
+	layer = 4                        # warstwa FadeToBlack OpenMW: nad sceną, pod HUD-em (5), oknami i ekranem ładowania
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_rect = ColorRect.new()
 	_rect.color = Color.BLACK

@@ -294,7 +294,9 @@ func _run() -> void:
 	if not interior_key.is_empty():
 		var cell: Dictionary = main.db.get_cell(interior_key)
 		main.travel({"cell_key": interior_key, "cell_name": String(cell.get("name", "")), "transform": Transform3D()})
-		await _frames(3)
+		check(main.loading.visible and not main.loading.show_wallpaper, "w trakcie przejścia: zamrożona klatka, bez tapety")
+		await _until(func(): return not main.is_revealing(), 120)   # odsłonięcie po gotowości świata
+		await _frames(1)
 		check(main.loading.nested == 0 and not main.loading.visible and main.loading.label == "Loading Area", "ekran ładowania przy przejściu do wnętrza (etykieta, zamknięty po)")
 		check(not main.loading.show_wallpaper, "w grze bez tapety (zamrożona klatka)")
 	report["loading_draws_in_game"] = main.loading.shown_count - shown0

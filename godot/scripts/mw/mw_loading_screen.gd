@@ -25,6 +25,7 @@ var progress_range := 1
 var shown_count := 0                 # testy: ile razy ekran faktycznie narysowano
 var last_splash := ""
 var _on_time := 0.0
+var _fader_t := 0.0                  # czas ostatniego kroku zaciemnienia w trakcie synchronicznego ładowania
 var _last_render := -1.0
 var _last_wallpaper := -1.0
 var _root: Control = null
@@ -40,6 +41,10 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
 	rng.randomize()
+
+func _process(_dt: float) -> void:
+	if main != null and main.has_method("_update_reveal"):
+		main._update_reveal()                # odsłonięcie świata po przejściu – także w pauzie
 
 ## findSplashScreens: splash/*.(tga|dds|png…) – konwerter zapisuje PNG.
 func find_splash_screens() -> void:
@@ -104,6 +109,7 @@ func loading_on() -> void:
 		return
 	_build()
 	_on_time = _now()
+	_fader_t = _on_time
 	show_wallpaper = main != null and String(main.game_state) == "nogame"
 	visible = false                   # pokazujemy dopiero przy pierwszym rysowaniu (needToDrawLoadingScreen)
 	if show_wallpaper:
@@ -120,6 +126,16 @@ func loading_on() -> void:
 	set_progress_range(1)
 	draw()
 
+## Zasłonięcie sceny zamrożoną klatką do końca odsłaniania (main._begin_reveal) – także gdy ładowanie było tak
+## szybkie, że ekranu nie narysowano (bez okienka z paskiem, jeśli nic nie trwało dłużej niż initialDelay).
+func hold() -> void:
+	if nested <= 0 or show_wallpaper:
+		return
+	visible = true
+	if _box != null and _last_render < _on_time:
+		_box.visible = false
+	_layout()
+
 ## LoadingScreen::loadingOff.
 func loading_off() -> void:
 	nested -= 1
@@ -131,6 +147,8 @@ func loading_off() -> void:
 			main._toast(label)                   # ładowanie tak szybkie, że ekranu nie było – komunikat
 	important = false
 	visible = false
+	if _box != null:
+		_box.visible = true
 	if _scene_rect != null:
 		_scene_rect.texture = null
 
@@ -212,8 +230,15 @@ func draw() -> void:
 		_last_wallpaper = _now()
 		change_wallpaper()
 	visible = true
+	if _box != null:
+		_box.visible = true
 	_layout()
 	_last_render = _now()
 	shown_count += 1
+	# OpenMW: klatki ekranu ładowania przechodzą przez pętlę zdarzeń – ScreenFader (onFrameStart) postępuje z
+	# rzeczywistym czasem, więc fadeScreenOut z początku przejścia przy długim ładowaniu dochodzi do czerni
+	if main != null and main.get("fader") != null:
+		main.fader.step(_now() - _fader_t)
+	_fader_t = _now()
 	if DisplayServer.get_name() != "headless":
 		RenderingServer.force_draw(true)

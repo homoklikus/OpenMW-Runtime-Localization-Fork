@@ -147,20 +147,78 @@ i poprawiony. Testy launchera: 22 zaliczone, 1 pominięty (jak wcześniej); test
 **Po ponownym uruchomieniu:** język przywracany z konfiguracji launchera (`launcher.json`), kreator i okno główne
 od pierwszej klatki w wybranym języku.
 
-## 6. Pozostałe punkty etapu (do wykonania)
+## 6. Przechodzenie między komórkami
+
+**Objaw:** przy wyjściu ze statku przez chwilę widać częściowo załadowany świat i błędy grafiki.
+
+**Sonda klatek** (`godot/tests/probe_transition.gd`): zapis każdej narysowanej klatki od rozpoczęcia przejścia
+(także klatek rysowanych przez ekran ładowania w trakcie synchronicznego wczytywania); dla każdej: czy ekran
+ładowania zasłaniał obraz, zaciemnienie, wczytane komórki, postawienie gracza, kompilacje potoków shaderów,
+różnica od obrazu ustalonego przyciemnionego o zamierzone zaciemnienie. Klatka pokazana graczowi z różnicą
+> 0,06 = niekompletna scena. Prawdziwe dane (statek → Seyda Neen, budynek, teleport, granica komórek) na maszynie
+użytkownika (Xvfb + lavapipe, obrazy tylko lokalnie, do chmury trafiły wyłącznie liczby).
+
+**Przyczyna (dwie, obie potwierdzone sondą przed poprawką):**
+1. Kompilacja potoków shaderów nowych materiałów w pierwszej klatce pokazanej graczowi: wyjście ze statku –
+   12 potoków powierzchni i 19 specjalizacji skompilowanych w pierwszej widocznej klatce, różnica 0,079
+   (obraz niekompletny, klatka 8 s na rendererze CPU). OpenMW rysuje komórkę od razu kompletną; Godot kompiluje
+   potoki podczas rysowania.
+2. Pokazywanie świata przed postawieniem gracza na podłożu (World::adjustPosition): kolizje Jolt są dostępne
+   dla zapytań dopiero po kroku fizyki, więc pierwsze klatki pokazywały kamerę z punktu docelowego drzwi
+   (budynek → świat: różnica 0,084).
+Dodatkowe różnice z OpenMW: brak `fadeScreenOut(0.5)`/`fadeScreenIn(0.5)` przy zmianie komórki; ScreenFader w
+warstwie nad całym interfejsem (OpenMW: FadeToBlack – nad sceną, pod HUD-em, oknami i ekranem ładowania); stara
+scena usuwana dopiero po klatce.
+
+**Przebieg przed:** drzwi → komórki zwalniane (queue_free) → loadingOn (zamrożona klatka) → synchroniczne
+wczytanie → loadingOff → pierwsza klatka nowej sceny (kompilacja potoków, gracz jeszcze nie postawiony) →
+postawienie po 2 klatkach fizyki.
+
+**Przebieg po (jak Scene::changeToInteriorCell/changeToExteriorCell + gotowość pierwszej klatki):**
+fadeScreenOut(0.5), jeśli była wczytana komórka → loadingOn (zamrożona klatka) → stara scena ukryta od razu →
+synchroniczne wczytanie (ekran ładowania z paskiem po 50 ms; zaciemnienie postępuje w klatkach ekranu ładowania,
+jak ScreenFader::onFrameStart w OpenMW) → gracz stawiany na podłożu → ekran ładowania zostaje do gotowości:
+gracz postawiony i jedna klatka z nową kamerą narysowana bez nowych kompilacji potoków (gotowość wizualna;
+mechanika, AI, nawigacja i mapa lokalna działają dalej) → loadingOff → fadeScreenIn(0.5). To samo przy
+przekraczaniu granicy komórek (doczytanie siatki) i po wczytaniu zapisu (bez zaciemnienia). Odsłanianie działa
+także w pauzie (podróż z rozmowy, film). Limit 240 klatek tylko jako zabezpieczenie (ostrzeżenie w logu), bez
+stałego opóźnienia. Tło ekranu ładowania: w grze zamrożona klatka, bez gry – losowy obraz Splash/ (bez zmian).
+
+**Wyniki sondy na prawdziwych danych (640×360, lavapipe):**
+
+| Przejście | Przed: niekompletne klatki widoczne | Po |
+|---|---|---|
+| statek → Seyda Neen (wyjście ze statku) | 1 (0,079; kompilacja 31 potoków) | 0 (kompilacja za ekranem ładowania, potem zaciemnienie 0,5 s) |
+| Seyda Neen → budynek | 0 (pierwsza klatka przed postawieniem: 0,029) | 0 |
+| budynek → Seyda Neen | 1 (0,084; przed postawieniem) | 0 |
+| teleport na ląd w innej komórce | 0 (0,015 przed postawieniem) | 0 |
+| przekroczenie granicy komórki | – | 0 |
+| statek → Seyda Neen przy obciążonym CPU | – | 0 |
+| statek → Seyda Neen w 1280×720 | – | 0 |
+
+Test regresji bez renderera `test_transition.gd` (43 sprawdzenia): warstwa FadeToBlack, zaciemnienie przy
+przejściu z komórki, ekran ładowania do gotowości, stara scena ukryta, gracz postawiony przed odsłonięciem,
+zagnieżdżenie 0 po odsłonięciu, zaciemnienie znika po 0,5 s – dla: świat → wnętrze (drzwi), wnętrze → to samo
+wnętrze (COC/MWScript), wnętrze → świat (drzwi), teleport w świecie, podróż w pauzie, wczytanie zapisu w świecie
+i we wnętrzu. Szybka podróż i Interwencje Almsivi/Boska używają tej samej ścieżki `travel()`/`travel_to_cell()`.
+Nie zmierzono: 1440p/2160p (lavapipe na 2 rdzeniach nie mieści się w limicie czasu wywołania), obrazu OpenMW
+w tym samym przejściu (porównano przebieg z kodem 0.51).
+
+## 7. Pozostałe punkty etapu (do wykonania)
 
 §3 szybkie klawisze i wybór magii, §4 podpowiedzi `openmw_tooltips`, §5 okno ilości, §6 konsola, §7 więzienie,
 §8 towarzysz, §9 notatki mapy i pole tekstowe, §10 ustawienia, autozapis, ekrany ładowania, Enter/Tab/strzałki,
 pad, §11 porównania 720p/1440p/2160p i nowych okien, §12 dodatki i mody.
 
-## 7. Commity (lokalne, bez push)
+## 8. Commity (lokalne, bez push)
 
 * Etap 10 cz. 1: stos trybów GUI jak WindowManager OpenMW 0.51
 * Etap 10 cz. 2: stworzenia wodne i latające jak MovementSolver OpenMW
 * Etap 10 cz. 3: interfejs po angielsku (GMST → l10n → zapas angielski)
 * Etap 10 cz. 4: launcher – pełne tłumaczenie PL/EN i zmiana języka bez restartu
+* Etap 10 cz. 5: przejścia między komórkami jak OpenMW – zaciemnienie, gotowość pierwszej klatki
 
-## 8. Zalecana kolejność dalszych prac
+## 9. Zalecana kolejność dalszych prac
 
 1. Okno ilości i szybkie klawisze (codzienna rozgrywka), 2. podpowiedzi openmw_tooltips, 3. więzienie i towarzysz,
 4. konsola (też do testów), 5. ustawienia/autozapis/klawiatura/pad, 6. porównania zrzutami wszystkich okien.

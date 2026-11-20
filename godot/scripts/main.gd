@@ -2206,21 +2206,27 @@ func travel(dest: Dictionary) -> void:
 	if interior.is_empty() and player != null:          # ostatnia pozycja zewnętrzna (najbliższy znacznik – więzienie)
 		var lp := MWCoords.godot_to_mw(player.global_position)
 		state.player["last_exterior"] = [lp.x, lp.y, lp.z]
+	# Scene::changeToInteriorCell/changeToExteriorCell: fadeScreenOut(0.5), gdy była już wczytana komórka – zaciemnienie
+	# postępuje w klatkach rysowanych przez ekran ładowania (długie ładowanie → czerń), po wczytaniu fadeScreenIn(0.5)
+	var had_cell := not loaded.is_empty()
+	if had_cell and fader != null:
+		fader.fade_screen_out(0.5)
+	if loading != null:                       # ekran ładowania obejmuje też odsłonięcie świata (_begin_reveal)
+		loading.loading_on()
 	for key in loaded.keys():
 		events.cell_unloaded.emit(key)
+		loaded[key].hide()                    # stara scena znika od razu (zwolnienie po klatce – queue_free)
 		loaded[key].queue_free()
 	loaded.clear()
 	var t: Transform3D = dest["transform"]
 	if String(dest.get("cell_key", "")) != "":
 		interior = String(dest["cell_name"])
 		if loading != null:                   # Scene::changeToInteriorCell: „Wczytywanie obszaru wewnętrznego”
-			loading.loading_on()
 			loading.set_label(L10n.text("LoadingInterior", "Loading Area"))
 			loading.set_progress_range(1)
 		_load(dest["cell_key"])
 		if loading != null:
 			loading.increase_progress()
-			loading.loading_off()
 		envr.set_interior(db.get_cell(dest["cell_key"]))
 	else:
 		interior = ""
@@ -2233,12 +2239,83 @@ func travel(dest: Dictionary) -> void:
 	_place_on_ground_frames = 2              # World::adjustPosition: postawienie na podłożu po wczytaniu kolizji
 	player.set_physics_process(false)
 	player._fall_start = NAN
+	_begin_reveal(had_cell)
+	if loading != null:
+		loading.loading_off()                 # zostaje zagnieżdżenie odsłonięcia – ekran do gotowości świata
+
+# --- odsłonięcie świata po przejściu (gotowość pierwszej klatki) -------------------------------------------
+## OpenMW wczytuje komórki synchronicznie i rysuje nową scenę od razu kompletną. W Godocie ta sama klatka może być
+## jeszcze niegotowa: kolizje Jolt są widoczne dla zapytań dopiero po kroku fizyki (postawienie gracza na podłożu
+## – World::adjustPosition), a potoki shaderów nowych materiałów kompilują się w trakcie rysowania. Ekran ładowania
+## (zamrożona klatka) zostaje więc, dopóki: gracz nie stoi na podłożu i jedna klatka z nową kamerą nie zostanie
+## narysowana bez nowych kompilacji potoków (gotowość wizualna). Mechanika i AI działają dalej normalnie; nawigacja
+## i mapa lokalna mogą kończyć się po odsłonięciu. Limit REVEAL_MAX_FRAMES chroni przed zawieszeniem (ostrzeżenie).
+const REVEAL_MAX_FRAMES := 240
+var _reveal := {}                            # {"fade": bool, "frames": int, "pipelines": int, "drawn": int}
+
+func _pipeline_compilations() -> int:
+	var n := 0
+	for k in [RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_CANVAS, RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_MESH,
+			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_SURFACE, RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_DRAW,
+			RenderingServer.RENDERING_INFO_PIPELINE_COMPILATIONS_SPECIALIZATION]:
+		n += RenderingServer.get_rendering_info(k)
+	return n
+
+func _begin_reveal(fade: bool) -> void:
+	if loading == null:
+		return
+	if _reveal.is_empty():
+		loading.loading_on()
+		loading.hold()                       # zamrożona klatka zasłania scenę, także przy szybkim ładowaniu
+		if not RenderingServer.frame_post_draw.is_connected(_on_reveal_frame_drawn):
+			RenderingServer.frame_post_draw.connect(_on_reveal_frame_drawn)
+	_reveal = {"fade": fade or bool(_reveal.get("fade", false)), "frames": 0, "pipelines": _pipeline_compilations(),
+		"drawn": 0}
+
+## Po każdej narysowanej klatce: czy po postawieniu gracza powstała klatka bez nowych kompilacji potoków.
+func _on_reveal_frame_drawn() -> void:
+	if _reveal.is_empty():
+		return
+	var p := _pipeline_compilations()
+	if _place_on_ground_frames <= 0:
+		_reveal.drawn = int(_reveal.drawn) + 1 if p == int(_reveal.pipelines) else 0
+	_reveal.pipelines = p
+
+## Wołane co klatkę przez ekran ładowania (PROCESS_MODE_ALWAYS) – działa także w pauzie (film, okna).
+func _update_reveal() -> void:
+	if _reveal.is_empty():
+		return
+	_reveal.frames = int(_reveal.frames) + 1
+	if get_tree().paused:
+		_place_on_ground_step()              # przejście w trybie GUI (np. podróż z rozmowy)
+	var headless := DisplayServer.get_name() == "headless"
+	var ready := _place_on_ground_frames <= 0 and (int(_reveal.drawn) >= 1 or headless)
+	if not ready and int(_reveal.frames) < REVEAL_MAX_FRAMES:
+		return
+	if not ready:
+		push_warning("Odsłonięcie świata po %d klatkach bez pełnej gotowości (potoki: %d)" % [_reveal.frames, _reveal.pipelines])
+	var fade := bool(_reveal.fade)
+	reveal_frames_last = int(_reveal.frames)
+	_reveal = {}
+	if loading != null:
+		loading.loading_off()
+	if fade and fader != null:
+		fader.fade_screen_in(0.5)            # Scene: fadeScreenIn(0.5) po zmianie komórki
+
+var reveal_frames_last := 0                  # testy i sonda: ile klatek trwało odsłonięcie
+
+func is_revealing() -> bool:
+	return not _reveal.is_empty()
 
 var _place_on_ground_frames := 0
 
 ## Po teleporcie (drzwi, podróż, skrypt): gracz stawiany na podłożu pod celem (promień z wysokości), bez obrażeń
 ## od upadku – jak World::adjustPosition w OpenMW (cel drzwi bywa w schodach albo tuż pod/nad podłogą).
 func _physics_process(_delta: float) -> void:
+	_place_on_ground_step()
+
+## Krok postawienia gracza (klatki fizyki; w pauzie – z odsłaniania świata, bo serwer fizyki kroczy dalej).
+func _place_on_ground_step() -> void:
 	if _place_on_ground_frames <= 0 or player == null:
 		return
 	_place_on_ground_frames -= 1
@@ -2278,6 +2355,7 @@ func _update_streaming(_force: bool) -> void:
 		if loading != null:
 			loading.increase_progress()
 	if not todo.is_empty() and loading != null:
+		_begin_reveal(false)                  # nowe komórki pokazywane po gotowości pierwszej klatki (potoki shaderów)
 		loading.loading_off()
 	for key in loaded.keys():
 		if not want.has(key):
@@ -2912,7 +2990,7 @@ func new_game() -> void:
 	cleanup()
 	if loading != null:
 		loading.loading_on()
-		loading.set_label("Inicjalizacja...")
+		loading.set_label(L10n.text("InitializingData", "Initializing Data..."))
 	state.seed = randi()
 	_new_player_character()           # gracz istnieje od razu (rekord „player”, Npc::getNpcData)
 	game_state = "running"
@@ -3067,6 +3145,8 @@ func load_slot(ch, path: String) -> Array:
 	if raw_ok:
 		cleanup()
 	var w := load_game(path)
+	if not (not w.is_empty() and String(w[0]).begins_with("BŁĄD")):
+		_begin_reveal(false)                 # świat z zapisu odsłaniany po gotowości pierwszej klatki
 	if loading != null:
 		loading.loading_off()
 	if not w.is_empty() and String(w[0]).begins_with("BŁĄD"):
