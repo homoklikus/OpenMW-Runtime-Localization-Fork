@@ -138,10 +138,12 @@ func open(node: Node) -> bool:
 	ANSWER = "#" + UI.color("answer").to_html(false)
 	NOTIFY = "#" + UI.color("notify").to_html(false)
 	_render_history()
-	get_tree().paused = true
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	main.gui.push("dialogue", [self], func(): close())      # GM_Dialogue; Esc = „Żegnaj” (nie w trakcie pytania)
 	return true
+
+## GuiModeState::update(true) po zamknięciu trybu nad rozmową (handel, usługi): odświeżenie tematów i złota.
+func gui_resumed() -> void:
+	refresh()
 
 ## Odświeżenie: lista tematów, hiperłącza, historia, postawa (updateTopics + updateHistory).
 func refresh() -> void:
@@ -266,9 +268,11 @@ func close(force := false) -> bool:
 	if main != null and main.get("trade_window") != null:
 		main.trade_window.close()
 	persuasion.close()
-	get_tree().paused = false
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	for wn in ["service_window", "enchanting_window", "spellcreation_window"]:
+		var w = main.get(wn)            # DialogueWindow::onGoodbye: okna usług zamykane razem z rozmową
+		if w != null and w.visible:
+			w.close()
+	main.gui.remove("dialogue")
 	closed.emit()
 	if main != null and main.has_method("on_dialogue_closed"):
 		main.on_dialogue_closed()

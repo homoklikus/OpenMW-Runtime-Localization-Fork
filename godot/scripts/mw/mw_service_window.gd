@@ -48,6 +48,8 @@ func _ready() -> void:
 func _t(gm: String, fb: String) -> String:
 	return main.dialogue.gmst_text(gm, fb)
 
+const GUI_MODES := {"spells": "spellbuying", "travel": "travel", "training": "training", "repair": "merchantrepair"}
+
 func open(service: String, a: Dictionary) -> void:
 	mode = service
 	actor = a
@@ -55,6 +57,7 @@ func open(service: String, a: Dictionary) -> void:
 	_build()
 	visible = true
 	refresh()
+	main.gui.push(String(GUI_MODES.get(service, service)), [self])     # GM_SpellBuying / GM_Travel / ...
 
 func _build() -> void:
 	if panel != null:
@@ -199,5 +202,5 @@ func close() -> void:
 		panel.queue_free()
 		panel = null
 	_list = null
-	if main != null and main.dialogue_window != null and main.dialogue_window.visible:
-		main.dialogue_window.refresh()
+	if main != null and main.get("gui") != null:
+		main.gui.remove(String(GUI_MODES.get(mode, mode)))

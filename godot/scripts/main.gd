@@ -67,6 +67,7 @@ var spellcreation_window = null       # SpellCreationDialog (GM_SpellCreation)
 var recharge_window = null            # Recharge (GM_Recharge)
 var levelup_window = null             # LevelupDialog (GM_Levelup)
 var message_boxes = null              # MessageBoxManager (komunikaty i okna z pytaniem)
+var gui = preload("res://scripts/mw/mw_gui_modes.gd").new(self)    # stos trybów GUI (WindowManager)
 var data_dir := ""                    # katalog przekonwertowanych danych
 var navmesh = null                    # siatka nawigacji AI (mw_navmesh.gd)
 var doors = null                      # drzwi obrotowe (World::activateDoor/processDoors)
@@ -471,7 +472,7 @@ func _no_window_open() -> bool:
 			get("spellcreation_window"), get("recharge_window"), get("levelup_window")]:
 		if w != null and w.visible and not (w.get("pinned_mode") == true):     # przypięta mapa nie jest oknem GUI
 			return false
-	return not get_tree().paused
+	return not get_tree().paused and not gui.is_gui_mode()
 
 ## Postać gracza do podglądu w ekwipunku: rekord NPC „player” z wyglądem z kreatora i założonymi rzeczami.
 func player_doll() -> Node3D:
@@ -2633,17 +2634,13 @@ func show_message_box(text: String, buttons: Array, on_button := Callable(), eng
 		message_boxes.main = self
 		add_child(message_boxes)
 	var gui_mode: bool = get_tree().paused or Input.mouse_mode == Input.MOUSE_MODE_VISIBLE
-	var was_paused := get_tree().paused
-	var mouse := Input.mouse_mode
 	var box: Control = message_boxes.create_interactive(text, buttons, func(idx: int):
 		if not engine:
 			scripts.button_pressed = idx
 		msgbox = null
 		var resume: bool = game_state == "running" and not (main_menu != null and main_menu.is_open())
 		if resume:
-			get_tree().paused = was_paused
-			if DisplayServer.get_name() != "headless":
-				Input.mouse_mode = mouse if was_paused else Input.MOUSE_MODE_CAPTURED
+			gui.update_visible()             # pauza i kursor wg stosu trybów GUI
 		if on_button.is_valid():
 			on_button.call(idx), gui_mode)
 	msgbox = box.get_meta("layer")

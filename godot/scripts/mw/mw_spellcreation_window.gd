@@ -25,8 +25,6 @@ var name_edit: LineEdit = null
 var labels := {}                 # MagickaCost, SuccessChance, PriceLabel, PlayerGold
 var spell := {}                  # mSpell
 var _s := 1.0
-var _was_paused := false
-var _mouse := Input.MOUSE_MODE_VISIBLE
 var _layout := {}
 
 func _ready() -> void:
@@ -52,11 +50,7 @@ func open(a: Dictionary) -> void:
 	_build()
 	visible = true
 	set_ptr(a)
-	_was_paused = get_tree().paused
-	_mouse = Input.mouse_mode
-	get_tree().paused = true
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	main.gui.push("spellcreation", [self], escape)
 	name_edit.grab_focus()
 
 func close() -> void:
@@ -66,10 +60,7 @@ func close() -> void:
 	if win != null and is_instance_valid(win):
 		CU.close(win)
 	win = null
-	# powrót do poprzedniego trybu GUI (rozmowa / ekwipunek) – stan pauzy i myszy sprzed otwarcia
-	get_tree().paused = _was_paused
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = _mouse
+	main.gui.remove("spellcreation")                       # powrót do poprzedniego trybu GUI
 	if main.get("dialogue_window") != null and main.dialogue_window != null and main.dialogue_window.visible:
 		main.dialogue_window.refresh()
 

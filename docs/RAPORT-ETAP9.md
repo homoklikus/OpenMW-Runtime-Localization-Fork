@@ -144,7 +144,7 @@ test_progress, test_settings, test_menu_mode, test_ui_geometry – nowe API okie
 | `5d525476d8` | cz. 4: awans i perswazja, krok „click” w porównaniach |
 | `4133e3c15a` | cz. 5: ustawienia okien poza zapisem, MessageBoxManager |
 | `00c120ecc9` | cz. 6: raport etapu 9, inwentaryzacja |
-| (ostatni) | cz. 7: czekanie/sen jak WaitDialog (pasek postępu, przerywanie snu, wrogowie w pobliżu), konwerter: BNAM regionu |
+| `3d771f3599` | cz. 7: czekanie/sen jak WaitDialog (pasek postępu, przerywanie snu, wrogowie w pobliżu), konwerter: BNAM regionu |
 
 Każdy commit przygotowany w kopii roboczej w chmurze i zastosowany lokalnie przez `git am`; drzewa
 (`HEAD^{tree}`) porównane po każdym zastosowaniu – zgodne.

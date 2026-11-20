@@ -60,8 +60,9 @@ func _run() -> void:
 	check(tw.open("barter") and tw.visible, "okno handlu")
 	# GM_Barter: okno ekwipunku gracza i okno kupca (0,6; 0,27; 0,38 × 0,63), okno rozmowy ukryte
 	var mm = main.menu_mode
-	check(mm.visible and mm.barter == tw and mm.windows.has("inventory") and mm.windows.has("barter") and not main.dialogue_window.visible,
-		"handel: okna ekwipunku i kupca, bez okna rozmowy")
+	check(mm.visible and mm.barter == tw and mm.windows.has("inventory") and mm.windows.has("barter")
+		and main.gui.modes() == ["dialogue", "barter"] and main.gui.is_suspended(main.dialogue_window),
+		"handel: okna ekwipunku i kupca, rozmowa ukryta pod trybem GM_Barter (%s)" % [main.gui.modes()])
 	check(tw.grid_merchant_ids.has("misc_synth_spoon") and tw.grid_player_ids.size() > 0, "siatki kupca i gracza (%s)" % [tw.grid_merchant_ids])
 	for i in 6:
 		tw._click_left(tw._left_ids.find("misc_synth_spoon"))
@@ -95,7 +96,8 @@ func _run() -> void:
 	tw.max_sale()
 	check(int(tw.offer_spin.value) == tr.merchant_gold(a), "Max Sale: saldo = złoto kupca")
 	tw.close()
-	check(not mm.visible and main.dialogue_window.visible, "Cancel: koniec handlu, powrót do rozmowy")
+	check(not mm.visible and main.dialogue_window.visible and not main.gui.is_suspended(main.dialogue_window)
+		and main.gui.modes() == ["dialogue"] and main.get_tree().paused, "Cancel: koniec handlu, powrót do rozmowy (popGuiMode)")
 	# okna usług w układach OpenMW (SpellBuyingWindow, TrainingWindow, TravelWindow)
 	var sw = main.service_window
 	check(tw.open("spells") and sw.visible and sw.mode == "spells" and sw.panel.size.is_equal_approx(Vector2(450, 290) * preload("res://scripts/mw/mw_ui.gd").ui_scale()),

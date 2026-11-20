@@ -39,9 +39,7 @@ func open(gem: String) -> bool:
 	_build()
 	visible = true
 	_set_tool(gem, "")
-	get_tree().paused = true
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	main.gui.push("recharge", [self])                # pushGuiMode(GM_...)
 	return true
 
 func close() -> void:
@@ -49,9 +47,7 @@ func close() -> void:
 	if _select != null:
 		_select.queue_free()
 		_select = null
-	get_tree().paused = false
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	main.gui.remove("recharge")                       # removeGuiMode – powrót do poprzedniego trybu
 
 func _build() -> void:
 	if panel != null:

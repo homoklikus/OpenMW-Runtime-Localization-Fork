@@ -35,7 +35,6 @@ var _grid_parents: Array = []
 var grid_merchant_ids: Array = []     # testy
 var merchant_category := "all"         # kategoria okna kupca (SortFilterItemModel)
 var merchant_filter := ""
-var _dialogue_was_visible := false
 var grid_player_ids: Array = []
 
 func _ready() -> void:
@@ -144,9 +143,7 @@ func open(service: String) -> bool:
 		panel.visible = false
 		merchant_grid = null
 		player_grid = null
-		_dialogue_was_visible = main.dialogue_window.visible
-		main.dialogue_window.visible = false
-		main.menu_mode.open_barter(self)
+		main.menu_mode.open_barter(self)            # GM_Barter nad GM_Dialogue (rozmowa ukryta przez stos trybów)
 		return true
 	panel.visible = true
 	refresh()
@@ -378,9 +375,3 @@ func close() -> void:
 		main.menu_mode.close()
 		merchant_grid = null
 		player_grid = null
-		if _dialogue_was_visible and main.dialogue_window != null:
-			main.dialogue_window.visible = true
-			main.dialogue_window.refresh()
-			get_tree().paused = true
-			if DisplayServer.get_name() != "headless":
-				Input.mouse_mode = Input.MOUSE_MODE_VISIBLE

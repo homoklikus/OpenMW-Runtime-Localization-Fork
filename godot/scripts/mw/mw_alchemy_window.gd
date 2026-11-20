@@ -64,9 +64,7 @@ func open() -> void:
 	_build()
 	visible = true
 	refresh()
-	get_tree().paused = true
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	main.gui.push("alchemy", [self])                # pushGuiMode(GM_...)
 	name_edit.grab_focus()
 
 func close() -> void:
@@ -74,9 +72,7 @@ func close() -> void:
 	if _select != null:
 		_select.queue_free()
 		_select = null
-	get_tree().paused = false
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	main.gui.remove("alchemy")                       # removeGuiMode – powrót do poprzedniego trybu
 
 func _build() -> void:
 	if win != null:

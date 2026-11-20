@@ -103,9 +103,7 @@ func close() -> void:
 	if not visible:
 		return
 	visible = false
-	get_tree().paused = false
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	main.gui.update_visible()
 	closed.emit()
 
 func _unhandled_input(e: InputEvent) -> void:

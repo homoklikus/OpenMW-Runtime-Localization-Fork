@@ -36,8 +36,6 @@ var _coin_box: Control = null
 var _assign: Control = null
 var _s := 1.0
 var _desc_text := ""
-var _was_paused := false
-var _mouse := Input.MOUSE_MODE_VISIBLE
 
 signal closed
 
@@ -276,11 +274,7 @@ func open() -> void:
 	_set_values()
 	visible = true
 	relayout()
-	_was_paused = get_tree().paused
-	_mouse = Input.mouse_mode
-	get_tree().paused = true
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	main.gui.push("levelup", [self], func(): pass)
 	if main.get("music") != null and main.music != null and main.music.enabled:
 		main.music.play_triumph()
 
@@ -289,9 +283,7 @@ func close() -> void:
 	if win != null and is_instance_valid(win):
 		CU.close(win)
 	win = null
-	get_tree().paused = _was_paused
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = _mouse
+	main.gui.remove("levelup")
 	closed.emit()
 
 ## setAttributeValues: baza (+ mnożnik dla wybranych), najwyżej 100.

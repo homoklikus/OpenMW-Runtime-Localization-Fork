@@ -144,9 +144,7 @@ func open() -> bool:
 	visible = true
 	panel.reset_size()
 	panel.position = ((get_viewport().get_visible_rect().size - panel.get_combined_minimum_size()) / 2.0).floor()
-	get_tree().paused = true
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	main.gui.push("rest", [self])                # pushGuiMode(GM_...)
 	return true
 
 ## Godziny do pełnego zdrowia i magii (WaitDialog::onUntilHealedButtonClicked: ceil(max(braki / odnowa))).
@@ -364,7 +362,5 @@ func open_levelup() -> void:
 func close() -> void:
 	visible = false
 	panel.visible = true
-	get_tree().paused = false
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	main.gui.remove("rest")                       # removeGuiMode – powrót do poprzedniego trybu
 	closed.emit()

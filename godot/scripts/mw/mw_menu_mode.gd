@@ -108,10 +108,15 @@ func open() -> void:
 	if main != null and main.get("map_window") != null and _allowed("map"):
 		main.map_window.open(_rect("map", vp), self)
 	_apply_shown()
-	get_tree().paused = true
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_gui_mode = "inventory"
+	main.gui.push("inventory", [self], close)          # GM_Inventory
 	_set_hud(false)
+	refresh()
+
+var _gui_mode := ""
+
+## GuiModeState::update(true): powrót z trybu otwartego nad ekwipunkiem (alchemia, naprawa, zaklinanie…).
+func gui_resumed() -> void:
 	refresh()
 
 func _set_hud(_on: bool) -> void:
@@ -122,6 +127,12 @@ func close() -> void:
 		return
 	_save_layout()
 	visible = false
+	if main != null and main.get("gui") != null and not _gui_mode.is_empty():
+		var m := _gui_mode
+		_gui_mode = ""
+		if is_suspended_gui():
+			main.gui._set_visible([self], true, [])
+		main.gui.remove(m)
 	var was_container := not cont_sid.is_empty()
 	barter = null
 	barter_total = null
@@ -149,9 +160,6 @@ func close() -> void:
 		_doll_vp = null
 		_inv_left = null
 		_doll = null
-	get_tree().paused = false
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	_set_hud(true)
 	closed.emit()
 
@@ -383,8 +391,11 @@ func refresh() -> void:
 	_refresh_spells()
 	_refresh_container()
 
+func is_suspended_gui() -> bool:
+	return bool(get_meta("gui_suspended", false))
+
 func _unhandled_input(e: InputEvent) -> void:
-	if not visible:
+	if not visible or is_suspended_gui():
 		return
 	if e.is_action_pressed("menu_mode") or e.is_action_pressed("inventory") or e.is_action_pressed("magic_menu") \
 			or e.is_action_pressed("map_menu") or e.is_action_pressed("ui_cancel") or e.is_action_pressed("menu"):
@@ -1033,9 +1044,8 @@ func open_container(sid: String, rec: Dictionary, name: String, corpse := false)
 	btns.add_child(cb)
 	for b in btns.get_children():
 		(b as Control).size_flags_vertical = Control.SIZE_SHRINK_BEGIN     # przyciski u góry wiersza 28 px
-	get_tree().paused = true
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_gui_mode = "container"
+	main.gui.push("container", [self], close)           # GM_Container
 	_set_hud(false)
 	refresh()
 
@@ -1177,9 +1187,8 @@ func open_barter(tw) -> void:
 	for row in [r1, r2, r3]:
 		for c in (row as Control).get_children():
 			(c as Control).size_flags_vertical = Control.SIZE_SHRINK_BEGIN     # przyciski i pola 24 px u góry wiersza
-	get_tree().paused = true
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	_gui_mode = "barter"
+	main.gui.push("barter", [self, tw], func(): tw.close())     # GM_Barter (ekwipunek + okno kupca)
 	refresh()
 
 ## TradeWindow::updateLabels: „sTotalCost” przy ujemnym saldzie (płaci gracz), „sTotalSold” przy dodatnim.
@@ -1324,8 +1333,7 @@ func use_item(id: String) -> void:
 		return
 	var it: Dictionary = main.interaction.inventory.item(id)
 	var k := String(it.get("kind", ""))
-	if k in ["apparatus", "book", "repair"] or (k == "misc" and main.get("magic") != null and main.magic.is_soul_gem(id) and main.magic.gem_charge(id) > 0):
-		close()                    # okno alchemii, książki, zaklinania zamiast trybu menu
+	# alchemia, książka, naprawa, kamień dusz: tryb GUI na stosie nad ekwipunkiem (po zamknięciu – powrót tutaj)
 	iw.use_item(i)
 	iw.visible = false
 	refresh()

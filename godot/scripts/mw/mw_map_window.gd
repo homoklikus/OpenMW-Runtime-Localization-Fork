@@ -126,9 +126,7 @@ func open(rect := Rect2(), menu = null) -> void:
 	visible = true
 	pinned_mode = false
 	if not embedded:
-		get_tree().paused = true
-		if DisplayServer.get_name() != "headless":
-			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		main.gui.push("map", [self])
 	set_world(world_mode)
 
 var _menu = null
@@ -371,10 +369,8 @@ func close() -> void:
 	if _root != null:
 		_root.queue_free()
 		_root = null
-	if not embedded:
-		get_tree().paused = false
-		if DisplayServer.get_name() != "headless":
-			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	if not embedded and main != null and main.get("gui") != null:
+		main.gui.remove("map")
 	embedded = false
 	pinned_mode = false
 	closed.emit()

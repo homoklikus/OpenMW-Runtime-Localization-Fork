@@ -85,9 +85,7 @@ func open(id: String, rec: Dictionary, show_take: bool) -> void:
 	else:
 		_build_book(win, text)
 	visible = true
-	get_tree().paused = true
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	main.gui.push("scroll" if is_scroll else "book", [self])
 	_sound("scroll" if is_scroll else "book open")
 
 func _px(v: Vector2) -> Vector2:
@@ -299,9 +297,8 @@ func close() -> void:
 	if _root != null:
 		_root.queue_free()
 		_root = null
-	get_tree().paused = false
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	main.gui.remove("scroll")
+	main.gui.remove("book")
 	if not _taken:
 		_sound("scroll" if is_scroll else "book close")
 	var t := _taken

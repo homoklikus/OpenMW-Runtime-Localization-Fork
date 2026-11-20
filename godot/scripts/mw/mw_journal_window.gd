@@ -525,10 +525,8 @@ func open() -> void:
 	st.page = maxi(0, n - 1 - ((n - 1) % 2)) if n > 0 else 0
 	_book_mode()
 	visible = true
-	get_tree().paused = true
+	main.gui.push("journal", [self])
 	_sound("book open")
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 func refresh() -> void:
 	if visible:
@@ -541,10 +539,8 @@ func close() -> void:
 	if _root != null:
 		_root.queue_free()
 		_root = null
-	get_tree().paused = false
+	main.gui.remove("journal")
 	_sound("book close")
-	if DisplayServer.get_name() != "headless":
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func toggle() -> void:
 	if visible:
