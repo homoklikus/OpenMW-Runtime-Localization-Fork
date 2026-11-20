@@ -103,7 +103,11 @@ func start_editing() -> void:
 	for i in known.size():
 		var b = available._items[i].button
 		if b != null:
-			(b as Control).tooltip_text = effect_tooltip(int(known[i]))
+			# createMagicEffectToolTip
+			if main.get("tooltips") != null and main.tooltips != null:
+				(b as Control).set_meta("mw_tip", main.tooltips.magic_effect_tip(int(known[i])))
+			else:
+				(b as Control).tooltip_text = effect_tooltip(int(known[i]))
 	effects = []
 	update_effects_view()
 

@@ -94,7 +94,8 @@ func _text(parent: Control, text: String, kind := "header") -> Dictionary:
 	return {"type": "text", "control": l}
 
 func _tip(n: Dictionary, help: String) -> Dictionary:
-	(n.control as Control).tooltip_text = _t(help, "")
+	# TextToolTip (Layout) z tekstem pomocy
+	(n.control as Control).set_meta("mw_tip", {"type": "layout", "layout": "text", "description": _t(help, "")})
 	return n
 
 func _build() -> void:
@@ -160,7 +161,7 @@ func _build() -> void:
 	# przyciski
 	type_button = ui.button("Constant effect", type_clicked)
 	type_button.name = "TypeButton"
-	type_button.tooltip_text = _t("sEnchantmentHelp7", "")
+	type_button.set_meta("mw_tip", {"type": "layout", "layout": "text", "description": _t("sEnchantmentHelp7", "")})
 	c.add_child(type_button)
 	var price_text := _tip(_text(c, _t("sBarterDialog7", "Total Cost")), "sEnchantmentHelp6")
 	(price_text.control as Label).name = "PriceTextLabel"

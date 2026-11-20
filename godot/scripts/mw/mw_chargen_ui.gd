@@ -239,9 +239,12 @@ func text_button(parent: Control, x: float, y: float, w: float, h: float, text: 
 
 ## MW_StatNameValue: nazwa po lewej, wartość po prawej (kolumna 32 px, stany kolorów increased/decreased).
 func stat_row(parent: Control, x: float, y: float, w: float, name: String, value: String, state := "normal",
-		tip := "") -> Control:
+		tip: Variant = "") -> Control:
 	var g := group(parent, x, y, w, 18)
-	if not tip.is_empty():
+	if tip is Dictionary and not (tip as Dictionary).is_empty():
+		g.set_meta("mw_tip", tip)
+		g.mouse_filter = Control.MOUSE_FILTER_STOP
+	elif tip is String and not (tip as String).is_empty():
 		g.tooltip_text = tip
 		g.mouse_filter = Control.MOUSE_FILTER_STOP
 	var a := label(g, 0, 0, w - 32, 18, name)

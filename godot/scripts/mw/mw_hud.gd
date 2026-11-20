@@ -308,7 +308,9 @@ func update_stats() -> void:
 		var pb: ProgressBar = bars[k]
 		pb.max_value = maxf(float(vals[k][1]), 1.0)
 		pb.value = clampf(float(vals[k][0]), 0.0, pb.max_value)
-		pb.tooltip_text = "%d/%d" % [roundi(float(vals[k][0])), roundi(float(vals[k][1]))]
+		pb.tooltip_text = ""
+		if main.get("tooltips") != null and main.tooltips != null:       # HUD: HealthToolTip jak w statystykach
+			pb.set_meta("mw_tip", main.tooltips.health_tip(k, roundi(float(vals[k][0])), roundi(float(vals[k][1]))))
 
 func update_weapon_spell() -> void:
 	var inv = main.interaction.inventory
@@ -461,8 +463,9 @@ func update_effects() -> void:
 		n += 1
 		var left2 := float(info[id].left)
 		ic.modulate.a = minf(left2 / blink, 1.0) if left2 >= 0.0 and blink > 0.0 else 1.0
-		ic.tooltip_text = "%s\n%s%s" % [String(mg.get("name", "")), ", ".join(info[id].names),
-			("\n%d s" % ceili(left2)) if left2 >= 0.0 else ""]
+		ic.tooltip_text = ""
+		ic.mouse_filter = Control.MOUSE_FILTER_PASS
+		ic.set_meta("mw_tip", {"type": "effect_icon", "id": int(id)})    # SpellIcons: ToolTipInfo (nazwa, źródła)
 	var w := (n * 16.0 + 4.0) * scale_ui if n > 0 else 0.0
 	effects_frame.visible = n > 0
 	effects_frame.size = Vector2(w, 20.0 * scale_ui)

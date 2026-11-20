@@ -124,6 +124,52 @@ func _run() -> void:
 	check(String(si2.text).contains(T.call("sCastCost", "Cast Cost")), "SpellCost: koszt rzucenia")
 	var pw: Dictionary = tt.spell_info("synth_power")
 	check(not String(pw.text).contains(T.call("sSchool", "School")), "moc – bez szkoły (spellIncreasesSkill)")
+	# --- podpowiedzi układów (Layout) ---
+	main.gui.push("probe", [])
+	var skt: Dictionary = tt.skill_tip(5, 40, false)
+	tt.create_tooltip(skt)
+	var lay: Control = tt.box.find_child("Layout_skill", true, false)
+	var pbar: ProgressBar = tt.box.find_child("Progress", true, false)
+	check(lay != null and pbar != null and int(pbar.value) == 40 and int(pbar.max_value) == 100, "SkillToolTip: pasek postępu 40/100")
+	check(String(skt.attribute).begins_with(T.call("sGoverningAttribute", "Governing Attribute") + ": ") and String(skt.image) == "k/combat_longblade.dds",
+		"umiejętność: atrybut kierujący i ikona combat_longblade (%s)" % skt.image)
+	tt.create_tooltip(tt.skill_tip(5, 0, true))
+	check(tt.box.find_child("Progress", true, false) == null, "umiejętność ≥ 100: sSkillMaxReached bez paska")
+	tt.create_tooltip(tt.skill_tip(5))
+	check(tt.box.find_child("Layout_skill_np", true, false) != null, "SkillNoProgressToolTip (kreator: premie rasy)")
+	var at: Dictionary = tt.attribute_tip(0)
+	check(String(at.image) == "k/attribute_strength.dds" and String(at.name) == T.call("sAttributeStrength", "Strength"), "AttributeToolTip: ikona i nazwa")
+	var hs: Vector2 = tt.create_tooltip(tt.health_tip("health", 5, 10))
+	var hl: Label = null
+	for c in tt.box.find_children("*", "Label", true, false):
+		if (c as Label).text.ends_with("5 / 10"):
+			hl = c
+	check(hl != null and hs.x > 0.0, "HealthToolTip: opis i „5 / 10”")
+	var mt: Dictionary = tt.magic_effect_tip(13)
+	check(String(mt.school).begins_with(T.call("sSchool", "School") + ": "), "MagicEffectToolTip: szkoła (%s)" % mt.school)
+	tt.create_tooltip(tt.level_tip(3, 10, ""))
+	var lb: ProgressBar = tt.box.find_child("Progress", true, false)
+	check(lb != null and int(lb.value) == 3 and int(lb.max_value) == 10, "LevelToolTip: postęp 3/10")
+	var bs: Dictionary = tt.birthsign_tip(main.builder.actors.record("birthsign", "Synth Sign"))
+	check((bs.groups as Array).size() == 2, "BirthSignToolTip: zdolności i moce (%s)" % [bs.groups])
+	main.gui.pop()
+	# statystyki: wiersze z podpowiedziami układów
+	main.menu_mode.open()
+	await _frames(3)
+	var kinds := {}
+	for c in main.menu_mode.windows["stats"].find_children("*", "", true, false):
+		if c.has_meta("mw_tip"):
+			var tp: Dictionary = c.get_meta("mw_tip")
+			kinds[String(tp.get("layout", tp.get("type", "")))] = true
+	check(kinds.has("health") and kinds.has("level") and kinds.has("race") and kinds.has("class") and kinds.has("attribute")
+		and kinds.has("skill") and kinds.has("text"), "okno statystyk: podpowiedzi zdrowia, poziomu, rasy, klasy, atrybutów, umiejętności, reputacji (%s)" % [kinds.keys()])
+	main.menu_mode.close()
+	# ikona działającego efektu: ToolTipInfo z nazwą źródła i wielkością
+	main.magic.drink(main.combat.player_fighter(), "synth_potion")
+	for i in 10:
+		await physics_frame
+	var ei: Dictionary = tt.effect_icon_info(75)
+	check(int(ei.get("image_size", 0)) == 16 and String(ei.text).contains(": 10 "), "ikona efektu: źródło i wielkość (%s)" % String(ei.get("text", "")).replace("\n", " | "))
 	_finish()
 
 func _finish() -> void:

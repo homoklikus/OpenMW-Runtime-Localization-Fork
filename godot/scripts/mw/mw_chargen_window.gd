@@ -489,7 +489,8 @@ func _update_skills() -> void:
 		var si := int(b.get("skill", -1))
 		if si < 0 or si >= 27:
 			continue
-		ui.stat_row(skill_box, 0, y, 190, ui.skill_name(si), str(int(b.get("bonus", 0))))
+		ui.stat_row(skill_box, 0, y, 190, ui.skill_name(si), str(int(b.get("bonus", 0))), "normal",
+			main.tooltips.skill_tip(si) if main.get("tooltips") != null and main.tooltips != null else "")   # createSkillToolTip
 		y += 18.0
 
 ## updateSpellPowers: moce i zdolności rasy (MW_StatName).
@@ -502,7 +503,8 @@ func _update_powers() -> void:
 	var y := 0.0
 	for p in race.get("powers", []):
 		var l: Label = ui.label(power_box, 0, y, 350, 18, ui.rec_name("spell", "SPEL", String(p).to_lower()))
-		l.tooltip_text = _spell_tooltip(String(p).to_lower())
+		l.set_meta("mw_tip", {"type": "spell", "id": String(p).to_lower()})   # ToolTipType Spell
+		l.mouse_filter = Control.MOUSE_FILTER_PASS
 		y += 18.0
 
 func _spell_tooltip(id: String) -> String:
@@ -717,7 +719,8 @@ func _update_spells() -> void:
 		y += 18.0
 		for sid in cats[ty]:
 			var nl: Label = ui.label(spell_area, 0, y, 507, 18, ui.rec_name("spell", "SPEL", sid))
-			nl.tooltip_text = _spell_tooltip(sid)
+			nl.set_meta("mw_tip", {"type": "spell", "id": sid})   # ToolTipType Spell
+			nl.mouse_filter = Control.MOUSE_FILTER_PASS
 			y += 18.0
 			var sp: Dictionary = character.records.record("spell", sid)
 			for e in sp.get("effects", []):
@@ -788,7 +791,8 @@ func _spawn_review() -> void:
 		var base := float(st.attributes[i])
 		var m := float(d.attributes[i])
 		attrs.append(int(m))
-		ui.stat_row(at, 8, 4 + 18 * i, 250, ui.attr_name(i), str(int(m)), _state(base, m))
+		ui.stat_row(at, 8, 4 + 18 * i, 250, ui.attr_name(i), str(int(m)), _state(base, m),
+			main.tooltips.attribute_tip(i) if main.get("tooltips") != null and main.tooltips != null else "")   # createAttributeToolTip
 	review_values["attributes"] = attrs
 	# umiejętności i czary
 	ui.box(c, 281, 7, 244, 372)
@@ -836,7 +840,8 @@ func _spawn_review() -> void:
 			var sp: Dictionary = character.records.record("spell", String(sid))
 			if int(sp.get("spell_type", -1)) == int(g2[0]):
 				var l: Label = ui.label(sv, 10, y, 198, 18, ui.rec_name("spell", "SPEL", String(sid)))
-				l.tooltip_text = _spell_tooltip(String(sid))
+				l.set_meta("mw_tip", {"type": "spell", "id": String(sid)})   # ToolTipType Spell
+				l.mouse_filter = Control.MOUSE_FILTER_PASS
 				y += 18.0
 	ui.finish_canvas(sv, y)
 	back_button = ui.button(ui.t("sBack", "Back"), func(): _review_back())

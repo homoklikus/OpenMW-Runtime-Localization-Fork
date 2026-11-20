@@ -229,7 +229,7 @@ func _build_local() -> void:
 			m.color = Color(0.85, 0.15, 0.1)
 			m.size = Vector2(6, 6) * scale_ui
 			m.position = mp - m.size / 2.0
-			m.tooltip_text = name
+			m.set_meta("mw_tip", {"type": "info", "text": name})      # MapMarker: ToolTipInfo z samym tekstem
 			_view.add_child(m)
 	# MapWindow::updateMagicMarkers: Wykrywanie zwierząt / zaklęć / kluczy (World::listDetectedReferences)
 	detect_markers = []
@@ -329,7 +329,7 @@ func _build_world() -> void:
 		m.color = Color(0.9, 0.75, 0.35)
 		m.size = Vector2(5, 5) * scale_ui
 		m.position = p - m.size / 2.0
-		m.tooltip_text = disp
+		m.set_meta("mw_tip", {"type": "info", "text": disp})
 		_world_rect.add_child(m)
 	# gracz: we wnętrzu – ostatnia pozycja na zewnątrz
 	var pmw := MWCoords.godot_to_mw(main.player.global_position)

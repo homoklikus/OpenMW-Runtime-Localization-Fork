@@ -508,7 +508,7 @@ func _layout_stats(boxes: Array, rp: Control) -> void:
 
 ## Wiersz nazwa–wartość. indent/right_pad – StatsWindow::addValueItem (nazwa od x = 10, wartość przy prawej krawędzi
 ## z miejscem na pasek przewijania), wysokość wiersza = rozmiar czcionki + 2.
-func _row(parent: Control, left: String, right: String, tip := "", col := Color(0, 0, 0, 0), indent := 0.0, right_pad := 0.0, left_skin := "SandText") -> HBoxContainer:
+func _row(parent: Control, left: String, right: String, tip: Variant = "", col := Color(0, 0, 0, 0), indent := 0.0, right_pad := 0.0, left_skin := "SandText") -> HBoxContainer:
 	var h := HBoxContainer.new()
 	h.custom_minimum_size.y = 18 * scale_ui
 	if indent > 0.0:
@@ -531,7 +531,10 @@ func _row(parent: Control, left: String, right: String, tip := "", col := Color(
 		var rp := Control.new()
 		rp.custom_minimum_size.x = right_pad * scale_ui
 		h.add_child(rp)
-	if not tip.is_empty():
+	if tip is Dictionary and not (tip as Dictionary).is_empty():
+		h.set_meta("mw_tip", tip)                  # ToolTips typu Layout (umiejętność, atrybut, klasa…)
+		h.mouse_filter = Control.MOUSE_FILTER_PASS
+	elif tip is String and not (tip as String).is_empty():
 		h.tooltip_text = tip
 		h.mouse_filter = Control.MOUSE_FILTER_PASS
 		a.mouse_filter = Control.MOUSE_FILTER_PASS
@@ -560,6 +563,10 @@ func _bar_row(parent: Control, label: String, kind: String, cur: float, mx: floa
 	t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	t.add_theme_color_override("font_color", UI.color("normal_pressed"))
 	holder.add_child(t)
+	# openmw_stats_window.layout: HealthToolTip (ikona, sHealthDesc/sMagDesc/sFatDesc, „bieżące / największe”)
+	if main != null and main.get("tooltips") != null and main.tooltips != null:
+		h.set_meta("mw_tip", main.tooltips.health_tip(kind, roundi(cur), roundi(mx)))
+		h.mouse_filter = Control.MOUSE_FILTER_PASS
 	parent.add_child(h)
 	_stat_bars[kind] = pb
 
@@ -598,20 +605,32 @@ func _refresh_stats() -> void:
 	_bar_row(_stat_boxes[0], _t("sMagic", "Magicka"), "magic", float(st.get("magicka", 0)), float(d.magicka.modified))
 	_bar_row(_stat_boxes[0], _t("sFatigue", "Fatigue"), "fatigue", float(st.get("fatigue", 0)), float(d.fatigue.modified))
 	var prog: Dictionary = st.get("progress", {})
-	var lvl_tip := "%s: %d/10" % [_t("sLevelProgress", "Level progress"), int(prog.get("level", 0))]
+	var tt = main.get("tooltips")
+	# LevelToolTip: postęp do awansu (iLevelUpTotal) i mnożniki atrybutów > 1 (getLevelupAttributeMultiplier)
+	var lvl_tip: Variant = ""
+	if tt != null:
+		var total := int(main.combat._gmst("iLevelUpTotal", 10))
+		var det := []
+		var base_attr: Array = st.get("attributes", [])
+		for ai in 8:
+			var mult := int(main.character.levelup_multiplier(st, ai))
+			mult = mini(mult, 100 - int(float(base_attr[ai]) if ai < base_attr.size() else 0.0))
+			if mult > 1:
+				det.append("%s x%d" % [_t(ATTR_GMST[ai], ATTR_EN[ai]), mult])
+		lvl_tip = tt.level_tip(int(st.get("level_progress", prog.get("level", 0))), total, "\n".join(det))
 	_row(_stat_boxes[1], _t("sLevel", "Level"), str(int(st.get("level", 1))), lvl_tip, Color(0, 0, 0, 0), 0.0, 0.0, "NormalText")
 	var lv_gap := Control.new()                     # wiersze HBox w (4, 4), (4, 24), (4, 42)
 	lv_gap.custom_minimum_size.y = 2 * scale_ui
 	_stat_boxes[1].add_child(lv_gap)
 	var race: Dictionary = main.builder.actors.record("race", String(st.get("race", "")))
-	_row(_stat_boxes[1], _t("sRace", "Race"), String(race.get("name", st.get("race", ""))), "", Color(0, 0, 0, 0), 0.0, 0.0, "NormalText")
+	_row(_stat_boxes[1], _t("sRace", "Race"), String(race.get("name", st.get("race", ""))), tt.race_tip(race) if tt != null and not race.is_empty() else "", Color(0, 0, 0, 0), 0.0, 0.0, "NormalText")
 	var cls: Dictionary = ch._class_of(st)
-	_row(_stat_boxes[1], _t("sClass", "Class"), String(cls.get("name", st.get("class", ""))), "", Color(0, 0, 0, 0), 0.0, 0.0, "NormalText")
+	_row(_stat_boxes[1], _t("sClass", "Class"), String(cls.get("name", st.get("class", ""))), tt.class_tip(cls) if tt != null else "", Color(0, 0, 0, 0), 0.0, 0.0, "NormalText")
 	var base_a: Array = st.get("attributes", [])
 	for i in 8:
 		var b := float(base_a[i]) if i < base_a.size() else 0.0
 		var m := float(d.attributes[i])
-		_row(_stat_boxes[2], _t(ATTR_GMST[i], ATTR_EN[i]), str(int(m)), "", _val_color(b, m))
+		_row(_stat_boxes[2], _t(ATTR_GMST[i], ATTR_EN[i]), str(int(m)), tt.attribute_tip(i) if tt != null else "", _val_color(b, m))
 	# umiejętności
 	var names: Array = main.builder.actors.records_index().get("skills", [])
 	var major: Array = cls.get("major_skills", [])
@@ -634,7 +653,9 @@ func _refresh_stats() -> void:
 			var b2 := float(base_s[i]) if i < base_s.size() else 0.0
 			var m2 := float(d.skills[i])
 			var req: float = ch.skill_requirement(st, i)
-			var tip := "%s: %d/%d" % [_t("sSkillProgress", "Progress"), int(float(sprog[i]) if i < sprog.size() else 0.0), int(req)]
+			# StatsWindow::setValue: postęp w procentach int(postęp / wymaganie × 100 + 0,5); umiejętność ≥ 100 – sSkillMaxReached
+			var pct := int(float(sprog[i] if i < sprog.size() else 0.0) / maxf(req, 0.0001) * 100.0 + 0.5)
+			var tip: Variant = tt.skill_tip(i, pct, b2 >= 100.0) if tt != null else ""
 			_row(_stat_right, _t("sSkill" + sid.capitalize().replace(" ", ""), sid.capitalize()), str(int(m2)), tip, _val_color(b2, m2), 10.0, 12.0)
 		_stat_right.add_child(_hline())
 	var facs: Dictionary = st.get("factions", {})
@@ -649,13 +670,52 @@ func _refresh_stats() -> void:
 			var rname := String(ranks[rank]) if rank >= 0 and rank < ranks.size() and ranks[rank] is String else ""
 			if rank >= 0 and rank < ranks.size() and ranks[rank] is Dictionary:
 				rname = String((ranks[rank] as Dictionary).get("name", ""))
-			_row(_stat_right, String(fr.get("name", fid)), rname, "", Color(0, 0, 0, 0), 10.0, 12.0)
+			_row(_stat_right, String(fr.get("name", fid)), rname, _faction_tip(fr, rank, bool((facs[fid] as Dictionary).get("expelled", false))) if tt != null else "", Color(0, 0, 0, 0), 10.0, 12.0)
 		_stat_right.add_child(_hline())
 	var sign: Dictionary = main.builder.actors.record("birthsign", String(st.get("birthsign", "")))
 	if not sign.is_empty():
-		_row(_stat_right, _t("sBirthSign", "Birthsign"), String(sign.get("name", "")), "", Color(0, 0, 0, 0), 10.0, 12.0)
-	_row(_stat_right, _t("sReputation", "Reputation"), str(int(st.get("reputation", 0))), "", Color(0, 0, 0, 0), 10.0, 12.0)
-	_row(_stat_right, _t("sBounty", "Bounty"), str(int(st.get("bounty", 0))), "", Color(0, 0, 0, 0), 10.0, 12.0)
+		_row(_stat_right, _t("sBirthSign", "Birthsign"), String(sign.get("name", "")), tt.birthsign_tip(sign) if tt != null else "", Color(0, 0, 0, 0), 10.0, 12.0)
+	_row(_stat_right, _t("sReputation", "Reputation"), str(int(st.get("reputation", 0))), tt.text_tip(_t("sSkillsMenuReputationHelp", "")) if tt != null else "", Color(0, 0, 0, 0), 10.0, 12.0)
+	_row(_stat_right, _t("sBounty", "Bounty"), str(int(st.get("bounty", 0))), tt.text_tip(_t("sCrimeHelp", "")) if tt != null else "", Color(0, 0, 0, 0), 10.0, 12.0)
+
+## StatsWindow::addItem frakcji: FactionToolTip – nazwa (nagłówek), ranga albo sExpelled; gdy jest wyższa ranga:
+## sNextRank, wymagania atrybutów, sFavoriteSkills, sNeedOneSkill / sNeedTwoSkills.
+func _faction_tip(fr: Dictionary, rank: int, expelled: bool) -> Dictionary:
+	var lines := [["header", String(fr.get("name", ""))]]
+	var ranks: Array = fr.get("ranks", [])
+	var rn := func(i: int) -> String:
+		if i < 0 or i >= ranks.size():
+			return ""
+		return String((ranks[i] as Dictionary).get("name", "")) if ranks[i] is Dictionary else String(ranks[i])
+	if expelled:
+		lines.append(["normal", _t("sExpelled", "Expelled")])
+	else:
+		var r := maxi(0, rank)
+		if r < ranks.size():
+			lines.append(["normal", rn.call(r)])
+		if r + 1 < ranks.size() and not String(rn.call(r + 1)).is_empty():
+			lines.append(["normal", ""])
+			lines.append(["header", "%s %s" % [_t("sNextRank", "Next Rank:"), rn.call(r + 1)]])
+			var req: Array = fr.get("rank_requirements", [])
+			var rq: Dictionary = req[r + 1] if r + 1 < req.size() and req[r + 1] is Dictionary else {}
+			var at: Array = fr.get("attributes", [0, 0])
+			lines.append(["normal", "%s: %d, %s: %d" % [_t(ATTR_GMST[clampi(int(at[0]), 0, 7)], ""), int((rq.get("attributes", [0, 0]) as Array)[0]),
+				_t(ATTR_GMST[clampi(int(at[1]) if at.size() > 1 else 0, 0, 7)], ""), int((rq.get("attributes", [0, 0]) as Array)[1])]])
+			lines.append(["normal", ""])
+			lines.append(["header", _t("sFavoriteSkills", "Favorite Skills")])
+			var sk := []
+			for i in fr.get("skills", []):
+				if int(i) >= 0:
+					sk.append(main.tooltips._skill_name(int(i)))
+			lines.append(["normal", ", ".join(sk)])
+			var need := ""
+			if int(rq.get("primary_skill", 0)) > 0:
+				need = "%s %d" % [_t("sNeedOneSkill", "Need one skill at"), int(rq.primary_skill)]
+			if int(rq.get("favoured_skill", 0)) > 0:
+				need += " %s %s %d" % [_t("sand", "and"), _t("sNeedTwoSkills", "two skills at"), int(rq.favoured_skill)]
+			lines.append(["normal", ""])
+			lines.append(["normal", need.strip_edges()])
+	return main.tooltips.faction_tip(lines)
 
 # --- ekwipunek ------------------------------------------------------------------------------------------
 
@@ -1527,8 +1587,8 @@ func _refresh_spells() -> void:
 		ic.texture = UI.icon(String(mg.get("icon", "")))
 		ic.custom_minimum_size = Vector2(16, 16) * scale_ui
 		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		var n := String(mg.get("name", ""))
-		ic.tooltip_text = "%s\n%s%s" % [n, ", ".join(e.names), ("\n%d s" % ceili(float(e.left))) if float(e.left) >= 0.0 else ""]
+		ic.set_meta("mw_tip", {"type": "effect_icon", "id": int(e.id)})   # SpellIcons: ToolTipInfo
+		ic.mouse_filter = Control.MOUSE_FILTER_PASS
 		_fx_box.add_child(ic)
 	var flt := spell_filter.text.strip_edges().to_lower() if spell_filter != null else ""
 	var cc := "%s/%s" % [_t("sCostCharge", "Cost"), _t("sChance", "Chance")]

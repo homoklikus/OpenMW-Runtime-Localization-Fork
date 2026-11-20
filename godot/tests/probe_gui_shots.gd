@@ -41,6 +41,10 @@ func _run() -> void:
 		main.tooltips.enabled = false
 		main.tooltips.show_for({"type": "item", "id": tid, "count": inv.count_of("player", {}, tid)}, Vector2(400, 300))
 		await _shot("tooltip_" + tid.replace("#", "_"))
+	for lt in [["skill", main.tooltips.skill_tip(5, 40, false)], ["attribute", main.tooltips.attribute_tip(0)],
+			["health", main.tooltips.health_tip("health", 50, 80)], ["class", main.tooltips.class_tip(main.character._class_of(main.player_stats()))]]:
+		main.tooltips.show_for(lt[1], Vector2(400, 300))
+		await _shot("tooltip_layout_" + String(lt[0]))
 	main.tooltips.enabled = true
 	main.menu_mode.drop_to_world(item, "inventory", {})
 	await _shot("count_dialog")

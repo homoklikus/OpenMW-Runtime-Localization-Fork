@@ -223,6 +223,10 @@ func info_for(tip: Dictionary) -> Dictionary:
 			return spell_info(String(tip.get("id", "")), bool(tip.get("cost", false)))
 		"info":
 			return tip
+		"layout":
+			return tip
+		"effect_icon":
+			return effect_icon_info(int(tip.get("id", -1)))
 	return {}
 
 # --- MWSpellEffect::updateWidgets -------------------------------------------------------------------------
@@ -292,6 +296,8 @@ func create_tooltip(info: Dictionary) -> Vector2:
 	for c in box.get_children():
 		box.remove_child(c)
 		c.queue_free()
+	if info.has("layout"):
+		return _create_layout(info)
 	var gui: bool = main != null and main.get("gui") != null and main.gui.is_gui_mode()
 	box.add_theme_stylebox_override("panel", UI.inner_box(Color(0, 0, 0, 1) if gui else UI.WINDOW_BG))
 	var caption := String(info.get("caption", ""))
@@ -473,7 +479,9 @@ func hide_tip() -> void:
 func _process(_dt: float) -> void:
 	if not enabled or main == null or main.get("gui") == null:
 		return
-	if not main.gui.is_gui_mode() or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+	var gui_mode: bool = main.gui.is_gui_mode() or (main.get("script_host") != null and main.script_host != null
+		and main.script_host.menu_mode())       # isGuiMode – także kreator postaci i okna poza stosem trybów
+	if not gui_mode or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		if box.visible:
 			hide_tip()
 		return
@@ -485,3 +493,332 @@ func _process(_dt: float) -> void:
 			hide_tip()
 		return
 	show_for(tip, vpt.get_mouse_position())
+
+# --- podpowiedzi układów (openmw_tooltips.layout, typ „Layout”) ------------------------------------------------
+
+const SKILL_ICONS := ["combat_block", "combat_armor", "combat_mediumarmor", "combat_heavyarmor", "combat_blunt",
+	"combat_longblade", "combat_axe", "combat_spear", "combat_athletics", "magic_enchant", "magic_destruction",
+	"magic_alteration", "magic_illusion", "magic_conjuration", "magic_mysticism", "magic_restoration", "magic_alchemy",
+	"magic_unarmored", "stealth_security", "stealth_sneak", "stealth_acrobatics", "stealth_lightarmor",
+	"stealth_shortblade", "stealth_marksman", "stealth_mercantile", "stealth_speechcraft", "stealth_handtohand"]
+const ATTR_ICONS := ["attribute_strength", "attribute_int", "attribute_wilpower", "attribute_agility",
+	"attribute_speed", "attribute_endurance", "attribute_personality", "attribute_luck"]
+const ATTR_EN := ["Strength", "Intelligence", "Willpower", "Agility", "Speed", "Endurance", "Personality", "Luck"]
+const ATTR_DESC := ["sStrDesc", "sIntDesc", "sWilDesc", "sAgiDesc", "sSpdDesc", "sEndDesc", "sPerDesc", "sLucDesc"]
+const ATTR_GMST := ["sAttributeStrength", "sAttributeIntelligence", "sAttributeWillpower", "sAttributeAgility",
+	"sAttributeSpeed", "sAttributeEndurance", "sAttributePersonality", "sAttributeLuck"]
+const SPEC_GMST := ["sSpecializationCombat", "sSpecializationMagic", "sSpecializationStealth"]
+
+## Opis rekordu z warstwą tłumaczeń (gdy aktywna).
+func _desc(rtype: String, id: String, fb: String) -> String:
+	var loc = main.get("loc") if main != null else null
+	if loc != null and loc.has_method("is_active") and loc.is_active():
+		return loc.plain(loc.key(rtype, id, "DESC"), fb)
+	return fb
+
+func _skill_rec(i: int) -> Dictionary:
+	var names: Array = main.character.skill_names() if main.get("character") != null else []
+	return main.character.records.record("skill", String(names[i])) if i >= 0 and i < names.size() else {}
+
+## createSkillToolTip / StatsWindow: SkillToolTip (z postępem: progress 0…100 albo -1 – bez paska, maxed – osiągnięto
+## maksimum) albo SkillNoProgressToolTip.
+func skill_tip(i: int, progress := -2, maxed := false) -> Dictionary:
+	var rec := _skill_rec(i)
+	var att := int(rec.get("attribute", 0))
+	var t := {"type": "layout", "layout": "skill" if progress > -2 else "skill_np", "name": _skill_name(i),
+		"attribute": "%s: %s" % [_t("sGoverningAttribute", "Governing Attribute"), _t(ATTR_GMST[clampi(att, 0, 7)], ATTR_EN[clampi(att, 0, 7)])],
+		"description": _desc("SKIL", String(rec.get("id", "")), String(rec.get("description", ""))),
+		"image": "k/%s.dds" % SKILL_ICONS[clampi(i, 0, 26)]}
+	if progress > -2:
+		t["maxed"] = maxed
+		t["progress"] = maxi(progress, 0)
+	return t
+
+func attribute_tip(i: int) -> Dictionary:
+	return {"type": "layout", "layout": "attribute", "name": _t(ATTR_GMST[i], ATTR_EN[i]), "description": _t(ATTR_DESC[i], ""),
+		"image": "k/%s.dds" % ATTR_ICONS[i]}
+
+## HealthToolTip (pasek zdrowia/magii/kondycji w statystykach): opis GMST + „bieżące / największe”.
+func health_tip(kind: String, cur: int, mx: int) -> Dictionary:
+	var d: String = {"health": _t("sHealthDesc", ""), "magic": _t("sMagDesc", ""), "fatigue": _t("sFatDesc", "")}.get(kind, "")
+	var img: String = {"health": "k/health.dds", "magic": "k/magicka.dds", "fatigue": "k/fatigue.dds"}.get(kind, "")
+	return {"type": "layout", "layout": "health", "description": "%s\n%d / %d" % [d, cur, mx], "image": img}
+
+func class_tip(cls: Dictionary) -> Dictionary:
+	if String(cls.get("name", "")).is_empty():
+		return {}
+	return {"type": "layout", "layout": "class", "name": String(cls.get("name", "")),
+		"description": _desc("CLAS", String(cls.get("id", "")), String(cls.get("description", ""))),
+		"footer": "%s: %s" % [_t("sSpecialization", "Specialization"), _t(SPEC_GMST[clampi(int(cls.get("specialization", 0)), 0, 2)], ["Combat", "Magic", "Stealth"][clampi(int(cls.get("specialization", 0)), 0, 2)])]}
+
+func race_tip(race: Dictionary) -> Dictionary:
+	return {"type": "layout", "layout": "race", "name": String(race.get("name", "")),
+		"description": _desc("RACE", String(race.get("id", "")), String(race.get("description", "")))}
+
+## createSpecializationToolTip: nazwa i umiejętności specjalizacji (w kolejności rekordów).
+func specialization_tip(spec: int) -> Dictionary:
+	var lines := []
+	for i in 27:
+		if int(_skill_rec(i).get("specialization", -1)) == spec:
+			lines.append(_skill_name(i))
+	return {"type": "layout", "layout": "specialization", "name": _t(SPEC_GMST[clampi(spec, 0, 2)], ["Combat", "Magic", "Stealth"][clampi(spec, 0, 2)]), "description": "\n".join(lines)}
+
+## createBirthsignToolTip: obraz znaku (MW_Box 263 × 137), nazwa, opis, zdolności / moce / czary.
+func birthsign_tip(sign: Dictionary) -> Dictionary:
+	var cats := {"abilities": [], "powers": [], "spells": []}
+	for spid in sign.get("spells", []):
+		var sp: Dictionary = main.magic.records.record("spell", String(spid).to_lower())
+		match int(sp.get("spell_type", -1)):
+			1: cats.abilities.append(String(sp.get("name", spid)))
+			5: cats.powers.append(String(sp.get("name", spid)))
+			0: cats.spells.append(String(sp.get("name", spid)))
+	var groups := []
+	for g in [["abilities", "sBirthsignmenu1", "Abilities"], ["powers", "sPowers", "Powers"], ["spells", "sBirthsignmenu2", "Spells"]]:
+		if not (cats[g[0]] as Array).is_empty():
+			groups.append([_t(g[1], g[2]), " ".join(cats[g[0]])])
+	return {"type": "layout", "layout": "birthsign", "name": String(sign.get("name", "")),
+		"description": _desc("BSGN", String(sign.get("id", "")), String(sign.get("description", ""))),
+		"texture": String(sign.get("texture", "")), "groups": groups}
+
+## createMagicEffectToolTip: wielka ikona, nazwa, szkoła, opis.
+func magic_effect_tip(id: int) -> Dictionary:
+	var mg: Dictionary = main.magic.effect(id)
+	var icon := String(mg.get("icon", ""))
+	return {"type": "layout", "layout": "magic_effect", "name": _t("sEffect" + String(mg.get("name", "")).replace(" ", ""), String(mg.get("name", ""))),
+		"school": "%s: %s" % [_t("sSchool", "School"), _skill_name(int(mg.get("school_skill", 11)))],
+		"description": _desc("MGEF", str(id), String(mg.get("description", ""))),
+		"image": preload("res://scripts/mw/mw_hud.gd").big_icon(icon) if not icon.is_empty() else ""}
+
+## LevelToolTip: sLevelProgress, pasek postępu do awansu, mnożniki atrybutów (> 1).
+func level_tip(progress: int, total: int, detail: String) -> Dictionary:
+	return {"type": "layout", "layout": "level", "progress": progress, "total": total, "description": detail}
+
+func text_tip(text: String) -> Dictionary:
+	return {"type": "layout", "layout": "text", "description": text}
+
+## FactionToolTip: wiersze [kolor, tekst] (fontcolourhtml=header/normal).
+func faction_tip(lines: Array) -> Dictionary:
+	return {"type": "layout", "layout": "faction", "lines": lines}
+
+## SpellIcons: ToolTipInfo ikony działającego efektu – nazwa, ikona 16 px, wiersze źródeł z wielkością.
+func effect_icon_info(id: int) -> Dictionary:
+	var mg: Dictionary = main.magic.effect(id)
+	if mg.is_empty():
+		return {}
+	var me: Dictionary = main.combat.player_fighter()
+	var lines := []
+	for sp in main.magic.active(me):
+		for x in sp.effects:
+			if int(x.effect) == id:
+				lines.append(String(sp.get("name", "")) + _arg_name(mg, x) + _magnitude_text(mg, float(x.get("magnitude", 0.0)), id))
+	# zdolności i stałe zaklęcia założonych przedmiotów (w OpenMW też aktywne czary)
+	for src in _constant_sources(me):
+		for x in src.effects:
+			if int(x.get("effect", -1)) == id:
+				lines.append(String(src.name) + _arg_name(mg, x) + _magnitude_text(mg, float(x.get("min", 0)), id))
+	return {"caption": _t("sEffect" + String(mg.get("name", "")).replace(" ", ""), String(mg.get("name", ""))),
+		"icon": String(mg.get("icon", "")), "image_size": 16, "text": "\n".join(lines), "word_wrap": false}
+
+func _constant_sources(me: Dictionary) -> Array:
+	var out := []
+	for spid in main.player_stats().get("spells", []):
+		var sp: Dictionary = main.magic.records.record("spell", String(spid))
+		if int(sp.get("spell_type", -1)) in [1, 2, 3, 4]:          # zdolność, plaga, choroba, plaga Corprus
+			out.append({"name": String(sp.get("name", spid)), "effects": sp.get("effects", [])})
+	var eq: Dictionary = main._equipment()
+	for sl in eq:
+		var it: Dictionary = main.interaction.inventory.item(String(eq[sl].id))
+		var en: Dictionary = main.magic.item_enchantment(it)
+		if not en.is_empty() and int(en.get("type", -1)) == main.magic.ENCH_CONSTANT:
+			out.append({"name": main.interaction.item_name(String(it.kind), String(eq[sl].id), it.rec), "effects": en.get("effects", [])})
+	return out
+
+func _arg_name(mg: Dictionary, x: Dictionary) -> String:
+	if bool(mg.get("target_skill", false)) and int(x.get("skill", -1)) >= 0:
+		return " (%s)" % _skill_name(int(x.skill))
+	if bool(mg.get("target_attribute", false)) and int(x.get("attribute", -1)) >= 0:
+		return " (%s)" % _t(ATTR_GMST[clampi(int(x.attribute), 0, 7)], ATTR_EN[clampi(int(x.attribute), 0, 7)])
+	return ""
+
+## printEffectMagnitude.
+func _magnitude_text(mg: Dictionary, m: float, id: int) -> String:
+	var disp: String = CU.magnitude_display(id, bool(mg.get("no_magnitude", false)))
+	if disp == "none":
+		return ""
+	var mi := int(m)
+	var r := ""
+	if disp == "times_int":
+		r = " %.1f" % (mi / 10.0)
+	else:
+		r = ": %d" % mi + ("" if disp == "percent" else " ")
+	var unit := ""
+	match disp:
+		"times_int": unit = _t("sXTimesINT", "x INT")
+		"percent": unit = _t("sPercent", "%")
+		"feet": unit = _t("sFeet", "ft")
+		"level": unit = _t("sLevels", "levels") if mi > 1 else _t("sLevel", "level")
+		_: unit = _t("sPoints", "pts") if mi > 1 else _t("sPoint", "pt")
+	return r + unit
+
+# budowanie układów (VBox/HBox z AutoResize, Padding, Spacing)
+
+func _lab(text: String, color := "normal", align := HORIZONTAL_ALIGNMENT_LEFT, wrap_w := 0.0) -> Label:
+	var l := Label.new()
+	l.text = text
+	l.horizontal_alignment = align
+	l.add_theme_color_override("font_color", UI.color(color))
+	l.add_theme_font_override("font", UI.font())
+	l.add_theme_font_size_override("font_size", _font_size())
+	l.add_theme_constant_override("line_spacing", 0)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if wrap_w > 0.0:
+		# AutoSizedEditBox z WordWrap (i Shrink): szerokość z tekstu, nie większa niż w układzie
+		var tw := _text_size(text, wrap_w * _s).x
+		var w := minf(tw, wrap_w * _s) + 2.0
+		l.custom_minimum_size.x = w
+		if tw >= wrap_w * _s - 1.0:
+			l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	return l
+
+func _img(path: String, size: Vector2, texture_path := false) -> TextureRect:
+	var tr := TextureRect.new()
+	tr.name = "Image"
+	tr.texture = (UI.texture(path) if texture_path else UI.icon(path)) if not path.is_empty() else null
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_SCALE
+	tr.custom_minimum_size = size * _s
+	tr.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return tr
+
+func _bar(value: int, mx: int, w: float, h: float) -> Control:
+	var bar := UI.progress_bar("health", _s)
+	bar.name = "Progress"
+	bar.max_value = maxi(1, mx)
+	bar.value = value
+	bar.custom_minimum_size = Vector2(w, h) * _s
+	bar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var t := _lab("%d/%d" % [value, mx], "normal", HORIZONTAL_ALIGNMENT_CENTER)
+	t.name = "ProgressText"
+	t.set_anchors_preset(Control.PRESET_FULL_RECT)
+	t.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	bar.add_child(t)
+	return bar
+
+func _vbox(sp: float) -> VBoxContainer:
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", roundi(sp * _s))
+	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return v
+
+func _hbox(sp: float) -> HBoxContainer:
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", roundi(sp * _s))
+	h.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return h
+
+func _gap(h: float) -> Control:
+	var c := Control.new()
+	c.custom_minimum_size.y = h * _s
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return c
+
+func _create_layout(info: Dictionary) -> Vector2:
+	var gui: bool = main != null and main.get("gui") != null and main.gui.is_gui_mode()
+	box.add_theme_stylebox_override("panel", UI.inner_box(Color(0, 0, 0, 1) if gui else UI.WINDOW_BG))
+	var pad := 8.0
+	var root: Container = null
+	var lay := String(info.layout)
+	match lay:
+		"text":
+			pad = 6.0
+			root = _vbox(0)
+			root.add_child(_lab(String(info.description), "normal", HORIZONTAL_ALIGNMENT_LEFT, 268))
+		"faction":
+			root = _vbox(0)
+			for ln in info.get("lines", []):
+				root.add_child(_lab(String(ln[1]), String(ln[0]), HORIZONTAL_ALIGNMENT_LEFT, 436))
+		"race", "class":
+			root = _vbox(8)
+			root.add_child(_lab(String(info.name), "normal", HORIZONTAL_ALIGNMENT_CENTER))
+			root.add_child(_lab(String(info.description), "normal", HORIZONTAL_ALIGNMENT_LEFT, 430))
+			if lay == "class":
+				root.add_child(_lab(String(info.get("footer", "")), "normal", HORIZONTAL_ALIGNMENT_CENTER))
+		"specialization":
+			root = _vbox(0)
+			var c := _lab(String(info.name), "normal", HORIZONTAL_ALIGNMENT_CENTER)
+			c.custom_minimum_size.x = 140 * _s
+			root.add_child(c)
+			root.add_child(_lab(String(info.description), "normal", HORIZONTAL_ALIGNMENT_LEFT, 140))
+		"health":
+			pad = 14.0
+			root = _hbox(8)
+			root.add_child(_img(String(info.image), Vector2(32, 32)))
+			root.add_child(_lab(String(info.description), "normal", HORIZONTAL_ALIGNMENT_LEFT, 392))
+		"attribute":
+			root = _vbox(8)
+			var h := _hbox(8)
+			h.add_child(_img(String(info.image), Vector2(32, 32)))
+			var n := _lab(String(info.name))
+			n.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			h.add_child(n)
+			root.add_child(h)
+			root.add_child(_lab(String(info.description), "normal", HORIZONTAL_ALIGNMENT_LEFT, 436))
+		"skill", "skill_np", "magic_effect":
+			root = _vbox(0)
+			var h2 := _hbox(8)
+			h2.add_child(_img(String(info.image), Vector2(32, 32)))
+			var v2 := _vbox(0)
+			v2.add_child(_lab(String(info.name)))
+			v2.add_child(_lab(String(info.get("attribute", info.get("school", "")))))
+			h2.add_child(v2)
+			root.add_child(h2)
+			if lay != "magic_effect":
+				root.add_child(_gap(2))
+			root.add_child(_lab(String(info.description), "normal", HORIZONTAL_ALIGNMENT_LEFT, 436 if lay == "magic_effect" else 430))
+			if lay == "skill":
+				root.add_child(_gap(2))
+				if bool(info.get("maxed", false)):
+					root.add_child(_lab(_t("sSkillMaxReached", "Maximum skill reached"), "normal", HORIZONTAL_ALIGNMENT_CENTER))
+				else:
+					root.add_child(_lab(_t("sSkillProgress", "Progress to next level"), "normal", HORIZONTAL_ALIGNMENT_CENTER))
+					root.add_child(_bar(int(info.get("progress", 0)), 100, 200, 20))
+		"level":
+			root = _vbox(0)
+			var c2 := _lab(_t("sLevelProgress", "Level progress"), "normal", HORIZONTAL_ALIGNMENT_CENTER)
+			c2.custom_minimum_size.x = 284 * _s
+			root.add_child(c2)
+			root.add_child(_bar(int(info.get("progress", 0)), int(info.get("total", 10)), 180, 20))
+			if not String(info.get("description", "")).is_empty():
+				root.add_child(_lab(String(info.description), "normal", HORIZONTAL_ALIGNMENT_CENTER))
+		"birthsign":
+			pad = 10.0
+			root = _vbox(0)
+			var frame := PanelContainer.new()
+			frame.add_theme_stylebox_override("panel", UI.inner_box())
+			frame.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+			frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var bi := _img(String(info.get("texture", "")), Vector2(259, 133), true)
+			bi.name = "BirthSignImage"
+			frame.add_child(bi)
+			root.add_child(frame)
+			root.add_child(_lab(String(info.name), "normal", HORIZONTAL_ALIGNMENT_CENTER))
+			root.add_child(_lab(String(info.description), "normal", HORIZONTAL_ALIGNMENT_LEFT, 400))
+			for g in info.get("groups", []):
+				root.add_child(_lab("%s\n%s" % [g[0], g[1]], "normal", HORIZONTAL_ALIGNMENT_CENTER))
+		_:
+			return Vector2.ZERO
+	root.name = "Layout_" + lay
+	var m := MarginContainer.new()
+	m.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for side in ["margin_left", "margin_top", "margin_right", "margin_bottom"]:
+		m.add_theme_constant_override(side, roundi(pad * _s))
+	m.add_child(root)
+	box.add_child(m)
+	var sz := m.get_combined_minimum_size()
+	m.size = sz
+	box.size = sz
+	last_info = info
+	last_size = sz
+	return sz
