@@ -40,6 +40,8 @@ var events = Events.new()           # szyna zdarzeń (etap 0)
 var native_mods = null               # mw_native_mods.gd – natywne mody (eksperyment first-fish)
 var interaction = null                # MWInteraction (etap 3)
 var item_window = null                # okno pojemnika / ekwipunku
+var console = null                    # mw_console.gd – konsola (MWScript, polecenia tylko konsoli)
+var god_mode := false                 # TGM: bez obrażeń i kosztów (zdrowie, kondycja, magia gracza)
 var tooltips = null                   # mw_tooltips.gd – ToolTips (podpowiedzi w układzie OpenMW)
 var jail_screen = null                # mw_jail_screen.gd – JailScreen (GM_Jail)
 var quick_keys = null                 # mw_quick_keys.gd – QuickKeysMenu (F1, klawisze 1–0)
@@ -261,6 +263,10 @@ func _ready() -> void:
 	music.setup(data)
 	music.enabled = audio.enabled and bool(settings.get("music", true))
 	add_child(music)
+	console = preload("res://scripts/mw/mw_console.gd").new()
+	console.name = "Console"
+	console.main = self
+	add_child(console)
 	tooltips = preload("res://scripts/mw/mw_tooltips.gd").new()
 	tooltips.name = "ToolTips"
 	tooltips.main = self
@@ -577,7 +583,7 @@ func _on_player_landed(height: float) -> void:
 		return
 	var dd: Dictionary = character.derived(st)
 	var lost0: float = character.fall_damage(st, dd, height)
-	var lost: float = character.apply_fall(st, height)
+	var lost: float = 0.0 if god_mode else character.apply_fall(st, height)     # TGM: bez obrażeń od upadku
 	if lost0 > 0.0 and lost0 <= float(dd.skills[character.SK_ACROBATICS]) * character.fatigue_term(st, dd):
 		skill_used(character.SK_ACROBATICS, "acrobatics_fall")      # bez powalenia – postęp akrobatyki
 	if lost > 0.0:
@@ -637,7 +643,8 @@ func _on_player_jumped() -> void:
 	var st := player_stats()
 	if st.is_empty():
 		return
-	st["fatigue"] = float(st.get("fatigue", 0.0)) - character.jump_fatigue(st, player_weight())
+	if not god_mode:                     # TGM: skok bez kosztu kondycji
+		st["fatigue"] = float(st.get("fatigue", 0.0)) - character.jump_fatigue(st, player_weight())
 	skill_used(character.SK_ACROBATICS, "acrobatics_jump")
 
 ## Co klatkę: prędkości i skok wg statystyk (OpenMW getWalkSpeed/getRunSpeed/getJump), utrata kondycji za
@@ -666,7 +673,7 @@ func _update_player_rpg(dt: float) -> void:
 	if moving:
 		var fat := float(st.get("fatigue", 0.0))
 		var loss: float = character.movement_fatigue(st, w, dt, player.want_run, player.swimming)
-		if loss > 0.0:
+		if loss > 0.0 and not god_mode:
 			st["fatigue"] = fat - loss if fat < 0.0 else maxf(0.0, fat - loss)
 		if player.swimming:
 			_swim_secs += dt
@@ -1644,6 +1651,48 @@ func find_interior_position(name: String) -> Variant:
 			var o3: Array = r.godot.origin
 			return Transform3D(Basis(), Vector3(o3[0], o3[1], o3[2]))
 	return null
+
+## OpCOC (CenterOnCell): findInteriorPosition, a gdy nie ma takiego wnętrza – findExteriorPosition (komórka
+## zewnętrzna o tej nazwie, środek nad terenem). → false, gdy komórki nie ma.
+func center_on_cell(name: String) -> bool:
+	var ip = find_interior_position(name)
+	if ip != null:
+		var nm := String(db.find_cell("int:" + name.to_lower()).get("name", name))
+		travel({"cell_key": "int:" + name.to_lower(), "cell_name": nm, "transform": ip})
+		return true
+	for c in db.cell_index():
+		if not c.get("interior", false) and String(c.get("name", "")).to_lower() == name.to_lower():
+			var g: Array = c["grid"]
+			center_on_exterior(int(g[0]), int(g[1]))
+			return true
+	return false
+
+## OpCOE (CenterOnExterior): środek komórki zewnętrznej x, y, nad terenem.
+func center_on_exterior(x: int, y: int) -> void:
+	var pos := MWCoords.mw_to_godot(Vector3((x + 0.5) * MWCoords.CELL_SIZE, (y + 0.5) * MWCoords.CELL_SIZE, 0))
+	var cell := db.get_cell(db.exterior_key(Vector2i(x, y)))
+	if cell.get("terrain") != null:
+		var t := db.get_terrain(cell["terrain"])
+		var o: Array = t["origin_godot"]
+		pos.y = MWTerrain.height_at(t, pos - Vector3(o[0], o[1], o[2]))
+	pos.y += 2.0
+	travel({"cell_key": "", "cell_name": "", "transform": Transform3D(Basis(), pos)})
+
+## OpTCL (ToggleCollision): bez kolizji gracz porusza się swobodnie (lot przez ściany). → kolizja włączona
+func toggle_collision() -> bool:
+	if player == null:
+		return true
+	player.fly = not player.fly
+	return not player.fly
+
+## OpFillMap: wszystkie nazwane komórki zewnętrzne znane na mapie świata.
+func fill_map() -> void:
+	var visited: Dictionary = state.player.get("map_visited", {})
+	for c in db.cell_index():
+		if not c.get("interior", false) and not String(c.get("name", "")).is_empty():
+			var g: Array = c["grid"]
+			visited["%d,%d" % [int(g[0]), int(g[1])]] = true
+	state.player["map_visited"] = visited
 
 func _named_start(name: String) -> Variant:
 	var lname := name.to_lower()

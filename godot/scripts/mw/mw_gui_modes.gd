@@ -31,8 +31,12 @@ func contains(mode: String) -> bool:
 			return true
 	return false
 
+## isGuiMode: tryb na stosie albo otwarta konsola (isConsoleMode).
 func is_gui_mode() -> bool:
-	return not stack.is_empty()
+	return not stack.is_empty() or is_console_mode()
+
+func is_console_mode() -> bool:
+	return main != null and main.get("console") != null and main.console != null and main.console.is_open()
 
 static func is_suspended(n: Node) -> bool:
 	return n != null and bool(n.get_meta("gui_suspended", false))
@@ -143,7 +147,7 @@ func update_visible() -> void:
 	var other_ui: bool = (main.get("main_menu") != null and main.main_menu != null and main.main_menu.is_open()) \
 		or (main.get("msgbox") != null and main.msgbox != null and is_instance_valid(main.msgbox)) \
 		or (main.get("chargen") != null and main.chargen != null and main.chargen.visible)
-	if not stack.is_empty():
+	if not stack.is_empty() or is_console_mode():
 		main.get_tree().paused = true
 		if DisplayServer.get_name() != "headless":
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE

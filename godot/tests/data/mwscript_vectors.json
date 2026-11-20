@@ -1,0 +1,639 @@
+{
+ "sources": {
+  "basic": "begin t\nshort a\nfloat b ; komentarz\nset a to 1 + 2 * 3\nset b to ( a - 1 ) / 2\nif ( a == 7 )\n  set a to -a\nelseif a >= 3\n  return\nelse\n  set b to 0\nendif\nend t\n",
+  "calls": "begin c\nshort s\nif ( OnActivate == 1 )\n  \"foo_npc\"->AddItem \"gold_001\" 25\n  player->ModCurrentHealth -10\n  MessageBox \"Got %g gold\" s\n  set s to player->GetItemCount \"gold_001\"\n  Journal \"q_x\" 20\nendif\nset s to GetDistance player\nset \"foo\".state to 5\nset foo.state to s * 2\nwhile ( s > 0 )\n  set s to s - 1\nendwhile\nend\n",
+  "console1": "player->additem gold_001 100",
+  "console2": "coc \"Seyda Neen\"",
+  "console3": "set foo to GetPos x",
+  "console4": "player->setpos, x, 100",
+  "console5": "tgm",
+  "console6": "getpcrank \"Fighters Guild\"",
+  "console7": "if ( GetJournalIndex \"A1_1\" >= 10 ) \n startscript foo\nendif",
+  "console8": "player->setstrength 50\nplayer->getstrength",
+  "console9": "AddSpell \"fire bite\"\nCast \"fire bite\" player",
+  "console10": "\"sid\"->(GetHealth) + 1",
+  "errors": "set\nset a\nendwhile\nfoo->\n"
+ },
+ "compiled": {
+  "basic": {
+   "name": "t",
+   "locals": {
+    "a": "short",
+    "b": "float"
+   },
+   "body": [
+    [
+     "set",
+     [
+      "id",
+      "a"
+     ],
+     [
+      "bin",
+      "+",
+      [
+       "num",
+       1.0
+      ],
+      [
+       "bin",
+       "*",
+       [
+        "num",
+        2.0
+       ],
+       [
+        "num",
+        3.0
+       ]
+      ]
+     ]
+    ],
+    [
+     "set",
+     [
+      "id",
+      "b"
+     ],
+     [
+      "bin",
+      "/",
+      [
+       "bin",
+       "-",
+       [
+        "id",
+        "a"
+       ],
+       [
+        "num",
+        1.0
+       ]
+      ],
+      [
+       "num",
+       2.0
+      ]
+     ]
+    ],
+    [
+     "if",
+     [
+      [
+       [
+        "bin",
+        "==",
+        [
+         "id",
+         "a"
+        ],
+        [
+         "num",
+         7.0
+        ]
+       ],
+       [
+        [
+         "set",
+         [
+          "id",
+          "a"
+         ],
+         [
+          "neg",
+          [
+           "id",
+           "a"
+          ]
+         ]
+        ]
+       ]
+      ],
+      [
+       [
+        "bin",
+        ">=",
+        [
+         "id",
+         "a"
+        ],
+        [
+         "num",
+         3.0
+        ]
+       ],
+       [
+        [
+         "return"
+        ]
+       ]
+      ]
+     ],
+     [
+      [
+       "set",
+       [
+        "id",
+        "b"
+       ],
+       [
+        "num",
+        0.0
+       ]
+      ]
+     ]
+    ]
+   ],
+   "errors": [],
+   "warnings": [],
+   "functions": []
+  },
+  "calls": {
+   "name": "c",
+   "locals": {
+    "s": "short"
+   },
+   "body": [
+    [
+     "if",
+     [
+      [
+       [
+        "bin",
+        "==",
+        [
+         "call",
+         null,
+         "onactivate",
+         []
+        ],
+        [
+         "num",
+         1.0
+        ]
+       ],
+       [
+        [
+         "call",
+         "foo_npc",
+         "additem",
+         [
+          [
+           "str",
+           "gold_001"
+          ],
+          [
+           "num",
+           25.0
+          ]
+         ]
+        ],
+        [
+         "call",
+         "player",
+         "modcurrenthealth",
+         [
+          [
+           "num",
+           -10.0
+          ]
+         ]
+        ],
+        [
+         "call",
+         null,
+         "messagebox",
+         [
+          [
+           "str",
+           "Got %g gold"
+          ],
+          [
+           "id",
+           "s"
+          ]
+         ]
+        ],
+        [
+         "set",
+         [
+          "id",
+          "s"
+         ],
+         [
+          "call",
+          "player",
+          "getitemcount",
+          [
+           [
+            "str",
+            "gold_001"
+           ]
+          ]
+         ]
+        ],
+        [
+         "call",
+         null,
+         "journal",
+         [
+          [
+           "str",
+           "q_x"
+          ],
+          [
+           "num",
+           20.0
+          ]
+         ]
+        ]
+       ]
+      ]
+     ],
+     []
+    ],
+    [
+     "set",
+     [
+      "id",
+      "s"
+     ],
+     [
+      "call",
+      null,
+      "getdistance",
+      [
+       [
+        "str",
+        "player"
+       ]
+      ]
+     ]
+    ],
+    [
+     "set",
+     [
+      "member",
+      "foo",
+      "state"
+     ],
+     [
+      "num",
+      5.0
+     ]
+    ],
+    [
+     "set",
+     [
+      "member",
+      "foo",
+      "state"
+     ],
+     [
+      "bin",
+      "*",
+      [
+       "id",
+       "s"
+      ],
+      [
+       "num",
+       2.0
+      ]
+     ]
+    ],
+    [
+     "while",
+     [
+      "bin",
+      ">",
+      [
+       "id",
+       "s"
+      ],
+      [
+       "num",
+       0.0
+      ]
+     ],
+     [
+      [
+       "set",
+       [
+        "id",
+        "s"
+       ],
+       [
+        "bin",
+        "-",
+        [
+         "id",
+         "s"
+        ],
+        [
+         "num",
+         1.0
+        ]
+       ]
+      ]
+     ]
+    ]
+   ],
+   "errors": [],
+   "warnings": [],
+   "functions": [
+    "additem",
+    "getdistance",
+    "getitemcount",
+    "journal",
+    "messagebox",
+    "modcurrenthealth",
+    "onactivate"
+   ]
+  },
+  "console1": {
+   "name": "console1",
+   "locals": {},
+   "body": [
+    [
+     "call",
+     "player",
+     "additem",
+     [
+      [
+       "str",
+       "gold_001"
+      ],
+      [
+       "num",
+       100.0
+      ]
+     ]
+    ]
+   ],
+   "errors": [],
+   "warnings": [],
+   "functions": [
+    "additem"
+   ]
+  },
+  "console2": {
+   "name": "console2",
+   "locals": {},
+   "body": [
+    [
+     "call",
+     null,
+     "coc",
+     [
+      [
+       "str",
+       "Seyda Neen"
+      ]
+     ]
+    ]
+   ],
+   "errors": [],
+   "warnings": [],
+   "functions": [
+    "coc"
+   ]
+  },
+  "console3": {
+   "name": "console3",
+   "locals": {},
+   "body": [
+    [
+     "set",
+     [
+      "id",
+      "foo"
+     ],
+     [
+      "call",
+      null,
+      "getpos",
+      [
+       [
+        "str",
+        "x"
+       ]
+      ]
+     ]
+    ]
+   ],
+   "errors": [],
+   "warnings": [],
+   "functions": [
+    "getpos"
+   ]
+  },
+  "console4": {
+   "name": "console4",
+   "locals": {},
+   "body": [
+    [
+     "call",
+     "player",
+     "setpos",
+     [
+      [
+       "str",
+       "x"
+      ],
+      [
+       "num",
+       100.0
+      ]
+     ]
+    ]
+   ],
+   "errors": [],
+   "warnings": [],
+   "functions": [
+    "setpos"
+   ]
+  },
+  "console5": {
+   "name": "console5",
+   "locals": {},
+   "body": [
+    [
+     "call",
+     null,
+     "tgm",
+     []
+    ]
+   ],
+   "errors": [],
+   "warnings": [],
+   "functions": [
+    "tgm"
+   ]
+  },
+  "console6": {
+   "name": "console6",
+   "locals": {},
+   "body": [
+    [
+     "call",
+     null,
+     "getpcrank",
+     [
+      [
+       "str",
+       "Fighters Guild"
+      ]
+     ]
+    ]
+   ],
+   "errors": [],
+   "warnings": [],
+   "functions": [
+    "getpcrank"
+   ]
+  },
+  "console7": {
+   "name": "console7",
+   "locals": {},
+   "body": [
+    [
+     "if",
+     [
+      [
+       [
+        "bin",
+        ">=",
+        [
+         "call",
+         null,
+         "getjournalindex",
+         [
+          [
+           "str",
+           "a1_1"
+          ]
+         ]
+        ],
+        [
+         "num",
+         10.0
+        ]
+       ],
+       [
+        [
+         "call",
+         null,
+         "startscript",
+         [
+          [
+           "str",
+           "foo"
+          ]
+         ]
+        ]
+       ]
+      ]
+     ],
+     []
+    ]
+   ],
+   "errors": [],
+   "warnings": [],
+   "functions": [
+    "getjournalindex",
+    "startscript"
+   ]
+  },
+  "console8": {
+   "name": "console8",
+   "locals": {},
+   "body": [
+    [
+     "call",
+     "player",
+     "setstrength",
+     [
+      [
+       "num",
+       50.0
+      ]
+     ]
+    ],
+    [
+     "call",
+     "player",
+     "getstrength",
+     []
+    ]
+   ],
+   "errors": [],
+   "warnings": [],
+   "functions": [
+    "getstrength",
+    "setstrength"
+   ]
+  },
+  "console9": {
+   "name": "console9",
+   "locals": {},
+   "body": [
+    [
+     "call",
+     null,
+     "addspell",
+     [
+      [
+       "str",
+       "fire bite"
+      ]
+     ]
+    ],
+    [
+     "call",
+     null,
+     "cast",
+     [
+      [
+       "str",
+       "fire bite"
+      ],
+      [
+       "str",
+       "player"
+      ]
+     ]
+    ]
+   ],
+   "errors": [],
+   "warnings": [],
+   "functions": [
+    "addspell",
+    "cast"
+   ]
+  },
+  "console10": {
+   "name": "console10",
+   "locals": {},
+   "body": [],
+   "errors": [
+    "console10:1: brak funkcji po -> | \"sid\"->(GetHealth) + 1"
+   ],
+   "warnings": [],
+   "functions": []
+  },
+  "errors": {
+   "name": "errors",
+   "locals": {},
+   "body": [],
+   "errors": [
+    "errors:1: set: brak celu | set",
+    "errors:2: set: brak „to” | set a",
+    "errors:3: endwhile bez while | endwhile",
+    "errors:4: brak funkcji po -> | foo->"
+   ],
+   "warnings": [],
+   "functions": []
+  }
+ }
+}

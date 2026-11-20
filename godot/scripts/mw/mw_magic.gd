@@ -716,6 +716,8 @@ func magicka(f: Dictionary) -> float:
 	return float(_combat()._actor_state(f).get("magicka", max_magicka(f)))
 
 func set_magicka(f: Dictionary, v: float) -> void:
+	if f.kind == "player" and bool(main.get("god_mode")) and v < float(holder(f).get("magicka", 0.0)):
+		return                                           # TGM: bez kosztu magii
 	holder(f)["magicka"] = v
 
 ## adjustDynamicStat: 0 zdrowie, 1 magia, 2 kondycja. allow_below – osłabienie (poniżej zera); allow_above –

@@ -161,6 +161,8 @@ func health(f: Dictionary) -> float:
 func set_health(f: Dictionary, v: float) -> void:
 	var cap := maxf(max_health(f), health(f))
 	if f.kind == "player":
+		if bool(main.get("god_mode")) and v < health(f):
+			return                                       # TGM: gracz nie traci zdrowia
 		main.player_stats()["health"] = minf(v, cap)
 	else:
 		_actor_state(f)["health"] = minf(v, cap)
@@ -172,6 +174,8 @@ func fatigue(f: Dictionary) -> float:
 
 func set_fatigue(f: Dictionary, v: float) -> void:
 	if f.kind == "player":
+		if bool(main.get("god_mode")) and v < fatigue(f):
+			return                                       # TGM: bez kosztu kondycji
 		main.player_stats()["fatigue"] = v
 	else:
 		_actor_state(f)["fatigue"] = v

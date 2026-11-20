@@ -19,6 +19,7 @@ const DEFAULTS := {
 	"sneak": KEY_CTRL,                     # skradanie (przytrzymaj)
 	"menu_mode": -MOUSE_BUTTON_RIGHT,      # tryb menu: statystyki, ekwipunek, magia, mapa (OpenMW A_Inventory)
 	"toggle_hud": KEY_F11,                 # pokaż/ukryj HUD (OpenMW A_ToggleHUD)
+	"console": KEY_QUOTELEFT,              # konsola (OpenMW A_Console, klawisz „`”)
 	"quick_keys_menu": KEY_F1,             # menu szybkich klawiszy (OpenMW A_QuickKeysMenu)
 	"quick_key_1": KEY_1,                  # szybkie klawisze 1–9 i 0 (A_QuickKey1…10)
 	"quick_key_2": KEY_2,

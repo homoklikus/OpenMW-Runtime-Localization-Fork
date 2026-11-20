@@ -15,6 +15,9 @@ func _unhandled_input(e: InputEvent) -> void:
 			return
 	if e.is_action_pressed("menu") and main:
 		get_viewport().set_input_as_handled()
+		if main.get("console") != null and main.console != null and main.console.is_open():
+			main.console.close()                         # WindowManager::toggleMainMenu: najpierw konsola
+			return
 		if main.get("main_menu") != null and main.main_menu != null and main.main_menu.is_open():
 			main.toggle_pause_menu()
 			return
