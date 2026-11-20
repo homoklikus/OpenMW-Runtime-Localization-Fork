@@ -31,6 +31,7 @@ funkcji. Commity lokalne, bez push.
 | Po wczytaniu zapisu z menu głównego gracz obraca kamerą, ale się nie rusza (zgłoszenie) | `_enter_nogame` wyłączało `_physics_process` gracza, wczytanie przywracało tylko `process_mode` (w trakcie gry problem nie występował) | `load_game`/`new_game` włączają fizykę gracza; odtworzone i sprawdzone na kopii zapisu użytkownika (0,00 m → ruch) | test_load_controls |
 | Kwestie NPC na początku gry ginęły (zgłoszenie) | MenuMode skryptów nie uwzględniało filmu ani stosu trybów GUI – skrypty na statku (Say Jiuba, okno imienia) działały pod filmem wprowadzającym nowej gry | MenuMode = WindowManager::isGuiMode (tryb GUI na stosie, GM_Video, menu główne) | test_load_controls |
 | Podpowiedź broni: obrażenia „0 – 0” | odczyt nieistniejących pól `chop_min`/… zamiast `chop: [min, max]` | podpowiedzi OpenMW (cz. 9) | test_tooltips |
+| test_crime: sprawdzenie „przeniesienie czeka, póki gra stoi” raz nie przeszło w pełnym zestawie | wyścig w teście: wynik zależał od tego, czy strażnik zdążył zagadać (pauza) przed sprawdzeniem; zachowanie gry zgodne z World::update | test ustawia pauzę jawnie i sprawdza, że przeniesienie czeka | test_crime (3 powtórzenia) |
 | Polskie komunikaty przy zamkniętych drzwiach/pojemniku, podniesieniu przedmiotu i pułapce | własne komunikaty spoza OpenMW | jak OpenMW: FailedAction bez tekstu (tylko dźwięk), ActionTake bez tekstu, pułapka działa czarem | test_interaction |
 
 ## 3. Stworzenia wodne
@@ -297,9 +298,22 @@ Na prawdziwych danych (VM): otwarcie, pauza, MenuMode, GetHealth, coc do wnętrz
 i GetDisposition, sv, coe −2 −9, fillmap, tgm – bez błędów. Test: test_console (74).
 Brak: porównanie zrzutem z OpenMW, przełączniki grafiki (tcb, twf, tsky…).
 
-### 7.7 Pozostałe punkty etapu (do wykonania)
+### 7.7 Notatki na mapie (cz. 13)
+CustomMarkerCollection i EditNoteDialog jak OpenMW 0.51: dwuklik na mapie lokalnej (onMapDoubleClicked) – nowa
+notatka w klikniętym miejscu (komórka zewnętrzna punktu albo wnętrze, położenie w jednostkach MW); okno modalne
+openmw_edit_note.layout (336 × 242 na środku, #{sEditNote}, pole wielowierszowe 303 × 150 z fokusem, przyciski
+#{sDelete} – tylko przy edycji, OK, Cancel; Esc = Cancel). Dwuklik na znaczniku – edycja (updateMarker), usuwanie
+z potwierdzeniem #{sDeleteNote}. Znacznik CustomMarkerButton (icons\map_marker_red.dds 16 × 16, nad mgłą, kolor
+0,6 / 1,0 pod kursorem, podpowiedź TextToolTipOneLine) na mapie lokalnej i minimapie HUD (komórki siatki 3 × 3,
+wnętrze – komórka). Podpowiedzi znaczników drzwi i miejsc mapy świata pokazują notatki komórki docelowej
+(ToolTipInfo::notes: ikona 8 × 8 w kolorze (1; 0,3; 0,3), pierwszy wiersz do 60 znaków + „ ...”). Znaczniki drzwi
+z textures\door_icon.dds 8 × 8 w kolorze normal / normal_over (wcześniej czerwony kwadrat 6 px). Zapis w stanie gracza
+(odpowiednik REC_MARK). Pole tekstowe TextInputDialog (imię w kreatorze) było już zgodne (cz. kreatora).
+Test: test_map_notes (44).
 
-§9 notatki mapy i pole tekstowe, §10 ustawienia, autozapis, ekrany ładowania, Enter/Tab/strzałki,
+### 7.8 Pozostałe punkty etapu (do wykonania)
+
+§10 ustawienia, autozapis, ekrany ładowania, Enter/Tab/strzałki,
 pad, §11 porównania 720p/1440p/2160p i nowych okien, §12 dodatki i mody.
 
 ## 8. Commity (lokalne, bez push)
@@ -317,10 +331,11 @@ pad, §11 porównania 720p/1440p/2160p i nowych okien, §12 dodatki i mody.
 * Etap 10 cz. 10: podpowiedzi układów (Layout) i ikon efektów
 * Etap 10 cz. 11: więzienie i towarzysz
 * Etap 10 cz. 12: konsola (MWScript)
+* Etap 10 cz. 13: notatki na mapie (EditNoteDialog, CustomMarker)
 
-Pełny zestaw tools/run_tests.sh: 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
+Pełny zestaw tools/run_tests.sh: 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 
 ## 9. Zalecana kolejność dalszych prac
 
-1. Notatki mapy i pole tekstowe, 2. ustawienia/autozapis/klawiatura/pad,
-3. porównania zrzutami wszystkich nowych okien z OpenMW (720p/1440p/2160p), 4. dodatki i mody.
+1. Ustawienia/autozapis/klawiatura/pad, 2. porównania zrzutami wszystkich nowych okien z OpenMW
+(720p/1440p/2160p), 3. dodatki i mody.

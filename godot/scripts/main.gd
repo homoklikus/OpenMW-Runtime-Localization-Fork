@@ -40,6 +40,8 @@ var events = Events.new()           # szyna zdarzeń (etap 0)
 var native_mods = null               # mw_native_mods.gd – natywne mody (eksperyment first-fish)
 var interaction = null                # MWInteraction (etap 3)
 var item_window = null                # okno pojemnika / ekwipunku
+var custom_markers = preload("res://scripts/mw/mw_custom_markers.gd").new(self)   # notatki na mapie (CustomMarkerCollection)
+var edit_note = null                  # mw_edit_note.gd – EditNoteDialog
 var console = null                    # mw_console.gd – konsola (MWScript, polecenia tylko konsoli)
 var god_mode := false                 # TGM: bez obrażeń i kosztów (zdrowie, kondycja, magia gracza)
 var tooltips = null                   # mw_tooltips.gd – ToolTips (podpowiedzi w układzie OpenMW)
@@ -2657,6 +2659,7 @@ func save_game(path: String, profile := {}) -> String:
 
 ## Zwraca listę ostrzeżeń (pusta = zgodny); błąd jako jedyny element "BŁĄD: …". Oryginalny plik zostaje.
 func load_game(path: String) -> Array:
+	custom_markers.version += 1           # WindowManager::clear/readRecord – znaczniki z zapisu
 	var raw := GameStateScript.read_file(path)
 	if raw.has("error"):
 		return ["BŁĄD: " + String(raw["error"])]
@@ -2865,6 +2868,14 @@ var save_dialog = null                # mw_save_dialog.gd – SaveGameDialog
 var confirm = null                    # mw_confirm_dialog.gd – ConfirmationDialog
 var count_dialog = null               # mw_count_dialog.gd – CountDialog (WindowManager::getCountDialog)
 
+func get_edit_note_dialog():
+	if edit_note == null or not is_instance_valid(edit_note):
+		edit_note = preload("res://scripts/mw/mw_edit_note.gd").new()
+		edit_note.name = "EditNoteDialog"
+		edit_note.main = self
+		add_child(edit_note)
+	return edit_note
+
 func get_count_dialog():
 	if count_dialog == null or not is_instance_valid(count_dialog):
 		count_dialog = preload("res://scripts/mw/mw_count_dialog.gd").new()
@@ -3065,6 +3076,7 @@ func cleanup() -> void:
 ## StateManager::newGame: cleanup, skrypty startowe, World::startNewGame (komórka startowa, film
 ## Movies_New_Game – mw_intro.bik), stan „running”, fadeScreenOut(0) i fadeScreenIn(1).
 func new_game() -> void:
+	custom_markers.version += 1
 	var from_menu := game_state == "nogame"
 	cleanup()
 	if loading != null:

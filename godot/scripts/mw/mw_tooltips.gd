@@ -329,6 +329,38 @@ func create_tooltip(info: Dictionary) -> Vector2:
 	var total := Vector2(minf(maxf(tsize.x, cap_with_img.x + (hpad if not image.is_empty() else 0.0)), max_w),
 		(tsize.y + vpad if not text.is_empty() else 0.0) + cap_h)
 	var lines_nodes := []
+	# notatki znacznika mapy (ToolTipInfo::notes): ikona MarkerButton 8 × 8 w kolorze (1; 0,3; 0,3) i pierwszy wiersz
+	# notatki skrócony do 60 znaków („ ...”)
+	var note_i := 0
+	for note in info.get("notes", []):
+		var ns := String(note)
+		var cut := ns.substr(0, mini(60, ns.find("\n") if ns.find("\n") >= 0 else ns.length()))
+		if cut.length() < ns.length():
+			cut += " ..."
+		var nsz := Vector2(ceilf(f.get_string_size(cut, HORIZONTAL_ALIGNMENT_LEFT, -1, _font_size()).x), roundf(18 * _s))
+		var nl := _label(box, cut, Vector2(pad + 12.0 * _s, total.y + pad), nsz + Vector2(2, 0), false, "ToolTipNote%d" % note_i)
+		nl.autowrap_mode = TextServer.AUTOWRAP_OFF
+		var ic: Control
+		var dtex: Texture2D = UI.texture("textures/door_icon")
+		if dtex != null:
+			var itr := TextureRect.new()
+			itr.texture = dtex
+			itr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			itr.stretch_mode = TextureRect.STRETCH_SCALE
+			ic = itr
+		else:
+			var icr := ColorRect.new()
+			icr.color = Color.WHITE
+			ic = icr
+		ic.name = "ToolTipNoteIcon%d" % note_i
+		note_i += 1
+		ic.modulate = Color(1.0, 0.3, 0.3)
+		ic.size = Vector2(8, 8) * _s
+		ic.position = Vector2(pad, total.y + pad + floorf((nsz.y - 8.0 * _s) / 2.0))
+		ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(ic)
+		total.y += maxf(nsz.y, 8.0 * _s)
+		total.x = maxf(total.x, nsz.x + 12.0 * _s)
 	# efekty (MWEffectList::createEffectWidgets)
 	var effs: Array = info.get("effects", [])
 	if not effs.is_empty():
@@ -735,6 +767,9 @@ func _create_layout(info: Dictionary) -> Vector2:
 			pad = 6.0
 			root = _vbox(0)
 			root.add_child(_lab(String(info.description), "normal", HORIZONTAL_ALIGNMENT_LEFT, 268))
+		"text_one_line":                                # TextToolTipOneLine: AutoSizedTextBox bez zawijania
+			root = _vbox(0)
+			root.add_child(_lab(String(info.description)))
 		"faction":
 			root = _vbox(0)
 			for ln in info.get("lines", []):

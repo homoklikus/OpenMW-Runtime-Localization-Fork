@@ -137,6 +137,7 @@ klasa, statystyki po 9 powrotach = buildPlayer od zera) i `probe_newgame.gd` (15
 | Zaklinanie, kupno zaklęć, trening, podróż w układzie OpenMW | Zweryfikowane | etapy 8–9: porównania zrzutami | – |
 | Więzienie (okno odsiadki, utrata umiejętności) | Zaimplementowane | etap 10 cz. 11: World::goToJail w dwóch krokach, GM_Jail (zaciemnienie, prisonmarker, pasek), jailTimeServed, ReleasedFromPrison; test_crime. Porównanie zrzutem – do zrobienia | – |
 | Towarzysz (dzielenie ekwipunku), przechodzenie przez drzwi | Częściowo zgodne | etap 10 cz. 11: sCompanionShare, CompanionWindow (zysk minimumprofit, ostrzeżenie), bez powitania – okno; test_companion. Przechodzenie przez drzwi: towarzysze z AiFollow – referencje dynamiczne (etap 9) | P3 |
+| Notatki na mapie (CustomMarker, EditNoteDialog) | Zaimplementowane | etap 10 cz. 13: dwuklik – nowa notatka, edycja, usuwanie z potwierdzeniem, znaczniki na mapie lokalnej i minimapie, notatki w podpowiedziach drzwi i mapy świata, zapis; test_map_notes. Porównanie zrzutem – do zrobienia | – |
 | Konsola (`) | Częściowo zgodne | etap 10 cz. 12: okno i układ OpenMW, isConsoleMode = tryb GUI, kompilator MWScript 1:1 z konwerterem (1231 skryptów identycznie), wybór obiektu, historia, Tab, wyszukiwanie; coc, coe, tgm, tcl, tai, fillmap, tm, sv, help; test_console. Brak: Lua, ra/fixme, przełączniki grafiki (tcb, twf, tsky…), porównanie zrzutem | P3 |
 | Ustawienia jak OpenMW (zakładki, klawisze) | Częściowo zgodne | mniej opcji | P3 |
 | Kursor z gry (`tx_cursor`) | Brakujące | | P3 |

@@ -25,6 +25,11 @@ var door_markers: Array = []
 var detect_markers: Array = []           # testy: [[rodzaj wykrycia, pozycja na mapie]]             # testy: [[nazwa celu, pozycja na mapie]]
 var place_markers: Array = []            # testy: [[nazwa, x, y]]
 var player_marker_pos := Vector2.ZERO    # testy
+var custom_marker_nodes: Array = []      # testy: węzły znaczników notatek (meta „marker”)
+var _center := Vector2.ZERO              # mapa lokalna: środek widoku, położenie gracza w segmentach, wielkość segmentu
+var _pf := Vector2.ZERO
+var _seg_px := 256.0
+var _markers_version := -1
 var _refresh_t := 0.0
 var _waiting := false
 
@@ -97,6 +102,7 @@ func open(rect := Rect2(), menu = null) -> void:
 	_view = Control.new()
 	_view.clip_contents = true
 	_view.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_view.gui_input.connect(_view_input)
 	_view.custom_minimum_size = (wsize - Vector2(16, 36) * scale_ui).max(Vector2(64, 64)) if embedded else Vector2(WIN.x - 20, WIN.y - 60) * scale_ui
 	area.add_child(_view)
 	_toggle = Button.new()
@@ -225,11 +231,12 @@ func _build_local() -> void:
 			var mp: Vector2 = center + (Vector2(dl.f) - pf) * T
 			var name := _dest_name(d)
 			door_markers.append([name, mp])
-			var m := ColorRect.new()
-			m.color = Color(0.85, 0.15, 0.1)
-			m.size = Vector2(6, 6) * scale_ui
-			m.position = mp - m.size / 2.0
-			m.set_meta("mw_tip", {"type": "info", "text": name})      # MapMarker: ToolTipInfo z samym tekstem
+			# createDoorMarker: MarkerButton (textures\door_icon.dds 8 × 8), kolor normal / normal_over;
+			# MapMarker: nazwa celu i notatki komórki docelowej (data->notes)
+			var m := _marker_widget("textures/door_icon", Vector2(8, 8) * scale_ui, UI.color("normal"), UI.color("normal_over"), Color(0.85, 0.15, 0.1))
+			m.name = "DoorMarker"
+			m.position = (mp - m.size / 2.0).floor()
+			m.set_meta("mw_tip", {"type": "info", "text": name, "notes": notes_for_dest(d)})
 			_view.add_child(m)
 	# MapWindow::updateMagicMarkers: Wykrywanie zwierząt / zaklęć / kluczy (World::listDetectedReferences)
 	detect_markers = []
@@ -245,8 +252,159 @@ func _build_local() -> void:
 				dm.position = mp2 - dm.size / 2.0
 				dm.mouse_filter = Control.MOUSE_FILTER_IGNORE
 				_view.add_child(dm)
+	_center = center
+	_pf = pf
+	_seg_px = T
+	_build_custom_markers()
 	_player_arrow(center, main.player)
 	player_marker_pos = center
+
+## Znacznik mapy (MarkerWidget): obraz z danych albo kwadrat zastępczy; kolor zwykły i pod kursorem.
+func _marker_widget(tex_path: String, sz: Vector2, normal: Color, hover: Color, fallback: Color) -> Control:
+	var tex: Texture2D = UI.texture(tex_path)
+	var m: Control
+	if tex != null:
+		var tr := TextureRect.new()
+		tr.texture = tex
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_SCALE
+		m = tr
+	else:
+		var cr := ColorRect.new()
+		cr.color = fallback
+		m = cr
+	m.size = sz
+	m.custom_minimum_size = sz
+	m.modulate = normal                   # setNormalColour / setHoverColour
+	m.mouse_entered.connect(func(): m.modulate = hover)
+	m.mouse_exited.connect(func(): m.modulate = normal)
+	return m
+
+## Komórka celu drzwi jako klucz znaczników (marker.dest).
+func dest_cell_key(d: Dictionary) -> String:
+	var ck := String(d.get("cell_key", ""))
+	if not ck.is_empty():
+		return ck.to_lower()
+	var cn := String(d.get("cell_name", ""))
+	if not cn.is_empty():
+		return "int:" + cn.to_lower()
+	var t: Transform3D = d.get("transform", Transform3D())
+	var g := MWCoords.cell_of(t.origin)
+	return "ext:%d,%d" % [g.x, g.y]
+
+func notes_for_dest(d: Dictionary) -> Array:
+	var cm = main.get("custom_markers")
+	return cm.notes(dest_cell_key(d)) if cm != null else []
+
+# --- notatki (CustomMarker) -------------------------------------------------------------------------------
+
+## Klucz komórki dla znaczników: wnętrze – „int:nazwa”, zewnętrze – komórka punktu.
+func _cell_key_at(world: Vector3) -> String:
+	if not String(main.interior).is_empty():
+		return "int:" + String(main.interior).to_lower()
+	var g := MWCoords.cell_of(world)
+	return "ext:%d,%d" % [g.x, g.y]
+
+## Punkt świata (Godot) pod pozycją w widoku mapy lokalnej.
+func view_to_world(p: Vector2) -> Vector3:
+	var f := _pf + (p - _center) / _seg_px
+	return lmap.q_to_world(f * lmap.seg_m + lmap.origin, 0.0)
+
+func world_to_view(mw_x: float, mw_y: float) -> Vector2:
+	var g := MWCoords.mw_to_godot(Vector3(mw_x, mw_y, 0))
+	return _center + (Vector2(lmap.locate(g).f) - _pf) * _seg_px
+
+## LocalMapBase::updateCustomMarkers: wnętrze – znaczniki komórki, zewnętrze – komórki siatki 3 × 3 wokół gracza;
+## CustomMarkerButton (icons\map_marker_red.dds 16 × 16) nad mgłą, kolor 0,6 / 1,0, podpowiedź TextToolTipOneLine.
+func _build_custom_markers() -> void:
+	for n in custom_marker_nodes:
+		if is_instance_valid(n):
+			n.queue_free()
+	custom_marker_nodes = []
+	var cm = main.get("custom_markers")
+	if cm == null or lmap == null:
+		return
+	_markers_version = cm.version
+	var cells := []
+	if not String(main.interior).is_empty():
+		cells.append("int:" + String(main.interior).to_lower())
+	else:
+		var g := MWCoords.cell_of(main.player.global_position)
+		for x in range(g.x - 1, g.x + 2):
+			for y in range(g.y - 1, g.y + 2):
+				cells.append("ext:%d,%d" % [x, y])
+	for ck in cells:
+		for mk in cm.in_cell(ck):
+			var w := _marker_widget("icons/map_marker_red", Vector2(16, 16) * scale_ui, Color(0.6, 0.6, 0.6), Color(1, 1, 1), Color(0.9, 0.1, 0.1))
+			w.name = "CustomMarker"
+			w.position = (world_to_view(float(mk.x), float(mk.y)) - w.size / 2.0).floor()
+			w.set_meta("marker", mk.duplicate())
+			w.set_meta("mw_tip", {"type": "layout", "layout": "text_one_line", "description": String(mk.note)})
+			w.gui_input.connect(_custom_marker_input.bind(w))
+			_view.add_child(w)
+			custom_marker_nodes.append(w)
+
+var editing_marker := {}                 # mEditingMarker
+
+func _custom_marker_input(e: InputEvent, w: Control) -> void:
+	if pinned_mode:
+		return
+	if e is InputEventMouseButton and e.pressed and e.double_click and (e as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+		edit_marker(w.get_meta("marker"))
+		w.accept_event()
+
+func _view_input(e: InputEvent) -> void:
+	if pinned_mode or world_mode:
+		return
+	if e is InputEventMouseButton and e.pressed and e.double_click and (e as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+		new_marker_at((e as InputEventMouseButton).position)
+		_view.accept_event()
+
+## MapWindow::onMapDoubleClicked: nowa notatka w klikniętym miejscu (bez przycisku usuwania, pusty tekst).
+func new_marker_at(view_pos: Vector2) -> void:
+	var w := view_to_world(view_pos)
+	var mw := MWCoords.godot_to_mw(w)
+	editing_marker = main.custom_markers.make(_cell_key_at(w), mw.x, mw.y, "")
+	_open_note("", false)
+
+## MapWindow::onCustomMarkerDoubleClicked: edycja istniejącej notatki (z przyciskiem usuwania).
+func edit_marker(mk: Dictionary) -> void:
+	editing_marker = mk.duplicate()
+	_open_note(String(mk.note), true)
+
+func _open_note(text: String, show_delete: bool) -> void:
+	var dlg = main.get_edit_note_dialog()
+	for c in dlg.ok_clicked.get_connections():
+		dlg.ok_clicked.disconnect(c.callable)
+	for c in dlg.delete_clicked.get_connections():
+		dlg.delete_clicked.disconnect(c.callable)
+	dlg.ok_clicked.connect(_on_note_ok)
+	dlg.delete_clicked.connect(_on_note_delete)
+	dlg.open(text, show_delete)
+
+## onNoteEditOk: edycja – updateMarker, nowa – addMarker; okno zamknięte.
+func _on_note_ok() -> void:
+	var dlg = main.get_edit_note_dialog()
+	if dlg.delete_button_shown():
+		main.custom_markers.update(editing_marker, dlg.get_text())
+	else:
+		editing_marker["note"] = dlg.get_text()
+		main.custom_markers.add(editing_marker)
+	dlg.close()
+	_refresh_markers()
+
+## onNoteEditDelete: ConfirmationDialog „#{sDeleteNote}” → deleteMarker, okno notatki zamknięte.
+func _on_note_delete() -> void:
+	var c = main.confirm
+	c.layer = 62                          # nad oknem notatki (oba w warstwie Modal, potwierdzenie na wierzchu)
+	c.ask(_t("sDeleteNote", "Delete Note?"), func():
+		main.custom_markers.delete(editing_marker)
+		main.get_edit_note_dialog().close()
+		_refresh_markers())
+
+func _refresh_markers() -> void:
+	if visible and not world_mode and _view != null:
+		_build_custom_markers()
 
 func _dest_name(d: Dictionary) -> String:
 	var cell := String(d.get("cell_name", ""))
@@ -329,7 +487,10 @@ func _build_world() -> void:
 		m.color = Color(0.9, 0.75, 0.35)
 		m.size = Vector2(5, 5) * scale_ui
 		m.position = p - m.size / 2.0
-		m.set_meta("mw_tip", {"type": "info", "text": disp})
+		# setGlobalMapMarkerTooltip: notatki komórki zewnętrznej w podpowiedzi znacznika miejsca
+		var cmk = main.get("custom_markers")
+		var nts: Array = cmk.notes("ext:%d,%d" % [int(e[0]), int(e[1])]) if cmk != null else []
+		m.set_meta("mw_tip", {"type": "info", "text": disp, "notes": nts})
 		_world_rect.add_child(m)
 	# gracz: we wnętrzu – ostatnia pozycja na zewnątrz
 	var pmw := MWCoords.godot_to_mw(main.player.global_position)
@@ -360,7 +521,8 @@ func _process(delta: float) -> void:
 		set_world(false)
 
 func _needs_refresh() -> bool:
-	return _waiting
+	var cm = main.get("custom_markers") if main != null else null
+	return _waiting or (cm != null and cm.version != _markers_version)
 
 func close() -> void:
 	if not visible:

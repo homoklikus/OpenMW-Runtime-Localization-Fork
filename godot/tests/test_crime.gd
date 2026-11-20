@@ -177,8 +177,13 @@ func _run() -> void:
 	# GM_Jail: zaciemnienie 0,5 s, przeniesienie, okno sInPrisonTitle z paskiem, koniec – okno z pytaniem
 	var js = main.jail_screen
 	# okno rozmowy zostaje (World::goToJail) – przeniesienie po jego zamknięciu (pierwsza klatka bez pauzy)
+	# gra wstrzymana (np. rozmowa ze strażnikiem) – przeniesienie czeka; wcześniej warunek zależał od tego, czy
+	# strażnik zdążył zagadać (wyścig w teście), teraz pauza ustawiona jawnie
+	var was_paused: bool = main.get_tree().paused
+	main.get_tree().paused = true
 	await _frames(5)
-	check(main.state.player.has("go_to_jail") == main.get_tree().paused, "przeniesienie czeka, póki gra stoi (rozmowa)")
+	check(main.state.player.has("go_to_jail"), "przeniesienie czeka, póki gra stoi (rozmowa)")
+	main.get_tree().paused = was_paused
 	if main.dialogue_window != null and main.dialogue_window.visible:
 		main.dialogue_window.close(true)
 	var got := await _until(func(): return main.gui.contains("jail"), 30)

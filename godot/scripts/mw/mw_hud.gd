@@ -396,6 +396,7 @@ func update_minimap() -> void:
 	var key := "%s|%s" % [lmap.area, L.seg]
 	if key != _map_key or minimap_tiles.get_child_count() == 0:
 		_map_key = key
+		_marker_sig = ""
 		for c in minimap_tiles.get_children():
 			c.queue_free()
 		for sgm in lmap.visible_segments(pp):
@@ -418,14 +419,66 @@ func update_minimap() -> void:
 				r.mouse_filter = Control.MOUSE_FILTER_IGNORE
 				holder.add_child(r)
 	for holder in minimap_tiles.get_children():
+		if not holder.has_meta("seg"):
+			continue
 		var sgm2: Vector2i = holder.get_meta("seg")
 		(holder.get_node("Map") as TextureRect).texture = lmap.texture(sgm2)
 		(holder.get_node("Fog") as TextureRect).texture = lmap.fog_texture(sgm2)
 	minimap_tiles.position = center - (L.f as Vector2) * T
+	_update_minimap_markers(lmap, L, T)
 	var cam := main.player.get_node_or_null("Camera3D") as Node3D
 	var fwd: Vector3 = -(cam.global_transform.basis.z if cam != null else main.player.global_transform.basis.z)
 	var q: Vector2 = lmap.to_q(Vector3(fwd.x, 0, fwd.z))
 	compass.rotation = Vector2(0, -1).angle_to(q.normalized()) if q.length() > 0.001 else 0.0
+
+var _marker_sig := ""
+var minimap_markers: Array = []    # testy: węzły notatek na minimapie
+
+## LocalMapBase::updateCustomMarkers na minimapie HUD: znaczniki notatek komórek siatki (wnętrze – komórki).
+func _update_minimap_markers(lmap, L: Dictionary, T: float) -> void:
+	var cm = main.get("custom_markers")
+	if cm == null:
+		return
+	var interior := String(main.interior)
+	var g := MWCoords.cell_of(main.player.global_position)
+	var sig := "%s|%s|%d|%d" % [lmap.area, g, cm.version, (main.state.player.get("custom_markers", []) as Array).hash()]
+	if sig == _marker_sig:
+		return
+	_marker_sig = sig
+	for n in minimap_markers:
+		if is_instance_valid(n):
+			n.queue_free()
+	minimap_markers = []
+	var cells := []
+	if not interior.is_empty():
+		cells.append("int:" + interior.to_lower())
+	else:
+		for x in range(g.x - 1, g.x + 2):
+			for y in range(g.y - 1, g.y + 2):
+				cells.append("ext:%d,%d" % [x, y])
+	for ck in cells:
+		for mk in cm.in_cell(ck):
+			var pos: Vector2 = Vector2(lmap.locate(MWCoords.mw_to_godot(Vector3(float(mk.x), float(mk.y), 0))).f) * T
+			var tex: Texture2D = UI.texture("icons/map_marker_red")
+			var w: Control
+			if tex != null:
+				var tr := TextureRect.new()
+				tr.texture = tex
+				tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+				tr.stretch_mode = TextureRect.STRETCH_SCALE
+				w = tr
+			else:
+				var cr := ColorRect.new()
+				cr.color = Color(0.9, 0.1, 0.1)
+				w = cr
+			w.name = "CustomMarker"
+			w.size = Vector2(16, 16) * scale_ui
+			w.position = (pos - w.size / 2.0).floor()
+			w.modulate = Color(0.6, 0.6, 0.6)
+			w.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			w.set_meta("marker", mk.duplicate())
+			minimap_tiles.add_child(w)
+			minimap_markers.append(w)
 
 ## Ikony działających efektów (HUD EffectBox): po jednej na rodzaj efektu, podpowiedź – nazwa i czas.
 ## SpellIcons::updateWidgets: ikona każdego efektu z działających czarów gracza – także zdolności, chorób, klątw i stałych
