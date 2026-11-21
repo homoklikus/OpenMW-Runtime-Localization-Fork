@@ -406,10 +406,57 @@ Braki funkcji widoczne w porównaniu (nie atrapy – port ich nie ma): zakładki
 (Video), filtrowanie tekstur i anizotropia (Detail Level), przełącznik Mouse/Keyboard – Controller nad listą
 przypisań; na liście przypisań brak akcji, których port nie obsługuje: widok z trzeciej osoby (TogglePOV), zbliżenie
 kamery, stały bieg (AlwaysRun), automatyczny ruch, poprzedni/następny czar i broń, zrzut ekranu, HUD przetwarzania
-końcowego. Tytuł okna opcji OpenMW zajmuje szerszy pasek (ok. 130 px zamiast 85 px) – przyczyny nie ustalono (tytuły
-konsoli i szybkich klawiszy zgodne).
+końcowego. Tytuł okna opcji OpenMW zajmuje szerszy pasek (ok. 130 px zamiast 85 px) – przyczyna ustalona i usunięta
+w cz. 18 (punkt 7.12: tekst z GMST sOptions).
 
-### 7.12 Pozostałe punkty etapu (do wykonania)
+### 7.12 Teksty silnika z GMST, zakładka Language, przełącznik pada w Controls (cz. 18)
+**Teksty silnika z GMST („gmst overrides l10n”).** Przyczyna szerszego tytułu okna opcji: OpenMW 0.51 z danymi
+Morrowinda ma udawany język „gmst” (`resources/vfs-mw/l10n/<kontekst>/gmst.yaml`: SettingsWindow = sOptions,
+Preferences = sPrefs, OK = sOK, Audio = sAudio, ConsoleWindow = sConsoleTitle, DifficultyValue = „{gmst:sDifficulty}
+({value})”, ReleasedFromPrison z formą plural…), a przy domyślnym [General] gmst overrides l10n = true stoi on przed
+preferowanymi językami (l10n::Manager::setPreferredLocales). Teksty silnika pochodzą więc z GMST danych gry, nie
+z en.yaml. Na danych użytkownika sOptions ma 12 znaków i różni się od „Options” z en.yaml (porównane tylko długość
+i równość, bez wypisywania tekstu); pozostałe sprawdzone GMST okna opcji są równe tekstom en.yaml. Port używał
+wyłącznie en.yaml. Naprawa: `mw_l10n.gd` ładuje gmst.yaml (wpis prosty = identyfikator GMST, mapa {pattern,
+variables} – tokeny {gmst:…} i zamiana %s/%d na {zmienna} jak GmstFormatParser), kolejność „gmst” przed / po językach
+wg ustawienia, wyszukiwanie GMST przez dialog (z warstwą tłumaczeń danych), formy ICU plural/select. Dodane konteksty
+Interface (files/data/l10n/Interface) i Mechanics. Różnica: przy braku rekordu GMST OpenMW wypisuje „GMST:id”, port
+bierze następny język (z prawdziwym Morrowind.esm wszystkie GMST istnieją; dane syntetyczne testów ich nie mają).
+Po poprawce tytuł okna opcji zgodny z OpenMW co do kolumn glifów (720p).
+
+**Zakładka Language** (openmw_settings_window.layout): uwaga LanguageNote, Primary / Secondary Language (MW_ComboBox
+250 × 24 w (4, 52) i (262, 52), języki z nazw plików l10n poza „gmst”, druga lista z „None”), przełącznik „Strings
+From ESM Files Have Priority” (gmst overrides l10n). Zmiana pokazuje okno ChangeRequiresRestart i zapisuje
+preferred_locales / gmst_overrides_l10n (nowe klucze w schemacie launchera); teksty zmieniają się po ponownym
+uruchomieniu jak w OpenMW (wcześniej preferred_locales było ustawiane przed wczytaniem ustawień z gry). Nazwy języków
+po angielsku (TranslationServer) – OpenMW podaje je w języku głównym (ICU getDisplayName). Zakładki Scripts nadal brak,
+więc Language jest piątą zakładką (w OpenMW szóstą).
+
+**Mouse/Keyboard – Controller** (HBox (4, 4) nad listą przypisań, onKeyboardSwitchClicked / onControllerSwitchClicked):
+lista pada w kolejności getActionControllerSorting (akcje obsługiwane przez port), nazwy sdlControllerButtonToString
+/ sdlControllerAxisToString („A Button”, „Right Trigger”…), ruch z osi (A_MoveForwardBackward) – „None” jak w OpenMW;
+przypisywanie: przycisk pada albo spust (wychylenie > 0,5), klawiatura i mysz pomijane, Esc przerywa, przycisk/oś
+zabierane innej akcji; Reset Controls w trybie pada – resetToDefaultControllerBindings; zapis w input_bindings.json
+(„controller”). loadControllerDefaults jak w OpenMW: domyślne tylko dla akcji bez przypisania i gdy przycisk nie jest
+zajęty (wcześniej domyślny przycisk dodawany zawsze).
+
+Znalezione i naprawione przy porównaniu (720p, potwierdzone 1440p/2160p):
+
+| Błąd | Przyczyna | Naprawa | Test |
+|---|---|---|---|
+| Teksty silnika z en.yaml zamiast GMST (tytuł okna opcji szerszy w OpenMW) | brak języka „gmst” (vfs-mw/l10n) | punkt wyżej | test_language (7 sprawdzeń gmst) |
+| Listy rozwijane (Window Mode, VSync, języki, zapis, alchemia) w ramce przycisku | OptionButton w skórce MW_Button | MW_ComboBox: MW_Box, tekst od x = 6, strzałka omw_menu_scroll_down 14 × 11, 7 px od prawej | porównanie (linie 194/216) |
+| Napisy NormalText/SandText 2–3 px za wysoko | TextAlign „Left Bottom” w skórkach – port wyrównywał do góry | wyrównanie do dołu pola | porównanie (Audio: 0,8 % bloków) |
+| Przełączniki On/Off i lista VSync 2 px za wysoko | MyGUI HBox wyśrodkowuje element 24 px w wierszu 28/32 px | wyśrodkowanie (autozapis y = 252, VSync y = 76) | test_ui_geometry, porównanie (394/414) |
+| Domyślne przyciski pada dopisywane mimo innego przypisania | register_defaults bez warunku isJoystickButtonBound | jak loadControllerDefaults(false) | test_settings, test_gamepad |
+| Gra uruchomiona z launchera kończyła się kodem 6 („corrupted size vs. prev_size in fastbins”) – wykryte w pełnym zestawie (test_launcher, prawdziwy Godot) po dodaniu języka „gmst” | wyszukiwanie GMST zapisane w zmiennej statycznej skryptu jako lambda trzymająca scenę główną; zmienna statyczna żyje dłużej niż scena | wywołanie metody obiektu dialogu (Callable z bind) i czyszczenie przy usuwaniu sceny | test_launcher (test_real_godot_game_and_editor, 2 powtórzenia przed – błąd, po – zaliczony) |
+
+Wyniki (prostokąty okien IoU 1,000 i przesunięcie 0 px we wszystkich przypadkach; bloki różne): 720p – opcje 2,0 %,
+Audio 0,8 %, Controls 6,9 % (brakujące akcje), Video 3,6 % (Lights/Shadows, gamma, przetwarzanie końcowe), Language
+1,6 %; 1440p – 0,5 / 0,2 / 3,3 / 1,5 / 0,3 %; 2160p – Audio 1,1 %, Controls 2,5 %, Video 1,8 %, Language 1,1 %.
+Testy: test_settings (90), test_language (45), test_ui_geometry (129), test_gamepad (23).
+
+### 7.13 Pozostałe punkty etapu (do wykonania)
 
 §12 dodatki i mody (Tribunal, Bloodmoon, mody).
 
@@ -433,9 +480,10 @@ konsoli i szybkich klawiszy zgodne).
 * Etap 10 cz. 15: nawigacja klawiaturą w oknach (KeyboardNavigation)
 * Etap 10 cz. 16: pad (ControllerManager)
 * Etap 10 cz. 17: porównania nowych okien z OpenMW 720p/1440p/2160p i poprawki układów
+* Etap 10 cz. 18: teksty silnika z GMST, zakładka Language, przełącznik pada w Controls
 
-Pełny zestaw tools/run_tests.sh: 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
+Pełny zestaw tools/run_tests.sh: 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 
 ## 9. Zalecana kolejność dalszych prac
 
-1. Dodatki i mody (§12), 2. brakujące akcje sterowania i przełącznik Controller w opcjach (punkt 7.11).
+1. Dodatki i mody (§12), 2. brakujące akcje sterowania (punkt 7.11).

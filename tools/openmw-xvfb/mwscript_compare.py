@@ -176,7 +176,7 @@ return {
             elseif type(u[3]) == 'table' then I.UI.setMode(u[3][1], {windows = u[3][2]}) else I.UI.setMode(u[3]) end
           elseif u[2] == 'clear' then I.UI.setMode()
           elseif u[2] == 'shot' then print('MWSHOT ' .. u[3])
-          elseif u[2] == 'click' then print(string.format('MWCLICK %d %d', u[3][1], u[3][2]))
+          elseif u[2] == 'click' then local c = u[4] or u[3]; print(string.format('MWCLICK %d %d', c[1], c[2]))
           elseif u[2] == 'message' then require('openmw.ui').showMessage(u[3]) end
         end
       end

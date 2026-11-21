@@ -74,6 +74,11 @@ GAME_SCHEMA: list[Opt] = [
     # lokalizacja runtime (fork OpenMW RLF): „auto” = język launchera, „original” = bez tłumaczenia,
     # albo kod/lista kodów („pl” lub „pl,en”) – tłumaczenia z world/localization, bez ponownej konwersji
     Opt("game_language", "language", "str", "auto", "Język gry", "Game language"),
+    # [General] preferred locales i gmst overrides l10n (OpenMW) – zakładka Language okna opcji w grze; teksty
+    # silnika (l10n) niezależne od tłumaczeń danych gry
+    Opt("preferred_locales", "language", "str", "en", "Języki tekstów silnika (l10n)", "Engine text languages (l10n)"),
+    Opt("gmst_overrides_l10n", "language", "bool", True, "Teksty z plików ESM mają pierwszeństwo",
+        "Strings from ESM files have priority"),
     Opt("qa_source", "language", "str", "", "QA: wyróżnij tłumaczenia z modułu (np. MojMod)",
         "QA: highlight translations from module"),
 ]

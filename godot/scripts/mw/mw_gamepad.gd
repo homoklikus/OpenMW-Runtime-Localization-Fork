@@ -11,7 +11,7 @@ extends Node
 ##    RB = Tab, wciśnięcie lewej gałki – kursor pada wł./wył.; lewa gałka przesuwa kursor (oś × dt × 1500 / skala
 ##    interfejsu × gamepad cursor speed, wolniej z prawym spustem: × (1,5 − spust)), prawa gałka (Y) – kółko myszy;
 ##  - przyciski pada w trybie GUI nie trafiają do akcji gry (BindingsManager dostaje je tylko poza GUI).
-## Bez „controller menus” (domyślnie wyłączone w OpenMW) i bez zmiany przypisań pada w oknie opcji.
+## Bez „controller menus” (domyślnie wyłączone w OpenMW); przypisania pada zmienia okno opcji (tryb Controller).
 
 const DEAD_ZONE := 0.1               # [Input] joystick dead zone
 
@@ -41,17 +41,45 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
 ## Domyślne przypisania pada dodawane do akcji (bez usuwania klawiszy).
+## loadControllerDefaults(force = false): domyślne tylko dla akcji bez przypisania pada i tylko gdy przycisk/oś nie
+## jest już przypisany innej akcji (isJoystickButtonBound / isJoystickAxisBound).
+static func _pad_events(act: String) -> Array:
+	return InputMap.action_get_events(act).filter(func(e): return e is InputEventJoypadButton or e is InputEventJoypadMotion)
+
+## Akcje gry z przypisaniami pada (wbudowane ui_* Godota się nie liczą – w OpenMW ich nie ma).
+static func _game_actions() -> Array:
+	var MWInput = load("res://scripts/mw/mw_input.gd")
+	return (MWInput.CONTROLLER_SORTING + ["menu"]).filter(func(a): return InputMap.has_action(a))
+
+static func _button_bound(b: int) -> bool:
+	for a in _game_actions():
+		for e in InputMap.action_get_events(a):
+			if e is InputEventJoypadButton and int((e as InputEventJoypadButton).button_index) == b:
+				return true
+	return false
+
+static func _axis_bound(ax: int) -> bool:
+	for a in _game_actions():
+		if String(a).begins_with("move_"):
+			continue
+		for e in InputMap.action_get_events(a):
+			if e is InputEventJoypadMotion and int((e as InputEventJoypadMotion).axis) == ax:
+				return true
+	return false
+
 static func register_defaults() -> void:
 	for act in DEFAULT_BUTTONS:
-		if not InputMap.has_action(act):
+		if not InputMap.has_action(act) or not _pad_events(act).is_empty() or _button_bound(DEFAULT_BUTTONS[act]):
 			continue
 		var e := InputEventJoypadButton.new()
 		e.button_index = DEFAULT_BUTTONS[act]
 		e.device = -1
-		if not InputMap.action_has_event(act, e):
-			InputMap.action_add_event(act, e)
+		InputMap.action_add_event(act, e)
 	for act in DEFAULT_AXES:
 		if not InputMap.has_action(act):
+			continue
+		var move := String(act).begins_with("move_")
+		if not move and (not _pad_events(act).is_empty() or _axis_bound(DEFAULT_AXES[act][0])):
 			continue
 		var m := InputEventJoypadMotion.new()
 		m.axis = DEFAULT_AXES[act][0]
@@ -59,7 +87,7 @@ static func register_defaults() -> void:
 		m.device = -1
 		if not InputMap.action_has_event(act, m):
 			InputMap.action_add_event(act, m)
-		if String(act).begins_with("move_"):
+		if move:
 			InputMap.action_set_deadzone(act, DEAD_ZONE)
 
 func _gui_mode() -> bool:
@@ -145,6 +173,11 @@ func _input(e: InputEvent) -> void:
 		return
 	if not enabled:
 		get_viewport().set_input_as_handled()       # [Input] enable controller = false – pad ignorowany
+		return
+	var sw = main.get("settings_window") if main != null else null
+	if sw != null and sw.visible and not String(sw.rebinding).is_empty():
+		get_viewport().set_input_as_handled()        # przypisywanie w oknie opcji (BindingsListener) ma pierwszeństwo
+		sw.handle_rebind_event(e)
 		return
 	if not _gui_mode():
 		return                                       # w grze – akcje z InputMap

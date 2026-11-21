@@ -5,7 +5,7 @@
   3840,
   2160
  ],
- "note": "etap 10: okno opcji przy 3840×2160 – zakładki Audio, Controls, Video (Esc → „Options” → kliknięcia w nagłówku TabControl; pozycje z układu: okno 0,8 ekranu, zakładki od (16, 36)) | menu transparency = 1,0 w obu silnikach | zrzuty 4K co ok. 10 s",
+ "note": "etap 10: okno opcji przy 3840×2160 – zakładki Audio, Controls, Video (Esc → „Options” → kliknięcia w nagłówku TabControl; pozycje z układu: okno 0,8 ekranu, zakładki od (16, 36)) | menu transparency = 1,0 w obu silnikach | zrzuty 4K co ok. 10 s | zakładka Language: w OpenMW szósta (po Scripts), w porcie piąta – osobne współrzędne kliknięcia dla OpenMW (czwarty element kroku „click”)",
  "actors": [
   "player"
  ],
@@ -63,6 +63,23 @@
    31.0,
    "shot",
    "settings_video"
+  ],
+  [
+   39.0,
+   "click",
+   [
+    721,
+    264
+   ],
+   [
+    806,
+    264
+   ]
+  ],
+  [
+   41.0,
+   "shot",
+   "settings_language"
   ]
  ],
  "keys": [
@@ -71,11 +88,11 @@
    "Escape"
   ],
   [
-   40.0,
+   50.0,
    "Escape"
   ]
  ],
- "seconds": 43.0,
+ "seconds": 53.0,
  "interior": true,
  "teleport": [
   [

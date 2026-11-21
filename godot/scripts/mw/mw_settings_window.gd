@@ -53,6 +53,7 @@ const PAGES := [
 		{"t": "check", "key": "enable_controller", "cap": "EnableController", "def": true},
 	]],
 	["Video", []],
+	["Language", [{"t": "language"}]],
 ]
 const VIDEO_PAGES := [
 	["Video", [
@@ -84,6 +85,9 @@ var sliders := {}                   # klucz → HScrollBar
 var slider_labels := {}             # klucz → Label nagłówka
 var checks := {}                    # klucz → Button On/Off
 var controls_box: VBoxContainer = null
+var keyboard_mode := true           # mKeyboardMode: lista klawiatury albo pada
+var keyboard_switch: Button = null
+var controller_switch: Button = null
 var binding_buttons := {}           # akcja → Button przypisania
 var rebinding := ""                 # akcja oczekująca na klawisz (enableDetectingBindingMode)
 var resolution_list: ItemList = null
@@ -155,7 +159,7 @@ func _default_of(key: String):
 			for it in e.get("items", []):
 				if String(it.key) == key:
 					return it.def
-	return {"window_border": true, "vsync": true}.get(key)
+	return {"window_border": true, "vsync": true, "gmst_overrides_l10n": true}.get(key)
 
 func is_open() -> bool:
 	return visible
@@ -256,6 +260,8 @@ var _page_h := 369.0
 
 ## Kontrolka w rodzicu bez kontenera, w jednostkach layoutu (× skala UI).
 func _at(parent: Control, c: Control, x: float, y: float, w: float, h: float) -> Control:
+	if c is Label and (c as Label).autowrap_mode == TextServer.AUTOWRAP_OFF:
+		(c as Label).vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM   # NormalText/SandText: TextAlign Left Bottom
 	parent.add_child(c)
 	c.position = (Vector2(x, y) * _s).round()
 	c.size = (Vector2(w, h) * _s).round()
@@ -320,6 +326,8 @@ func _page(name: String, entries: Array, pw: float, ph: float) -> Control:
 				_build_controls(pg, pw, d)
 			"video":
 				_build_video_mode(pg)
+			"language":
+				_build_language(pg)
 	return pg
 
 ## Geometria suwaka: [x, y grupy, y napisu, wys. napisu, y paska, wys. paska, wys. grupy, y podpisów]
@@ -483,13 +491,13 @@ func _check_row(items: Array) -> Control:
 		b.focus_mode = Control.FOCUS_NONE
 		b.text = _on_text() if bool(value(String(it.key))) else _off_text()
 		b.custom_minimum_size = Vector2(24, 24) * _s
-		b.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		b.size_flags_vertical = Control.SIZE_SHRINK_CENTER  # MyGUI HBox: element wyśrodkowany w wysokości wiersza
 		b.pressed.connect(toggle_check.bind(String(it.key)))
 		row.add_child(b)
 		checks[String(it.key)] = b
 		var l := Label.new()
 		l.text = _t(String(it.cap))
-		l.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		l.custom_minimum_size.y = 24 * _s
 		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		l.add_theme_color_override("font_color", UI.color("normal"))
@@ -521,6 +529,26 @@ func _build_controls(pg: Control, pw: float, d: float) -> void:
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	UI.setup_scroll(sc, _s)
 	_at(frame, sc, 4, 4, pw - 16.0, 146.0 + d)
+	# HBox (4 4 360 28, Spacing 4): KeyboardButton / ControllerButton (AutoSizedButton, stan wybrany)
+	var x := 4.0
+	keyboard_switch = Button.new()
+	keyboard_switch.name = "KeyboardButton"
+	keyboard_switch.text = _t("MouseAndKeyboard", "Mouse/Keyboard")
+	controller_switch = Button.new()
+	controller_switch.name = "ControllerButton"
+	controller_switch.text = _t("Controller", "Controller")
+	for b in [keyboard_switch, controller_switch]:
+		b.toggle_mode = true
+		b.clip_text = true
+		pg.add_child(b)
+		var bw := _text_w(b, b.text) + 24.0
+		b.position = (Vector2(x, 6) * _s).round()
+		b.size = (Vector2(bw, 24) * _s).round()
+		x += bw + 4.0
+	keyboard_switch.pressed.connect(set_keyboard_mode.bind(true))
+	controller_switch.pressed.connect(set_keyboard_mode.bind(false))
+	keyboard_switch.set_pressed_no_signal(keyboard_mode)
+	controller_switch.set_pressed_no_signal(not keyboard_mode)
 	controls_box = VBoxContainer.new()
 	controls_box.name = "Rows"
 	controls_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -547,10 +575,14 @@ func update_controls_box() -> void:
 	if main != null and main.has_method("remove_static_message_box"):
 		main.remove_static_message_box()
 	var h := roundf((16 + 2) * _s)
+	var descs := {}
 	for a in MWInput.CONFIGURABLE:
-		var act := String(a[0])
-		if not InputMap.has_action(act):
+		descs[String(a[0])] = String(a[1])
+	var acts: Array = MWInput.CONFIGURABLE.map(func(a): return String(a[0])) if keyboard_mode else MWInput.CONTROLLER_SORTING
+	for act in acts:
+		if not InputMap.has_action(act) or not descs.has(act):
 			continue
+		var a := [act, descs[act]]
 		var row := HBoxContainer.new()
 		row.name = "Row_" + act
 		row.custom_minimum_size = Vector2(0, h)
@@ -565,13 +597,24 @@ func update_controls_box() -> void:
 		b.flat = true
 		b.focus_mode = Control.FOCUS_NONE
 		b.alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		b.text = MWInput.binding_name(act, _gm("sMouse", "Mouse"), _none_text())
+		b.text = MWInput.binding_name(act, _gm("sMouse", "Mouse"), _none_text()) if keyboard_mode \
+			else MWInput.controller_binding_name(act, _none_text())
 		b.add_theme_color_override("font_color", UI.color("normal"))
 		b.add_theme_color_override("font_hover_color", UI.color("normal_over"))
 		b.pressed.connect(start_rebind.bind(act))
 		row.add_child(b)
 		controls_box.add_child(row)
 		binding_buttons[act] = b
+
+## onKeyboardSwitchClicked / onControllerSwitchClicked.
+func set_keyboard_mode(on: bool) -> void:
+	keyboard_switch.set_pressed_no_signal(on)
+	controller_switch.set_pressed_no_signal(not on)
+	if keyboard_mode == on:
+		return
+	keyboard_mode = on
+	rebinding = ""
+	update_controls_box()
 
 ## onRebindAction: napis „None”, komunikat stały #{OMWEngine:RebindAction}, oczekiwanie na klawisz.
 func start_rebind(action: String) -> void:
@@ -587,15 +630,24 @@ func start_rebind(action: String) -> void:
 func _input(e: InputEvent) -> void:
 	if not visible or rebinding.is_empty():
 		return
-	var press: bool = (e is InputEventKey and e.pressed and not (e as InputEventKey).echo) or (e is InputEventMouseButton and e.pressed)
+	var press: bool = (e is InputEventKey and e.pressed and not (e as InputEventKey).echo) or (e is InputEventMouseButton and e.pressed) \
+		or (e is InputEventJoypadButton and e.pressed) or e is InputEventJoypadMotion
 	if not press:
 		return
 	get_viewport().set_input_as_handled()
 	if handle_rebind_event(e) != "ignored":
 		pass
 
+## Esc przerywa w obu trybach; w trybie Controller klawiatura i mysz pomijane (mDetectingKeyboard = false),
+## w trybie klawiatury – pad.
 func handle_rebind_event(e: InputEvent) -> String:
-	var r := MWInput.rebind(rebinding, e)
+	var r := ""
+	if e is InputEventKey and MWInput.code_of(e) == KEY_ESCAPE:
+		r = "cancel"
+	elif keyboard_mode:
+		r = "ignored" if (e is InputEventJoypadButton or e is InputEventJoypadMotion) else MWInput.rebind(rebinding, e)
+	else:
+		r = MWInput.rebind_controller(rebinding, e) if (e is InputEventJoypadButton or e is InputEventJoypadMotion) else "ignored"
 	if r == "ignored":
 		return r
 	rebinding = ""
@@ -604,7 +656,10 @@ func handle_rebind_event(e: InputEvent) -> String:
 
 func _on_reset_bindings() -> void:
 	main.confirm.ask(_t("ConfirmResetBindings", "Reset all controls to the default?"), func():
-		MWInput.reset_defaults()
+		if keyboard_mode:
+			MWInput.reset_defaults()
+		else:
+			MWInput.reset_controller_defaults()       # resetToDefaultControllerBindings
 		update_controls_box())
 
 # --- wideo ----------------------------------------------------------------------------------------------
@@ -693,7 +748,7 @@ func _build_video_mode(pg: Control) -> void:
 	vsync_list.add_item(_on_text())
 	vsync_list.add_item(_t("VSyncAdaptive"))
 	vsync_list.item_selected.connect(_on_vsync)
-	_at(pg, vsync_list, 207, 74, 200, 24)
+	_at(pg, vsync_list, 207, 76, 200, 24)              # HBox (207, 74, 400, 28): pole 24 px wyśrodkowane
 	_at(pg, _check_row([{"key": "window_border", "cap": "WindowBorder"}]), 207, 108, 300, 28)
 	window_border_button = checks["window_border"]
 	var hint := Label.new()
@@ -754,6 +809,103 @@ func _on_resolution_selected(i: int) -> void:
 			set_value("resolution", "%dx%d" % [r.x, r.y])
 			main.apply_display(),
 		func(): update_window_mode_settings())
+
+# --- język (zakładka Language) --------------------------------------------------------------------------
+
+var primary_language: OptionButton = null
+var secondary_language: OptionButton = null
+var languages: Array = []           # kody z plików l10n (bez „gmst”), posortowane
+
+## Dostępne języki: nazwy plików *.yaml we wszystkich kontekstach l10n poza udawanym „gmst” (SettingsWindow).
+func available_languages() -> Array:
+	var out := []
+	for ctx in DirAccess.get_directories_at(L10n.DIR):
+		for f in DirAccess.get_files_at(L10n.DIR.path_join(ctx)):
+			if f.get_extension() == "yaml":
+				var n := f.get_basename()
+				if n != "gmst" and not out.has(n):
+					out.append(n)
+	out.sort()
+	return out
+
+static func language_name(code: String) -> String:
+	var n := TranslationServer.get_locale_name(code)
+	return n if not n.is_empty() else code
+
+## Preferowane języki z ustawienia (domyślnie „en”).
+func current_locales() -> PackedStringArray:
+	var out := PackedStringArray()
+	for p in String(main.settings.get("preferred_locales", "en")).split(",", false):
+		if not p.strip_edges().is_empty():
+			out.append(p.strip_edges())
+	if out.is_empty():
+		out.append("en")
+	return out
+
+func _build_language(pg: Control) -> void:
+	# openmw_settings_window.layout, TabItem Language
+	var note := Label.new()
+	note.text = _t("LanguageNote")
+	note.add_theme_color_override("font_color", UI.color("normal"))
+	_at(pg, note, 4, 4, 300, 16)                       # AutoSizedTextBox: wysokość napisu
+	var l1 := Label.new()
+	l1.text = _t("PrimaryLanguage")
+	l1.tooltip_text = _t("PrimaryLanguageTooltip")
+	l1.mouse_filter = Control.MOUSE_FILTER_PASS
+	l1.add_theme_color_override("font_color", UI.color("header"))
+	_at(pg, l1, 4, 28, 250, 18)
+	primary_language = OptionButton.new()
+	primary_language.name = "PrimaryLanguage"
+	_at(pg, primary_language, 4, 52, 250, 24)
+	var l2 := Label.new()
+	l2.text = _t("SecondaryLanguage")
+	l2.tooltip_text = _t("SecondaryLanguageTooltip")
+	l2.mouse_filter = Control.MOUSE_FILTER_PASS
+	l2.add_theme_color_override("font_color", UI.color("header"))
+	_at(pg, l2, 262, 28, 250, 18)
+	secondary_language = OptionButton.new()
+	secondary_language.name = "SecondaryLanguage"
+	_at(pg, secondary_language, 262, 52, 250, 24)
+	# updateLanguage: lista języków, „None” na początku drugiej listy, zaznaczenie z preferred locales
+	languages = available_languages()
+	var cur := current_locales()
+	secondary_language.add_item(_none_text())
+	secondary_language.select(0)
+	for i in languages.size():
+		var nm := language_name(String(languages[i]))
+		primary_language.add_item(nm)
+		secondary_language.add_item(nm)
+		if languages[i] == cur[0]:
+			primary_language.select(i)
+		if cur.size() > 1 and languages[i] == cur[1]:
+			secondary_language.select(i + 1)
+	primary_language.item_selected.connect(func(i: int): _on_language(0, i))
+	secondary_language.item_selected.connect(func(i: int): _on_language(1, i))
+	_at(pg, _check_row([{"key": "gmst_overrides_l10n", "cap": "GmstOverridesL10n"}]), 4, 84, 500, 32)
+	var gb: Button = checks["gmst_overrides_l10n"]
+	gb.pressed.connect(_restart_notice)
+
+## onLanguageChanged: komunikat ChangeRequiresRestart, zapis listy języków (drugi „None” → tylko pierwszy).
+func _on_language(priority: int, idx: int) -> void:
+	_restart_notice()
+	var cur := current_locales()
+	while cur.size() <= priority:
+		cur.append("en")
+	var code := ""
+	if priority == 0:
+		code = String(languages[idx]) if idx >= 0 and idx < languages.size() else ""
+	elif idx > 0:
+		code = String(languages[idx - 1])
+	if not code.is_empty():
+		cur[priority] = code
+	else:
+		cur.resize(1)
+	set_value("preferred_locales", ",".join(cur))
+
+func _restart_notice() -> void:
+	if main != null and main.has_method("show_message_box"):
+		main.show_message_box(_t("ChangeRequiresRestart", "This change requires a restart to take effect."),
+			[L10n.ctx_text("Interface", "OK", "OK")], Callable(), true)
 
 # --- zamknięcie -----------------------------------------------------------------------------------------
 

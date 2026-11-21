@@ -5,7 +5,7 @@
   2560,
   1440
  ],
- "note": "etap 10: nowe okna – szybkie klawisze (I.UI.setMode QuickKeysMenu), konsola (klawisz ` przez XTest / akcja console), okno opcji (Esc → kliknięcie „Options”; współrzędne przycisku z układu menu, takie same w obu silnikach) | wnętrze bez skryptów CharGen; teleport jak w ui_windows_* | menu transparency = 1,0 w obu silnikach: zawartość okien porównywana bez tła sceny | zakładki Audio/Controls/Video klikane w nagłówku TabControl (pozycje z układu: okno 0,8 ekranu, zakładki od (16, 36))",
+ "note": "etap 10: nowe okna – szybkie klawisze (I.UI.setMode QuickKeysMenu), konsola (klawisz ` przez XTest / akcja console), okno opcji (Esc → kliknięcie „Options”; współrzędne przycisku z układu menu, takie same w obu silnikach) | wnętrze bez skryptów CharGen; teleport jak w ui_windows_* | menu transparency = 1,0 w obu silnikach: zawartość okien porównywana bez tła sceny | zakładki Audio/Controls/Video klikane w nagłówku TabControl (pozycje z układu: okno 0,8 ekranu, zakładki od (16, 36)) | zakładka Language: w OpenMW szósta (po Scripts), w porcie piąta – osobne współrzędne kliknięcia dla OpenMW (czwarty element kroku „click”)",
  "actors": [
   "player"
  ],
@@ -93,6 +93,23 @@
    26.5,
    "shot",
    "settings_video"
+  ],
+  [
+   28.0,
+   "click",
+   [
+    593,
+    192
+   ],
+   [
+    678,
+    192
+   ]
+  ],
+  [
+   29.5,
+   "shot",
+   "settings_language"
   ]
  ],
  "keys": [
@@ -109,11 +126,11 @@
    "Escape"
   ],
   [
-   28.0,
+   31.0,
    "Escape"
   ]
  ],
- "seconds": 31.0,
+ "seconds": 34.0,
  "interior": true,
  "teleport": [
   [

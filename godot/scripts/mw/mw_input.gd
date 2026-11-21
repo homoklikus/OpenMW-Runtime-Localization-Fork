@@ -58,6 +58,19 @@ const CONFIGURABLE := [
 	["quick_key_10", "sQuick10Cmd"],
 ]
 const RESERVED := [KEY_F3, KEY_F4, KEY_F10, KEY_META]
+## getActionControllerSorting (OpenMW 0.51) – akcje obsługiwane przez port, w tej kolejności (bez TogglePOV,
+## ZoomIn/Out, AutoMove, Screenshot i Cycle*, których port nie ma).
+const CONTROLLER_SORTING := ["move_forward", "move_back", "move_left", "move_right", "sneak", "activate", "attack",
+	"ready_weapon", "ready_magic", "jump", "menu_mode", "journal", "rest", "quick_save", "quick_load", "toggle_hud",
+	"quick_keys_menu", "quick_key_1", "quick_key_2", "quick_key_3", "quick_key_4", "quick_key_5", "quick_key_6",
+	"quick_key_7", "quick_key_8", "quick_key_9", "quick_key_10"]
+## Ruch z lewej gałki idzie przez A_MoveForwardBackward / A_MoveLeftRight (osie), więc A_MoveForward… na liście
+## pada nie mają przypisania (#{Interface:None}) i nie da się ich przypisać przyciskiem.
+const AXIS_MOVE := ["move_forward", "move_back", "move_left", "move_right"]
+const SDL_BUTTON_NAMES := ["A Button", "B Button", "X Button", "Y Button", "Back Button", "Guide Button", "Start Button",
+	"Left Stick Button", "Right Stick Button", "Left Shoulder", "Right Shoulder", "DPad Up", "DPad Down", "DPad Left",
+	"DPad Right", "Misc 1", "Paddle 1", "Paddle 2", "Paddle 3", "Paddle 4", "Touchpad"]
+const SDL_AXIS_NAMES := ["Left Stick X", "Left Stick Y", "Right Stick X", "Right Stick Y", "Left Trigger", "Right Trigger"]
 static var bindings_path := "user://input_bindings.json"
 
 static func default_code(action: String) -> int:
@@ -124,6 +137,85 @@ static func binding_name(action: String, mouse_word := "Mouse", none_word := "No
 		_:
 			return "%s %d" % [mouse_word, -c]
 
+# --- pad (przypisania w oknie opcji, tryb Controller) ----------------------------------------------------
+
+## clearAllControllerBindings.
+static func clear_controller_bindings(action: String) -> void:
+	for e in InputMap.action_get_events(action):
+		if e is InputEventJoypadButton or e is InputEventJoypadMotion:
+			InputMap.action_erase_event(action, e)
+
+## Przypisanie pada: {"button": n} albo {"axis": a} (Godot numeruje przyciski i osie jak SDL GameController);
+## {} – brak.
+static func controller_binding(action: String) -> Dictionary:
+	if action in AXIS_MOVE or not InputMap.has_action(action):
+		return {}
+	for e in InputMap.action_get_events(action):
+		if e is InputEventJoypadMotion:
+			return {"axis": int((e as InputEventJoypadMotion).axis)}
+		if e is InputEventJoypadButton:
+			return {"button": int((e as InputEventJoypadButton).button_index)}
+	return {}
+
+## getActionControllerBindingName: sdlControllerAxisToString / sdlControllerButtonToString.
+static func controller_binding_name(action: String, none_word := "None") -> String:
+	var b := controller_binding(action)
+	if b.has("axis"):
+		var a := int(b.axis)
+		return SDL_AXIS_NAMES[a] if a >= 0 and a < SDL_AXIS_NAMES.size() else "Axis %d" % a
+	if b.has("button"):
+		var n := int(b.button)
+		return SDL_BUTTON_NAMES[n] if n >= 0 and n < SDL_BUTTON_NAMES.size() else "Button %d" % n
+	return none_word
+
+static func _controller_event(b: Dictionary) -> InputEvent:
+	if b.has("axis"):
+		var m := InputEventJoypadMotion.new()
+		m.axis = int(b.axis)
+		m.axis_value = 1.0
+		m.device = -1
+		return m
+	var e := InputEventJoypadButton.new()
+	e.button_index = int(b.button)
+	e.device = -1
+	return e
+
+## Jedno przypisanie na przycisk/oś (ICS): zabierane innym akcjom z listy pada.
+static func set_controller_binding(action: String, b: Dictionary) -> void:
+	for other in CONTROLLER_SORTING:
+		if other != action and controller_binding(other) == b:
+			clear_controller_bindings(other)
+	if not InputMap.has_action(action):
+		InputMap.add_action(action)
+	clear_controller_bindings(action)
+	if not b.is_empty():
+		InputMap.action_add_event(action, _controller_event(b))
+
+## joystickButtonBindingDetected / joystickAxisBindingDetected (tylko spusty, wychylenie > 0,5 jak ICS);
+## klawiatura i mysz w tym trybie są pomijane → "ignored".
+static func rebind_controller(action: String, e: InputEvent) -> String:
+	var b := {}
+	if e is InputEventJoypadButton and (e as InputEventJoypadButton).pressed:
+		b = {"button": int((e as InputEventJoypadButton).button_index)}
+	elif e is InputEventJoypadMotion:
+		var m := e as InputEventJoypadMotion
+		if m.axis in [JOY_AXIS_TRIGGER_LEFT, JOY_AXIS_TRIGGER_RIGHT] and m.axis_value > 0.5:
+			b = {"axis": int(m.axis)}
+	if b.is_empty() or action in AXIS_MOVE:
+		return "ignored"
+	set_controller_binding(action, b)
+	save_bindings()
+	return "bound"
+
+## resetToDefaultControllerBindings (loadControllerDefaults(true)).
+static func reset_controller_defaults() -> void:
+	var GP = load("res://scripts/mw/mw_gamepad.gd")
+	for act in CONTROLLER_SORTING + ["menu"]:
+		if InputMap.has_action(act) and not (act in AXIS_MOVE):
+			clear_controller_bindings(act)
+	GP.register_defaults()
+	save_bindings()
+
 ## keyBindingDetected / mouseButtonBindingDetected: → "cancel" (Esc), "ignored" (zastrzeżony), "bound".
 static func rebind(action: String, e: InputEvent) -> String:
 	var c := code_of(e)
@@ -164,11 +256,15 @@ static func save_bindings() -> bool:
 	var d := {}
 	for a in CONFIGURABLE:
 		d[String(a[0])] = binding_code(String(a[0]))
+	var pad := {}
+	for act in CONTROLLER_SORTING:
+		if not (act in AXIS_MOVE) and InputMap.has_action(act):
+			pad[act] = controller_binding(act)
 	var tmp := bindings_path + ".tmp"
 	var f := FileAccess.open(tmp, FileAccess.WRITE)
 	if f == null:
 		return false
-	f.store_string(JSON.stringify({"format": "mwgodot-input-bindings", "version": 1, "bindings": d}, " "))
+	f.store_string(JSON.stringify({"format": "mwgodot-input-bindings", "version": 1, "bindings": d, "controller": pad}, " "))
 	f.close()
 	return DirAccess.rename_absolute(ProjectSettings.globalize_path(tmp), ProjectSettings.globalize_path(bindings_path)) == OK
 
@@ -185,6 +281,20 @@ static func load_bindings() -> void:
 		clear_key_bindings(String(act))
 		if c != 0:
 			InputMap.action_add_event(String(act), _event_for(c))
+	# przypisania pada (input_v3.xml: osie i przyciski); brak – loadControllerDefaults uzupełni domyślne
+	if d.get("controller") is Dictionary:
+		for act in d.controller:
+			var b = d.controller[act]
+			if not InputMap.has_action(String(act)) or String(act) in AXIS_MOVE or not (b is Dictionary):
+				continue
+			clear_controller_bindings(String(act))
+			var bb := {}
+			if b.has("axis"):
+				bb = {"axis": int(b.axis)}
+			elif b.has("button"):
+				bb = {"button": int(b.button)}
+			if not bb.is_empty():
+				InputMap.action_add_event(String(act), _controller_event(bb))
 
 static func register_defaults() -> void:
 	for action in DEFAULTS:

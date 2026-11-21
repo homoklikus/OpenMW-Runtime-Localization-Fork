@@ -128,9 +128,12 @@ func _ready() -> void:
 	UI.setup(data_dir)
 	# paski przewijania jak MW_VScroll: krok 36 px i MoveToClick w każdym oknie (także listy i pola tekstu)
 	get_tree().node_added.connect(_on_node_added_scroll)
-	# [General] preferred locales (OpenMW, domyślnie „en”) – teksty silnika z l10n OMWEngine/Calendar
-	preload("res://scripts/mw/mw_l10n.gd").set_locales(String(settings.get("preferred_locales", "en")))   # [GUI] scaling factor
 	settings.merge(_load_ingame_settings(), true)      # etap 10: zmiany z „Ustawienia” w grze (nowsze)
+	# [General] preferred locales (OpenMW, domyślnie „en”) i gmst overrides l10n (domyślnie true) – teksty silnika
+	# z l10n OMWEngine/Interface/Calendar/Mechanics; język „gmst” (vfs-mw/l10n/*/gmst.yaml) z GMST danych gry
+	var l10n := preload("res://scripts/mw/mw_l10n.gd")
+	l10n.set_locales(String(settings.get("preferred_locales", "en")))
+	l10n.gmst_first = bool(settings.get("gmst_overrides_l10n", true))
 	launched_by_launcher = not arg("profile").is_empty()
 	var project := arg("project", ProjectSettings.get_setting("mwgodot/project_root", "user://mw_project"))
 	data = ProjectSettings.globalize_path(data)
@@ -178,6 +181,9 @@ func _ready() -> void:
 	script_host = ScriptHost.new(self)
 	scripts = ScriptsVM.new(builder.actors, state, script_host, db)
 	dialogue = DialogueScript.new(builder.actors, state, self)
+	# metoda obiektu (nie lambda): statyczna zmienna skryptu żyje dłużej niż scena – lambda trzymałaby main przy
+	# zamykaniu (uszkodzenie sterty przy wyjściu)
+	preload("res://scripts/mw/mw_l10n.gd").gmst_lookup = dialogue.gmst_text.bind("")
 	dialogue_window = DialogueWindowScript.new()
 	dialogue_window.dialogue = dialogue
 	dialogue_window.main = self
@@ -2018,6 +2024,10 @@ func _perf_report(delta: float) -> void:
 
 ## Widok z ostatniej sesji – zapisywany lokalnie (katalog zapisów profilu), launcher pokazuje go na ekranie głównym.
 func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE or what == NOTIFICATION_EXIT_TREE:
+		var l10n := preload("res://scripts/mw/mw_l10n.gd")
+		if l10n.gmst_lookup.is_valid() and dialogue != null and l10n.gmst_lookup.get_object() == dialogue:
+			l10n.gmst_lookup = Callable()
 	if what == NOTIFICATION_WM_CLOSE_REQUEST:
 		write_scripts_report()
 	if what == NOTIFICATION_WM_CLOSE_REQUEST and DisplayServer.get_name() != "headless":

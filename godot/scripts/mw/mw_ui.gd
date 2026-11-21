@@ -344,8 +344,23 @@ static func theme(scale := 1.0) -> Theme:
 	bb.content_margin_right = 12.0 * scale
 	for st_name in ["normal", "hover", "pressed", "focus", "disabled", "hover_pressed"]:
 		th.set_stylebox(st_name, "Button", bb)
-		th.set_stylebox(st_name, "OptionButton", bb)
 	th.set_stylebox("focus", "Button", empty)
+	# MW_ComboBox (openmw_resources.xml): MW_Box, tekst SandText od (6, 3) do lewej, strzałka MW_ArrowDown
+	# (omw_menu_scroll_down) 14 × 11 przy prawej krawędzi (7 px)
+	var cb: StyleBox = inner_box().duplicate()
+	cb.content_margin_left = 6.0 * scale
+	cb.content_margin_right = 7.0 * scale
+	cb.content_margin_top = floorf((24.0 * scale - fh) / 2.0)
+	cb.content_margin_bottom = ceilf((24.0 * scale - fh) / 2.0)
+	for st_name in ["normal", "hover", "pressed", "focus", "disabled", "hover_pressed"]:
+		th.set_stylebox(st_name, "OptionButton", cb)
+	th.set_stylebox("focus", "OptionButton", empty)
+	th.set_constant("arrow_margin", "OptionButton", roundi(7.0 * scale))
+	th.set_constant("h_separation", "OptionButton", roundi(4.0 * scale))
+	var adown := _omw_image("omw_menu_scroll_down")
+	if adown != null:
+		adown.resize(maxi(1, roundi(14 * scale)), maxi(1, roundi(11 * scale)), Image.INTERPOLATE_NEAREST)
+		th.set_icon("arrow", "OptionButton", ImageTexture.create_from_image(adown))
 	th.set_stylebox("panel", "ItemList", inner_box())
 	th.set_stylebox("focus", "ItemList", empty)
 	# MWList (components/widgets/list.cpp): wiersz = wysokość tekstu + 2 px (18 przy czcionce 16)

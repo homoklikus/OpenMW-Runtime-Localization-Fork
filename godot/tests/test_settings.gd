@@ -75,7 +75,7 @@ func _run() -> void:
 	check(w.win.size.is_equal_approx(want) and w.win.position.is_equal_approx(((vp - want) / 2.0).floor()), "okno 0,8 × 0,8 ekranu, wyśrodkowane")
 	check(w.title.text == "Options", "tytuł #{OMWEngine:SettingsWindow}")
 	var tabs: Array = w.tab_buttons.map(func(b): return String(b.text).strip_edges())
-	check(tabs == ["Prefs", "Audio", "Controls", "Video"], "zakładki (%s)" % [tabs])
+	check(tabs == ["Prefs", "Audio", "Controls", "Video", "Language"], "zakładki (%s)" % [tabs])
 	var vtabs: Array = w.video_tab_buttons.map(func(b): return String(b.text).strip_edges())
 	check(vtabs == ["Video", "Detail Level", "Water"], "zakładki wideo (%s)" % [vtabs])
 	check(w.ok_button.text == "OK" and w.ok_button.has_focus(), "OK z fokusem (onOpen)")
@@ -152,6 +152,46 @@ func _run() -> void:
 	main.confirm.press(true)
 	await _frames(1)
 	check(MWInput.binding_code("jump") == KEY_SPACE and MWInput.binding_code("move_forward") == KEY_W and MWInput.binding_code("activate") == KEY_E, "przywrócone domyślne")
+	# 4a. przełącznik Mouse/Keyboard – Controller: lista getActionControllerSorting, nazwy SDL, przypisywanie pada
+	check(w.keyboard_switch.button_pressed and not w.controller_switch.button_pressed, "tryb klawiatury wybrany")
+	w.controller_switch.pressed.emit()
+	await _frames(1)
+	rows = w.controls_box.get_children()
+	check(not w.keyboard_mode and w.controller_switch.button_pressed and String(rows[0].name) == "Row_move_forward"
+		and not w.binding_buttons.has("console"), "tryb pada: lista pada (bez konsoli) (%d)" % rows.size())
+	check(w.binding_buttons["move_forward"].text == "None" and w.binding_buttons["activate"].text == "A Button"
+		and w.binding_buttons["attack"].text == "Right Trigger" and w.binding_buttons["menu_mode"].text == "B Button",
+		"nazwy pada: ruch z osi (None), A Button, Right Trigger, B Button")
+	w.start_rebind("activate")
+	check(w.handle_rebind_event(_key(KEY_K)) == "ignored" and w.rebinding == "activate", "tryb pada: klawiatura pomijana")
+	var jb := InputEventJoypadButton.new()
+	jb.button_index = JOY_BUTTON_Y
+	jb.pressed = true
+	check(w.handle_rebind_event(jb) == "bound" and w.binding_buttons["activate"].text == "Y Button"
+		and w.binding_buttons["ready_magic"].text == "None" and MWInput.binding_code("activate") == KEY_E,
+		"tryb pada: Y przypisany, zabrany magii, klawisz aktywacji bez zmian")
+	var jm := InputEventJoypadMotion.new()
+	jm.axis = JOY_AXIS_LEFT_X
+	jm.axis_value = 1.0
+	w.start_rebind("jump")
+	check(w.handle_rebind_event(jm) == "ignored", "tryb pada: gałka nie (tylko spusty)")
+	jm.axis = JOY_AXIS_TRIGGER_RIGHT
+	check(w.handle_rebind_event(jm) == "bound" and w.binding_buttons["jump"].text == "Right Trigger" and w.binding_buttons["attack"].text == "None",
+		"tryb pada: prawy spust na skok, atak bez przypisania")
+	saved_b = JSON.parse_string(FileAccess.get_file_as_string(MWInput.bindings_path))
+	check(int(saved_b.controller.activate.get("button", -1)) == JOY_BUTTON_Y, "zapis przypisań pada (%s)" % str(saved_b.get("controller", {})).left(120))
+	w.start_rebind("ready_weapon")
+	check(w.handle_rebind_event(_key(KEY_ESCAPE)) == "cancel" and w.binding_buttons["ready_weapon"].text == "X Button", "tryb pada: Esc anuluje")
+	w.find_child("ResetControlsButton", true, false).pressed.emit()
+	await _frames(1)
+	main.confirm.press(true)
+	await _frames(1)
+	check(w.binding_buttons["activate"].text == "A Button" and w.binding_buttons["ready_magic"].text == "Y Button"
+		and w.binding_buttons["attack"].text == "Right Trigger" and w.binding_buttons["jump"].text == "Left Trigger"
+		and MWInput.binding_code("jump") == KEY_SPACE, "tryb pada: domyślne przypisania pada (klawisze bez zmian)")
+	w.keyboard_switch.pressed.emit()
+	await _frames(1)
+	check(w.keyboard_mode and w.binding_buttons.has("console"), "powrót do listy klawiatury")
 	w.toggle_check("invert_x")
 	check(main.player.controller.invert_x and w.checks["invert_x"].text == "On", "odwrócenie osi X")
 	w.toggle_check("invert_x")
@@ -199,6 +239,36 @@ func _run() -> void:
 	w.toggle_check("water_shader")
 	check(main.envr.water_mode != wm0, "shader wody przełączony od razu (%s)" % main.envr.water_mode)
 	w.toggle_check("water_shader")
+	# 5a. Language: języki z plików l10n, zmiana wymaga ponownego uruchomienia (bez zmiany tekstów od razu)
+	w.show_page(4)
+	check(w.languages.has("en") and w.languages.has("pl") and not w.languages.has("gmst"), "Language: języki l10n bez „gmst” (%s)" % [w.languages])
+	check(w.primary_language.get_item_text(w.primary_language.selected) == "English" and w.secondary_language.selected == 0,
+		"Language: en wybrany, drugi „None”")
+	var pl_i: int = w.languages.find("pl")
+	var en_i: int = w.languages.find("en")
+	w.primary_language.select(pl_i)
+	w._on_language(0, pl_i)
+	await _frames(1)
+	check(String(main.settings.preferred_locales) == "pl" and main.message_boxes.interactive != null, "Language: główny pl + komunikat ChangeRequiresRestart")
+	check(w.title.text == "Options" or w.title.text == main.dialogue.gmst_text("sOptions", ""), "Language: teksty bez zmiany do ponownego uruchomienia")
+	main.message_boxes.interactive_buttons[0].pressed.emit()
+	await _frames(1)
+	w._on_language(1, en_i + 1)
+	check(String(main.settings.preferred_locales) == "pl,en", "Language: drugi en (%s)" % main.settings.preferred_locales)
+	main.message_boxes.interactive_buttons[0].pressed.emit()
+	await _frames(1)
+	w._on_language(1, 0)
+	check(String(main.settings.preferred_locales) == "pl", "Language: drugi None – tylko pierwszy")
+	main.message_boxes.interactive_buttons[0].pressed.emit()
+	await _frames(1)
+	w._on_language(0, en_i)
+	main.message_boxes.interactive_buttons[0].pressed.emit()
+	await _frames(1)
+	w.checks["gmst_overrides_l10n"].pressed.emit()
+	await _frames(1)
+	check(main.settings.gmst_overrides_l10n == false and main.message_boxes.interactive != null, "Language: gmst overrides l10n – przełącznik i komunikat")
+	main.message_boxes.interactive_buttons[0].pressed.emit()
+	await _frames(1)
 	# 6. OK – zamknięcie, zapis
 	w.ok_button.pressed.emit()
 	await _frames(1)
@@ -206,6 +276,7 @@ func _run() -> void:
 	check(FileAccess.file_exists(ing), "zapis ingame_settings.json obok ustawień launchera")
 	var saved: Dictionary = main._load_ingame_settings()
 	check(int(saved.get("difficulty", 0)) == 50 and int(saved.get("fov", 0)) == 75 and String(saved.get("resolution", "")) == "1920x1080", "zapisane wartości (%s)" % str(saved).left(200))
+	check(String(saved.get("preferred_locales", "")) == "en" and saved.get("gmst_overrides_l10n", true) == false, "zapisane: preferred locales, gmst overrides l10n")
 	main.open_settings()
 	await _frames(2)
 	check(w.checks.size() > 0 and int(w.sliders["difficulty"].value) == 150, "ponowne otwarcie – suwak z zapisanej wartości")

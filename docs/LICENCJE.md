@@ -43,6 +43,10 @@ Przeniesione pliki OpenMW (dane, nie kod):
   (`files/data/l10n/OMWEngine`, `files/data/l10n/Calendar`, GPLv3, © OpenMW contributors), bez zmian. Używane
   przez `mw_l10n.gd` tak jak w OpenMW (ustawienie `preferred_locales` = `[General] preferred locales`).
   To nie są zasoby Bethesdy.
+* `godot/l10n/Interface/*.yaml` (z `files/data/l10n/Interface`) oraz `godot/l10n/*/gmst.yaml` (z
+  `files/data-mw/l10n`, w wydaniu OpenMW `resources/vfs-mw/l10n`) — GPLv3, © OpenMW contributors, bez zmian.
+  Pliki gmst.yaml zawierają tylko identyfikatory GMST (np. „sOptions”), nie teksty gry; teksty są czytane
+  w czasie działania z danych gry użytkownika.
 
 ## Zależności i narzędzia
 

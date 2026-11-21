@@ -221,7 +221,35 @@ func _run() -> void:
 	main.save_dialog.close()
 	main.main_menu.close()
 	await _frames(2)
+	_test_gmst_locale(main)
 	print("RESULT ", JSON.stringify({"checks": checks, "failures": failures}))
 	for f in failures:
 		print("  - ", f)
 	quit(1 if failures.size() > 0 else 0)
+
+## Język „gmst” (OpenMW vfs-mw/l10n/*/gmst.yaml, l10n::Manager, MessageBundles): przy gmst overrides l10n = true
+## teksty silnika pochodzą z GMST danych gry (Options = sOptions, OK = sOK, Prefs = sPrefs), wzorce {gmst:…}
+## z podstawieniami printf → {zmienna}, formy plural; brak GMST → kolejny język; przy false – najpierw l10n.
+func _test_gmst_locale(main) -> void:
+	var L10n = load("res://scripts/mw/mw_l10n.gd")
+	var keep_lookup: Callable = L10n.gmst_lookup
+	var keep_first: bool = L10n.gmst_first
+	var fake := {"sOptions": "Options Menu", "sOK": "Okay", "sDifficulty": "Hardness", "sNotifyMessage39": "Your %s skill increased to %d.",
+		"sNotifyMessage42": "Out after %d day.", "sNotifyMessage43": "Out after %d days.", "sLoadLastSaveMsg": "Load '%s'?"}
+	L10n.gmst_lookup = func(id: String) -> String: return String(fake.get(id, ""))
+	L10n.gmst_first = true
+	check(L10n.text("SettingsWindow") == "Options Menu", "gmst: SettingsWindow = sOptions (%s)" % L10n.text("SettingsWindow"))
+	check(L10n.ctx_text("Interface", "OK") == "Okay", "gmst: Interface OK = sOK")
+	check(L10n.text("DifficultyValue", "", {"value": 5}) == "Hardness (5)", "gmst: wzorzec {gmst:sDifficulty} ({value}) (%s)" % L10n.text("DifficultyValue", "", {"value": 5}))
+	check(L10n.ctx_text("Mechanics", "SkillIncreasedTo", "", {"skill": "Block", "level": 7}) == "Your Block skill increased to 7.",
+		"gmst: printf → {skill}/{level} (%s)" % L10n.ctx_text("Mechanics", "SkillIncreasedTo", "", {"skill": "Block", "level": 7}))
+	check(L10n.ctx_text("Mechanics", "ReleasedFromPrison", "", {"days": 1}) == "Out after 1 day."
+		and L10n.ctx_text("Mechanics", "ReleasedFromPrison", "", {"days": 3}) == "Out after 3 days.", "gmst: plural one/other")
+	check(L10n.text("Audio") == "Audio", "gmst: brak sAudio – tekst z en.yaml (%s)" % L10n.text("Audio"))
+	L10n.gmst_first = false
+	check(L10n.text("SettingsWindow") == "Options", "gmst overrides l10n = false: najpierw en.yaml (%s)" % L10n.text("SettingsWindow"))
+	L10n.gmst_lookup = keep_lookup
+	L10n.gmst_first = keep_first
+	# w grze: wyszukiwanie w GMST danych (z warstwą tłumaczeń)
+	if main.dialogue != null and not String(main.dialogue.gmst_text("sOK", "")).is_empty():
+		check(L10n.ctx_text("Interface", "OK") == main.dialogue.gmst_text("sOK", ""), "gmst: OK z GMST danych gry")

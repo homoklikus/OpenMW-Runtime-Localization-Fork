@@ -197,6 +197,8 @@ func _stage10_case(main, vp: Vector2) -> void:
 	main.open_settings()
 	await _frames(3)
 	var w = main.settings_window
+	w.show_page(0)                                      # kontenery układają się tylko na widocznej stronie
+	await _frames(1)
 	var wr: Rect2 = w.win.get_global_rect()
 	var W := wr.size.x / s
 	var H := wr.size.y / s
@@ -222,8 +224,9 @@ func _stage10_case(main, vp: Vector2) -> void:
 		k += 1
 	check(ok, "%s: opcje – suwaki preferencji w (4, 24 + 60k), 14 px" % tag)
 	var chk: Control = w.checks["autosave"]
-	check(near_v(rel.call(chk) - pr, Vector2(4, 250)) and absf(chk.size.y / s - 24.0) < 0.6,
-		"%s: opcje – przełącznik autozapisu w (4, 250) (%s %s)" % [tag, rel.call(chk) - pr, chk.size / s])
+	# HBox (4, 250, 340, 28): przycisk 24 px wyśrodkowany w wierszu – y = 252 (zrzut OpenMW: linie 394/414)
+	check(near_v(rel.call(chk) - pr, Vector2(4, 252)) and absf(chk.size.y / s - 24.0) < 0.6,
+		"%s: opcje – przełącznik autozapisu w (4, 252) (%s %s)" % [tag, rel.call(chk) - pr, chk.size / s])
 	# OkButton: AutoSizedButton (napis + 24) z ExpandDirection Left – prawa krawędź 8 px przed klientem, dół 5 px
 	var okr := Rect2(rel.call(w.ok_button), w.ok_button.size / s)
 	var okw: float = ceilf(w.ok_button.get_theme_font("font").get_string_size(w.ok_button.text, HORIZONTAL_ALIGNMENT_LEFT, -1,
@@ -247,6 +250,13 @@ func _stage10_case(main, vp: Vector2) -> void:
 	check(near_v(rel.call(rb) - cp, Vector2(4, 198 + d)), "%s: opcje – Reset Controls przy dolnej krawędzi (%s)" % [tag, rel.call(rb) - cp])
 	check(near_v(rel.call(w.resolution_list) - rel.call(w.pages[3]), Vector2(4, 36)) and near_v(w.resolution_list.size / s, Vector2(195, 225)),
 		"%s: opcje – lista rozdzielczości (0, 4, 195, 225) w stronie TabControlInner" % tag)
+	# Language: listy języków (4, 52) i (262, 52) 250 × 24, przełącznik gmst w HBox (4, 84, 500, 32)
+	w.show_page(4)
+	await _frames(1)
+	var lp: Vector2 = rel.call(w.pages[4])
+	check(near_v(rel.call(w.primary_language) - lp, Vector2(4, 52)) and near_v(w.primary_language.size / s, Vector2(250, 24))
+		and near_v(rel.call(w.secondary_language) - lp, Vector2(262, 52)) and near_v(rel.call(w.checks["gmst_overrides_l10n"]) - lp, Vector2(4, 88)),
+		"%s: opcje – zakładka Language jak openmw_settings_window.layout" % tag)
 	# warstwy: MainMenu < Settings < Notification
 	main.static_message_box("x")
 	main.remove_static_message_box()
