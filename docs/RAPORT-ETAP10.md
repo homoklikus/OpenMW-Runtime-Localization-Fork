@@ -34,6 +34,7 @@ funkcji. Commity lokalne, bez push.
 | test_crime: sprawdzenie „przeniesienie czeka, póki gra stoi” raz nie przeszło w pełnym zestawie | wyścig w teście: wynik zależał od tego, czy strażnik zdążył zagadać (pauza) przed sprawdzeniem; zachowanie gry zgodne z World::update | test ustawia pauzę jawnie i sprawdza, że przeniesienie czeka | test_crime (3 powtórzenia) |
 | Testy (i uruchomienia bez launchera) zapisywały autozapis/szybki zapis do zapisów użytkownika (user://saves); test_progress raz nie przeszedł – długi zapis do pełnego katalogu wydłużył klatkę, a TimeAdvancer (jak w OpenMW 0.51) przeszedł kilka godzin w jednej klatce, mijając godzinę przerwania | brak --saves w testach; autozapis przed odpoczynkiem (nowy, domyślnie włączony jak w OpenMW) | bez --saves przy --project zapisy w <projekt>/saves (launcher zawsze podaje --saves); test przerwania snu z wyłączonym autozapisem (autozapis sprawdza test_settings) | test_progress, test_settings |
 | Polskie komunikaty przy zamkniętych drzwiach/pojemniku, podniesieniu przedmiotu i pułapce | własne komunikaty spoza OpenMW | jak OpenMW: FailedAction bez tekstu (tylko dźwięk), ActionTake bez tekstu, pułapka działa czarem | test_interaction |
+| Samoczynny obrót kamery po wczytaniu gry (zgłoszenie) | osie urządzeń spoza kontrolerów gry (spoczynek ≠ 0) czytane jako prawa gałka; „Enable Controller = Off” nie odcinał akcji pada | punkt 7.14 | test_look_stability, test_gamepad |
 
 ## 3. Stworzenia wodne
 
@@ -486,9 +487,45 @@ Pozostało (bez zmian): HUD przy 720p 1 px niżej niż w OpenMW (wszystkie eleme
 wyśrodkowane zgodne co do piksela – przyczyny nie ustalono, przy 1080p etap 7 – zgodne); górne 3 px paska
 MW_ScrollView (Godot przesunąłby też treść). Mapa lokalna wnętrz w OpenMW na Xvfb jest czarna (poza znacznikami)
 także w odkrytej części, więc obrazu mapy nie porównano – tylko położenia znaczników. Mody: nie sprawdzone
-w tej części (punkt 7.14).
+w tej części (punkt 7.15).
 
-### 7.14 Pozostałe punkty etapu (do wykonania)
+### 7.14 Samoczynny obrót kamery po wczytaniu gry (zgłoszenie, cz. 20)
+**Objaw:** po wczytaniu zapisu kamera obraca się sama i trzeba ręcznie przeciwdziałać.
+
+**Sprawdzone:** przywracanie orientacji z zapisu (`_apply_state`: odchylenie gracza i pochylenie kamery – raz,
+poprawnie), mysz (jedyna ścieżka obrotu: `mw_player_controller._unhandled_input`, tylko w trybie przechwyconym,
+bez podwójnego przetwarzania – inne skrypty z InputEventMouseMotion tylko przeciągają okna), skrypty (Rotate pomija
+gracza, Position/SetAngle ustawiają kąt raz), AI (gracz nie jest na liście aktorów AI), przejścia GUI ↔ gra i wczytanie
+z menu, utrata fokusu (Godot zwalnia klawisze; osie pada zostają). Jedyne źródło obrotu ciągłego bez udziału
+gracza to prawa gałka w `mw_gamepad.gd` (cz. 16).
+
+**Przyczyna:** port czytał osie urządzenia nr 0 (`Input.get_joy_axis(0, …)`), gdy tylko Godot zgłaszał jakiekolwiek
+urządzenie „joypad”, a zdarzenia pada w akcjach miały urządzenie „wszystkie”. Godot zgłasza także urządzenia, które
+nie są kontrolerami gry (nierozpoznane pady, czujniki położenia, część klawiatur/myszy z osiami) – ich osie
+w spoczynku mają wartości ≠ 0 (np. −1), poza strefą martwą 0,1, więc prawa gałka „była wychylona” bez przerwy.
+OpenMW otwiera tylko urządzenia rozpoznane jako kontroler gry (SDL_IsGameController – z mapowaniem), więc takie
+urządzenia nie sterują grą. Dodatkowo „Enable Controller = Off” nie wyłączał akcji z pada (Godot ustawia stan akcji
+przed wywołaniem `_input`).
+
+**Naprawa (bez wyłączania obrotu i bez opóźnień):** aktywny pad to pierwszy rozpoznany kontroler gry
+(`Input.is_joy_known`); zdarzenia pada we wszystkich akcjach gry są wiązane z tym urządzeniem (bez pada albo przy
+„Enable Controller = Off” – z nieistniejącym urządzeniem), także po zmianie przypisań i przy podłączeniu/odłączeniu
+(`joy_connection_changed`); prawa gałka, kursor pada i przyciski w GUI – tylko z aktywnego urządzenia.
+
+**Diagnostyka:** `mw_look_diag.gd` co klatkę rozdziela zmianę odchylenia i pochylenia na źródła „mouse”, „pad”
+(z osiami i urządzeniem), „script”, „state” (wczytanie, podróż) i resztę „other” (logika kamery, fizyka). Z argumentem
+`--look-diag` (np. w polu dodatkowych argumentów launchera) gra wypisuje co sekundę `MWGODOT_LOOK …` ze sumami źródeł
+i listą urządzeń pada (nazwa, rozpoznane, osie) – pozwala potwierdzić źródło na komputerze użytkownika.
+
+**Test regresji `test_look_stability.gd` (25):** wczytanie w trakcie gry i z menu głównego, zapis we wnętrzu i na
+zewnątrz – 90 klatek bez wejścia: orientacja z zapisu i zero klatek z obrotem; bez pada; urządzenie spoza kontrolerów
+gry z osiami −1 (bez obrotu i bez ruchu gracza); rozpoznany pad z gałkami w spoczynku i w strefie martwej; „Enable
+Controller” wyłączone przy wychylonej gałce; powrót z GUI; diagnostyka przypisuje obrót z pada do „pad”, a obrót bez
+źródła do „other”. test_gamepad (26): wybór pada, wiązanie zdarzeń z urządzeniem. Ograniczenie: mysz w trybie
+przechwyconym nie jest dostępna w trybie headless (ścieżka myszy sprawdzona kodem i diagnostyką); urządzeń
+wejściowych komputera użytkownika nie mam z maszyny wirtualnej – potwierdzenie źródła na jego sprzęcie: `--look-diag`.
+
+### 7.15 Pozostałe punkty etapu (do wykonania)
 
 Mody (§12): okna z treścią modów (składniki, efekty, czary) – do sprawdzenia.
 
@@ -514,9 +551,10 @@ Mody (§12): okna z treścią modów (składniki, efekty, czary) – do sprawdze
 * Etap 10 cz. 17: porównania nowych okien z OpenMW 720p/1440p/2160p i poprawki układów
 * Etap 10 cz. 18: teksty silnika z GMST, zakładka Language, przełącznik pada w Controls
 * Etap 10 cz. 19: dodatki (Tribunal, Bloodmoon) – znaczniki drzwi, skala mapy, MW_ScrollView, ClassChoiceDialog
+* Etap 10 cz. 20: naprawa – samoczynny obrót kamery (pad tylko z kontrolera gry), diagnostyka źródeł obrotu
 
-Pełny zestaw tools/run_tests.sh: 66/66 po cz. 19 (38 w przebiegu, test_progress poprawiony i 28 kolejnych po poprawce); 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
+Pełny zestaw tools/run_tests.sh: 67/67 po cz. 20; 66/66 po cz. 19 (38 w przebiegu, test_progress poprawiony i 28 kolejnych po poprawce); 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 
 ## 9. Zalecana kolejność dalszych prac
 
-1. Mody (§12, punkt 7.14), 2. brakujące akcje sterowania (punkt 7.11).
+1. Mody (§12, punkt 7.15), 2. brakujące akcje sterowania (punkt 7.11).

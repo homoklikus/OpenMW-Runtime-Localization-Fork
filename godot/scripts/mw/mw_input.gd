@@ -190,6 +190,7 @@ static func set_controller_binding(action: String, b: Dictionary) -> void:
 	clear_controller_bindings(action)
 	if not b.is_empty():
 		InputMap.action_add_event(action, _controller_event(b))
+	load("res://scripts/mw/mw_gamepad.gd").retarget(load("res://scripts/mw/mw_gamepad.gd").active_device)
 
 ## joystickButtonBindingDetected / joystickAxisBindingDetected (tylko spusty, wychylenie > 0,5 jak ICS);
 ## klawiatura i mysz w tym trybie są pomijane → "ignored".
@@ -214,6 +215,7 @@ static func reset_controller_defaults() -> void:
 		if InputMap.has_action(act) and not (act in AXIS_MOVE):
 			clear_controller_bindings(act)
 	GP.register_defaults()
+	GP.retarget(GP.active_device)
 	save_bindings()
 
 ## keyBindingDetected / mouseButtonBindingDetected: → "cancel" (Esc), "ignored" (zastrzeżony), "bound".

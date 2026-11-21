@@ -49,6 +49,14 @@ static func _has_joy(action: String, kind: String, idx: int) -> bool:
 			return true
 	return false
 
+static func _devices_of(action: String) -> Array:
+	var out := []
+	for e in InputMap.action_get_events(action):
+		if e is InputEventJoypadButton or e is InputEventJoypadMotion:
+			if not out.has(e.device):
+				out.append(e.device)
+	return out
+
 func _run() -> void:
 	MWInput.bindings_path = "user://test_gamepad_bindings.json"
 	var main := (load("res://main.tscn") as PackedScene).instantiate()
@@ -56,6 +64,14 @@ func _run() -> void:
 	await _frames(8)
 	var gp = main.gamepad
 	check(gp != null and gp.enabled, "ControllerManager, pad włączony")
+	# bez rozpoznanego pada (headless): zdarzenia pada w akcjach przypisane do żadnego urządzenia
+	check(gp.device == gp.NO_DEVICE and _devices_of("activate") == [gp.NO_DEVICE], "bez kontrolera gry – pad nie steruje akcjami")
+	check(gp.pick_device([0, 1, 2], func(id): return id == 1) == 1 and gp.pick_device([0], func(_id): return false) == gp.NO_DEVICE,
+		"wybór pada: pierwszy rozpoznany kontroler gry (SDL_IsGameController)")
+	# dalej jak z podłączonym rozpoznanym padem nr 0
+	gp.set_meta("test_device", 0)
+	gp.refresh_device()
+	check(gp.device == 0 and _devices_of("activate") == [0], "pad 0 – zdarzenia akcji z tego urządzenia")
 	# 1. domyślne przypisania
 	check(_has_joy("activate", "button", JOY_BUTTON_A) and _has_joy("ready_weapon", "button", JOY_BUTTON_X)
 		and _has_joy("ready_magic", "button", JOY_BUTTON_Y) and _has_joy("menu_mode", "button", JOY_BUTTON_B)

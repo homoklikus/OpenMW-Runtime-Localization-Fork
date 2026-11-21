@@ -28,17 +28,66 @@ const DEFAULT_AXES := {
 }
 
 var main
-var enabled := true                  # [Input] enable controller
+var enabled := true:                 # [Input] enable controller
+	set(v):
+		enabled = v
+		refresh_device()
 var gui_cursor := true               # mGamepadGuiCursorEnabled
 var cursor_speed := 1.0              # [Input] gamepad cursor speed
 var camera_y_multiplier := 1.0       # [Input] camera y multiplier
-var device := 0
+var device := NO_DEVICE              # aktywny pad (SDL_IsGameController) albo NO_DEVICE
+## Brak pada: zdarzenia pada w akcjach przypisane do nieistniejącego urządzenia (nie pasują do żadnego wejścia).
+const NO_DEVICE := 1000
+static var active_device := NO_DEVICE
 var last_look := Vector2.ZERO        # testy: ostatni obrót z prawej gałki (rad)
 var last_look_dt := 0.0              # testy: dt klatki, z której pochodzi last_look
 var _cursor := Vector2(-1, -1)
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	Input.joy_connection_changed.connect(func(_d, _c): refresh_device())
+	refresh_device()
+
+## SDLInputWrapper / ControllerManager: OpenMW otwiera tylko urządzenia rozpoznane jako kontroler gry
+## (SDL_IsGameController – z mapowaniem). Inne urządzenia „joystick” (np. czujniki, nierozpoznane pady z osiami
+## w spoczynku ≠ 0) nie sterują grą. Godot zgłasza wszystkie urządzenia, więc port wybiera pierwszy rozpoznany
+## (Input.is_joy_known) i wiąże z nim zdarzenia pada w akcjach.
+static func pick_device(ids: Array, known: Callable) -> int:
+	for id in ids:
+		if bool(known.call(int(id))):
+			return int(id)
+	return NO_DEVICE
+
+func refresh_device() -> void:
+	var d := NO_DEVICE
+	if enabled:
+		d = pick_device(Input.get_connected_joypads(), func(id): return Input.is_joy_known(id))
+		if has_meta("test_device"):
+			d = int(get_meta("test_device"))
+	device = d
+	retarget(d)
+
+## Zdarzenia pada w akcjach gry tylko z aktywnego urządzenia (NO_DEVICE – żadne); bez powtórzeń.
+static func retarget(dev: int) -> void:
+	active_device = dev
+	var MWInput = load("res://scripts/mw/mw_input.gd")
+	for act in MWInput.CONTROLLER_SORTING + ["menu"]:
+		if not InputMap.has_action(act):
+			continue
+		var keep := []
+		for e in InputMap.action_get_events(act):
+			if e is InputEventJoypadButton or e is InputEventJoypadMotion:
+				InputMap.action_erase_event(act, e)
+				var n: InputEvent = e.duplicate()
+				n.device = dev
+				var dup := false
+				for k in keep:
+					if k.is_match(n, true):
+						dup = true
+				if not dup:
+					keep.append(n)
+		for n in keep:
+			InputMap.action_add_event(act, n)
 
 ## Domyślne przypisania pada dodawane do akcji (bez usuwania klawiszy).
 ## loadControllerDefaults(force = false): domyślne tylko dla akcji bez przypisania pada i tylko gdy przycisk/oś nie
@@ -171,8 +220,8 @@ func _click() -> void:
 func _input(e: InputEvent) -> void:
 	if not (e is InputEventJoypadButton or e is InputEventJoypadMotion):
 		return
-	if not enabled:
-		get_viewport().set_input_as_handled()       # [Input] enable controller = false – pad ignorowany
+	if not enabled or e.device != device:
+		get_viewport().set_input_as_handled()       # [Input] enable controller = false albo urządzenie spoza kontrolerów gry
 		return
 	var sw = main.get("settings_window") if main != null else null
 	if sw != null and sw.visible and not String(sw.rebinding).is_empty():
@@ -186,7 +235,7 @@ func _input(e: InputEvent) -> void:
 	get_viewport().set_input_as_handled()            # w trybie GUI pad nie steruje akcjami gry
 
 func _process(dt: float) -> void:
-	if main == null or not enabled or Input.get_connected_joypads().is_empty() and not has_meta("test_axes"):
+	if main == null or not enabled or device == NO_DEVICE:
 		return
 	var lx := dead(_axis(JOY_AXIS_LEFT_X))
 	var ly := dead(_axis(JOY_AXIS_LEFT_Y))
@@ -225,6 +274,8 @@ func _process(dt: float) -> void:
 	var pitch := ry * dt * 1000.0 * sens * (-1.0 if bool(main.settings.get("invert_y", false)) else 1.0) * camera_y_multiplier / 256.0
 	last_look = Vector2(yaw, pitch)
 	last_look_dt = dt
+	if main.get("look_diag") != null:
+		main.look_diag.add("pad", yaw, pitch, {"device": device, "name": Input.get_joy_name(device), "rx": rx, "ry": ry})
 	pl.rotate_y(-yaw)
 	var cam: Camera3D = pl.controller.cam
 	cam.rotation.x = clampf(cam.rotation.x - pitch, -1.5, 1.5)

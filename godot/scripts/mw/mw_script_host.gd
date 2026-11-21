@@ -112,6 +112,8 @@ func _move(t: Dictionary, pos: Vector3, rot_z_deg: float, cell := "") -> void:
 		main.player.global_position = MWCoords.mw_to_godot(pos)
 		if not is_nan(rot_z_deg):
 			main.player.rotation.y = -deg_to_rad(rot_z_deg)
+			if main.get("look_diag") != null:
+				main.look_diag.mark("script")
 		main.player.velocity = Vector3.ZERO
 		main.player.set("_fall_start", NAN)       # teleport: wysokość upadku liczona od nowa (bez obrażeń)
 		return

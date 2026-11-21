@@ -44,6 +44,7 @@ var custom_markers = preload("res://scripts/mw/mw_custom_markers.gd").new(self) 
 var edit_note = null                  # mw_edit_note.gd – EditNoteDialog
 var keyboard_nav = null               # mw_keyboard_nav.gd – KeyboardNavigation
 var gamepad = null                    # mw_gamepad.gd – ControllerManager (pad)
+var look_diag = null                  # mw_look_diag.gd – źródła obrotu kamery (diagnostyka)
 var console = null                    # mw_console.gd – konsola (MWScript, polecenia tylko konsoli)
 var god_mode := false                 # TGM: bez obrażeń i kosztów (zdrowie, kondycja, magia gracza)
 var tooltips = null                   # mw_tooltips.gd – ToolTips (podpowiedzi w układzie OpenMW)
@@ -282,6 +283,11 @@ func _ready() -> void:
 	kn.main = self
 	add_child(kn)
 	keyboard_nav = kn
+	look_diag = preload("res://scripts/mw/mw_look_diag.gd").new()
+	look_diag.name = "LookDiag"
+	look_diag.main = self
+	look_diag.verbose = not arg("look-diag").is_empty() or OS.get_cmdline_user_args().has("--look-diag")
+	add_child(look_diag)
 	gamepad = preload("res://scripts/mw/mw_gamepad.gd").new()
 	gamepad.name = "ControllerManager"
 	gamepad.main = self
@@ -335,6 +341,7 @@ func _ready() -> void:
 	add_child(player)
 	if player.controller != null:
 		player.controller.allowed = control_allowed       # blokady sterowania ze skryptów (CharGen)
+		player.controller.diag = look_diag
 	mw_hud = preload("res://scripts/mw/mw_hud.gd").new()
 	mw_hud.name = "MWHud"
 	mw_hud.main = self
@@ -350,6 +357,8 @@ func _ready() -> void:
 	var start_t := _start_transform()
 	player.global_position = start_t.origin
 	player.rotation.y = start_t.basis.get_euler().y
+	if look_diag != null:
+		look_diag.mark("state")
 	_apply_capture()
 	var lp := arg("load")
 	if not lp.is_empty():
@@ -2372,6 +2381,8 @@ func travel(dest: Dictionary) -> void:
 		_update_streaming(true)
 	player.global_position = t.origin
 	player.rotation.y = t.basis.get_euler().y
+	if look_diag != null:
+		look_diag.mark("state")
 	player.velocity = Vector3.ZERO
 	_place_on_ground_frames = 2              # World::adjustPosition: postawienie na podłożu po wczytaniu kolizji
 	player.set_physics_process(false)
@@ -2798,6 +2809,8 @@ func _apply_state() -> void:
 	var cam := player.get_node_or_null("Camera3D") as Camera3D
 	if cam:
 		cam.rotation.x = -float(rot[0])
+	if look_diag != null:
+		look_diag.mark("state")
 	player.fly = bool(pl.get("fly", false))
 	player.velocity = Vector3.ZERO
 	if not inter.is_empty():
@@ -3176,6 +3189,8 @@ func new_game() -> void:
 	var t := _start_transform()
 	player.global_position = t.origin
 	player.rotation.y = t.basis.get_euler().y
+	if look_diag != null:
+		look_diag.mark("state")
 	player.velocity = Vector3.ZERO
 	_update_streaming(true)
 	if scripts != null and _scripted_chargen_wanted_menu():
