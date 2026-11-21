@@ -43,6 +43,7 @@ var item_window = null                # okno pojemnika / ekwipunku
 var custom_markers = preload("res://scripts/mw/mw_custom_markers.gd").new(self)   # notatki na mapie (CustomMarkerCollection)
 var edit_note = null                  # mw_edit_note.gd – EditNoteDialog
 var keyboard_nav = null               # mw_keyboard_nav.gd – KeyboardNavigation
+var gamepad = null                    # mw_gamepad.gd – ControllerManager (pad)
 var console = null                    # mw_console.gd – konsola (MWScript, polecenia tylko konsoli)
 var god_mode := false                 # TGM: bez obrażeń i kosztów (zdrowie, kondycja, magia gracza)
 var tooltips = null                   # mw_tooltips.gd – ToolTips (podpowiedzi w układzie OpenMW)
@@ -106,6 +107,7 @@ func _ready() -> void:
 	if not arg("bindings").is_empty():
 		MWInput.bindings_path = arg("bindings")
 	MWInput.load_bindings()                  # przypisania z okna opcji (input_bindings.json)
+	preload("res://scripts/mw/mw_gamepad.gd").register_defaults()   # loadControllerDefaults
 	var mk := preload("res://scripts/mw/mw_menu_key.gd").new()
 	var pump := preload("res://scripts/mw/mw_script_pump.gd").new()
 	pump.name = "ScriptPump"
@@ -274,6 +276,10 @@ func _ready() -> void:
 	kn.main = self
 	add_child(kn)
 	keyboard_nav = kn
+	gamepad = preload("res://scripts/mw/mw_gamepad.gd").new()
+	gamepad.name = "ControllerManager"
+	gamepad.main = self
+	add_child(gamepad)
 	console = preload("res://scripts/mw/mw_console.gd").new()
 	console.name = "Console"
 	console.main = self
@@ -1578,6 +1584,8 @@ func apply_live_settings() -> void:
 	UI.set_window_alpha(float(settings.get("menu_transparency", 0.84)))
 	if tooltips != null:
 		tooltips.delay = float(settings.get("tooltip_delay", 0.0))
+	if gamepad != null:
+		gamepad.enabled = bool(settings.get("enable_controller", true))
 	if combat != null:
 		combat.difficulty = int(settings.get("difficulty", 0))
 	if mw_hud != null and mw_hud.get("crosshair") != null and mw_hud.crosshair != null:

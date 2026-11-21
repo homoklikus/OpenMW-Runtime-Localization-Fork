@@ -348,9 +348,24 @@ Wbudowana nawigacja Godota (Tab, strzałki między przyciskami) wyłączona tam,
 okno z pytaniem – przycisk #{sOk}/#{sYes} (getDefaultKeyFocus), potwierdzenie – OK, opcje – OK; saveFocus/restoreFocus
 trybu przy przykryciu i zdjęciu trybu. Test: test_keyboard_nav (25).
 
-### 7.10 Pozostałe punkty etapu (do wykonania)
+### 7.10 Pad (cz. 16)
+`mw_gamepad.gd` jak ControllerManager OpenMW 0.51 ([GUI] controller menus = false – menu sterowane jak klawiaturą):
+domyślne przypisania loadControllerDefaults (A aktywacja, X broń, Y magia, B tryb menu, Start menu gry, Guide
+szybki zapis, LB dziennik, RB odpoczynek, wciśnięcie lewej gałki skradanie, prawy spust atak, lewy skok; lewa gałka
+ruch ze strefą martwą 0,1), rozglądanie prawą gałką (MouseManager::update: oś × dt × 1000 × czułość / 256 rad,
+odwrócenie osi X/Y). W trybie GUI (gamepadToGuiControl): krzyżak = strzałki, A = Spacja albo kliknięcie (kursor
+pada), B = wyjście z okna modalnego / trybu, LB/RB = Shift+Tab/Tab, wciśnięcie lewej gałki – kursor pada, lewa gałka
+przesuwa kursor (× dt × 1500 / skala × gamepad cursor speed, wolniej z prawym spustem), prawa – kółko; przyciski pada
+w trybie GUI nie trafiają do akcji gry. „Enable Controller” w zakładce Controls (i w launcherze). Zmiana klawisza nie
+usuwa przypisań pada (clearAllKeyBindings). Brak: przełącznik Mouse/Keyboard – Controller (zmiana przypisań pada),
+„controller menus”, żyroskop. Test: test_gamepad (23).
+Ekrany ładowania: zgodne od etapu 9/10 cz. 5 (LoadingScreen: tapeta co 5 s, zamrożona klatka, initialDelay 50 ms
+minus postęp, etykieta „ważna”, położenie okienka); różnica – GM_Loading nie jest kładziony na stos trybów (port
+czeka w czasie ekranu ładowania na postawienie gracza przez fizykę, której pauza trybu GUI by nie puściła).
 
-§10 ekrany ładowania, pad, §11 porównania 720p/1440p/2160p i nowych okien, §12 dodatki i mody.
+### 7.11 Pozostałe punkty etapu (do wykonania)
+
+§11 porównania 720p/1440p/2160p i nowych okien, §12 dodatki i mody.
 
 ## 8. Commity (lokalne, bez push)
 
@@ -370,10 +385,11 @@ trybu przy przykryciu i zdjęciu trybu. Test: test_keyboard_nav (25).
 * Etap 10 cz. 13: notatki na mapie (EditNoteDialog, CustomMarker)
 * Etap 10 cz. 14: okno opcji jak SettingsWindow, przypisania klawiszy, autozapis
 * Etap 10 cz. 15: nawigacja klawiaturą w oknach (KeyboardNavigation)
+* Etap 10 cz. 16: pad (ControllerManager)
 
-Pełny zestaw tools/run_tests.sh: 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
+Pełny zestaw tools/run_tests.sh: 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 
 ## 9. Zalecana kolejność dalszych prac
 
-1. Pad, ekrany ładowania, 2. porównania zrzutami wszystkich nowych okien z OpenMW
-(720p/1440p/2160p), 3. dodatki i mody.
+1. Porównania zrzutami wszystkich nowych okien z OpenMW
+(720p/1440p/2160p), 2. dodatki i mody.

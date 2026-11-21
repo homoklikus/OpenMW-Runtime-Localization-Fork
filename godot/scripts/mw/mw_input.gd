@@ -83,6 +83,12 @@ static func code_of(e: InputEvent) -> int:
 		return -int((e as InputEventMouseButton).button_index)
 	return 0
 
+## clearAllKeyBindings: tylko klawisze i przyciski myszy (przypisania pada zostają).
+static func clear_key_bindings(action: String) -> void:
+	for e in InputMap.action_get_events(action):
+		if e is InputEventKey or e is InputEventMouseButton:
+			InputMap.action_erase_event(action, e)
+
 static func binding_code(action: String) -> int:
 	if not InputMap.has_action(action):
 		return 0
@@ -134,17 +140,17 @@ static func set_binding(action: String, c: int) -> void:
 	for a in CONFIGURABLE:
 		var other := String(a[0])
 		if other != action and InputMap.has_action(other) and binding_code(other) == c:
-			InputMap.action_erase_events(other)
+			clear_key_bindings(other)
 	if not InputMap.has_action(action):
 		InputMap.add_action(action)
-	InputMap.action_erase_events(action)                 # clearAllKeyBindings
+	clear_key_bindings(action)                           # clearAllKeyBindings
 	InputMap.action_add_event(action, _event_for(c))
 
 static func reset_defaults() -> void:
 	for a in CONFIGURABLE:
 		var act := String(a[0])
 		if InputMap.has_action(act):
-			InputMap.action_erase_events(act)
+			clear_key_bindings(act)
 	for a in CONFIGURABLE:
 		var act := String(a[0])
 		var c := default_code(act)
@@ -176,7 +182,7 @@ static func load_bindings() -> void:
 		var c := int(d.bindings[act])
 		if not InputMap.has_action(String(act)):
 			continue
-		InputMap.action_erase_events(String(act))
+		clear_key_bindings(String(act))
 		if c != 0:
 			InputMap.action_add_event(String(act), _event_for(c))
 

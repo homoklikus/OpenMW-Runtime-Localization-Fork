@@ -61,6 +61,7 @@ GAME_SCHEMA: list[Opt] = [
     Opt("mouse_sensitivity", "controls", "float", 0.0025, "Czułość myszy", "Mouse sensitivity", lo=0.0005, hi=0.0125),
     Opt("invert_x", "controls", "bool", False, "Odwróć oś X", "Invert X axis"),
     Opt("invert_y", "controls", "bool", False, "Odwróć oś Y", "Invert Y axis"),
+    Opt("enable_controller", "controls", "bool", True, "Pad", "Enable controller"),
     # okno opcji w grze (zakładka Prefs) – domyślne jak OpenMW settings-default.cfg
     Opt("menu_transparency", "game", "float", 0.84, "Przezroczystość menu", "Menu transparency", lo=0.0, hi=1.0),
     Opt("tooltip_delay", "game", "float", 0.0, "Opóźnienie podpowiedzi [s]", "Menu help delay [s]", lo=0.0, hi=1.0),

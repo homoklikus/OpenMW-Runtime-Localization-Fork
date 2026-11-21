@@ -14,7 +14,8 @@ extends CanvasLayer
 ##    (Fullscreen / Windowed Fullscreen / Windowed – lista wyłączona przy Windowed Fullscreen, ramka okna tylko
 ##    w oknie), VSync (Off/On/Adaptive), pole widzenia 30…110.
 ## Pominięte (port ich nie obsługuje – bez atrap): przetwarzanie końcowe, gamma, filtrowanie tekstur, anizotropia,
-## szczegóły wody poza shaderem, zakładka Lights, Scripts (Lua), Language (język ustawia launcher), pad.
+## szczegóły wody poza shaderem, zakładka Lights, Scripts (Lua), Language (język ustawia launcher), przełącznik
+## Mouse/Keyboard – Controller (zmiana przypisań pada); „Enable Controller” działa (mw_gamepad.gd).
 ## Odległość widzenia: suwak „Large” OpenMW (2500…81920 j., „× komórki”) – ustawienie portu w metrach.
 
 signal closed
@@ -49,6 +50,7 @@ const PAGES := [
 		{"t": "controls"},
 		{"t": "checks", "items": [{"key": "invert_x", "cap": "InvertXAxis", "def": false}, {"key": "invert_y", "cap": "InvertYAxis", "def": false}]},
 		{"t": "slider", "key": "mouse_sensitivity", "cap": "CameraSensitivity", "range": 10000, "page": 300, "min": 0.2, "max": 5.0, "kind": "float", "lo": "SensitivityLow", "hi": "SensitivityHigh", "conv": "sens", "def": SENS_BASE},
+		{"t": "check", "key": "enable_controller", "cap": "EnableController", "def": true},
 	]],
 	["Video", []],
 ]
