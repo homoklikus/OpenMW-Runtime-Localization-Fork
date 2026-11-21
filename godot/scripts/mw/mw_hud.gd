@@ -426,7 +426,8 @@ func update_minimap() -> void:
 			continue
 		var sgm2: Vector2i = holder.get_meta("seg")
 		(holder.get_node("Map") as TextureRect).texture = lmap.texture(sgm2)
-		(holder.get_node("Fog") as TextureRect).texture = lmap.fog_texture(sgm2)
+		# HudWindow: LocalMapBase(…, [Map] local map hud fog of war = false) – minimapa bez mgły
+		(holder.get_node("Fog") as TextureRect).texture = lmap.fog_texture(sgm2) if hud_fog_of_war else null
 	minimap_tiles.position = center - (L.f as Vector2) * T
 	_update_minimap_markers(lmap, L, T)
 	var cam := main.player.get_node_or_null("Camera3D") as Node3D
@@ -436,6 +437,39 @@ func update_minimap() -> void:
 
 var _marker_sig := ""
 var minimap_markers: Array = []    # testy: węzły notatek na minimapie
+var minimap_door_markers: Array = []  # testy: znaczniki drzwi na minimapie
+var hud_fog_of_war := false          # [Map] local map hud fog of war (OpenMW: domyślnie false)
+
+## LocalMapBase::updateDoorMarkers na minimapie HUD (HudWindow to LocalMapBase): drzwi z celem z wczytanych komórek
+## (wnętrze – komórka, zewnątrz – komórki wokół gracza), textures\door_icon.dds 8 × 8 w kolorze normal, nad mgłą.
+func _update_minimap_doors(lmap, T: float) -> void:
+	var tex: Texture2D = UI.texture("textures/door_icon")
+	for key in main.loaded:
+		var refs: Node = main.loaded[key].get_node_or_null("Refs")
+		if refs == null:
+			continue
+		for n in refs.get_children():
+			if not (n is Node3D) or not (n as Node3D).visible or MWTravel.door_destination(n).is_empty():
+				continue
+			var pos: Vector2 = Vector2(lmap.locate((n as Node3D).global_position).f) * T
+			var w: Control
+			if tex != null:
+				var tr := TextureRect.new()
+				tr.texture = tex
+				tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+				tr.stretch_mode = TextureRect.STRETCH_SCALE
+				w = tr
+			else:
+				var cr := ColorRect.new()
+				cr.color = Color(0.85, 0.15, 0.1)
+				w = cr
+			w.name = "DoorMarker"
+			w.size = Vector2(8, 8) * scale_ui
+			w.position = (pos - w.size / 2.0).floor()
+			w.modulate = UI.color("normal")
+			w.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			minimap_tiles.add_child(w)
+			minimap_door_markers.append(w)
 
 ## LocalMapBase::updateCustomMarkers na minimapie HUD: znaczniki notatek komórek siatki (wnętrze – komórki).
 func _update_minimap_markers(lmap, L: Dictionary, T: float) -> void:
@@ -444,14 +478,16 @@ func _update_minimap_markers(lmap, L: Dictionary, T: float) -> void:
 		return
 	var interior := String(main.interior)
 	var g := MWCoords.cell_of(main.player.global_position)
-	var sig := "%s|%s|%d|%d" % [lmap.area, g, cm.version, (main.state.player.get("custom_markers", []) as Array).hash()]
+	var sig := "%s|%s|%d|%d|%s" % [lmap.area, g, cm.version, (main.state.player.get("custom_markers", []) as Array).hash(), main.loaded.keys()]
 	if sig == _marker_sig:
 		return
 	_marker_sig = sig
-	for n in minimap_markers:
+	for n in minimap_markers + minimap_door_markers:
 		if is_instance_valid(n):
 			n.queue_free()
 	minimap_markers = []
+	minimap_door_markers = []
+	_update_minimap_doors(lmap, T)
 	var cells := []
 	if not interior.is_empty():
 		cells.append("int:" + interior.to_lower())

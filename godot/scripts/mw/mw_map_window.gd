@@ -28,7 +28,8 @@ var player_marker_pos := Vector2.ZERO    # testy
 var custom_marker_nodes: Array = []      # testy: węzły znaczników notatek (meta „marker”)
 var _center := Vector2.ZERO              # mapa lokalna: środek widoku, położenie gracza w segmentach, wielkość segmentu
 var _pf := Vector2.ZERO
-var _seg_px := 256.0
+var _seg_px := 512.0
+const LOCAL_MAP_WIDGET_SIZE := 512.0   # [Map] local map widget size (settings-default.cfg); HUD – zoom 0,5 (256)
 var _markers_version := -1
 var _refresh_t := 0.0
 var _waiting := false
@@ -177,7 +178,7 @@ func _build_local() -> void:
 		return
 	_title.text = main.display_location()
 	var pp: Vector3 = main.player.global_position
-	var T := 256.0 * scale_ui
+	var T := LOCAL_MAP_WIDGET_SIZE * scale_ui          # LocalMapBase::getWidgetSize: zoom 1 × [Map] local map widget size
 	var center: Vector2 = _view.custom_minimum_size / 2.0
 	var L: Dictionary = lmap.locate(pp)
 	var pf: Vector2 = L.f
@@ -216,7 +217,8 @@ func _build_local() -> void:
 		fog.size = Vector2(T, T)
 		fog.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		layer_tiles.add_child(fog)
-	# drzwi prowadzące gdzie indziej (jak znaczniki drzwi OpenMW – tylko w odkrytej części mapy)
+	# drzwi prowadzące gdzie indziej (LocalMapBase::updateDoorMarkers): znaczniki zawsze widoczne (nad mgłą),
+	# podpowiedź tylko w odkrytej części mapy (ToolTips: MarkerUserData::isPositionExplored)
 	for key in main.loaded:
 		var refs: Node = main.loaded[key].get_node_or_null("Refs")
 		if refs == null:
@@ -226,8 +228,7 @@ func _build_local() -> void:
 			if d.is_empty():
 				continue
 			var dl: Dictionary = lmap.locate((n as Node3D).global_position)
-			if not lmap.explored(dl.seg, dl.uv):
-				continue
+			var seen: bool = lmap.explored(dl.seg, dl.uv)
 			var mp: Vector2 = center + (Vector2(dl.f) - pf) * T
 			var name := _dest_name(d)
 			door_markers.append([name, mp])
@@ -236,7 +237,8 @@ func _build_local() -> void:
 			var m := _marker_widget("textures/door_icon", Vector2(8, 8) * scale_ui, UI.color("normal"), UI.color("normal_over"), Color(0.85, 0.15, 0.1))
 			m.name = "DoorMarker"
 			m.position = (mp - m.size / 2.0).floor()
-			m.set_meta("mw_tip", {"type": "info", "text": name, "notes": notes_for_dest(d)})
+			if seen:
+				m.set_meta("mw_tip", {"type": "info", "text": name, "notes": notes_for_dest(d)})
 			_view.add_child(m)
 	# MapWindow::updateMagicMarkers: Wykrywanie zwierząt / zaklęć / kluczy (World::listDetectedReferences)
 	detect_markers = []

@@ -380,10 +380,11 @@ func scroll_view(parent: Control, x: float, y: float, w: float, h: float) -> Con
 	var sv := ScrollContainer.new()
 	sv.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	sv.mouse_filter = Control.MOUSE_FILTER_PASS
+	UI.mw_scroll_view(sv, sc)                          # MW_ScrollView
 	at(sv, parent, x, y, w, h)
 	var canvas := Control.new()
 	canvas.mouse_filter = Control.MOUSE_FILTER_PASS
-	canvas.custom_minimum_size = Vector2((w - 14) * sc, h * sc)
+	canvas.custom_minimum_size = Vector2((w - 18) * sc, h * sc)   # do lewej krawędzi paska (szer. − 4 − 14)
 	sv.add_child(canvas)
 	style_vscroll(sv.get_v_scroll_bar())
 	return canvas

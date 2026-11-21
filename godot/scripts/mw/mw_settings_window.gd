@@ -528,6 +528,7 @@ func _build_controls(pg: Control, pw: float, d: float) -> void:
 	sc.name = "ControlsBox"
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	UI.setup_scroll(sc, _s)
+	UI.mw_scroll_view(sc, _s)                           # MW_ScrollView
 	_at(frame, sc, 4, 4, pw - 16.0, 146.0 + d)
 	# HBox (4 4 360 28, Spacing 4): KeyboardButton / ControllerButton (AutoSizedButton, stan wybrany)
 	var x := 4.0

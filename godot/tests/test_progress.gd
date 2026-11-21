@@ -135,12 +135,17 @@ func _run() -> void:
 	rw._rest.interrupt = 3
 	rw._rest.list = "synth_lev_creature"
 	var saw_progress := false
-	for i in 200:
+	# klatki o stałym dt = 1/60 s (TimeAdvancer: godzina na krok) – wolna klatka testu w pełnym zestawie
+	# nie przeskakuje godziny przerwania; logika okna bez zmian
+	rw.set_process(false)
+	for i in 400:
 		if not rw.is_resting():
 			break
+		rw._process(1.0 / 60.0)
 		if rw.progress_win != null and rw.progress_win.visible:
 			saw_progress = true
 		await process_frame
+	rw.set_process(true)
 	check(saw_progress and not rw.progress_win.visible, "pasek postępu w trakcie snu, ukryty po nim")
 	check(near(fposmod(main.envr.game_hour - h1, 24.0), 3.0), "sen przerwany po 3 godzinach (%s)" % fposmod(main.envr.game_hour - h1, 24.0))
 	check(main.message_boxes.texts().has(main.dialogue.gmst_text("sSleepInterrupt", "Your rest has been interrupted.")), "komunikat sSleepInterrupt")

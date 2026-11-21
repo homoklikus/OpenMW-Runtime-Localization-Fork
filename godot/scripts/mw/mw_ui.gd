@@ -509,6 +509,15 @@ static func setup_scroll(sc: ScrollContainer, s := -1.0) -> void:
 		setup_scroll_bar(bar, s)
 	sc.gui_input.connect(_scroll_wheel.bind(sc, s))
 
+## Skórka MW_ScrollView (openmw_scroll.skin.xml): VScroll w (szer. − 18, 3) – pasek 4 px od prawej krawędzi
+## widoku (Godot kładzie go przy samej krawędzi). Górne 3 px paska – bez odwzorowania (Godot przesunąłby też treść).
+static func mw_scroll_view(sc: ScrollContainer, s := -1.0) -> void:
+	if s <= 0.0:
+		s = ui_scale()
+	var sb := StyleBoxEmpty.new()
+	sb.content_margin_right = 4.0 * s
+	sc.add_theme_stylebox_override("panel", sb)
+
 ## WheelPage 36: kółko myszy przesuwa o 36 px × skala (Godot domyślnie o 1/8 strony).
 static func _scroll_wheel(e: InputEvent, sc: ScrollContainer, s: float) -> void:
 	if not (e is InputEventMouseButton) or not e.pressed:

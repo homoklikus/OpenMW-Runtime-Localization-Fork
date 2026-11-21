@@ -4,6 +4,7 @@ extends SceneTree
 ## pauza, tryb menu), mapa świata z konwertera (world/map), odwiedzone nazwane komórki i ShowMap.
 ## godot --headless --path godot -s res://tests/test_map.gd -- --data=WYNIKI(aktorzy) --pos=2300,2400,900 --scripts=0
 
+const UI := preload("res://scripts/mw/mw_ui.gd")
 var failures: Array[String] = []
 var checks := 0
 var report := {}
@@ -71,6 +72,27 @@ func _run() -> void:
 	check(mwin.visible and get_root().get_tree().paused and main.script_host.menu_mode(), "okno mapy: widoczne, pauza, tryb menu")
 	check(not mwin.world_mode, "domyślnie mapa lokalna")
 	check(lm.rendered >= 0, "segmenty zlecone do narysowania")
+	check(is_equal_approx(mwin._seg_px, 512.0 * UI.ui_scale()), "okno mapy: segment 512 px ([Map] local map widget size, zoom 1) – %s" % mwin._seg_px)
+	if main.mw_hud != null:
+		main.mw_hud.update_minimap()
+		var fogs: Array = main.mw_hud.minimap_tiles.find_children("Fog", "TextureRect", true, false)
+		check(fogs.size() > 0 and fogs.all(func(f): return f.texture == null), "minimapa HUD bez mgły (local map hud fog of war = false)")
+	# znaczniki drzwi: wszystkie drzwi z celem (także pod mgłą), podpowiedź tylko w odkrytej części
+	var doors := 0
+	for key in main.loaded:
+		var refs: Node = main.loaded[key].get_node_or_null("Refs")
+		if refs != null:
+			for n in refs.get_children():
+				if not MWTravel.door_destination(n).is_empty():
+					doors += 1
+	var dms: Array = mwin.find_children("DoorMarker", "", true, false)
+	check(doors > 0 and dms.size() == doors and mwin.door_markers.size() == doors, "znaczniki wszystkich drzwi z celem (%d / %d)" % [dms.size(), doors])
+	var tips_ok := true
+	for dm in dms:
+		var dl: Dictionary = lm.locate(mwin.view_to_world(dm.position + dm.size / 2.0))
+		if dm.has_meta("mw_tip") != lm.explored(dl.seg, dl.uv):
+			tips_ok = false
+	check(tips_ok, "podpowiedź znacznika drzwi tylko w odkrytej części mapy")
 	mwin.set_world(true)
 	await _frames(2)
 	check(mwin._world_tex != null and int(mwin._world_info.get("cell_px", 0)) == 18, "mapa świata z konwertera (18 px na komórkę)")

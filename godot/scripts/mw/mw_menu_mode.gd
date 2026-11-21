@@ -412,6 +412,9 @@ var _stat_bars := {}
 var _stat_boxes: Array = []
 var _stat_left: Control
 var _stat_right: VBoxContainer
+## StatsWindow::addSkills: wartość kończy się 24 px przed prawą krawędzią SkillView (coord1 = W − (10 + v) − 24);
+## treść kończy się 18 px przed krawędzią (pasek 14 + 4 jak MW_ScrollView), odstęp HBox 4 → dopełnienie 2.
+const SKILL_RIGHT_PAD := 2.0
 
 ## openmw_stats_window.layout + StatsWindow::onWindowResize: lewa część 0,44 szerokości okna z trzema polami MW_Box
 ## (paski 62 px, poziom/rasa/klasa 62 px, atrybuty do dołu; odstępy 8 px), prawa – pole umiejętności z przewijaniem.
@@ -462,6 +465,7 @@ func _build_stats() -> void:
 	client.add_child(rp)
 	var rs := ScrollContainer.new()
 	rs.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	UI.mw_scroll_view(rs, scale_ui)                     # SkillView: MW_ScrollView
 	rp.add_child(rs)
 	_stat_right = VBoxContainer.new()
 	_stat_right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -658,7 +662,7 @@ func _refresh_stats() -> void:
 			# StatsWindow::setValue: postęp w procentach int(postęp / wymaganie × 100 + 0,5); umiejętność ≥ 100 – sSkillMaxReached
 			var pct := int(float(sprog[i] if i < sprog.size() else 0.0) / maxf(req, 0.0001) * 100.0 + 0.5)
 			var tip: Variant = tt.skill_tip(i, pct, b2 >= 100.0) if tt != null else ""
-			_row(_stat_right, _t("sSkill" + sid.capitalize().replace(" ", ""), sid.capitalize()), str(int(m2)), tip, _val_color(b2, m2), 10.0, 12.0)
+			_row(_stat_right, _t("sSkill" + sid.capitalize().replace(" ", ""), sid.capitalize()), str(int(m2)), tip, _val_color(b2, m2), 10.0, SKILL_RIGHT_PAD)
 		_stat_right.add_child(_hline())
 	var facs: Dictionary = st.get("factions", {})
 	if not facs.is_empty():
@@ -672,13 +676,13 @@ func _refresh_stats() -> void:
 			var rname := String(ranks[rank]) if rank >= 0 and rank < ranks.size() and ranks[rank] is String else ""
 			if rank >= 0 and rank < ranks.size() and ranks[rank] is Dictionary:
 				rname = String((ranks[rank] as Dictionary).get("name", ""))
-			_row(_stat_right, String(fr.get("name", fid)), rname, _faction_tip(fr, rank, bool((facs[fid] as Dictionary).get("expelled", false))) if tt != null else "", Color(0, 0, 0, 0), 10.0, 12.0)
+			_row(_stat_right, String(fr.get("name", fid)), rname, _faction_tip(fr, rank, bool((facs[fid] as Dictionary).get("expelled", false))) if tt != null else "", Color(0, 0, 0, 0), 10.0, SKILL_RIGHT_PAD)
 		_stat_right.add_child(_hline())
 	var sign: Dictionary = main.builder.actors.record("birthsign", String(st.get("birthsign", "")))
 	if not sign.is_empty():
-		_row(_stat_right, _t("sBirthSign", "Birthsign"), String(sign.get("name", "")), tt.birthsign_tip(sign) if tt != null else "", Color(0, 0, 0, 0), 10.0, 12.0)
-	_row(_stat_right, _t("sReputation", "Reputation"), str(int(st.get("reputation", 0))), tt.text_tip(_t("sSkillsMenuReputationHelp", "")) if tt != null else "", Color(0, 0, 0, 0), 10.0, 12.0)
-	_row(_stat_right, _t("sBounty", "Bounty"), str(int(st.get("bounty", 0))), tt.text_tip(_t("sCrimeHelp", "")) if tt != null else "", Color(0, 0, 0, 0), 10.0, 12.0)
+		_row(_stat_right, _t("sBirthSign", "Birthsign"), String(sign.get("name", "")), tt.birthsign_tip(sign) if tt != null else "", Color(0, 0, 0, 0), 10.0, SKILL_RIGHT_PAD)
+	_row(_stat_right, _t("sReputation", "Reputation"), str(int(st.get("reputation", 0))), tt.text_tip(_t("sSkillsMenuReputationHelp", "")) if tt != null else "", Color(0, 0, 0, 0), 10.0, SKILL_RIGHT_PAD)
+	_row(_stat_right, _t("sBounty", "Bounty"), str(int(st.get("bounty", 0))), tt.text_tip(_t("sCrimeHelp", "")) if tt != null else "", Color(0, 0, 0, 0), 10.0, SKILL_RIGHT_PAD)
 
 ## StatsWindow::addItem frakcji: FactionToolTip – nazwa (nagłówek), ranga albo sExpelled; gdy jest wyższa ranga:
 ## sNextRank, wymagania atrybutów, sFavoriteSkills, sNeedOneSkill / sNeedTwoSkills.

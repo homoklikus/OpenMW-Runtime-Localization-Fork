@@ -127,7 +127,9 @@ func questions_available() -> bool:
 # --- InfoBoxDialog (openmw_infobox.layout) -----------------------------------------------------------------
 
 ## Okno z tekstem (zawijanym do 508 px) i przyciskami jeden pod drugim (zawijanymi do 450 px), wyśrodkowane;
-## layoutVertically: tekst – margines 4, przyciski – 6, okno – 10.
+## layoutVertically: tekst – margines 4, przyciski – 6, okno – 10 (wysokość okna = 10 + tekst + 10 + przyciski + 10);
+## fitToText przycisku MW_Button: napis + 8 × 8 (obszar tekstu skórki 4 px od krawędzi) – porównane ze zrzutem
+## ClassChoiceDialog OpenMW (720p: ramka 454…823 × 287…431).
 func _info_box(text: String, labels: Array, cb: Callable) -> Array:
 	var buttons := []
 	var widths := []
@@ -135,10 +137,10 @@ func _info_box(text: String, labels: Array, cb: Callable) -> Array:
 	var maxw := 0.0
 	for lab in labels:
 		var tw: float = minf(ui.text_width(String(lab)) / ui.sc, 444.0)
-		var th: float = ui.wrapped_height(String(lab), 444.0) if ui.text_width(String(lab)) / ui.sc > 444.0 else 18.0
-		widths.append(tw + 6.0)
-		heights.append(maxf(18.0, th) + 6.0)
-		maxw = maxf(maxw, tw + 6.0)
+		var th: float = ui.wrapped_height(String(lab), 444.0) if ui.text_width(String(lab)) / ui.sc > 444.0 else 16.0
+		widths.append(tw + 8.0)
+		heights.append(maxf(16.0, th) + 8.0)
+		maxw = maxf(maxw, tw + 8.0)
 	var bar_h := 6.0
 	for h in heights:
 		bar_h += h + 6.0
@@ -146,7 +148,7 @@ func _info_box(text: String, labels: Array, cb: Callable) -> Array:
 	if not text.is_empty():
 		text_h = 4.0 + maxf(18.0, ui.wrapped_height(text, 508.0)) + 4.0
 	var w := maxf(maxw + 32.0, 532.0 if not text.is_empty() else 0.0)
-	var h := (text_h + 10.0 if text_h > 0.0 else 0.0) + bar_h + 18.0
+	var h := (text_h + 10.0 if text_h > 0.0 else 0.0) + bar_h + 20.0
 	var win: Control = ui.modal(cg, w, h)
 	cg.win = win
 	var c: Control = win.get_meta("client")

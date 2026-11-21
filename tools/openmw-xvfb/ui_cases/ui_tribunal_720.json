@@ -1,0 +1,90 @@
+{
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [],
+ "name": "ui_tribunal_720",
+ "cell": "Mournhold Temple: Reception Area",
+ "resolution": [
+  1280,
+  720
+ ],
+ "note": "§12 dodatki: wnętrze Tribunala (Mournhold) – HUD z minimapą, okna trybu Interface (ekwipunek, mapa lokalna wnętrza Tribunala, statystyki, magia), dziennik, szybkie klawisze; teleport na pierwszy punkt siatki ścieżek komórki | dane: konwersja z Morrowind.esm + Tribunal.esm + Bloodmoon.esm | menu transparency = 1,0 w obu silnikach",
+ "ui": [
+  [
+   2.0,
+   "clear",
+   null
+  ],
+  [
+   4.5,
+   "shot",
+   "hud"
+  ],
+  [
+   6.5,
+   "mode",
+   "Interface"
+  ],
+  [
+   9.0,
+   "shot",
+   "interface"
+  ],
+  [
+   11.0,
+   "mode",
+   "Journal"
+  ],
+  [
+   13.5,
+   "shot",
+   "journal"
+  ],
+  [
+   15.0,
+   "clear",
+   null
+  ],
+  [
+   16.0,
+   "mode",
+   "QuickKeysMenu"
+  ],
+  [
+   18.5,
+   "shot",
+   "quickkeys"
+  ],
+  [
+   20.0,
+   "clear",
+   null
+  ]
+ ],
+ "seconds": 23.0,
+ "interior": true,
+ "teleport": [
+  [
+   0,
+   "player",
+   -512.0,
+   0.0,
+   -768.0
+  ]
+ ],
+ "settings": [
+  [
+   "GUI",
+   "menu transparency",
+   1.0,
+   "menu_transparency"
+  ]
+ ]
+}

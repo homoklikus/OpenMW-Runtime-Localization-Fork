@@ -155,6 +155,14 @@ func _run() -> void:
 	if main.mw_hud != null:
 		main.mw_hud.update_minimap()
 		check(main.mw_hud.minimap_markers.size() == 1, "minimapa: znacznik komórki siatki (bez dalekiej)")
+		var doors := 0
+		for key in main.loaded:
+			var refs: Node = main.loaded[key].get_node_or_null("Refs")
+			if refs != null:
+				for n in refs.get_children():
+					if (n as Node3D).visible and not MWTravel.door_destination(n).is_empty():
+						doors += 1
+		check(doors > 0 and main.mw_hud.minimap_door_markers.size() == doors, "minimapa: znaczniki drzwi (updateDoorMarkers) %d / %d" % [main.mw_hud.minimap_door_markers.size(), doors])
 	# 7. zapis i odczyt
 	var path := "user://test_map_notes.sav"
 	check(main.save_game(path) == "", "zapis")

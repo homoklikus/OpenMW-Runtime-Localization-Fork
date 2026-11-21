@@ -456,9 +456,41 @@ Audio 0,8 %, Controls 6,9 % (brakujące akcje), Video 3,6 % (Lights/Shadows, gam
 1,6 %; 1440p – 0,5 / 0,2 / 3,3 / 1,5 / 0,3 %; 2160p – Audio 1,1 %, Controls 2,5 %, Video 1,8 %, Language 1,1 %.
 Testy: test_settings (90), test_language (45), test_ui_geometry (129), test_gamepad (23).
 
-### 7.13 Pozostałe punkty etapu (do wykonania)
+### 7.13 Dodatki: Tribunal i Bloodmoon (§12, cz. 19)
+Przypadki `ui_tribunal_720` (Mournhold Temple: Reception Area) i `ui_bloodmoon_720` (Raven Rock, Bar) na danych
+z Morrowind.esm + Tribunal.esm + Bloodmoon.esm: HUD z minimapą, tryb Interface (statystyki, ekwipunek, magia,
+mapa lokalna wnętrza dodatku), dziennik, szybkie klawisze; teleport na pierwszy punkt siatki ścieżek komórki.
+Dla porównania ten sam zestaw w Arrille's Tradehouse (`ui_windows_720`, obejmuje też okna kreatora).
+Dane do porównań konwertowane teraz z `--openmw-cfg` (fallbacki jak w OpenMW): bez nich world/fallbacks.json był
+pusty i kreator nie pokazywał opcji pytań (różnica danych testowych, nie gry).
 
-§12 dodatki i mody (Tribunal, Bloodmoon, mody).
+Wyniki: prostokąty okien jak w Morrowindzie (dziennik, szybkie klawisze, statystyki, ekwipunek IoU 1,000; okno
+magii 0,979 – linie ramek identyczne, detektor dokleja tło sceny, jak w etapie 7); bloki różne w dodatkach na
+poziomie Arrille's (np. dziennik 2,7 %, szybkie klawisze 3,7 %), więc bez różnic właściwych dla dodatków.
+W Bloodmoonie detektor łączy mapę z jaśniejszą sceną 3D za oknem (oświetlenie wnętrza – nie interfejs).
+
+Znalezione i naprawione (wszystkie dotyczyły także Morrowinda):
+
+| Błąd | Przyczyna | Naprawa | Test |
+|---|---|---|---|
+| Mapa lokalna: brak znaczników drzwi w nieodkrytej części (Mournhold: OpenMW 4, port 0) | port pomijał drzwi pod mgłą; w OpenMW (LocalMapBase::updateDoorMarkers) znaczniki są zawsze, a podpowiedź tylko w odkrytej części (ToolTips: isPositionExplored) | znaczniki zawsze, podpowiedź tylko w odkrytej części | test_map |
+| Mapa lokalna w oknie mapy w skali o połowę za małej (drzwi ±22 zamiast ±40 px od gracza) | segment 256 px; OpenMW: getWidgetSize = zoom 1 × [Map] local map widget size = 512 (HUD: zoom 0,5 = 256) | segment 512 px w oknie mapy | test_map; porównanie: znaczniki w miejscach OpenMW |
+| Minimapa HUD bez znaczników drzwi | brak updateDoorMarkers w HUD (HudWindow to LocalMapBase) | znaczniki door_icon 8 × 8 na minimapie | test_map_notes |
+| Minimapa HUD z mgłą | OpenMW: [Map] local map hud fog of war = false | minimapa bez mgły (ustawienie hud_fog_of_war) | test_map |
+| Paski przewijania MW_ScrollView przy samej krawędzi (statystyki, przegląd w kreatorze, lista przypisań) 4 px za daleko w prawo | Godot kładzie pasek przy krawędzi, skórka MW_ScrollView ma VScroll w (szer. − 18, 3) | `UI.mw_scroll_view` – margines 4 px z prawej (linie 527/539 i 876/888 jak OpenMW) | test_ui_geometry |
+| Wartości umiejętności w statystykach 6–10 px za daleko w lewo; w przeglądzie kreatora szerszy widok przesuwał pasek | dopełnienie 12 px; OpenMW: wartość do W − 24 (addSkills); płótno przeglądu szersze od widoku | dopełnienie wg W − 24, płótno do krawędzi paska | test_ui_geometry (W − 24) |
+| test_progress raz nie przeszedł w pełnym zestawie (sen do 10 h zamiast przerwania po 3 h) | test zależny od długości klatki: TimeAdvancer (jak w OpenMW) sprawdza przerwanie raz na klatkę, a jedna wolna klatka przechodziła kilka godzin | test prowadzi okno klatkami o stałym dt = 1/60 s (logika okna bez zmian) | test_progress (4 powtórzenia) |
+| ClassChoiceDialog 2 × 2 px za mały | fitToText przycisku: napis + 8 (port + 6), okno: 10 + … + 10 (port + 8) | wymiary jak InfoBoxDialog (ramka 454…823 × 287…431 jak OpenMW) | test_ui_geometry |
+
+Pozostało (bez zmian): HUD przy 720p 1 px niżej niż w OpenMW (wszystkie elementy przypięte do dołu; okna
+wyśrodkowane zgodne co do piksela – przyczyny nie ustalono, przy 1080p etap 7 – zgodne); górne 3 px paska
+MW_ScrollView (Godot przesunąłby też treść). Mapa lokalna wnętrz w OpenMW na Xvfb jest czarna (poza znacznikami)
+także w odkrytej części, więc obrazu mapy nie porównano – tylko położenia znaczników. Mody: nie sprawdzone
+w tej części (punkt 7.14).
+
+### 7.14 Pozostałe punkty etapu (do wykonania)
+
+Mody (§12): okna z treścią modów (składniki, efekty, czary) – do sprawdzenia.
 
 ## 8. Commity (lokalne, bez push)
 
@@ -481,9 +513,10 @@ Testy: test_settings (90), test_language (45), test_ui_geometry (129), test_game
 * Etap 10 cz. 16: pad (ControllerManager)
 * Etap 10 cz. 17: porównania nowych okien z OpenMW 720p/1440p/2160p i poprawki układów
 * Etap 10 cz. 18: teksty silnika z GMST, zakładka Language, przełącznik pada w Controls
+* Etap 10 cz. 19: dodatki (Tribunal, Bloodmoon) – znaczniki drzwi, skala mapy, MW_ScrollView, ClassChoiceDialog
 
-Pełny zestaw tools/run_tests.sh: 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
+Pełny zestaw tools/run_tests.sh: 66/66 po cz. 19 (38 w przebiegu, test_progress poprawiony i 28 kolejnych po poprawce); 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 
 ## 9. Zalecana kolejność dalszych prac
 
-1. Dodatki i mody (§12), 2. brakujące akcje sterowania (punkt 7.11).
+1. Mody (§12, punkt 7.14), 2. brakujące akcje sterowania (punkt 7.11).

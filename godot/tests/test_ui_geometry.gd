@@ -169,6 +169,10 @@ func _run() -> void:
 		holder.queue_free()
 		await _frames(1)
 	UI.gui_scaling = 1.0
+	# MW_ScrollView i wartości umiejętności w oknie statystyk, ClassChoiceDialog (porównanie ui_windows_720, cz. 19)
+	root.size = Vector2i(1280, 720)
+	await _frames(2)
+	await _scroll_and_infobox_case(main)
 	# okna etapu 10 – układy porównane ze zrzutami OpenMW 0.51 (tools/openmw-xvfb/ui_cases/ui_stage10_*)
 	for vp in [Vector2(1280, 720), Vector2(3840, 2160)]:
 		root.size = Vector2i(vp)
@@ -293,4 +297,39 @@ func _stage10_case(main, vp: Vector2) -> void:
 	var slots: Array = main.quick_keys.find_children("BoxOverlay", "Panel", true, false)
 	check(slots.size() == 10, "%s: szybkie klawisze – 10 nakładek MW_Box_Overlay (%d)" % [tag, slots.size()])
 	main.quick_keys.close()
+	await _frames(1)
+
+## MW_ScrollView: pasek 4 px od prawej krawędzi widoku; StatsWindow::addSkills: wartość kończy się 24 px przed
+## prawą krawędzią SkillView; InfoBoxDialog: przyciski = napis + 8, okno = 10 + 6 + Σ(przycisk + 6) + 10.
+func _scroll_and_infobox_case(main) -> void:
+	var s := UI.ui_scale()
+	var mm = main.menu_mode
+	main.window_store("ui_windows").clear()
+	mm.open()
+	await _frames(3)
+	var skills: Control = mm.windows["stats"].find_child("Skills", true, false)
+	var sc: ScrollContainer = skills.get_child(0) if skills != null and skills.get_child_count() > 0 else null
+	if sc != null:
+		var bar := sc.get_v_scroll_bar()
+		var sr := sc.get_global_rect()
+		check(absf(bar.get_global_rect().end.x - (sr.end.x - 4.0 * s)) < 1.1, "MW_ScrollView: pasek 4 px od prawej (%s / %s)" % [bar.get_global_rect(), sr])
+		var vals := 0
+		var ok := true
+		for row in mm._stat_right.get_children():
+			if row is HBoxContainer and row.get_child_count() >= 3:
+				var v: Label = row.get_child(2)
+				vals += 1
+				ok = ok and absf(v.get_global_rect().end.x - (sr.end.x - 24.0 * s)) < 1.1
+		check(vals > 0 and ok, "StatsWindow: wartości do W − 24 (%d wierszy)" % vals)
+	else:
+		check(false, "okno statystyk: brak SkillView")
+	mm.close()
+	await _frames(1)
+	var cg = main.chargen
+	cg.open_step("class", {})
+	await _frames(3)
+	var btns: Array = cg.class_dialog.choice_buttons if cg.class_dialog != null else []
+	var n := btns.size()
+	check(n >= 3 and absf(cg.win.size.y / s - (26.0 + 30.0 * n)) < 1.1, "ClassChoiceDialog: wysokość 26 + 30 × %d (%s)" % [n, cg.win.size / s])
+	cg.reset()
 	await _frames(1)
