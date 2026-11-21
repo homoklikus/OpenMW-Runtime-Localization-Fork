@@ -42,6 +42,7 @@ var interaction = null                # MWInteraction (etap 3)
 var item_window = null                # okno pojemnika / ekwipunku
 var custom_markers = preload("res://scripts/mw/mw_custom_markers.gd").new(self)   # notatki na mapie (CustomMarkerCollection)
 var edit_note = null                  # mw_edit_note.gd – EditNoteDialog
+var keyboard_nav = null               # mw_keyboard_nav.gd – KeyboardNavigation
 var console = null                    # mw_console.gd – konsola (MWScript, polecenia tylko konsoli)
 var god_mode := false                 # TGM: bez obrażeń i kosztów (zdrowie, kondycja, magia gracza)
 var tooltips = null                   # mw_tooltips.gd – ToolTips (podpowiedzi w układzie OpenMW)
@@ -268,6 +269,11 @@ func _ready() -> void:
 	music.setup(data)
 	music.enabled = audio.enabled and bool(settings.get("music", true))
 	add_child(music)
+	var kn = preload("res://scripts/mw/mw_keyboard_nav.gd").new()
+	kn.name = "KeyboardNavigation"
+	kn.main = self
+	add_child(kn)
+	keyboard_nav = kn
 	console = preload("res://scripts/mw/mw_console.gd").new()
 	console.name = "Console"
 	console.main = self

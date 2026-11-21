@@ -25,6 +25,9 @@ func get_mode() -> String:
 func modes() -> Array:
 	return stack.map(func(e): return String(e.mode))
 
+func _nav():
+	return main.get("keyboard_nav") if main != null else null
+
 func contains(mode: String) -> bool:
 	for e in stack:
 		if String(e.mode) == mode:
@@ -50,6 +53,8 @@ func _windows_of(mode: String) -> Array:
 ## pushGuiMode.
 func push(mode: String, windows: Array, exit := Callable()) -> void:
 	var top := get_mode()
+	if top != mode and not top.is_empty() and _nav() != null:
+		_nav().save_focus(top)                       # KeyboardNavigation::saveFocus(mGuiModes.back())
 	if top != mode:
 		for i in stack.size():
 			if String(stack[i].mode) == mode:
@@ -75,6 +80,8 @@ func pop() -> void:
 	history.append("pop:" + String(e.mode))
 	if not stack.is_empty():
 		_set_visible(stack.back().windows, true, [], true)
+		if _nav() != null:
+			_nav().restore_focus.call_deferred(String(stack.back().mode))   # restoreFocus(mode)
 	update_visible()
 
 ## removeGuiMode.

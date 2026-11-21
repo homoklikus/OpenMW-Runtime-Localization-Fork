@@ -338,9 +338,19 @@ szczegóły wody poza shaderem, Lights, Scripts (Lua), Language (język – laun
 Różnice: domyślne klawisze skoku/aktywacji portu (Spacja/E) zostały – OpenMW ma E/Spację. Test: test_settings (71,
 poprzednio „Anuluj przywraca” – zachowanie spoza OpenMW).
 
-### 7.9 Pozostałe punkty etapu (do wykonania)
+### 7.9 Nawigacja klawiaturą (cz. 15)
+`mw_keyboard_nav.gd` jak KeyboardNavigation OpenMW 0.51 (przed przekazaniem klawisza do GUI, tylko w trybie GUI):
+Tab / Shift+Tab – następna / poprzednia kontrolka okna z zawinięciem, bez fokusu – pierwsza kontrolka okna modalnego
+(albo wierzchnich okien); pola z AcceptTab (filtry ekwipunku, handlu, magii, towarzysza, wiersz konsoli) zachowują
+Tab; strzałki tylko na przyciskach, bez zawinięcia i tylko w kierunku, w którym leży sąsiad; Enter / Enter
+numeryczny / Spacja klikają przycisk z fokusem (powtórzenia klawisza pomijane); poza trybem GUI fokus zdejmowany.
+Wbudowana nawigacja Godota (Tab, strzałki między przyciskami) wyłączona tam, gdzie OpenMW jej nie ma. Domyślny fokus:
+okno z pytaniem – przycisk #{sOk}/#{sYes} (getDefaultKeyFocus), potwierdzenie – OK, opcje – OK; saveFocus/restoreFocus
+trybu przy przykryciu i zdjęciu trybu. Test: test_keyboard_nav (25).
 
-§10 ekrany ładowania, Enter/Tab/strzałki, pad, §11 porównania 720p/1440p/2160p i nowych okien, §12 dodatki i mody.
+### 7.10 Pozostałe punkty etapu (do wykonania)
+
+§10 ekrany ładowania, pad, §11 porównania 720p/1440p/2160p i nowych okien, §12 dodatki i mody.
 
 ## 8. Commity (lokalne, bez push)
 
@@ -359,10 +369,11 @@ poprzednio „Anuluj przywraca” – zachowanie spoza OpenMW).
 * Etap 10 cz. 12: konsola (MWScript)
 * Etap 10 cz. 13: notatki na mapie (EditNoteDialog, CustomMarker)
 * Etap 10 cz. 14: okno opcji jak SettingsWindow, przypisania klawiszy, autozapis
+* Etap 10 cz. 15: nawigacja klawiaturą w oknach (KeyboardNavigation)
 
-Pełny zestaw tools/run_tests.sh: 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
+Pełny zestaw tools/run_tests.sh: 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 
 ## 9. Zalecana kolejność dalszych prac
 
-1. Klawiatura w oknach (Enter/Tab/strzałki), pad, ekrany ładowania, 2. porównania zrzutami wszystkich nowych okien z OpenMW
+1. Pad, ekrany ładowania, 2. porównania zrzutami wszystkich nowych okien z OpenMW
 (720p/1440p/2160p), 3. dodatki i mody.

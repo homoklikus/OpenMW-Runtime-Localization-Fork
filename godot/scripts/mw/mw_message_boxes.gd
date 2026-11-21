@@ -206,6 +206,15 @@ func create_interactive(message: String, buttons: Array, on_pressed: Callable, g
 		b.size = r.size * _s
 		c.add_child(b)
 		interactive_buttons.append(b)
+	# getDefaultKeyFocus: przycisk #{sOk} albo #{sYes} (bez rozróżniania wielkości liter); inaczej bez fokusu
+	var kws := []
+	if main != null and main.get("dialogue") != null and main.dialogue != null:
+		kws = [main.dialogue.gmst_text("sOk", "OK").to_lower(), main.dialogue.gmst_text("sYes", "Yes").to_lower()]
+	for b2 in interactive_buttons:
+		if String(b2.text).to_lower() in kws:
+			b2.focus_mode = Control.FOCUS_CLICK
+			b2.grab_focus.call_deferred()
+			break
 	return interactive
 
 func press(i: int) -> bool:

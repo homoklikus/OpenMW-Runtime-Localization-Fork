@@ -824,6 +824,7 @@ func _build_inventory() -> void:
 	# FilterEdit (MW_TextBoxEditWithBorder, HStretch): filtr nazw – SortFilterItemModel::setNameFilter
 	inv_filter = LineEdit.new()
 	inv_filter.name = "FilterEdit"
+	inv_filter.set_meta("accept_tab", true)               # AcceptTab
 	inv_filter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	inv_filter.custom_minimum_size.x = 0
 	inv_filter.text_changed.connect(func(_t2): _refresh_inventory())
@@ -1169,6 +1170,7 @@ func open_companion(a: Dictionary) -> void:
 	cm.add_child(body)
 	comp_filter = LineEdit.new()                          # FilterEdit (5, 5, 575, 23)
 	comp_filter.name = "FilterEdit"
+	comp_filter.set_meta("accept_tab", true)               # AcceptTab
 	comp_filter.custom_minimum_size.y = 23 * scale_ui
 	comp_filter.text_changed.connect(func(_t2): _refresh_container())
 	body.add_child(comp_filter)
@@ -1312,6 +1314,7 @@ func open_barter(tw) -> void:
 		cats.add_child(b)
 	var flt := LineEdit.new()
 	flt.name = "FilterEdit"
+	flt.set_meta("accept_tab", true)                 # AcceptTab
 	flt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	flt.custom_minimum_size.x = 0
 	flt.text_changed.connect(func(t): tw.merchant_filter = t; tw.refresh())
@@ -1662,6 +1665,7 @@ func _build_spells() -> void:
 	body.add_child(bottom)
 	spell_filter = LineEdit.new()
 	spell_filter.name = "FilterEdit"
+	spell_filter.set_meta("accept_tab", true)               # AcceptTab
 	spell_filter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	spell_filter.text_changed.connect(func(_t2): _refresh_spells())
 	spell_filter.size_flags_vertical = Control.SIZE_SHRINK_BEGIN

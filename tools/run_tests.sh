@@ -157,6 +157,7 @@ run_gd test_tooltips.gd --data="$WORK/actors_out" --project="$WORK/project_toolt
 run_gd test_load_controls.gd --data="$WORK/actors_out" --project="$WORK/project_load_controls" --pos=2300,2400,900 --scripts=0
 run_gd test_companion.gd --data="$WORK/actors_out" --project="$WORK/project_companion" --pos=2300,2400,900 --scripts=0
 run_gd test_console.gd --data="$WORK/actors_out" --project="$WORK/project_console" --pos=2300,2400,900 --scripts=0
+run_gd test_keyboard_nav.gd --data="$WORK/actors_out" --project="$WORK/project_kn" --pos=2300,2400,900 --scripts=0
 run_gd test_character.gd --data="$WORK/actors_out" --project="$WORK/project_character" --pos=2300,2400,900 --scripts=0
 run_gd test_scripts.gd --data="$WORK/actors_out" --project="$WORK/project_scripts" --pos=2000,2300,900
 run_gd test_mwscript_functions.gd --data="$WORK/actors_out" --project="$WORK/project_mwscript_fn" --pos=2300,2400,900

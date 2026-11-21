@@ -137,6 +137,7 @@ func _build() -> void:
 	box.add_child(history)
 	command = LineEdit.new()
 	command.name = "edit_Command"
+	command.set_meta("accept_tab", true)               # AcceptTab: Tab uzupełnia nazwy
 	command.text_submitted.connect(func(_t): accept_command())
 	command.gui_input.connect(_command_key)
 	box.add_child(command)
