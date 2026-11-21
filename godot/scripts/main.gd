@@ -102,6 +102,9 @@ func arg(name: String, def := "") -> String:
 
 func _ready() -> void:
 	MWInput.register_defaults()
+	if not arg("bindings").is_empty():
+		MWInput.bindings_path = arg("bindings")
+	MWInput.load_bindings()                  # przypisania z okna opcji (input_bindings.json)
 	var mk := preload("res://scripts/mw/mw_menu_key.gd").new()
 	var pump := preload("res://scripts/mw/mw_script_pump.gd").new()
 	pump.name = "ScriptPump"
@@ -855,6 +858,23 @@ func _line_of_sight(from: Vector3, to: Vector3, target: Node) -> bool:
 func _attack_strength() -> float:
 	return clampf(_attack_hold / ATTACK_WINDUP_SECONDS, 0.0, 1.0)
 
+## getBestAttack (character.cpp): suma min + max obrażeń; równe – cięcie, potem pchnięcie ≥, cięcie ≥, rąbanie.
+## → 0 rąbanie, 1 cięcie, 2 pchnięcie.
+static func best_attack_type(w: Dictionary) -> int:
+	var sum := func(k: String) -> int:
+		var a: Array = w.rec.get(k, [0, 0])
+		return int(a[0]) + int(a[1]) if a.size() >= 2 else 0
+	var slash: int = sum.call("slash")
+	var chop: int = sum.call("chop")
+	var thrust: int = sum.call("thrust")
+	if slash == chop and slash == thrust:
+		return 1
+	if thrust >= chop and thrust >= slash:
+		return 2
+	if slash >= chop and slash >= thrust:
+		return 1
+	return 0
+
 ## Atak gracza po puszczeniu przycisku: broń biała/wręcz albo strzał (łuk, kusza, broń rzucana).
 func player_attack(roll := -1) -> Dictionary:
 	var strength := _attack_strength()
@@ -868,7 +888,10 @@ func player_attack(roll := -1) -> Dictionary:
 		return _shoot(att, w, wt, strength)
 	var mv: Vector2 = player.move_input
 	var at := 0
-	if absf(mv.y) > absf(mv.x) + 0.2:
+	if bool(settings.get("best_attack", false)):
+		# CharacterController: [Game] best attack – getBestAttack broni (bez broni – losowo)
+		at = best_attack_type(w) if not w.is_empty() else randi() % 3
+	elif absf(mv.y) > absf(mv.x) + 0.2:
 		at = 2
 	elif absf(mv.x) > absf(mv.y) + 0.2:
 		at = 1
@@ -1531,6 +1554,8 @@ func apply_live_settings() -> void:
 	if player != null:
 		player.mouse_sens = float(settings.get("mouse_sensitivity", 0.0025))
 		player.invert_y = bool(settings.get("invert_y", false))
+		if player.controller != null:
+			player.controller.invert_x = bool(settings.get("invert_x", false))
 		var cam := player.get_node_or_null("Camera3D") as Camera3D
 		if cam != null and arg("fov").is_empty():
 			cam.fov = float(settings.get("fov", 60))
@@ -1541,30 +1566,52 @@ func apply_live_settings() -> void:
 	if envr != null:
 		envr.configure_shadows(String(settings.get("shadows", "medium")))
 		envr.env.fog_enabled = bool(settings.get("fog", true))
+		if envr.has_method("set_water_mode"):
+			envr.set_water_mode("shader" if bool(settings.get("water_shader", true)) else "simple")
+	# ustawienia z okna opcji OpenMW (Prefs/Controls/Video)
+	UI.set_window_alpha(float(settings.get("menu_transparency", 0.84)))
+	if tooltips != null:
+		tooltips.delay = float(settings.get("tooltip_delay", 0.0))
+	if combat != null:
+		combat.difficulty = int(settings.get("difficulty", 0))
+	if mw_hud != null and mw_hud.get("crosshair") != null and mw_hud.crosshair != null:
+		mw_hud.crosshair_enabled = bool(settings.get("crosshair", true))
 	if DisplayServer.get_name() != "headless":
-		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if settings.get("vsync", true) else DisplayServer.VSYNC_DISABLED)
+		DisplayServer.window_set_vsync_mode(vsync_mode_value())
+		DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, not bool(settings.get("window_border", true)))
+
+## [Video] vsync mode: 0 wyłączone, 1 włączone, 2 adaptacyjne (ustawienia: vsync + vsync_adaptive).
+func vsync_mode_value() -> int:
+	if not bool(settings.get("vsync", true)):
+		return DisplayServer.VSYNC_DISABLED
+	return DisplayServer.VSYNC_ADAPTIVE if bool(settings.get("vsync_adaptive", false)) else DisplayServer.VSYNC_ENABLED
+
+## Tryb okna i rozdzielczość (SettingsWindow::onWindowModeChanged / onResolutionAccept).
+func apply_display() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	match String(settings.get("window_mode", "windowed")):
+		"fullscreen":
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+		"exclusive":
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
+		_:
+			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+			var r := String(settings.get("resolution", "1280x720")).split("x")
+			if r.size() == 2:
+				var want := Vector2i(int(r[0]), int(r[1]))
+				var scr := DisplayServer.screen_get_usable_rect(DisplayServer.window_get_current_screen())
+				DisplayServer.window_set_size(want)
+				if scr.size.x > 0:
+					DisplayServer.window_set_position(scr.position + (scr.size - want).max(Vector2i.ZERO) / 2)
 
 func _apply_settings() -> void:
 	apply_live_settings()
 	if settings.is_empty():
 		return
-	var mode := String(settings.get("window_mode", "windowed"))
+	apply_display()
 	if DisplayServer.get_name() != "headless":
-		match mode:
-			"fullscreen":
-				DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
-			"exclusive":
-				DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN)
-			_:
-				DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
-				var r := String(settings.get("resolution", "1280x720")).split("x")
-				if r.size() == 2:
-					var want := Vector2i(int(r[0]), int(r[1]))
-					var scr := DisplayServer.screen_get_usable_rect(DisplayServer.window_get_current_screen())
-					DisplayServer.window_set_size(want)
-					if scr.size.x > 0:   # wyśrodkuj na bieżącym ekranie (okno 3440x1440 na całą szerokość)
-						DisplayServer.window_set_position(scr.position + (scr.size - want).max(Vector2i.ZERO) / 2)
-		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if settings.get("vsync", true) else DisplayServer.VSYNC_DISABLED)
+		DisplayServer.window_set_vsync_mode(vsync_mode_value())
 	Engine.max_fps = int(settings.get("max_fps", 0))
 	get_viewport().scaling_3d_scale = float(settings.get("scale_3d", 1.0))
 	envr.configure_shadows(String(settings.get("shadows", "medium")))
@@ -2583,7 +2630,7 @@ func _update_torches(delta: float) -> void:
 				_on_ref_changed(String(n.get_meta("mw_sid", "")))
 
 ## WindowManager::messageBox (MessageBoxManager::createMessageBox) – komunikat u dołu ekranu.
-func _toast(text: String, _seconds := 3.0) -> void:
+func _toast(text: String, _seconds := 3.0, static_box := false) -> void:
 	if text.is_empty():
 		return
 	if message_boxes == null:
@@ -2591,7 +2638,15 @@ func _toast(text: String, _seconds := 3.0) -> void:
 		message_boxes.name = "MessageBoxManager"
 		message_boxes.main = self
 		add_child(message_boxes)
-	message_boxes.create(text)
+	message_boxes.create(text, static_box)
+
+## WindowManager::staticMessageBox / removeStaticMessageBox.
+func static_message_box(text: String) -> void:
+	_toast(text, 0.0, true)
+
+func remove_static_message_box() -> void:
+	if message_boxes != null:
+		message_boxes.remove_static()
 
 func _add_message(text: String) -> void:
 	var l := Label.new()
@@ -2604,8 +2659,12 @@ func _add_message(text: String) -> void:
 
 # --- stan gry: zapis i odczyt (etap 0) ---------------------------------------------------------------
 
+## Katalog zapisów: --saves (launcher podaje go zawsze); bez niego przy --project – <projekt>/saves (testy
+## i uruchomienia bez launchera nie piszą do zapisów użytkownika), inaczej user://saves.
 func saves_dir() -> String:
 	var s := arg("saves")
+	if s.is_empty() and not arg("project").is_empty():
+		return arg("project").path_join("saves")
 	return s if not s.is_empty() else ProjectSettings.globalize_path("user://saves")
 
 ## Ścieżka szybkiego zapisu bieżącej postaci (zgodność z dawnymi wywołaniami; F5 używa quick_save()).
@@ -3212,12 +3271,13 @@ func save_to_slot(description: String, slot = null) -> String:
 		saves.current = f[0]
 	return ""
 
-## StateManager::quickSave: opis „Quicksave”, najstarszy z max quicksaves nadpisywany.
-func quick_save() -> String:
+## StateManager::quickSave(name): opis „Quicksave” (albo „Autosave” przed odpoczynkiem), najstarszy z max
+## quicksaves o tym opisie nadpisywany.
+func quick_save(name := "Quicksave") -> String:
 	if not saving_allowed():
 		message_box(L10n.text("SaveGameDenied", "The game cannot be saved right now."))
 		return "saving is not allowed"
-	return save_to_slot("Quicksave", saves.quick_slot(saves.current, "Quicksave"))
+	return save_to_slot(name, saves.quick_slot(saves.current, name))
 
 ## StateManager::quickLoad: najnowszy zapis bieżącej postaci.
 func quick_load() -> Array:

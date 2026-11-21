@@ -206,7 +206,7 @@ func _run() -> void:
 	main.open_settings()
 	await _frames(3)
 	_screen(main, "ustawienia")
-	main.settings_window.cancel_changes()
+	main.settings_window.close()
 	await _frames(2)
 	main.main_menu.open()
 	await _frames(3)

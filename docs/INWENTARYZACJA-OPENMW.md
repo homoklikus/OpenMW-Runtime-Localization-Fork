@@ -48,7 +48,7 @@ Sonda `godot/tests/probe_start.gd` na prawdziwych danych (12/12) i test `test_st
 | Śmierć gracza: stan „Ended”, po animacji pytanie o wczytanie ostatniego zapisu / menu | Częściowo zgodne | czas animacji śmierci stały (3 s) zamiast końca animacji gracza | P2 |
 | `PlayBink`, `FadeIn`/`FadeOut`/`FadeTo` | Zaimplementowane | ScreenFader – kolejka i liniowe przejścia jak OpenMW; PlayBink zatrzymuje świat na czas filmu, ale reszta skryptu wykonuje się w tej samej klatce (w OpenMW po filmie) | – |
 | Nowa gra z menu: ekran ładowania, film Movies_New_Game, fadeScreenOut(0)+fadeScreenIn(1) | Zweryfikowane | statek po filmie, przejście z czerni w 1 s; HUD bez pasków/minimapy na starcie (wcześniej widoczny – naprawione) | – |
-| Autozapis przy odpoczynku ([Saves] autosave) | Brakujące | | P2 |
+| Autozapis przy odpoczynku ([Saves] autosave) | Zaimplementowane | etap 10 cz. 14: WaitDialog::startWaiting → quickSave("Autosave"), przełącznik w Prefs; test_settings | – |
 | `WakeUpPC`, `GetPCSleep` (sny wątku głównego) | Częściowo zgodne | od etapu MWScript: odpoczynek godzina po godzinie (TimeAdvancer), skrypty w trakcie, WakeUpPC przerywa; brak przerywania snu stworzeniami – punkt 4a | P2 |
 
 ## 2. Nowa gra (statek więzienny → urząd celny → Seyda Neen)
@@ -137,6 +137,7 @@ klasa, statystyki po 9 powrotach = buildPlayer od zera) i `probe_newgame.gd` (15
 | Zaklinanie, kupno zaklęć, trening, podróż w układzie OpenMW | Zweryfikowane | etapy 8–9: porównania zrzutami | – |
 | Więzienie (okno odsiadki, utrata umiejętności) | Zaimplementowane | etap 10 cz. 11: World::goToJail w dwóch krokach, GM_Jail (zaciemnienie, prisonmarker, pasek), jailTimeServed, ReleasedFromPrison; test_crime. Porównanie zrzutem – do zrobienia | – |
 | Towarzysz (dzielenie ekwipunku), przechodzenie przez drzwi | Częściowo zgodne | etap 10 cz. 11: sCompanionShare, CompanionWindow (zysk minimumprofit, ostrzeżenie), bez powitania – okno; test_companion. Przechodzenie przez drzwi: towarzysze z AiFollow – referencje dynamiczne (etap 9) | P3 |
+| Okno opcji (SettingsWindow), przypisania klawiszy, autozapis | Częściowo zgodne | etap 10 cz. 14: zakładki Prefs/Audio/Controls/Video, suwaki i przełączniki OpenMW, zmiany od razu, przypisywanie klawiszy, autozapis przed odpoczynkiem; test_settings. Brak: Lights, Scripts, Language, pad, gamma, filtrowanie tekstur, porównanie zrzutem | P2 |
 | Notatki na mapie (CustomMarker, EditNoteDialog) | Zaimplementowane | etap 10 cz. 13: dwuklik – nowa notatka, edycja, usuwanie z potwierdzeniem, znaczniki na mapie lokalnej i minimapie, notatki w podpowiedziach drzwi i mapy świata, zapis; test_map_notes. Porównanie zrzutem – do zrobienia | – |
 | Konsola (`) | Częściowo zgodne | etap 10 cz. 12: okno i układ OpenMW, isConsoleMode = tryb GUI, kompilator MWScript 1:1 z konwerterem (1231 skryptów identycznie), wybór obiektu, historia, Tab, wyszukiwanie; coc, coe, tgm, tcl, tai, fillmap, tm, sv, help; test_console. Brak: Lua, ra/fixme, przełączniki grafiki (tcb, twf, tsky…), porównanie zrzutem | P3 |
 | Ustawienia jak OpenMW (zakładki, klawisze) | Częściowo zgodne | mniej opcji | P3 |

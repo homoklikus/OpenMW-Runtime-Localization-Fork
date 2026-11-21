@@ -117,9 +117,14 @@ static func icon_frame(magic: bool, state: String) -> Texture2D:
 ## Ramka z 8 tekstur (narożniki i krawędzie) złożona w jeden obraz 9-częściowy → StyleBoxTexture.
 ## bg – wypełnienie środka (np. półprzezroczysta czerń okien OpenMW).
 static func _frame_box(prefix: String, bg: Color, corner_suffix := "_corner") -> StyleBox:
-	var key := prefix + "|" + str(bg)
+	var key := prefix + "|" + str(bg) + ("" if corner_suffix == "_corner" else "|" + corner_suffix)
 	if _themes.has(key):
 		return _themes[key]
+	var sb := _build_frame_box(prefix, bg, corner_suffix)
+	_themes[key] = sb
+	return sb
+
+static func _build_frame_box(prefix: String, bg: Color, corner_suffix := "_corner") -> StyleBox:
 	var names := {"t": "top", "b": "bottom", "l": "left", "r": "right",
 		"tl": "top_left" + corner_suffix, "tr": "top_right" + corner_suffix,
 		"bl": "bottom_left" + corner_suffix, "br": "bottom_right" + corner_suffix}
@@ -175,11 +180,40 @@ static func _frame_box(prefix: String, bg: Color, corner_suffix := "_corner") ->
 		st.content_margin_top = th + 3
 		st.content_margin_bottom = bh + 3
 		sb = st
-	_themes[key] = sb
 	return sb
 
-## Tło okien: czerń z przezroczystością OpenMW („menu transparency” 0,84).
-const WINDOW_BG := Color(0, 0, 0, 0.84)
+## Tło okien: czerń z przezroczystością OpenMW ([GUI] menu transparency, domyślnie 0,84; zmiana w ustawieniach –
+## set_window_alpha, jak WindowManager::setMenuTransparency – od razu we wszystkich oknach).
+static var WINDOW_BG := Color(0, 0, 0, 0.84)
+
+static func set_window_alpha(a: float) -> void:
+	a = clampf(a, 0.0, 1.0)
+	if is_equal_approx(a, WINDOW_BG.a):
+		return
+	var old := WINDOW_BG
+	WINDOW_BG = Color(0, 0, 0, a)
+	var tag := "|" + str(old)
+	for key in _themes.keys():
+		var k := String(key)
+		if not k.ends_with(tag):
+			continue
+		var parts := k.split("|")
+		var fresh := _build_frame_box(parts[0], WINDOW_BG, parts[2] if parts.size() > 2 else "_corner")
+		var sb: StyleBox = _themes[key]
+		if sb is StyleBoxTexture and fresh is StyleBoxTexture:
+			(sb as StyleBoxTexture).texture = (fresh as StyleBoxTexture).texture
+		elif sb is StyleBoxFlat and fresh is StyleBoxFlat:
+			(sb as StyleBoxFlat).bg_color = WINDOW_BG
+		_themes.erase(key)
+		_themes[parts[0] + "|" + str(WINDOW_BG) + ("|" + parts[2] if parts.size() > 2 else "")] = sb
+	for key in _themes.keys():               # kopie skórki MW_Window (window_box_mw) – od nowa przy następnym użyciu
+		if String(key).begins_with("mw_window|"):
+			var sb2: StyleBox = _themes[key]
+			var base: StyleBox = window_box()
+			if sb2 is StyleBoxTexture and base is StyleBoxTexture:
+				(sb2 as StyleBoxTexture).texture = (base as StyleBoxTexture).texture
+			elif sb2 is StyleBoxFlat:
+				(sb2 as StyleBoxFlat).bg_color = WINDOW_BG
 
 static func window_box() -> StyleBox:
 	return _frame_box("menu_thick_border", WINDOW_BG)

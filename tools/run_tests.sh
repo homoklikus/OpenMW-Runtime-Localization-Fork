@@ -187,7 +187,7 @@ run_gd test_gui_modes.gd --data="$WORK/actors_out" --project="$WORK/project_gui_
 run_gd test_language.gd --data="$WORK/actors_out" --project="$WORK/project_language" --pos=2300,2400,900 --scripts=0
 run_gd test_chargen_class.gd --data="$WORK/actors_out" --project="$WORK/project_chargen_class" --pos=2300,2400,900 --scripts=0
 run_gd test_chargen_windows.gd --data="$WORK/actors_out" --project="$WORK/project_chargen_windows" --pos=2300,2400,900 --scripts=0
-run_gd test_settings.gd --data="$WORK/actors_out" --project="$WORK/project_settings" --settings="$WORK/settings_cfg/runtime_settings.json" --pos=2300,2400,900 --scripts=0
+run_gd test_settings.gd --data="$WORK/actors_out" --project="$WORK/project_settings" --settings="$WORK/settings_cfg/runtime_settings.json" --saves="$WORK/settings_saves" --pos=2300,2400,900 --scripts=0
 run_gd test_anim_sounds.gd --data="$WORK/actors_out" --project="$WORK/project_anim_sounds" --pos=2300,2400,900 --scripts=0
 
 if ls "$ROOT/godot/bin/"libmw_native* >/dev/null 2>&1; then

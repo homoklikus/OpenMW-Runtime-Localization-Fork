@@ -38,8 +38,11 @@ func count() -> int:
 func texts() -> Array:
 	return boxes.map(func(b): return String(b.text))
 
-## createMessageBox.
-func create(message: String) -> void:
+## createMessageBox(message, stat): stały komunikat (staticMessageBox) – bez czasu życia, jeden naraz, usuwany
+## przez remove_static (removeStaticMessageBox).
+func create(message: String, static_box := false) -> void:
+	if static_box:
+		remove_static()
 	_s = UI.ui_scale()
 	var bl := Box.new(_s)
 	var lines := bl.wrap_lines(message, 300)
@@ -62,7 +65,8 @@ func create(message: String) -> void:
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	p.add_child(l)
 	add_child(p)
-	boxes.append({"panel": p, "time": 0.0, "max": message.length() * _time_per_char(), "text": message, "h": int(size.y)})
+	boxes.append({"panel": p, "time": 0.0, "max": INF if static_box else message.length() * _time_per_char(),
+		"text": message, "h": int(size.y), "static": static_box})
 	if boxes.size() > MAX_BOXES:
 		var old: Dictionary = boxes.pop_front()
 		(old.panel as Node).queue_free()
@@ -90,6 +94,16 @@ func _process(delta: float) -> void:
 			changed = true
 	if changed:
 		_update_positions()
+
+func remove_static() -> void:
+	for b in boxes.duplicate():
+		if bool(b.get("static", false)):
+			boxes.erase(b)
+			(b.panel as Node).queue_free()
+	_update_positions()
+
+func has_static() -> bool:
+	return boxes.any(func(b): return bool(b.get("static", false)))
 
 func clear() -> void:
 	for b in boxes:

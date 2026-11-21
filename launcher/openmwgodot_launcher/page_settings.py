@@ -37,7 +37,7 @@ class SettingsPage(QWidget):
         lay.addWidget(self.tabs, 1)
         self.widgets = {}
         forms = {}
-        for sec, name in (("graphics", tr('Grafika')), ("audio", tr('Dźwięk')), ("controls", tr('Sterowanie')),
+        for sec, name in (("graphics", tr('Grafika')), ("audio", tr('Dźwięk')), ("controls", tr('Sterowanie')), ("game", tr('Gra')),
                           ("language", tr('Język')), ("world", tr('Świat')), ("advanced", tr('Zaawansowane'))):
             w = QWidget()
             f = QFormLayout(w)

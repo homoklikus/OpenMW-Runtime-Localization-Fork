@@ -128,6 +128,9 @@ func _run() -> void:
 	var dyn0: int = main.state.dynamic.size()
 	var h1: float = main.envr.game_hour
 	check(rw.open() and rw.sleeping, "ponowny sen")
+	# przerwanie snu niezależne od autozapisu (autozapis – test_settings); długi zapis wydłuża klatkę, a TimeAdvancer
+	# (jak w OpenMW) może wtedy przejść kilka godzin w jednej klatce i minąć godzinę przerwania
+	main.settings["autosave"] = false
 	rw.rest(10)
 	rw._rest.interrupt = 3
 	rw._rest.list = "synth_lev_creature"

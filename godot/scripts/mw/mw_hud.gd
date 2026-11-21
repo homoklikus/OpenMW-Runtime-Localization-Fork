@@ -33,6 +33,7 @@ var _effects_y := 0.0
 var blind_fader: ColorRect        # WindowManager::setBlindness – warstwa FadeToBlack pod HUD-em
 var _blind_layer: CanvasLayer
 var crosshair: Control
+var crosshair_enabled := true      # [HUD] crosshair (WindowManager::showCrosshair)
 var focus_panel: PanelContainer
 var focus_label: Label
 var _flash_t := 0.0
@@ -252,6 +253,8 @@ func _process(delta: float) -> void:
 	if not root.visible:
 		return
 	_apply_allowed()
+	if crosshair != null:
+		crosshair.visible = crosshair_enabled
 	update_stats()
 	update_weapon_spell()
 	sneak_box.visible = bool(main.player.want_sneak)

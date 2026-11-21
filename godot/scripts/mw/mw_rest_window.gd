@@ -168,7 +168,7 @@ func hours_until_healed() -> int:
 ## skrypty działają w tym czasie (GetPCSleep = 1 podczas snu, WakeUpPC przerywa). Sen w świecie zewnętrznym
 ## w regionie z listą snu (BNAM): rzut rollDice(n) < fSleepRandMod × n – przerwanie po n − int(fSleepRestMod × n)
 ## godzinach: sSleepInterrupt i 1 + rollDice(iNumberCreatures) stworzeń z listy 220 j. przed graczem.
-## Po śnie – awans, jeśli możliwy. Autozapis przed odpoczynkiem ([Saves] autosave) – brak w Godocie.
+## Po śnie – awans, jeśli możliwy. Przed odpoczynkiem autozapis ([Saves] autosave – quickSave("Autosave")).
 const STEP_DELAY := 1.0 / 60.0
 var _rest := {}
 var rng := RandomNumberGenerator.new()
@@ -177,6 +177,8 @@ var _progress_bar: ProgressBar = null
 var _progress_text: Label = null
 
 func rest(n: int) -> void:
+	if bool(main.settings.get("autosave", true)) and main.has_method("quick_save"):
+		main.quick_save("Autosave")                  # WaitDialog::startWaiting
 	panel.visible = false
 	n = maxi(1, n)
 	_rest = {"hours": n, "cur": 0, "fade": 0.4, "t": STEP_DELAY, "interrupt": -1, "list": ""}

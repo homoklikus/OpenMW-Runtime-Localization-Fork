@@ -2,8 +2,8 @@ extends CanvasLayer
 ## Podpowiedzi jak OpenMW 0.51 ToolTips (apps/openmw/mwgui/tooltips.cpp, openmw_tooltips.layout,
 ## MWClass::*::getToolTipInfo, Widgets::MWSpellEffect/MWEffectList):
 ##  - w trybie GUI kontrolka pod kursorem (albo jej przodek) z meta „mw_tip” – {type: "item", id, count} (ItemPtr /
-##    ItemModelIndex), {type: "spell", id} (Spell), {type: "info", …} (ToolTipInfo); bez opóźnienia ([GUI] tooltip
-##    delay = 0); położenie ToolTips::position (32 px pod kursorem, przesunięcie w lewo proporcjonalne do x kursora,
+##    ItemModelIndex), {type: "spell", id} (Spell), {type: "info", …} (ToolTipInfo); opóźnienie [GUI] tooltip
+##    delay (domyślnie 0 – od razu); położenie ToolTips::position (32 px pod kursorem, przesunięcie w lewo proporcjonalne do x kursora,
 ##    przy prawej/dolnej krawędzi – dociągnięcie / nad kursorem);
 ##  - createToolTip: skórka HUD_Box_NoTransp (w trybie GUI), odstęp 8 px, nagłówek (NormalText) z ikoną 32 × 32 po
 ##    lewej, tekst (SandText, wyśrodkowany, zawijany przy 300 px), lista efektów (MW_EffectImage: ikona 16 × 16,
@@ -508,6 +508,10 @@ func hide_tip() -> void:
 	box.visible = false
 	current_key = ""
 
+var delay := 0.0                  # [GUI] tooltip delay (s)
+var _remaining_delay := 0.0
+var _last_mouse := Vector2(-1, -1)
+
 func _process(_dt: float) -> void:
 	if not enabled or main == null or main.get("gui") == null:
 		return
@@ -518,6 +522,17 @@ func _process(_dt: float) -> void:
 			hide_tip()
 		return
 	var vpt := get_viewport()
+	# ToolTips::onFrame: podpowiedź po „tooltip delay” s bez ruchu myszy (ruch – od nowa)
+	var mp := vpt.get_mouse_position()
+	if mp == _last_mouse:
+		_remaining_delay -= _dt
+	else:
+		_remaining_delay = delay
+	_last_mouse = mp
+	if _remaining_delay > 0.0:
+		if box.visible:
+			hide_tip()
+		return
 	var c := vpt.gui_get_hovered_control()
 	var tip := tip_of(c)
 	if tip.is_empty() or vpt.gui_is_dragging():

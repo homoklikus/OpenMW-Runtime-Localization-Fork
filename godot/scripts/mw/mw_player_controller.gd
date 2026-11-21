@@ -5,6 +5,7 @@ var actor: CharacterBody3D
 var cam: Camera3D
 var mouse_sens := 0.0025
 var invert_y := false
+var invert_x := false               # [Input] invert x axis
 var allowed: Callable = Callable()   # etap 9: blokady sterowania ze skryptów (main.control_allowed)
 
 func _ok(kind: String) -> bool:
@@ -39,7 +40,7 @@ func _unhandled_input(e: InputEvent) -> void:
 	if actor == null:
 		return
 	if e is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and _ok("looking"):
-		actor.rotate_y(-e.relative.x * mouse_sens)
+		actor.rotate_y(-e.relative.x * (-1.0 if invert_x else 1.0) * mouse_sens)
 		var dy: float = e.relative.y * (-1.0 if invert_y else 1.0)
 		cam.rotation.x = clampf(cam.rotation.x - dy * mouse_sens, -1.5, 1.5)
 	elif e.is_action_pressed("toggle_fly"):

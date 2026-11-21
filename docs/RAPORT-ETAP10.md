@@ -32,6 +32,7 @@ funkcji. Commity lokalne, bez push.
 | Kwestie NPC na początku gry ginęły (zgłoszenie) | MenuMode skryptów nie uwzględniało filmu ani stosu trybów GUI – skrypty na statku (Say Jiuba, okno imienia) działały pod filmem wprowadzającym nowej gry | MenuMode = WindowManager::isGuiMode (tryb GUI na stosie, GM_Video, menu główne) | test_load_controls |
 | Podpowiedź broni: obrażenia „0 – 0” | odczyt nieistniejących pól `chop_min`/… zamiast `chop: [min, max]` | podpowiedzi OpenMW (cz. 9) | test_tooltips |
 | test_crime: sprawdzenie „przeniesienie czeka, póki gra stoi” raz nie przeszło w pełnym zestawie | wyścig w teście: wynik zależał od tego, czy strażnik zdążył zagadać (pauza) przed sprawdzeniem; zachowanie gry zgodne z World::update | test ustawia pauzę jawnie i sprawdza, że przeniesienie czeka | test_crime (3 powtórzenia) |
+| Testy (i uruchomienia bez launchera) zapisywały autozapis/szybki zapis do zapisów użytkownika (user://saves); test_progress raz nie przeszedł – długi zapis do pełnego katalogu wydłużył klatkę, a TimeAdvancer (jak w OpenMW 0.51) przeszedł kilka godzin w jednej klatce, mijając godzinę przerwania | brak --saves w testach; autozapis przed odpoczynkiem (nowy, domyślnie włączony jak w OpenMW) | bez --saves przy --project zapisy w <projekt>/saves (launcher zawsze podaje --saves); test przerwania snu z wyłączonym autozapisem (autozapis sprawdza test_settings) | test_progress, test_settings |
 | Polskie komunikaty przy zamkniętych drzwiach/pojemniku, podniesieniu przedmiotu i pułapce | własne komunikaty spoza OpenMW | jak OpenMW: FailedAction bez tekstu (tylko dźwięk), ActionTake bez tekstu, pułapka działa czarem | test_interaction |
 
 ## 3. Stworzenia wodne
@@ -312,10 +313,33 @@ z textures\door_icon.dds 8 × 8 w kolorze normal / normal_over (wcześniej czerw
 Na prawdziwych danych (VM): okno notatki, znacznik z map_marker_red, znacznik drzwi z door_icon, minimapa – bez
 błędów. Test: test_map_notes (44).
 
-### 7.8 Pozostałe punkty etapu (do wykonania)
+### 7.8 Okno opcji, przypisania klawiszy, autozapis (cz. 14)
+`mw_settings_window.gd` przepisany na SettingsWindow OpenMW 0.51 (dotychczasowe okno z „Zapisz/Anuluj” i własnym
+układem nie było zgodne): MW_Window #{OMWEngine:SettingsWindow} w trybie GM_Settings, 0,8 × 0,8 ekranu (min.
+640 × 550), zakładki Prefs / Audio / Controls / Video (Video, Detail Level, Water), OK z fokusem, Esc; zmiany od
+razu, zapis przy zamknięciu (ingame_settings.json; nowe klucze dodane do schematu launchera, żeby nie ginęły przy
+scalaniu). Suwaki MW_HScroll z zakresem i stroną z układu, wartość min + (max − min) × poz. / (Range − 1), nagłówki
+z wartością (DifficultyValue, ActorsProcessingRangeValue, FieldOfViewValue, ViewDistanceValueCells – format ICU),
+podpisy skrajne; przełączniki On/Off. Nowe działające ustawienia: przezroczystość menu (tło wszystkich okien od razu,
+jak setMenuTransparency), opóźnienie podpowiedzi (ToolTips::onFrame – odliczanie bez ruchu myszy), trudność
+(combat.difficulty), zasięg przetwarzania aktorów, autozapis przed odpoczynkiem (WaitDialog::startWaiting →
+quickSave("Autosave")), „Always Use Best Attack” (getBestAttack), celownik, odwrócenie osi X, czułość kamery
+(0,2…5,0 × dotychczasowa czułość), tryb okna (Fullscreen / Windowed Fullscreen / Windowed – lista rozdzielczości
+i ramka wg OpenMW), ramka okna, VSync Off/On/Adaptive, lista rozdzielczości (getResolutionText, potwierdzenie
+ConfirmResolution), pole widzenia 30…110, odległość widzenia (suwak „Large” 2500…81920 j.; ustawienie portu
+w metrach), shader wody (od razu). Sterowanie (BindingsManager): akcje w kolejności getActionKeySorting z opisami
+GMST, nazwy przypisań (klawisz, „#{sMouse} N” w numeracji SDL), przypisywanie z komunikatem stałym RebindAction
+(Esc anuluje, F3/F4/F10/Win zastrzeżone, klawisz zabierany innej akcji), Reset Controls z pytaniem, zapis
+input_bindings.json (odpowiednik input_v3.xml). Komunikat stały: staticMessageBox/removeStaticMessageBox.
+Usunięte z okna w grze (nie ma ich w OpenMW, zostają w launcherze): cienie, mgła, limit FPS.
+Pominięte (port ich nie obsługuje – bez atrap): przetwarzanie końcowe, gamma, filtrowanie tekstur, anizotropia,
+szczegóły wody poza shaderem, Lights, Scripts (Lua), Language (język – launcher), pad i „Enable Controller”.
+Różnice: domyślne klawisze skoku/aktywacji portu (Spacja/E) zostały – OpenMW ma E/Spację. Test: test_settings (73,
+poprzednio „Anuluj przywraca” – zachowanie spoza OpenMW).
 
-§10 ustawienia, autozapis, ekrany ładowania, Enter/Tab/strzałki,
-pad, §11 porównania 720p/1440p/2160p i nowych okien, §12 dodatki i mody.
+### 7.9 Pozostałe punkty etapu (do wykonania)
+
+§10 ekrany ładowania, Enter/Tab/strzałki, pad, §11 porównania 720p/1440p/2160p i nowych okien, §12 dodatki i mody.
 
 ## 8. Commity (lokalne, bez push)
 
@@ -333,10 +357,11 @@ pad, §11 porównania 720p/1440p/2160p i nowych okien, §12 dodatki i mody.
 * Etap 10 cz. 11: więzienie i towarzysz
 * Etap 10 cz. 12: konsola (MWScript)
 * Etap 10 cz. 13: notatki na mapie (EditNoteDialog, CustomMarker)
+* Etap 10 cz. 14: okno opcji jak SettingsWindow, przypisania klawiszy, autozapis
 
-Pełny zestaw tools/run_tests.sh: 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
+Pełny zestaw tools/run_tests.sh: 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 
 ## 9. Zalecana kolejność dalszych prac
 
-1. Ustawienia/autozapis/klawiatura/pad, 2. porównania zrzutami wszystkich nowych okien z OpenMW
+1. Klawiatura w oknach (Enter/Tab/strzałki), pad, ekrany ładowania, 2. porównania zrzutami wszystkich nowych okien z OpenMW
 (720p/1440p/2160p), 3. dodatki i mody.
