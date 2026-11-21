@@ -332,9 +332,10 @@ GMST, nazwy przypisań (klawisz, „#{sMouse} N” w numeracji SDL), przypisywan
 (Esc anuluje, F3/F4/F10/Win zastrzeżone, klawisz zabierany innej akcji), Reset Controls z pytaniem, zapis
 input_bindings.json (odpowiednik input_v3.xml). Komunikat stały: staticMessageBox/removeStaticMessageBox.
 Usunięte z okna w grze (nie ma ich w OpenMW, zostają w launcherze): cienie, mgła, limit FPS.
+Na prawdziwych danych (VM): okno w trybie GM_Settings, 29 akcji – wszystkie opisy i „sMouse” z GMST gry.
 Pominięte (port ich nie obsługuje – bez atrap): przetwarzanie końcowe, gamma, filtrowanie tekstur, anizotropia,
 szczegóły wody poza shaderem, Lights, Scripts (Lua), Language (język – launcher), pad i „Enable Controller”.
-Różnice: domyślne klawisze skoku/aktywacji portu (Spacja/E) zostały – OpenMW ma E/Spację. Test: test_settings (73,
+Różnice: domyślne klawisze skoku/aktywacji portu (Spacja/E) zostały – OpenMW ma E/Spację. Test: test_settings (71,
 poprzednio „Anuluj przywraca” – zachowanie spoza OpenMW).
 
 ### 7.9 Pozostałe punkty etapu (do wykonania)
