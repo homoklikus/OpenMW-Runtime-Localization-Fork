@@ -334,7 +334,8 @@ input_bindings.json (odpowiednik input_v3.xml). Komunikat stały: staticMessageB
 Usunięte z okna w grze (nie ma ich w OpenMW, zostają w launcherze): cienie, mgła, limit FPS.
 Na prawdziwych danych (VM): okno w trybie GM_Settings, 29 akcji – wszystkie opisy i „sMouse” z GMST gry.
 Pominięte (port ich nie obsługuje – bez atrap): przetwarzanie końcowe, gamma, filtrowanie tekstur, anizotropia,
-szczegóły wody poza shaderem, Lights, Scripts (Lua), Language (język – launcher), pad i „Enable Controller”.
+szczegóły wody poza shaderem, Lights, Scripts (Lua), Language (język – launcher); pad i „Enable Controller” doszły
+w cz. 16 (punkt 7.10).
 Różnice: domyślne klawisze skoku/aktywacji portu (Spacja/E) zostały – OpenMW ma E/Spację. Test: test_settings (71,
 poprzednio „Anuluj przywraca” – zachowanie spoza OpenMW).
 
@@ -363,9 +364,54 @@ Ekrany ładowania: zgodne od etapu 9/10 cz. 5 (LoadingScreen: tapeta co 5 s, zam
 minus postęp, etykieta „ważna”, położenie okienka); różnica – GM_Loading nie jest kładziony na stos trybów (port
 czeka w czasie ekranu ładowania na postawienie gracza przez fizykę, której pauza trybu GUI by nie puściła).
 
-### 7.11 Pozostałe punkty etapu (do wykonania)
+### 7.11 Porównania nowych okien z OpenMW 720p/1440p/2160p (cz. 17)
+Przypadki `tools/openmw-xvfb/ui_cases/ui_stage10_{720,1440,2160,2160_tabs}.json` na prawdziwych danych (VM:
+oficjalny OpenMW 0.51 i port w Xvfb, ta sama komórka i ustawienia, [GUI] menu transparency = 1,0 w obu silnikach,
+żeby porównywać zawartość okien bez tła sceny): szybkie klawisze (I.UI.setMode QuickKeysMenu), konsola (klawisz `),
+okno opcji (Esc → „Options”) i jego zakładki Audio, Controls, Video (kliknięcia w nagłówku). Porównanie liczbowe
+(bez publikowania zrzutów): `ui_geom_compare.py` (prostokąty okien), `ui_block_diff.py` (nowe: bloki 8 × 8 z różnicą
+jasności lub gęstości krawędzi w prostokącie okna) oraz położenia linii ramek w wierszach i kolumnach.
+`mwscript_compare.py` wpisuje rozdzielczość przypadku do settings.cfg OpenMW (bez niej OpenMW startował w 800 × 600)
+i stosuje ustawienia przypadku („settings”); sonda portu (`probe_mwscript.gd`) obsługuje QuickKeysMenu, klawisz `
+i – w przypadkach z krokami UI – naciska klawisze na tym samym zegarze rzeczywistym co kroki UI (przy 1440p/2160p
+wolniejsze klatki przesuwały naciśnięcia względem zrzutów). Przy 2160p zapis zrzutu trwa ok. 7 s w każdym silniku,
+dlatego zakładki opcji są osobnym przypadkiem z rozsuniętymi krokami.
 
-§11 porównania 720p/1440p/2160p i nowych okien, §12 dodatki i mody.
+Wyniki po poprawkach: prostokąty wszystkich okien zgodne co do piksela (IoU 1,000, przesunięcie 0 px) we wszystkich
+trzech rozdzielczościach; linie ramek i suwaków identyczne (Preferences: 138/166/178…/600, Audio 170/186…, Controls,
+Video – lista rozdzielczości 152/345, FOV 436/452; przy 1440p i 2160p tak samo w skali). Bloki różne
+(720p): szybkie klawisze 3,7 % (glify napisów), konsola 5,7 %, opcje 5,2 %, Audio 4,1 %, Controls 10,8 %, Video 7,4 %
+– pozostałe różnice to braki funkcji opisane niżej, napisy (glify, tytuł okna opcji) i tekst z `--script-run` w
+historii konsoli OpenMW (narzędzie porównań, nie gra).
+
+Znalezione i naprawione:
+
+| Błąd | Przyczyna | Naprawa | Test |
+|---|---|---|---|
+| Menu główne widoczne przez okno opcji (przy przezroczystości 1,0 przyciski menu na stronie opcji) | warstwa opcji 26 pod warstwą menu 40; w OpenMW Settings leży nad MainMenu (openmw_layers.xml) | opcje 41; komunikaty i napisy (Notification) 45 – nad opcjami | test_ui_geometry („warstwy…”) |
+| Okno opcji: zakładki od 136 zamiast 144, strona od 127 zamiast 138, suwaki 16 px zamiast 14, odstępy i dół strony inne | układ z kontenerów (VBox/HBox) zamiast pozycji z openmw_settings_window.layout | położenia bezwzględne z układu: klient MW_Window (8, 28), TabControl (8, 8) – nagłówek 24, MW_Box od 30, TabItem z wcięciem 4; przyciski zakładek = napis + 8 co + 4 (MW_Button_RightPadding); suwaki Prefs (4, 4 + 60k) z paskiem 14 px w y + 20, Audio (4, 4 + 50k) pasek 18 px w y + 24, przełączniki od (4, 250) co 30, Controls z elementami przy dolnej krawędzi (Δ = wys. strony − 369), Video: TabControlInner (strony od y = 28 bez ramki), lista (0, 4, 195, 225), prawa kolumna od x = 207, FOV w y = 238, Detail Level – suwak w y = 126 | test_ui_geometry (1280 × 720 i 3840 × 2160) |
+| Przycisk OK i Reset Controls szersze niż w OpenMW (OK 56 zamiast 48 px) | stała szerokość z układu; w OpenMW to AutoSizedButton (napis + 24) | szerokość napis + 24, OK przy prawej krawędzi (ExpandDirection Left) | test_ui_geometry |
+| Lista rozdzielczości z podwójną ramką | dodatkowa ramka wokół listy, która ma własną (MW_List) | bez dodatkowej ramki | porównanie (linie 152/345) |
+| Nagłówki suwaków i etykiety Window Mode/VSync w kolorze „normal” | NormalText ma fontcolour=header | kolor header | porównanie |
+| Szybkie klawisze: pola bez ramki | brak MW_Box_Overlay z MW_ItemIconBox | nakładka MW_Box na każdym polu | test_ui_geometry (10 nakładek) |
+| Konsola: brak paska tytułu z bokami | tytuł jako zwykła etykieta | pasek MW_Window (UI.add_head) | porównanie |
+| Konsola: pole wyszukiwania i wiersz poleceń 28 px z ramką na całą wysokość, przyciski szersze niż 28 px, pasek do prawej krawędzi | brak wymiarów z openmw_console.layout / MW_ConsoleCommand | przyciski 28 × 28 co 4, HBox (1, 0, szer. − 5), pola z MW_Box 26 px (linie 206, 345/369 jak OpenMW) | test_ui_geometry |
+| Test pada: obrót prawą gałką „< 0,1 rad na klatkę” nie przechodził przy wolniejszej klatce (0,11–0,13) | test zależny od czasu klatki | test sprawdza wzór (oś × dt × 1000 × czułość / 256) dla dt tej klatki | test_gamepad |
+
+Wykluczony fałszywy trop: ramka wokół historii konsoli – dodana w trakcie pracy, porównanie pokazało, że
+MW_TextBoxEdit OpenMW nie ma ramki, więc została usunięta.
+
+Braki funkcji widoczne w porównaniu (nie atrapy – port ich nie ma): zakładki Scripts i Language (nagłówek OpenMW ma
+6 zakładek), Lights i Shadows w Video, przełącznik „mouse emulation cursor” (Prefs), przetwarzanie końcowe i gamma
+(Video), filtrowanie tekstur i anizotropia (Detail Level), przełącznik Mouse/Keyboard – Controller nad listą
+przypisań; na liście przypisań brak akcji, których port nie obsługuje: widok z trzeciej osoby (TogglePOV), zbliżenie
+kamery, stały bieg (AlwaysRun), automatyczny ruch, poprzedni/następny czar i broń, zrzut ekranu, HUD przetwarzania
+końcowego. Tytuł okna opcji OpenMW zajmuje szerszy pasek (ok. 130 px zamiast 85 px) – przyczyny nie ustalono (tytuły
+konsoli i szybkich klawiszy zgodne).
+
+### 7.12 Pozostałe punkty etapu (do wykonania)
+
+§12 dodatki i mody (Tribunal, Bloodmoon, mody).
 
 ## 8. Commity (lokalne, bez push)
 
@@ -386,10 +432,10 @@ czeka w czasie ekranu ładowania na postawienie gracza przez fizykę, której pa
 * Etap 10 cz. 14: okno opcji jak SettingsWindow, przypisania klawiszy, autozapis
 * Etap 10 cz. 15: nawigacja klawiaturą w oknach (KeyboardNavigation)
 * Etap 10 cz. 16: pad (ControllerManager)
+* Etap 10 cz. 17: porównania nowych okien z OpenMW 720p/1440p/2160p i poprawki układów
 
-Pełny zestaw tools/run_tests.sh: 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
+Pełny zestaw tools/run_tests.sh: 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 
 ## 9. Zalecana kolejność dalszych prac
 
-1. Porównania zrzutami wszystkich nowych okien z OpenMW
-(720p/1440p/2160p), 2. dodatki i mody.
+1. Dodatki i mody (§12), 2. brakujące akcje sterowania i przełącznik Controller w opcjach (punkt 7.11).

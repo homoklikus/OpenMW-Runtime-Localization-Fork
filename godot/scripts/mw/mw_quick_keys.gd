@@ -242,6 +242,14 @@ func _refresh_button(i: int) -> void:
 	for ch in b.get_children():
 		ch.queue_free()
 		b.remove_child(ch)
+	# MW_ItemIconBox: ramka MW_Box_Overlay na całym polu (nad zawartością, bez myszy)
+	var ov := Panel.new()
+	ov.name = "BoxOverlay"
+	ov.add_theme_stylebox_override("panel", UI.inner_box())
+	ov.set_anchors_preset(Control.PRESET_FULL_RECT)
+	ov.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ov.z_index = 1
+	b.add_child(ov)
 	b.tooltip_text = ""
 	if b.has_meta("mw_tip"):
 		b.remove_meta("mw_tip")

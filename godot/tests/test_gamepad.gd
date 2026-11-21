@@ -85,7 +85,8 @@ func _run() -> void:
 	var y0: float = main.player.rotation.y
 	await _frames(3)
 	check(main.player.rotation.y < y0 and gp.last_look.x > 0.0, "prawa gałka w prawo – obrót w prawo")
-	check(gp.last_look.x > 0.0 and gp.last_look.x < 0.1, "obrót = dt × 1000 / 256 na klatkę (%.4f)" % gp.last_look.x)
+	var sens := float(main.settings.get("mouse_sensitivity", 0.0025)) / 0.0025
+	check(gp.last_look_dt > 0.0 and absf(gp.last_look.x - gp.last_look_dt * 1000.0 * sens / 256.0) < 1e-5, "obrót = dt × 1000 / 256 na klatkę (%.4f, dt %.4f)" % [gp.last_look.x, gp.last_look_dt])
 	gp.set_meta("test_axes", {JOY_AXIS_RIGHT_X: 0.05})
 	await _frames(2)
 	var y1: float = main.player.rotation.y

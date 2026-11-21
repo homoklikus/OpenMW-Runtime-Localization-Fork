@@ -221,6 +221,8 @@ func _ui_clear() -> void:
 	for w in [main.menu_mode, main.journal_window, main.rest_window]:
 		if w != null and w.visible:
 			w.close()
+	if main.get("quick_keys") != null and main.quick_keys != null and main.quick_keys.visible and main.quick_keys.has_method("close"):
+		main.quick_keys.close()
 	if main.main_menu != null and main.main_menu.is_open():
 		main.close_main_menu()
 	root.get_tree().paused = false
@@ -291,6 +293,8 @@ func _ui_mode(m) -> void:
 			main.levelup_window.open()
 		"MainMenu":
 			main.open_main_menu()
+		"QuickKeysMenu":
+			main.quick_keys.open()
 
 func _apply_ui(steps: Array, started: bool) -> void:
 	if not started or steps.is_empty():
@@ -356,7 +360,7 @@ func _apply_rest(rests: Array, t: float) -> void:
 				main.rest_window.rest(h)
 
 ## Klawisze [[t, keysym X]] – jak naciśnięcia XTest w OpenMW: akcja wejścia przez 3 klatki.
-const KEY_ACTIONS := {"space": "activate", "escape": "menu"}
+const KEY_ACTIONS := {"space": "activate", "escape": "menu", "grave": "console"}
 var _keyed := {}
 var _key_release := {}
 
@@ -455,6 +459,12 @@ func _run() -> void:
 	vm._scripts["mwprobe_run"] = case.get("script", {})
 	vm.start("mwprobe_run")
 	_case = case
+	# ustawienia obu silników (porównania wizualne): [kategoria OpenMW, klucz OpenMW, wartość, klucz Godota]
+	for st in case.get("settings", []):
+		if (st as Array).size() >= 4 and not String(st[3]).is_empty():
+			main.settings[String(st[3])] = st[2]
+	if not case.get("settings", []).is_empty():
+		main.apply_live_settings()
 	var delay := int(case.get("delay", 30))
 	var secs := float(case.get("seconds", 0.0))
 	var samples: Array = case.get("samples", [])
@@ -472,7 +482,12 @@ func _run() -> void:
 				_spells_done[si] = true
 				_apply_spell(sp)
 		_apply_controls(case.get("controls", []), t_after)
-		_apply_keys(case.get("keys", []), t_after)
+		# przypadki z krokami UI: klawisze na tym samym zegarze rzeczywistym co kroki UI (jak XTest po stronie OpenMW),
+		# żeby wolniejsze klatki przy dużej rozdzielczości nie przesuwały naciśnięć względem zrzutów
+		var t_keys := t_after
+		if not (case.get("ui", []) as Array).is_empty() and t_after >= 0.0 and _ui_t0 >= 0:
+			t_keys = (Time.get_ticks_msec() - _ui_t0) / 1000.0
+		_apply_keys(case.get("keys", []), t_keys)
 		_look_at(case.get("look_at", []))
 		_apply_cast(case.get("cast", []), t_after)
 		_apply_rest(case.get("rest", []), t_after)

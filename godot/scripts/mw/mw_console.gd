@@ -100,11 +100,15 @@ func _build() -> void:
 	win.add_child(box)
 	title = Label.new()
 	title.name = "Caption"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	box.add_child(title)
+	UI.add_head(box, title, s)                         # pasek tytułu skórki MW_Window
 	var bar := HBoxContainer.new()                        # HBox: <, >, pole wyszukiwania, Aa, .*
 	bar.name = "SearchBar"
-	box.add_child(bar)
+	bar.add_theme_constant_override("separation", roundi(4 * s))   # HBox Spacing 4
+	var bar_m := MarginContainer.new()                  # HBox (1 0 379 28) w obszarze klienta 384
+	bar_m.add_theme_constant_override("margin_left", roundi(1 * s))
+	bar_m.add_theme_constant_override("margin_right", roundi(4 * s))
+	bar_m.add_child(bar)
+	box.add_child(bar_m)
 	var prev := _button("<", func(): find_occurrence(-1))
 	prev.name = "button_Previous"
 	bar.add_child(prev)
@@ -114,6 +118,8 @@ func _build() -> void:
 	search = LineEdit.new()
 	search.name = "edit_SearchTerm"
 	search.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	search.size_flags_vertical = Control.SIZE_SHRINK_BEGIN    # MW_ConsoleCommand: MW_Box 26 px w polu 28 px
+	search.custom_minimum_size.y = 26 * s
 	search.text_submitted.connect(func(_t): _search_pos = -1; find_occurrence(1))
 	bar.add_child(search)
 	case_btn = _button("Aa", toggle_case_sensitive)
@@ -134,18 +140,20 @@ func _build() -> void:
 	history.add_theme_font_override("normal_font", mono)
 	history.add_theme_font_size_override("normal_font_size", roundi(14 * s))
 	history.text = text_log
-	box.add_child(history)
+	box.add_child(history)                             # MW_TextBoxEdit: bez ramki, pasek przewijania z prawej
 	command = LineEdit.new()
 	command.name = "edit_Command"
 	command.set_meta("accept_tab", true)               # AcceptTab: Tab uzupełnia nazwy
 	command.text_submitted.connect(func(_t): accept_command())
 	command.gui_input.connect(_command_key)
+	command.custom_minimum_size.y = 26 * s
 	box.add_child(command)
 
 func _button(t: String, cb: Callable) -> Button:
 	var b := Button.new()
 	b.text = t
 	b.custom_minimum_size = Vector2(28, 28) * UI.ui_scale()
+	b.clip_text = true                                 # stały rozmiar 28 × 28 jak w openmw_console.layout
 	b.focus_mode = Control.FOCUS_NONE
 	b.pressed.connect(cb)
 	return b

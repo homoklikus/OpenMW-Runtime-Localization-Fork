@@ -1,0 +1,96 @@
+{
+ "name": "ui_stage10_2160",
+ "cell": "Seyda Neen, Arrille's Tradehouse",
+ "resolution": [
+  3840,
+  2160
+ ],
+ "note": "etap 10: nowe okna – szybkie klawisze (I.UI.setMode QuickKeysMenu), konsola (klawisz ` przez XTest / akcja console), okno opcji (Esc → kliknięcie „Options”; współrzędne przycisku z układu menu, takie same w obu silnikach) | wnętrze bez skryptów CharGen; teleport jak w ui_windows_* | menu transparency = 1,0 w obu silnikach: zawartość okien porównywana bez tła sceny | 2160p: zapis zrzutu 3840×2160 trwa ok. 7 s (zrzuty po kolei), stąd odstępy; zakładki okna opcji w ui_stage10_2160_tabs",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [],
+ "ui": [
+  [
+   2.0,
+   "clear",
+   null
+  ],
+  [
+   3.0,
+   "mode",
+   "QuickKeysMenu"
+  ],
+  [
+   5.5,
+   "shot",
+   "quickkeys"
+  ],
+  [
+   13.0,
+   "clear",
+   null
+  ],
+  [
+   16.0,
+   "shot",
+   "console"
+  ],
+  [
+   30.0,
+   "click",
+   [
+    1920,
+    1128
+   ]
+  ],
+  [
+   33.0,
+   "shot",
+   "settings"
+  ]
+ ],
+ "keys": [
+  [
+   14.0,
+   "grave"
+  ],
+  [
+   25.0,
+   "grave"
+  ],
+  [
+   27.0,
+   "Escape"
+  ],
+  [
+   42.0,
+   "Escape"
+  ]
+ ],
+ "seconds": 45.0,
+ "interior": true,
+ "teleport": [
+  [
+   0,
+   "player",
+   -242.27,
+   -11.77,
+   228.0
+  ]
+ ],
+ "settings": [
+  [
+   "GUI",
+   "menu transparency",
+   1.0,
+   "menu_transparency"
+  ]
+ ]
+}

@@ -34,6 +34,7 @@ var cursor_speed := 1.0              # [Input] gamepad cursor speed
 var camera_y_multiplier := 1.0       # [Input] camera y multiplier
 var device := 0
 var last_look := Vector2.ZERO        # testy: ostatni obrót z prawej gałki (rad)
+var last_look_dt := 0.0              # testy: dt klatki, z której pochodzi last_look
 var _cursor := Vector2(-1, -1)
 
 func _ready() -> void:
@@ -190,6 +191,7 @@ func _process(dt: float) -> void:
 	var yaw := rx * dt * 1000.0 * sens * (-1.0 if bool(main.settings.get("invert_x", false)) else 1.0) / 256.0
 	var pitch := ry * dt * 1000.0 * sens * (-1.0 if bool(main.settings.get("invert_y", false)) else 1.0) * camera_y_multiplier / 256.0
 	last_look = Vector2(yaw, pitch)
+	last_look_dt = dt
 	pl.rotate_y(-yaw)
 	var cam: Camera3D = pl.controller.cam
 	cam.rotation.x = clampf(cam.rotation.x - pitch, -1.5, 1.5)

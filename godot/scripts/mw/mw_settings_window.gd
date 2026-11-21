@@ -96,7 +96,7 @@ var changed := {}
 var _s := 1.0
 
 func _ready() -> void:
-	layer = 26                       # warstwa Settings
+	layer = 41                       # warstwa Settings (nad MainMenu = 40, jak openmw_layers.xml)
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	visible = false
 
@@ -199,9 +199,11 @@ func _build() -> void:
 	win.size = sz.floor()
 	win.mouse_filter = Control.MOUSE_FILTER_STOP
 	_root.add_child(win)
+	# MW_Window: obszar klienta (8, 28, W − 16, H − 36) z paskiem tytułu nad nim
 	var box := VBoxContainer.new()
 	box.name = "Box"
 	box.set_anchors_preset(Control.PRESET_FULL_RECT)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_theme_constant_override("separation", roundi(4 * _s))
 	win.add_child(box)
 	title = Label.new()
@@ -211,33 +213,74 @@ func _build() -> void:
 	box.offset_right = -8 * _s
 	box.offset_top = 4 * _s
 	box.offset_bottom = -8 * _s
-	var tabs_row := HBoxContainer.new()
-	tabs_row.name = "SettingsTab"
-	tabs_row.add_theme_constant_override("separation", 0)
-	box.add_child(tabs_row)
-	var page_frame := Panel.new()
+	var cw := floorf(win.size.x / _s) - 16.0
+	var ch := floorf(win.size.y / _s) - 36.0
+	var client := _at(win, Control.new(), 8, 28, cw, ch)
+	client.name = "Client"
+	client.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# TabControl „SettingsTab” (8 8 368 405, Stretch): nagłówek 24, MW_Box od y = 30, TabItem z wcięciem 4
+	var tw := cw - 16.0
+	var th := ch - 44.0
+	var tabc := _at(client, Control.new(), 8, 8, tw, th)
+	tabc.name = "SettingsTab"
+	tabc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_page_w = tw - 8.0
+	_page_h = th - 36.0
+	var names := []
+	for i in PAGES.size():
+		names.append(_t(String(PAGES[i][0])))
+	tab_buttons = _tab_header(tabc, names, show_page)
+	var page_frame := _at(tabc, Panel.new(), 0, 30, tw, th - 32.0) as Panel
 	page_frame.name = "TabPages"
 	page_frame.add_theme_stylebox_override("panel", UI.inner_box())
-	page_frame.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	page_frame.clip_contents = true
-	box.add_child(page_frame)
 	for i in PAGES.size():
-		var b := _tab_button(" %s " % _t(String(PAGES[i][0])), show_page.bind(i))
-		b.name = "Tab" + String(PAGES[i][0])
-		tabs_row.add_child(b)
-		tab_buttons.append(b)
-		var pg := _page(String(PAGES[i][0]), PAGES[i][1])
-		page_frame.add_child(pg)
+		tab_buttons[i].name = "Tab" + String(PAGES[i][0])
+		var pg := _page(String(PAGES[i][0]), PAGES[i][1], _page_w, _page_h)
+		_at(page_frame, pg, 4, 4, _page_w, _page_h)
 		pages.append(pg)
 	_build_video(pages[3])
-	var bottom := HBoxContainer.new()
-	bottom.alignment = BoxContainer.ALIGNMENT_END
-	box.add_child(bottom)
+	# OkButton (320 420 56 24, Right Bottom, ExpandDirection Left)
 	ok_button = Button.new()
 	ok_button.name = "OkButton"
 	ok_button.text = L10n.ctx_text("Interface", "OK", "OK")
 	ok_button.pressed.connect(close)                   # onOkButtonClicked → toggleSettingsWindow
-	bottom.add_child(ok_button)
+	client.add_child(ok_button)
+	ok_button.clip_text = true
+	var okw := _text_w(ok_button, ok_button.text) + 24.0  # AutoSizedButton: napis + 24, ExpandDirection Left
+	ok_button.position = Vector2(cw - 8.0 - okw, ch - 5.0 - 24.0) * _s
+	ok_button.size = Vector2(okw, 24) * _s
+
+var _page_w := 360.0
+var _page_h := 369.0
+
+## Kontrolka w rodzicu bez kontenera, w jednostkach layoutu (× skala UI).
+func _at(parent: Control, c: Control, x: float, y: float, w: float, h: float) -> Control:
+	parent.add_child(c)
+	c.position = (Vector2(x, y) * _s).round()
+	c.size = (Vector2(w, h) * _s).round()
+	return c
+
+## Szerokość napisu czcionką motywu (w jednostkach layoutu).
+func _text_w(c: Control, text: String) -> float:
+	var f := c.get_theme_font("font")
+	var fs := c.get_theme_font_size("font_size")
+	return ceilf(f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x / _s)
+
+## Nagłówek TabControl (ButtonAutoWidth, MW_Button_RightPadding): przycisk = napis + 12 (ramka 4 + 4, odstęp 4).
+func _tab_header(host: Control, names: Array, cb: Callable) -> Array:
+	var out := []
+	var x := 0.0
+	for i in names.size():
+		var b := _tab_button(" %s " % names[i], cb.bind(i))
+		host.add_child(b)
+		var w := _text_w(b, b.text) + 8.0
+		b.clip_text = true
+		b.position = (Vector2(x, 0) * _s).round()
+		b.size = (Vector2(w, 24) * _s).round()
+		x += w + 4.0                                     # MW_Button_RightPadding: 4 px odstępu po ramce
+		out.append(b)
+	return out
 
 func _tab_button(text: String, cb: Callable) -> Button:
 	var b := Button.new()
@@ -247,47 +290,72 @@ func _tab_button(text: String, cb: Callable) -> Button:
 	b.pressed.connect(cb)
 	return b
 
-func _page(name: String, entries: Array) -> Control:
-	var pg := VBoxContainer.new()
+func _page(name: String, entries: Array, pw: float, ph: float) -> Control:
+	var pg := Control.new()
 	pg.name = "Page" + name
-	pg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	pg.offset_left = 8 * _s
-	pg.offset_right = -8 * _s
-	pg.offset_top = 8 * _s
-	pg.offset_bottom = -8 * _s
-	pg.add_theme_constant_override("separation", roundi(6 * _s))
+	pg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pg.visible = false
+	var d := ph - 369.0                                 # elementy z align Bottom (Controls)
+	var ns := 0
+	var nc := 0
 	for e in entries:
 		match String(e.t):
 			"slider":
-				pg.add_child(_slider(e))
-			"check":
-				pg.add_child(_check_row([e]))
-			"checks":
-				pg.add_child(_check_row(e.items))
+				var g := _slider_geo(name, ns, d)
+				_at(pg, _slider(e, g, pw - g[0] * 2.0), g[0], g[1], pw - g[0] * 2.0, g[6])
+				ns += 1
+			"check", "checks":
+				var y := 0.0
+				match name:
+					"Preferences":
+						y = 250.0 + 30.0 * nc
+					"Controls":
+						y = (228.0 if String(e.t) == "checks" else 328.0) + d
+					_:
+						y = 0.0
+				var items: Array = e.items if String(e.t) == "checks" else [e]
+				_at(pg, _check_row(items), 4.0 if not name.begins_with("Video") else 0.0, y, pw, 28)
+				nc += 1
 			"controls":
-				_build_controls(pg)
+				_build_controls(pg, pw, d)
 			"video":
 				_build_video_mode(pg)
 	return pg
 
+## Geometria suwaka: [x, y grupy, y napisu, wys. napisu, y paska, wys. paska, wys. grupy, y podpisów]
+func _slider_geo(page: String, k: int, d: float) -> Array:
+	match page:
+		"Preferences":
+			return [4.0, 4.0 + 60.0 * k, 0.0, 16.0, 20.0, 14.0, 54.0, 38.0]
+		"Audio":
+			return [4.0, 4.0 + 50.0 * k, 0.0, 18.0, 24.0, 18.0, 42.0, -1.0]
+		"Controls":
+			return [4.0, 258.0 + d, 0.0, 18.0, 24.0, 18.0, 66.0, 48.0]
+		"VideoVideo":
+			return [0.0, 238.0, 0.0, 18.0, 24.0, 18.0, 66.0, 48.0]
+		"VideoDetailLevel":
+			return [0.0, 104.0, 0.0, 18.0, 22.0, 18.0, 62.0, 44.0]
+	return [4.0, 4.0 + 60.0 * k, 0.0, 16.0, 20.0, 14.0, 54.0, 38.0]
+
 func _build_video(host: Control) -> void:
-	var inner_tabs := HBoxContainer.new()
-	inner_tabs.name = "VideoTabs"
-	inner_tabs.add_theme_constant_override("separation", 0)
-	host.add_child(inner_tabs)
-	var frame := Panel.new()
-	frame.name = "VideoPages"
-	frame.add_theme_stylebox_override("panel", UI.inner_box())
-	frame.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	host.add_child(frame)
+	# TabControlInner (4 4 352 390, Stretch): nagłówek 24, strony od y = 28 bez ramki
+	var iw := _page_w - 8.0
+	var ih := _page_h - 8.0
+	var inner := _at(host, Control.new(), 4, 4, iw, ih)
+	inner.name = "VideoTabs"
+	inner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var names := []
 	for i in VIDEO_PAGES.size():
-		var b := _tab_button(" %s " % _t(String(VIDEO_PAGES[i][0])), show_video_page.bind(i))
-		b.name = "VideoTab" + String(VIDEO_PAGES[i][0])
-		inner_tabs.add_child(b)
-		video_tab_buttons.append(b)
-		var pg := _page("Video" + String(VIDEO_PAGES[i][0]), VIDEO_PAGES[i][1])
-		frame.add_child(pg)
+		names.append(_t(String(VIDEO_PAGES[i][0])))
+	video_tab_buttons = _tab_header(inner, names, show_video_page)
+	var frame := _at(inner, Control.new(), 0, 28, iw, ih - 28.0)
+	frame.name = "VideoPages"
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	frame.clip_contents = true
+	for i in VIDEO_PAGES.size():
+		video_tab_buttons[i].name = "VideoTab" + String(VIDEO_PAGES[i][0])
+		var pg := _page("Video" + String(VIDEO_PAGES[i][0]), VIDEO_PAGES[i][1], iw, ih - 28.0)
+		_at(frame, pg, 0, 0, iw, ih - 28.0)
 		video_pages.append(pg)
 	show_video_page(current_video_page)
 
@@ -329,14 +397,14 @@ func _omw_to_setting(e: Dictionary, v: float):
 		return int(roundf(v))
 	return v
 
-func _slider(e: Dictionary) -> Control:
-	var w := VBoxContainer.new()
-	w.name = "Slider_" + String(e.key)
-	w.add_theme_constant_override("separation", roundi(2 * _s))
+func _slider(e: Dictionary, g: Array, w: float) -> Control:
+	var grp := Control.new()
+	grp.name = "Slider_" + String(e.key)
+	grp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var head := Label.new()
 	head.name = "Caption"
-	head.add_theme_color_override("font_color", UI.color("normal"))
-	w.add_child(head)
+	head.add_theme_color_override("font_color", UI.color("header"))     # NormalText: fontcolour=header
+	_at(grp, head, 0, g[2], w, g[3])
 	var sb := HScrollBar.new()
 	sb.name = "Scroll"
 	var rng := int(e.range)
@@ -344,9 +412,9 @@ func _slider(e: Dictionary) -> Control:
 	sb.step = 1
 	sb.page = float(e.page)
 	sb.max_value = float(rng - 1) + sb.page
-	sb.custom_minimum_size = Vector2(0, 18 * _s)
 	UI.setup_scroll_bar(sb, _s)
-	w.add_child(sb)
+	sb.custom_minimum_size = Vector2.ZERO
+	_at(grp, sb, 0, g[4], w, g[5])
 	# configureWidgets: pozycja z wartości (ograniczonej do min…max)
 	var lo := float(e.min)
 	var hi := float(e.max)
@@ -356,24 +424,22 @@ func _slider(e: Dictionary) -> Control:
 	sliders[String(e.key)] = sb
 	slider_labels[String(e.key)] = head
 	_update_slider_label(e, cur)
-	if e.has("lo") or e.has("hi"):
-		var marks := Control.new()
+	if (e.has("lo") or e.has("hi")) and float(g[7]) >= 0.0:
+		var marks := _at(grp, Control.new(), 0, g[7], w, 16)
 		marks.name = "Marks"
-		marks.custom_minimum_size = Vector2(0, 16 * _s)
+		marks.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		var l := Label.new()
 		l.name = "Low"
 		l.text = _t(String(e.get("lo", "")))
 		l.add_theme_color_override("font_color", UI.color("normal"))
-		marks.add_child(l)
+		_at(marks, l, 0, 0, w, 16)
 		var r := Label.new()
 		r.name = "High"
 		r.text = _t(String(e.get("hi", "")))
 		r.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		r.set_anchors_preset(Control.PRESET_TOP_WIDE)
 		r.add_theme_color_override("font_color", UI.color("normal"))
-		marks.add_child(r)
-		w.add_child(marks)
-	return w
+		_at(marks, r, 0, 0, w, 16)
+	return grp
 
 ## updateSliderLabel: SettingLabelCaption z wartością (Cell – w komórkach: wartość / 8192).
 func _update_slider_label(e: Dictionary, v: float) -> void:
@@ -406,19 +472,26 @@ func set_slider_position(key: String, pos: int) -> void:
 		sb.value = pos
 
 func _check_row(items: Array) -> Control:
+	# HBox: AutoSizedButton 24 × 24 i AutoSizedTextBox (28 4), odstęp 4
 	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_BEGIN
 	row.add_theme_constant_override("separation", roundi(4 * _s))
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for it in items:
 		var b := Button.new()
 		b.name = "Check_" + String(it.key)
 		b.focus_mode = Control.FOCUS_NONE
 		b.text = _on_text() if bool(value(String(it.key))) else _off_text()
 		b.custom_minimum_size = Vector2(24, 24) * _s
+		b.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 		b.pressed.connect(toggle_check.bind(String(it.key)))
 		row.add_child(b)
 		checks[String(it.key)] = b
 		var l := Label.new()
 		l.text = _t(String(it.cap))
+		l.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		l.custom_minimum_size.y = 24 * _s
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		l.add_theme_color_override("font_color", UI.color("normal"))
 		row.add_child(l)
 	return row
@@ -439,16 +512,15 @@ func set_value(key: String, v) -> void:
 
 # --- sterowanie (ControlsBox) ---------------------------------------------------------------------------
 
-func _build_controls(pg: Control) -> void:
-	var frame := PanelContainer.new()
+func _build_controls(pg: Control, pw: float, d: float) -> void:
+	# MW_Box (4 38 352 154, Stretch) ze ScrollView (4 4 344 146); ResetControlsButton (4 198, Left Bottom)
+	var frame := _at(pg, Panel.new(), 4, 38, pw - 8.0, 154.0 + d) as Panel
 	frame.add_theme_stylebox_override("panel", UI.inner_box())
-	frame.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	pg.add_child(frame)
 	var sc := ScrollContainer.new()
 	sc.name = "ControlsBox"
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	UI.setup_scroll(sc, _s)
-	frame.add_child(sc)
+	_at(frame, sc, 4, 4, pw - 16.0, 146.0 + d)
 	controls_box = VBoxContainer.new()
 	controls_box.name = "Rows"
 	controls_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -457,9 +529,12 @@ func _build_controls(pg: Control) -> void:
 	var reset := Button.new()
 	reset.name = "ResetControlsButton"
 	reset.text = _t("ResetControls", "Reset Controls")
-	reset.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	reset.pressed.connect(_on_reset_bindings)
 	pg.add_child(reset)
+	reset.clip_text = true
+	var rw := _text_w(reset, reset.text) + 24.0          # AutoSizedButton: napis + 24
+	reset.position = (Vector2(4, 198.0 + d) * _s).round()
+	reset.size = (Vector2(rw, 24) * _s).round()
 
 ## updateControlsBox: wiersz = opis akcji (z lewej) i przypisanie (z prawej, klikalne); usuwa komunikat stały.
 func update_controls_box() -> void:
@@ -589,53 +664,49 @@ func list_resolutions() -> Array:
 	return out
 
 func _build_video_mode(pg: Control) -> void:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", roundi(12 * _s))
-	pg.add_child(row)
+	# strona „Video” TabControlInner: ResolutionList (0 4 195 225), prawa kolumna od x = 207
 	resolution_list = ItemList.new()
 	resolution_list.name = "ResolutionList"
-	resolution_list.custom_minimum_size = Vector2(195, 225) * _s
 	resolutions = list_resolutions()
 	for r in resolutions:
 		resolution_list.add_item(resolution_text(r.x, r.y))
 	resolution_list.item_selected.connect(_on_resolution_selected)
-	row.add_child(resolution_list)
-	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", roundi(4 * _s))
-	row.add_child(col)
+	_at(pg, resolution_list, 0, 4, 195, 225)          # MW_List: ramka w skórce listy
 	var l1 := Label.new()
 	l1.text = _t("WindowMode")
-	col.add_child(l1)
+	l1.add_theme_color_override("font_color", UI.color("header"))
+	_at(pg, l1, 207, 4, 250, 18)
 	window_mode_list = OptionButton.new()
 	window_mode_list.name = "WindowModeList"
 	window_mode_list.add_item(_t("WindowModeFullscreen"))
 	window_mode_list.add_item(_t("WindowModeWindowedFullscreen"))
 	window_mode_list.add_item(_t("WindowModeWindowed"))
-	window_mode_list.custom_minimum_size = Vector2(200, 24) * _s
 	window_mode_list.item_selected.connect(_on_window_mode)
-	col.add_child(window_mode_list)
+	_at(pg, window_mode_list, 207, 24, 200, 24)
 	var l2 := Label.new()
 	l2.text = _t("VSync")
-	col.add_child(l2)
+	l2.add_theme_color_override("font_color", UI.color("header"))
+	_at(pg, l2, 207, 54, 250, 18)
 	vsync_list = OptionButton.new()
 	vsync_list.name = "VSyncModeList"
 	vsync_list.add_item(_off_text())
 	vsync_list.add_item(_on_text())
 	vsync_list.add_item(_t("VSyncAdaptive"))
-	vsync_list.custom_minimum_size = Vector2(200, 24) * _s
 	vsync_list.item_selected.connect(_on_vsync)
-	col.add_child(vsync_list)
-	col.add_child(_check_row([{"key": "window_border", "cap": "WindowBorder"}]))
+	_at(pg, vsync_list, 207, 74, 200, 24)
+	_at(pg, _check_row([{"key": "window_border", "cap": "WindowBorder"}]), 207, 108, 300, 28)
 	window_border_button = checks["window_border"]
 	var hint := Label.new()
 	hint.text = _t("FrameRateHint")
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	hint.custom_minimum_size = Vector2(300, 0) * _s
-	col.add_child(hint)
+	hint.add_theme_color_override("font_color", UI.color("normal"))
+	_at(pg, hint, 207, 174, 300, 32)
 	window_mode_hint = Label.new()
 	window_mode_hint.name = "WindowModeHint"
 	window_mode_hint.text = _t("WindowModeHint")
-	col.add_child(window_mode_hint)
+	window_mode_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	window_mode_hint.add_theme_color_override("font_color", UI.color("normal"))
+	_at(pg, window_mode_hint, 207, 216, 300, 32)
 	update_window_mode_settings()
 	var vs := bool(value("vsync"))
 	vsync_list.select(2 if vs and bool(main.settings.get("vsync_adaptive", false)) else (1 if vs else 0))

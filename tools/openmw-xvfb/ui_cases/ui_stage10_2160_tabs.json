@@ -1,0 +1,97 @@
+{
+ "name": "ui_stage10_2160_tabs",
+ "cell": "Seyda Neen, Arrille's Tradehouse",
+ "resolution": [
+  3840,
+  2160
+ ],
+ "note": "etap 10: okno opcji przy 3840×2160 – zakładki Audio, Controls, Video (Esc → „Options” → kliknięcia w nagłówku TabControl; pozycje z układu: okno 0,8 ekranu, zakładki od (16, 36)) | menu transparency = 1,0 w obu silnikach | zrzuty 4K co ok. 10 s",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [],
+ "ui": [
+  [
+   6.0,
+   "click",
+   [
+    1920,
+    1128
+   ]
+  ],
+  [
+   9.0,
+   "click",
+   [
+    494,
+    264
+   ]
+  ],
+  [
+   11.0,
+   "shot",
+   "settings_audio"
+  ],
+  [
+   19.0,
+   "click",
+   [
+    573,
+    264
+   ]
+  ],
+  [
+   21.0,
+   "shot",
+   "settings_controls"
+  ],
+  [
+   29.0,
+   "click",
+   [
+    650,
+    264
+   ]
+  ],
+  [
+   31.0,
+   "shot",
+   "settings_video"
+  ]
+ ],
+ "keys": [
+  [
+   3.0,
+   "Escape"
+  ],
+  [
+   40.0,
+   "Escape"
+  ]
+ ],
+ "seconds": 43.0,
+ "interior": true,
+ "teleport": [
+  [
+   0,
+   "player",
+   -242.27,
+   -11.77,
+   228.0
+  ]
+ ],
+ "settings": [
+  [
+   "GUI",
+   "menu transparency",
+   1.0,
+   "menu_transparency"
+  ]
+ ]
+}

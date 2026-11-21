@@ -641,8 +641,19 @@ def run_openmw(case: dict, omw_dir: Path, cfg_src: Path, work: Path, display: in
     if res:                                  # porównania wizualne: rozdzielczość okna OpenMW (kopia ustawień)
         st = cfg_dir / "openmw" / "settings.cfg"
         txt = st.read_text(encoding="utf-8") if st.exists() else "[Video]\n"
+        if "resolution x" not in txt:        # bez wpisu OpenMW przyjmuje 800 × 600 (okno na środku ekranu Xvfb)
+            txt = _settings_put(txt, "Video", "resolution x", str(int(res[0])))
+            txt = _settings_put(txt, "Video", "resolution y", str(int(res[1])))
         txt = re.sub(r"resolution x = \d+", f"resolution x = {int(res[0])}", txt)
         txt = re.sub(r"resolution y = \d+", f"resolution y = {int(res[1])}", txt)
+        st.write_text(txt, encoding="utf-8")
+    sets = case.get("settings", [])
+    if sets:                                 # ustawienia OpenMW przypadku: [kategoria, klucz, wartość, klucz Godota]
+        st = cfg_dir / "openmw" / "settings.cfg"
+        txt = st.read_text(encoding="utf-8") if st.exists() else ""
+        for cat, key, val, *_ in sets:
+            v = ("true" if val else "false") if isinstance(val, bool) else str(val)
+            txt = _settings_put(txt, cat, key, v)
         st.write_text(txt, encoding="utf-8")
     probe = work / "probe"
     (probe / "scripts" / "mwprobe").mkdir(parents=True, exist_ok=True)
@@ -739,6 +750,25 @@ def run_openmw(case: dict, omw_dir: Path, cfg_src: Path, work: Path, display: in
     if total and len(parts) == total:
         return json.loads("".join(parts[i] for i in range(1, total + 1)))
     raise SystemExit(f"brak pełnej migawki OpenMW ({len(parts)}/{total}; dziennik: {log})")
+
+
+def _settings_put(txt: str, cat: str, key: str, val: str) -> str:
+    """Wpis w settings.cfg: zastąpienie istniejącego klucza albo dopisanie pod nagłówkiem kategorii (OpenMW nie
+    przyjmuje powtórzonej kategorii)."""
+    lines = txt.splitlines()
+    cur = None
+    for i, ln in enumerate(lines):
+        st = ln.strip()
+        if st.startswith("[") and st.endswith("]"):
+            cur = st[1:-1]
+        elif cur == cat and st.split("=")[0].strip() == key:
+            lines[i] = f"{key} = {val}"
+            return "\n".join(lines) + "\n"
+    for i, ln in enumerate(lines):
+        if ln.strip() == f"[{cat}]":
+            lines.insert(i + 1, f"{key} = {val}")
+            return "\n".join(lines) + "\n"
+    return "\n".join(lines + [f"[{cat}]", f"{key} = {val}"]) + "\n"
 
 
 def compile_case(case: dict, converter: Path) -> dict:

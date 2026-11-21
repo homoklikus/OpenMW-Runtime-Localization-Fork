@@ -24,7 +24,7 @@ var interactive_buttons: Array = []
 var _s := 1.0
 
 func _ready() -> void:
-	layer = 40                       # warstwa Notification nad oknami
+	layer = 45                       # warstwa Notification nad oknami, menu głównym i opcjami
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
 func _time_per_char() -> float:

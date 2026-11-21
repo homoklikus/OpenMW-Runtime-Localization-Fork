@@ -548,7 +548,7 @@ func overlay() -> CanvasLayer:
 	if _overlay == null:
 		_overlay = CanvasLayer.new()
 		_overlay.name = "Overlay"
-		_overlay.layer = 30
+		_overlay.layer = 45                       # Notification: nad oknami, menu głównym i opcjami
 		_overlay.process_mode = Node.PROCESS_MODE_ALWAYS
 		add_child(_overlay)
 	return _overlay
