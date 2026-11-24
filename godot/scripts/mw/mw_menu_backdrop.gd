@@ -13,5 +13,9 @@ func _drop_data(_at: Vector2, data: Variant) -> void:
 ## Kliknięcie w trybie Interface: elementy HUD pod tłem przełączają okna (HUD::on*Clicked).
 func _gui_input(e: InputEvent) -> void:
 	if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT and menu != null:
+		if menu.has_method("is_holding") and menu.is_holding():
+			menu.held_drop("world")              # HUD::onWorldClicked: przedmiot przy kursorze – na ziemię
+			accept_event()
+			return
 		if menu.hud_click(get_global_transform() * e.position):
 			accept_event()

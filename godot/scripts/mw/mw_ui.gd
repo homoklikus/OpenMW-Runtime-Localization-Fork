@@ -242,6 +242,14 @@ static func inner_frame_thick() -> StyleBox:
 static func inner_box(bg := Color(0, 0, 0, 0.0)) -> StyleBox:
 	return _frame_box("menu_thin_border", bg)
 
+## Wiersz HBox z AutoSizedButton (components/widgets/box.cpp): przycisk ma tekst + (24, 8) = 24 px wysokości
+## i jest wyśrodkowany w pionie w wierszu (HBox::align: top = (wys. − h) / 2) – w wierszach 28 px 2 px od góry.
+static func auto_button_row(row: Container, s: float) -> void:
+	for c in row.get_children():
+		if c is Button and not (c is CheckBox):
+			(c as Control).custom_minimum_size.y = 24.0 * s
+			(c as Control).size_flags_vertical = Control.SIZE_SHRINK_CENTER
+
 static func button_box() -> StyleBox:
 	return _frame_box("menu_button_frame", Color(0, 0, 0, 0.0))
 

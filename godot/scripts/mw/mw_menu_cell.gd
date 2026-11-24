@@ -8,6 +8,8 @@ var item_id := ""
 var source := "inventory"
 
 func _get_drag_data(_at: Vector2) -> Variant:
+	if menu != null and menu.has_method("cell_pressed"):
+		return null                    # tryb menu: DragAndDrop OpenMW (kliknięcie podnosi, kliknięcie odkłada)
 	var prev := TextureRect.new()
 	var ic := get_node_or_null("Icon") as TextureRect
 	if ic != null:
@@ -22,7 +24,12 @@ func _get_drag_data(_at: Vector2) -> Variant:
 func _gui_input(e: InputEvent) -> void:
 	if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
 		var mods := {"shift": e.shift_pressed, "ctrl": e.ctrl_pressed, "alt": e.alt_pressed}
-		if e.double_click:
+		if menu.has_method("cell_pressed"):
+			# InventoryWindow/ContainerWindow::onItemSelected: kliknięcie podnosi przedmiot (okno ilości przy stosie,
+			# Ctrl – 1 sztuka, Shift – cały stos, Alt – przełożenie), z przedmiotem przy kursorze – odkłada tutaj
+			menu.cell_pressed(item_id, source, mods)
+			accept_event()
+		elif e.double_click:
 			menu.activate_item(item_id, source, mods)
 			accept_event()
 		elif menu.has_method("click_item"):

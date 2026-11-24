@@ -124,7 +124,8 @@ func _build() -> void:
 	client.add_child(b)
 	await get_tree().process_frame
 	if is_instance_valid(b):
-		var bw := maxf(60 * _s, b.get_combined_minimum_size().x)     # ExpandDirection Left od prawej krawędzi
+		# AutoSizedButton (ExpandDirection Left): szerokość = tekst + 24 (getRequestedSize), prawa krawędź z układu
+		var bw: float = b.get_combined_minimum_size().x
 		var right := (L[5] as Vector2).x * _s + (56.0 if mode == "repair" else 60.0) * _s    # szerokość przycisku z układu
 		b.position = Vector2(right - bw, (L[5] as Vector2).y * _s)
 		b.size = Vector2(bw, 24 * _s)

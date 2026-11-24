@@ -2796,17 +2796,6 @@ func _apply_state() -> void:
 		state.player["character"] = character.build(default_choice())     # zapis sprzed etapu 4
 	envr.day = int(state.time.get("day", 0))
 	envr.game_hour = float(state.time.get("hour", 9.0))
-	# WeatherManager::readRecord – pogoda z zapisu (region gracza: komórka zewnętrzna z zapisu albo ostatnia
-	# zewnętrzna przy wnętrzu); bez tego po wczytaniu trwało przejście od pogody poprzedniej sesji
-	var reg_pos: Array = (state.player.get("mw", {}) as Dictionary).get("pos", [])
-	if not String(state.player.get("interior", "")).is_empty():
-		reg_pos = state.player.get("last_exterior", [])
-	var reg_id := ""
-	if reg_pos.size() == 3:
-		reg_id = String(db.get_cell(db.exterior_key(MWCoords.cell_of(MWCoords.mw_to_godot(Vector3(reg_pos[0], reg_pos[1], reg_pos[2]))))).get("region", ""))
-	var wst = state.time.get("weather", {})
-	envr.restore_weather(wst if wst is Dictionary else {}, reg_id)
-	current_region = envr.region
 	envr.apply()
 	var pl: Dictionary = state.player
 	var mw: Dictionary = pl.get("mw", {})
@@ -2828,6 +2817,18 @@ func _apply_state() -> void:
 		look_diag.mark("state")
 	player.fly = bool(pl.get("fly", false))
 	player.velocity = Vector3.ZERO
+	# WeatherManager::readRecord – pogoda z zapisu (region: komórka gracza, we wnętrzu – ostatnia zewnętrzna);
+	# bez tego po wczytaniu trwało przejście od pogody poprzedniej sesji
+	var reg_at: Vector3 = player.global_position
+	var lx: Array = pl.get("last_exterior", [])
+	if not inter.is_empty() and lx.size() == 3:
+		reg_at = MWCoords.mw_to_godot(Vector3(lx[0], lx[1], lx[2]))
+	var reg_id := String(db.get_cell(db.exterior_key(MWCoords.cell_of(reg_at))).get("region", "")) \
+		if inter.is_empty() or lx.size() == 3 else current_region
+	var wst = state.time.get("weather", {})
+	envr.restore_weather(wst if wst is Dictionary else {}, reg_id)
+	if inter.is_empty():
+		current_region = reg_id
 	if not inter.is_empty():
 		var key := "int:" + inter.to_lower()
 		_load(key)

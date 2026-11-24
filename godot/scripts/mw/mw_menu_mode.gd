@@ -128,6 +128,9 @@ func close() -> void:
 	if main != null and main.get("count_dialog") != null and is_instance_valid(main.count_dialog) and main.count_dialog.is_open():
 		main.count_dialog.press_cancel()        # okno ilości dotyczy zamykanego okna
 	_save_layout()
+	if is_holding():                          # DragAndDrop::finish – przedmiot zostaje w ekwipunku
+		held = {}
+		_hide_held()
 	visible = false
 	if main != null and main.get("gui") != null and not _gui_mode.is_empty():
 		var m := _gui_mode
@@ -357,6 +360,8 @@ func _keep_pinned() -> void:
 var _pinned_windows: Array = []
 
 func _process(delta: float) -> void:
+	if _held_icon != null:                    # ControllerFollowMouse: lewy górny róg ikony w punkcie kursora
+		_held_icon.position = get_viewport().get_mouse_position()
 	if _pin_layer == null or visible:
 		return
 	_pin_t += delta
@@ -1004,6 +1009,17 @@ func _refresh_inventory() -> void:
 	for e in sorted_items():
 		if in_category(e.kind, e.magic, category) and (flt.is_empty() or String(e.name).to_lower().contains(flt)):
 			entries.append(e)
+	if is_holding():                          # SortFilterItemModel::addDragItem – podniesiona liczba ukryta
+		var kept := []
+		for e in entries:
+			if String(e.id) == String(held.id):
+				var left := int(e.count) - int(held.count)
+				if left <= 0:
+					continue
+				e = e.duplicate()
+				e.count = left
+			kept.append(e)
+		entries = kept
 	item_ids = _fill_grid(_grid, entries, "inventory")
 	_refresh_enc()
 
@@ -1111,8 +1127,7 @@ func open_container(sid: String, rec: Dictionary, name: String, corpse := false)
 	cb.text = preload("res://scripts/mw/mw_l10n.gd").ctx_text("Interface", "Close", _t("sClose", "Close"))
 	cb.pressed.connect(close)
 	btns.add_child(cb)
-	for b in btns.get_children():
-		(b as Control).size_flags_vertical = Control.SIZE_SHRINK_BEGIN     # przyciski u góry wiersza 28 px
+	UI.auto_button_row(btns, scale_ui)               # AutoSizedButton 24 px wyśrodkowane w wierszu 28 px
 	_gui_mode = "container"
 	main.gui.push("container", [self], close)           # GM_Container
 	_set_hud(false)
@@ -1393,9 +1408,12 @@ func open_barter(tw) -> void:
 	cn.text = preload("res://scripts/mw/mw_l10n.gd").ctx_text("Interface", "Cancel", _t("sCancel", "Cancel"))
 	cn.pressed.connect(func(): tw.close())
 	r3.add_child(cn)
+	# HBox::align: dzieci 24 px wyśrodkowane w pionie (wiersze 28 px – 2 px od góry), przyciski 24 px
 	for row in [r1, r2, r3]:
+		UI.auto_button_row(row, scale_ui)
 		for c in (row as Control).get_children():
-			(c as Control).size_flags_vertical = Control.SIZE_SHRINK_BEGIN     # przyciski i pola 24 px u góry wiersza
+			(c as Control).size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	barter_total.custom_minimum_size.y = 24 * scale_ui
 	_gui_mode = "barter"
 	main.gui.push("barter", [self, tw], func(): tw.close())     # GM_Barter (ekwipunek + okno kupca)
 	refresh()
@@ -1513,6 +1531,108 @@ func dropped_on(target: String, data: Dictionary) -> void:
 		ask_count(id, _count(cont_sid, cont_rec, id), "sTake", data, func(n: int): take_item(id, n))
 	elif target == "avatar" and src == "inventory":
 		use_item(id)
+
+# --- DragAndDrop (apps/openmw/mwgui/draganddrop.cpp): przedmiot „przy kursorze” ---------------------------------
+## Kliknięcie przedmiotu podnosi go (z pojemnika – od razu do ekwipunku gracza, jak startDrag; założony – zdjęty,
+## ensureSelectedItemUnequipped); ikona 42 × 42 z liczbą idzie za kursorem (lewy górny róg w punkcie kursora,
+## ControllerFollowMouse); następne kliknięcie odkłada: siatka ekwipunku – bez zmian, pojemnik – przełożenie, postać –
+## użyj/załóż, poza oknami – na ziemię. Zamknięcie okna – przedmiot zostaje w ekwipunku (finish).
+var held := {}                              # {"id", "count"} – mIsOnDragAndDrop
+var _held_layer: CanvasLayer = null
+var _held_icon: Control = null
+
+func is_holding() -> bool:
+	return not held.is_empty()
+
+func cell_pressed(id: String, source: String, mods := {}) -> void:
+	if is_holding():
+		held_drop(source)
+		return
+	if bool(mods.get("alt", false)) and _cont_grid != null and is_instance_valid(_cont_grid):
+		activate_item(id, source, mods)            # transferItem (Alt)
+		return
+	var avail := _count(cont_sid, cont_rec, id) if source == "container" else _count("player", {}, id)
+	ask_count(id, avail, "sTake", mods, func(n: int): _pick_up(id, source, n))
+
+func _pick_up(id: String, source: String, n: int) -> void:
+	if n <= 0:
+		return
+	if source == "container":
+		var before := _count("player", {}, id)
+		take_item(id, n)                           # startDrag: przedmiot spoza ekwipunku trafia do niego od razu
+		n = _count("player", {}, id) - before
+		if n <= 0:
+			return
+	else:
+		var slot: int = main.equipped_slot_of(id) if main.has_method("equipped_slot_of") else -1
+		if slot >= 0 and main.has_method("unequip_slot"):
+			main.unequip_slot(slot)
+		if main.get("audio") != null:
+			main.audio.play(main.interaction.item_sound(id, true))      # getUpSoundId
+	held = {"id": id, "count": n}
+	_show_held()
+	refresh()
+
+func held_drop(target: String) -> void:
+	if not is_holding():
+		return
+	var h := held
+	held = {}
+	_hide_held()
+	var id := String(h.id)
+	var n := int(h.count)
+	match target:
+		"container":
+			put_item(id, n)
+		"avatar":
+			use_item(id)
+		"world":
+			_drop_count(id, n)
+		_:
+			if main.get("audio") != null:
+				main.audio.play(main.interaction.item_sound(id, false))  # getDownSoundId
+	refresh()
+
+func _show_held() -> void:
+	if _held_layer == null:
+		_held_layer = CanvasLayer.new()
+		_held_layer.name = "DragAndDrop"
+		_held_layer.layer = 95                    # warstwa DragAndDrop (openmw_layers.xml) – nad oknami
+		_held_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+		add_child(_held_layer)
+	if _held_icon != null:
+		_held_icon.queue_free()
+	var c := Control.new()
+	c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.size = Vector2(CELL, CELL) * scale_ui
+	var it: Dictionary = main.interaction.inventory.item(String(held.id))
+	var ic := TextureRect.new()
+	ic.texture = UI.icon(String(it.get("rec", {}).get("icon", "")))
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ic.position = Vector2(5, 5) * scale_ui
+	ic.size = Vector2(32, 32) * scale_ui
+	ic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	c.add_child(ic)
+	if int(held.count) > 1:
+		var cl := Label.new()                     # liczba jak w siatce (ItemWidget::setCount)
+		cl.text = str(int(held.count))
+		cl.add_theme_color_override("font_color", UI.color("count"))
+		cl.add_theme_font_size_override("font_size", roundi(13 * scale_ui))
+		cl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		cl.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+		cl.set_anchors_preset(Control.PRESET_FULL_RECT)
+		cl.offset_right = -3 * scale_ui
+		cl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		c.add_child(cl)
+	_held_layer.add_child(c)
+	_held_icon = c
+	_held_icon.position = get_viewport().get_mouse_position()
+
+func _hide_held() -> void:
+	if _held_icon != null:
+		_held_icon.queue_free()
+		_held_icon = null
 
 ## Dwuklik: w trybie pojemnika – przełożenie (z oknem ilości), inaczej – użyj/załóż.
 func activate_item(id: String, source: String, mods := {}) -> void:

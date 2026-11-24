@@ -122,14 +122,16 @@ func open_count(item: String, message: String, count: int, on_ok := Callable(), 
 	ok_button.name = "OkButton"
 	ok_button.text = L10n.ctx_text("Interface", "OK", "OK")
 	ok_button.focus_mode = Control.FOCUS_NONE
-	ok_button.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	ok_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER   # HBox::align – AutoSizedButton 24 px w wierszu 28 px
+	ok_button.custom_minimum_size.y = 24 * s
 	ok_button.pressed.connect(press_ok)
 	row.add_child(ok_button)
 	cancel_button = Button.new()
 	cancel_button.name = "CancelButton"
 	cancel_button.text = L10n.ctx_text("Interface", "Cancel", "Cancel")
 	cancel_button.focus_mode = Control.FOCUS_NONE
-	cancel_button.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	cancel_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	cancel_button.custom_minimum_size.y = 24 * s
 	cancel_button.pressed.connect(press_cancel)
 	row.add_child(cancel_button)
 	visible = true

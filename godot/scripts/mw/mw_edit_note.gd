@@ -95,7 +95,8 @@ func _button(n: String, t: String, cb: Callable) -> Button:
 	b.name = n
 	b.text = t
 	b.focus_mode = Control.FOCUS_NONE
-	b.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	b.custom_minimum_size.y = 24 * UI.ui_scale()           # AutoSizedButton: tekst + 8
 	b.pressed.connect(cb)
 	return b
 

@@ -215,7 +215,71 @@ func _run() -> void:
 		tw.close()
 	else:
 		check(false, "kupiec i rozmowa")
+	await _drag_and_drop(main, chest)
 	_finish()
+
+## DragAndDrop OpenMW (draganddrop.cpp): kliknięcie podnosi przedmiot (okno ilości, Shift, Ctrl), ikona przy kursorze,
+## następne kliknięcie odkłada; z pojemnika przedmiot trafia do ekwipunku od razu (startDrag); bez przeciągania Godota.
+func _drag_and_drop(main, chest: Node3D) -> void:
+	var inv = main.interaction.inventory
+	var mm = main.menu_mode
+	var cd = main.count_dialog
+	var csid := String(chest.get_meta("mw_sid"))
+	var crec: Dictionary = main.interaction.container_record("synth_chest")
+	inv.add(csid, crec, "misc_synth_spoon", 4 - inv.count_of(csid, crec, "misc_synth_spoon"))
+	check(main.activate(chest) and mm.visible, "DnD: okno pojemnika")
+	await _frames(2)
+	var cell: Control = null
+	for c in mm._cont_grid.get_children():
+		if c.get("item_id") == "misc_synth_spoon":
+			cell = c
+	check(cell != null and cell._get_drag_data(Vector2.ZERO) == null, "DnD: bez przeciągania Godota w trybie menu")
+	var p0: int = inv.count_of("player", {}, "misc_synth_spoon")
+	# kliknięcie stosu w pojemniku: okno ilości „sTake”, po OK – przedmiot przy kursorze i już w ekwipunku
+	var ev := InputEventMouseButton.new()
+	ev.button_index = MOUSE_BUTTON_LEFT
+	ev.pressed = true
+	cell._gui_input(ev)
+	check(cd.is_open() and cd.max_count == 4, "DnD: kliknięcie stosu – okno ilości (%d)" % cd.max_count)
+	cd.set_count(3)
+	cd.press_ok()
+	check(mm.is_holding() and int(mm.held.count) == 3 and inv.count_of("player", {}, "misc_synth_spoon") == p0 + 3
+		and inv.count_of(csid, crec, "misc_synth_spoon") == 1, "DnD: 3 przy kursorze, już w ekwipunku (startDrag)")
+	await _frames(1)
+	var shown := 0
+	for c in mm._grid.get_children():
+		if c.get("item_id") == "misc_synth_spoon":
+			shown += 1
+	check(p0 > 0 or shown == 0, "DnD: podniesiona liczba ukryta w siatce ekwipunku (addDragItem)")
+	check(mm._held_icon != null and is_equal_approx(mm._held_icon.size.x, 42.0 * mm.scale_ui), "DnD: ikona 42 × 42 przy kursorze")
+	# odłożenie w pojemniku (kliknięcie pustego miejsca siatki)
+	var cont_gp: Control = mm.windows["container"].find_child("GridPanel", true, false)
+	cont_gp._gui_input(ev)
+	check(not mm.is_holding() and inv.count_of(csid, crec, "misc_synth_spoon") == 4 and inv.count_of("player", {}, "misc_synth_spoon") == p0,
+		"DnD: odłożone z powrotem do pojemnika")
+	# Ctrl – jedna sztuka bez okna, odłożenie w ekwipunku (bez zmian), Shift – cały stos
+	mm.cell_pressed("misc_synth_spoon", "container", {"ctrl": true})
+	check(not cd.is_open() and int(mm.held.get("count", 0)) == 1, "DnD: Ctrl – 1 sztuka bez okna")
+	mm.held_drop("inventory")
+	check(not mm.is_holding() and inv.count_of("player", {}, "misc_synth_spoon") == p0 + 1, "DnD: odłożenie w ekwipunku")
+	mm.cell_pressed("misc_synth_spoon", "container", {"shift": true})
+	check(not cd.is_open() and int(mm.held.get("count", 0)) == 3, "DnD: Shift – cały stos bez okna")
+	# zamknięcie okna z przedmiotem przy kursorze: zostaje w ekwipunku (finish)
+	mm.close()
+	await _frames(1)
+	check(not mm.is_holding() and mm._held_icon == null and inv.count_of("player", {}, "misc_synth_spoon") == p0 + 4,
+		"DnD: zamknięcie okna – przedmiot w ekwipunku")
+	# upuszczenie w świat: kliknięcie poza oknami
+	mm.open()
+	await _frames(2)
+	var dyn0: int = main.state.dynamic.size()
+	mm.cell_pressed("misc_synth_spoon", "inventory", {"ctrl": true})
+	check(mm.is_holding(), "DnD: podniesiony z ekwipunku")
+	mm._root._gui_input(ev)
+	check(not mm.is_holding() and main.state.dynamic.size() == dyn0 + 1 and inv.count_of("player", {}, "misc_synth_spoon") == p0 + 3,
+		"DnD: kliknięcie poza oknami – na ziemię (HUD::onWorldClicked)")
+	mm.close()
+	await _frames(1)
 
 func _finish() -> void:
 	print("RESULT ", JSON.stringify({"checks": checks, "failures": failures}))

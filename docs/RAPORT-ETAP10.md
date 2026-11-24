@@ -525,9 +525,136 @@ Controller” wyłączone przy wychylonej gałce; powrót z GUI; diagnostyka prz
 przechwyconym nie jest dostępna w trybie headless (ścieżka myszy sprawdzona kodem i diagnostyką); urządzeń
 wejściowych komputera użytkownika nie mam z maszyny wirtualnej – potwierdzenie źródła na jego sprzęcie: `--look-diag`.
 
-### 7.15 Pozostałe punkty etapu (do wykonania)
+### 7.15 Glitche przy wczytywaniu zapisu (P0, cz. 21)
 
-Mody (§12): okna z treścią modów (składniki, efekty, czary) – do sprawdzenia.
+**Zbadane** (main.gd): `load_slot`, `load_game`, `_apply_state`, `travel`/`travel_to_cell`, `_begin_reveal`/
+`_update_reveal`, `cleanup`, start z `--load`, ekran ładowania (`mw_loading_screen.gd`), HUD, ScreenFader, pogoda,
+porównane z `StateManager::loadGame`, `LoadingScreen::loadingOn/Off`, `Scene::changeToCell`, `WeatherManager`.
+Sonda `tests/probe_loadgame.gd` zapisuje każdą narysowaną klatkę (także rysowaną przez ekran ładowania w trakcie
+synchronicznego wczytania) i za błąd uznaje klatkę pokazaną graczowi (bez zasłony ekranu ładowania), w której:
+obraz różni się od ustalonego (> 0,06), kamera jest gdzie indziej (> 5 cm), liczba komórek jest inna, gracz wisi
+nad ustaloną pozycją (> 25 cm), nie ma HUD-u, pogoda (bieżąca/następna) jest inna albo w drzewie są węzły komórek
+spoza `loaded` (duplikaty). Aktorzy zamrożeni na czas pomiaru (ruch NPC to nie błąd wczytania).
+
+**Przyczyny (wszystkie potwierdzone sondą przed poprawką):**
+
+| Objaw | Przyczyna | Naprawa |
+|---|---|---|
+| Start z `--load` zapisu we wnętrzu: geometria i aktorzy podwójnie, migotanie (z-fighting) do końca sesji | `_ready` po `load_game` wywoływało drugi raz `_load` tej samej komórki (stara ścieżka startu `--cell`); `_begin_reveal` w tej ścieżce nie było – świat pokazywany bez ekranu ładowania | start z `--load` przez `load_slot` – ta sama ścieżka co z menu (Engine::go → StateManager::loadGame) |
+| Pierwsza klatka po zdjęciu ekranu ładowania bez HUD (każde wczytanie i każde przejście) | HUD ustalał widoczność w `_process` przed `loading_off` w tej samej klatce | `loading_off` odświeża HUD i minimapę od razu (WindowManager::updateVisible przy GM_Loading) |
+| Wczytanie w trakcie gry: zamrożona klatka poprzedniej gry na ekranie ładowania, potem nowy świat | OpenMW wywołuje `cleanup()` (State_NoGame) przed ScopedLoad – ekran ładowania z tapetą; port – przed cleanup | `cleanup()` i stan „bez gry” przed `loading_on` |
+| Ekran ładowania w trakcie wczytania czasem zmieniał tryb (tapeta → zamrożona klatka) | zagnieżdżone `loading_on` liczyło tryb od nowa, gdy ekranu jeszcze nie narysowano (OpenMW: `if (mNestedLoadingCount++ > 0) return;`) | zagnieżdżone wywołanie nie zmienia trybu (wykryte testem regresji – 2 z 3 przebiegów) |
+| Po wczytaniu niebo, mgła, światło zmieniały się przez wiele sekund | pogoda nie była zapisywana: trwało przejście od pogody poprzedniej sesji | stan pogody w zapisie (WeatherManager::write/readRecord: bieżąca, następna, w kolejce, mTransitionFactor, czas do zmiany, region); stary zapis – pogoda regionu od razu |
+
+Bez sztucznych opóźnień i bez wydłużania czarnego ekranu: ekran ładowania znika w tej samej klatce co wcześniej
+(`reveal_frames` 1–2 na danych syntetycznych, 2–8 na danych gry). Zachowane: odsłanianie po gotowości pierwszej
+klatki (cz. 5) i limit 240 klatek; kamera, Jolt i postawienie gracza – w sondzie bez odchyleń (OpenMW przy
+wczytaniu też nie poprawia pozycji – changeToCell(adjustPlayerPos = false)).
+
+**Pomiary (klatki z niekompletnym światem pokazane graczowi, przed → po):**
+
+| Scenariusz | Dane gry, VM, gl_compatibility 1280 × 720 | 3440 × 1440 (dane gry) | Dane syntetyczne, lavapipe Forward+ 1280 × 720 | 3440 × 1440 Forward+ |
+|---|---|---|---|---|
+| wczytanie w grze – zapis zewnętrzny (Seyda Neen, 6 komórek, wielu NPC) | 1 → 0 | 1 → 0 | 1 → 0 | → 0 |
+| wczytanie w grze – wnętrze (Census and Excise Office) | 1 → 0 | 1 → 0 | 1 → 0 | → 0 |
+| ten sam zapis ponownie | 1 → 0 | – | 1 → 0 | → 0 |
+| inny zapis bez restartu | 1 → 0 | – | 1 → 0 | → 0 |
+| z menu głównego w trakcie gry (wnętrze / zewnątrz) | 1+1 → 0 | – | 1+1 → 0 | → 0 |
+| z menu głównego bez gry | 1 → 0 | – | 1 → 0 | → 0 |
+| po podróży między komórkami | 1 → 0 | – | 1 → 0 | → 0 |
+| start z `--load` (wnętrze) | 44 → 0 (duplikat komórki w każdej klatce, bez ekranu ładowania) | zewnątrz: → 0 | 49 → 0 | – |
+
+Kolumna „3440 × 1440 Forward+” – przebieg po poprawce na danych syntetycznych (lavapipe, Vulkan, domyślny
+renderer projektu): 8 scenariuszy, 0 złych klatek. **Ograniczenie:** VM nie ma Vulkana (renderer zgodności), a lavapipe kompiluje potoki inaczej niż sterownik
+GPU – pełnego potwierdzenia na karcie i monitorze użytkownika stąd nie da się zrobić. Do lokalnego potwierdzenia
+(Forward+, 3440 × 1440): `godot --path godot --resolution 3440x1440 -s res://tests/probe_loadgame.gd -- --data=<dane>
+--start="Seyda Neen" --interior="Seyda Neen, Census and Excise Office" --out=/tmp/lg --size=3440x1440` (wynik
+`RESULT … bad_visible_frames`, zrzuty klatek tylko lokalnie z `--png=1`).
+
+Test regresji `test_load_reveal.gd` (59) w `run_tests.sh`: wczytanie w grze (świat, wnętrze, ten sam zapis, stary
+zapis bez pogody), z menu bez gry, start z `--load`: tapeta na ekranie ładowania, odsłanianie, brak duplikatów komórek,
+HUD w klatce zdjęcia ekranu, pogoda z zapisu (w trakcie przejścia), stary zapis – bez przejścia.
+
+### 7.16 Audyt GUI wobec OpenMW 0.51 – 3440 × 1440 i zachowanie (cz. 22–23)
+
+Porównania na tych samych danych (Morrowind + Tribunal + Bloodmoon, konwersja z `--openmw-cfg`) w Xvfb: OpenMW
+0.51.0 (oficjalne wydanie) i port (renderer zgodności). Metryki: prostokąty okien (ui_geom_compare – IoU), linie
+ramek (wiersze/kolumny maski ramek), mapy krawędzi bloków 8 px (ui_block_diff) i mapy gęstości krawędzi obszarów
+(ocena wizualna w postaci liczbowej – zrzutów z danymi gry nie przenoszę poza VM; zostają lokalnie w `/tmp/uicmp*`
+na VM do obejrzenia). Każdą różnicę bloków sprawdziłem do przyczyny – „IoU 1,000” okna nie kończył sprawdzania.
+
+**Macierz porównań:** 720p, 1440p, 2160p – części 17–19 (opcje, konsola, szybkie klawisze, HUD, tryb menu,
+dziennik, kreator, dodatki); 1080p – etapy 8–9 (rozmowa, handel, pojemnik, odpoczynek, usługi, alchemia,
+zaklinanie, awans, naprawa, perswazja, komunikaty, menu główne); **3440 × 1440 (21:9) – nowe przypadki `*_3440`:**
+`ui_windows_3440` (HUD, Interface: statystyki/ekwipunek/magia/mapa, dziennik, 6 okien kreatora), `ui_stage10_3440`
+(szybkie klawisze, konsola, opcje: 5 zakładek), `ui_windows_e8_3440` (HUD z podpowiedzią obiektu, odpoczynek,
+rozmowa, handel, pojemnik, menu główne), `ui_services_e8_3440` (trening, zakup zaklęć, podróż),
+`ui_messagebox_e9_3440` (komunikaty). Przypadki 3440 dla alchemii, zaklinania, awansu, naprawy i menu głównego
+z kliknięciami są w repozytorium, ale w tej części nie zostały uruchomione.
+
+**Wyniki 3440 × 1440 (bloki różne – po poprawkach):**
+
+| Zrzut | Okna (IoU) | Bloki | Pozostałe obszary różnic |
+|---|---|---|---|
+| HUD | – | 0,4 % (było 0,6) | scena 3D (jasność oświetlenia, mapa lokalna wnętrza w OpenMW czarna pod Xvfb) |
+| Interface (4 okna) | 1,000 × 4 | 2,1 % (2,8) | podgląd postaci 3D w ekwipunku (oświetlenie modelu) |
+| dziennik | 0,997 | 1,3 % | tekst strony (rasteryzacja czcionki księgi), księga teraz od x 936 jak OpenMW |
+| kreator (imię, rasa) | 1,000 | 0,3 / 0,7 % | podgląd głowy 3D |
+| kreator (klasa, wybór, znak, przegląd) | okno porównywane liniami ramek: zgodne | – | OpenMW przy przełączaniu trybów sondą zostawia okno rasy pod spodem (w zwykłej grze znika po OK) |
+| szybkie klawisze, konsola | 1,000 | 0,4 % | scena |
+| opcje (5 zakładek) | 1,000 | 0,5–1,1 % (1,3–2,7) | zakładka Scripts w OpenMW (brak w porcie), Controls – brakujące akcje, Video – brakujące ustawienia |
+| odpoczynek | 0,974 → ramki zgodne | 0,4 % (0,5) | rasteryzacja glifów 1 px |
+| rozmowa | 1,000 | 0,6 % | zawijanie i rasteryzacja tekstu |
+| handel | 1,000 × 2 | 2,5 % (2,7) | **lista towarów kupca w innej kolejności/składzie** (do zbadania), podgląd postaci |
+| pojemnik | 1,000 × 2 | 1,2 % | podgląd postaci |
+| trening / zakup zaklęć / podróż | 1,000 | 0,4–0,5 % | przycisk teraz tekst + 24 (był ≥ 60) |
+| komunikaty | – | 0,5 % | scena |
+
+**Wykryte i naprawione (cz. 22–23):**
+
+| Różnica | Przyczyna | Naprawa | Test |
+|---|---|---|---|
+| Słabe pionowe linie co ~546 px w tle szerokich okien (opcje, ekwipunek, handel; najwyraźniej w 21:9) | ramki MW_Window jako StyleBoxTexture w trybie TILE_FIT: kafel skalowany, filtr liniowy próbkował ramkę; MyGUI TileRect kafelkuje bez skalowania | tryb TILE (jak TileRect) – też wierniejszy wzór krawędzi | porównanie: kolumny z liniami 12 → 2 (krawędzie), opcje 1,5 % → 0,6 % |
+| HUD 1 px niżej i w lewo (zgłoszone wcześniej jako „HUD 1 px niżej przy 720p”) | port wg układu sprzed 0.51 (12, 147) | openmw_hud.layout 0.51: paski (13, 146/161/176), broń 82, czar 122, skradanie 162, minimapa y 123, efekty y 168 | test_ui_geometry (155, w tym 3440 × 1440); linie ramek identyczne |
+| Celownik większy | 32 × 32 zamiast 27 × 27 (HUD_Crosshair) | 27 × 27 w ((szer. − 27) / 2, (wys. − 27) / 2) | test_ui_geometry |
+| Dziennik i księgi 1 px w prawo (21:9) | środek liczony w pikselach; OpenMW – WindowBase::center w jednostkach ScalingLayer i przeskalowanie ProxyRenderTarget | `UI.book_origin` | test_ui_geometry (4 rozdzielczości) |
+| Podpowiedź obiektu w świecie: jeden wiersz pod celownikiem; w OpenMW pełna podpowiedź nad obiektem (u góry ekranu, gdy obiekt wychodzi poza ekran) | brak odpowiednika ToolTips::update poza trybem GUI | getToolTipViaPtr dla obiektu pod celownikiem (przedmiot z ikoną, wagą, wartością; drzwi „to” + cel; zamek, pułapka; aktor – nazwa, w walce bez podpowiedzi) w położeniu getScreenCoords | test_tooltips (50); zrzut: ramka co do piksela |
+| Podpowiedzi o 5 px za wysokie | nagłówek 18 px, tekst z minimalnego rozmiaru etykiety; MyGUI: getTextSize = wiersze × 16 | wiersze × 16 px | test_tooltips |
+| Okno odpoczynku: teksty przy lewej krawędzi | VBox::align środkuje dzieci bez HStretch | wyśrodkowane | zrzut |
+| Przyciski w wierszach HBox (handel, pojemnik, okno ilości, notatka, odpoczynek) 1–3 px za wysoko i 1 px niższe | przycisk 23 px u góry wiersza; AutoSizedButton = tekst + (24, 8), HBox środkuje w pionie | `UI.auto_button_row`: 24 px, wyśrodkowane | test_trade, test_count_dialog, test_map_notes; zrzut: linie przycisków handlu i pojemnika |
+| Przycisk usług (trening, zaklęcia, podróż, naprawa) za szeroki | szerokość ≥ 60 | tekst + 24 (AutoSizedButton, ExpandDirection Left) | zrzut: krawędzie przycisków jak OpenMW |
+| **Przenoszenie przedmiotów jak w Godocie** (przytrzymaj i przeciągnij, dwuklik – użyj) | przeciąganie Godota | DragAndDrop OpenMW – punkt niżej | test_count_dialog (59) |
+
+**Zachowanie (C):**
+* przenoszenie przedmiotów – teraz jak `draganddrop.cpp`/`InventoryWindow::onItemSelected`: kliknięcie podnosi
+  (okno ilości przy stosie, Ctrl – 1, Shift – cały stos, Alt – przełożenie), z pojemnika przedmiot trafia do
+  ekwipunku od razu (startDrag), założony jest zdejmowany, ikona 42 × 42 z liczbą przy kursorze, podniesiona liczba
+  znika z siatki, kliknięcie odkłada (ekwipunek, pojemnik, postać – użyj/załóż, poza oknami – na ziemię),
+  zamknięcie okna zostawia przedmiot w ekwipunku. Handel, alchemia i wybór przedmiotu działają kliknięciami jak w
+  OpenMW (tam też bez przenoszenia);
+* klawiatura, Tab/Enter/Esc/strzałki, pad, fokus, stos trybów, pauza, położenie okien – cz. 1, 9, 14–16, 20
+  (testy); rozdzielczość 21:9: okna trybu menu z ułamków [Windows] (test_ui_geometry dla 3440 × 1440);
+* **nie sprawdzone w tej części:** przełączanie pełny ekran ↔ okno i zmiana rozdzielczości w trakcie gry na
+  21:9 z porównaniem do OpenMW, podpowiedzi przy krawędziach ekranu w 21:9, przewijanie list rozwijanych, ekran
+  ładowania OpenMW w 21:9 (port: tapeta 4:3 z czarnymi pasami jak BackgroundImage bez [GUI] stretch menu
+  background – zgodnie z kodem, bez zrzutu OpenMW).
+
+**Brakujące funkcje (stan rzeczywisty, nie „zgodne”):** akcje sterowania TogglePOV, zoom kamery, AlwaysRun,
+AutoMove, Cycle* (broń/czar), Screenshot; ustawienia: zakładka Scripts (Lua), Lights, Shadows, gamma,
+przetwarzanie końcowe, filtrowanie tekstur, mouse emulation cursor, [GUI] stretch menu background; konsola bez Lua
+i bez przełączników grafiki (tcb, twf, tsky…); pasek zdrowia wroga w HUD; kursor gry (tx_cursor); skórka
+„Owned” podpowiedzi i kolor celownika dla cudzych rzeczy ([Game] show owned – w OpenMW domyślnie wyłączone).
+
+### 7.17 Werdykt etapu GUI
+
+Etapu 10 **nie można zamknąć**: zostały niewyjaśnione różnice (lista towarów kupca, brakujące akcje i ustawienia,
+niesprawdzone przejścia okno ↔ pełny ekran i zmiana rozdzielczości w 21:9, przypadki 3440 dla alchemii,
+zaklinania, awansu i naprawy), a naprawa glitchy wczytywania jest potwierdzona sondą na VM (renderer zgodności,
+lavapipe), ale nie na GPU i monitorze użytkownika – wymaga lokalnego potwierdzenia sondą z punktu 7.15.
+
+### 7.18 Pozostałe punkty etapu (do wykonania)
+
+Mody – zgodnie z poleceniem nie testowane (kolejność: najpierw klasyczne GUI).
 
 ## 8. Commity (lokalne, bez push)
 
@@ -552,9 +679,14 @@ Mody (§12): okna z treścią modów (składniki, efekty, czary) – do sprawdze
 * Etap 10 cz. 18: teksty silnika z GMST, zakładka Language, przełącznik pada w Controls
 * Etap 10 cz. 19: dodatki (Tribunal, Bloodmoon) – znaczniki drzwi, skala mapy, MW_ScrollView, ClassChoiceDialog
 * Etap 10 cz. 20: naprawa – samoczynny obrót kamery (pad tylko z kontrolera gry), diagnostyka źródeł obrotu
+* Etap 10 P0: wczytywanie zapisu bez niekompletnych klatek (cz. 21)
+* Etap 10 cz. 22: GUI 21:9 (3440 × 1440) – ramki okien, HUD 0.51, księgi, podpowiedź obiektu
+* Etap 10 cz. 23: DragAndDrop jak OpenMW, przyciski AutoSizedButton, raport audytu
 
 Pełny zestaw tools/run_tests.sh: 67/67 po cz. 20; 66/66 po cz. 19 (38 w przebiegu, test_progress poprawiony i 28 kolejnych po poprawce); 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 
 ## 9. Zalecana kolejność dalszych prac
 
-1. Mody (§12, punkt 7.15), 2. brakujące akcje sterowania (punkt 7.11).
+1. Potwierdzenie sondy wczytywania na GPU użytkownika (punkt 7.15), 2. lista towarów kupca (model przedmiotów),
+3. pozostałe przypadki 3440 × 1440 i przejścia okno ↔ pełny ekran, 4. brakujące akcje sterowania i ustawienia
+(punkt 7.16). Mody – dopiero po zamknięciu klasycznego GUI.
