@@ -244,8 +244,8 @@ nieliczbowy – poprzednia wartość), suwak (pozycja = liczba − 1), OK/Cancel
 Wywołania: pojemnik ↔ ekwipunek (przeciągnięcie, dwuklik, Alt + kliknięcie – transferItem), upuszczenie w świat,
 handel (sQuanityMenuMessage02 w oknie kupca, 01 w ekwipunku – zamiast przenoszenia po jednej sztuce). Ctrl – 1 sztuka,
 Shift – cały stos bez pytania. Stan (wytrzymałość „#c:N”, dusza „@stworzenie”) zachowany w obu częściach.
-Różnica wobec OpenMW: przeciąganie Godota (wciśnij–przesuń–puść) zamiast „kliknij, by podnieść”, więc okno pojawia się
-przy upuszczeniu; komunikat (sTake) i wynik są te same. Upuszczenie na postać (użycie) – bez okna ilości.
+Różnica wobec OpenMW usunięta w cz. 23: przeciąganie Godota zastąpione DragAndDrop OpenMW (kliknięcie podnosi,
+okno ilości przy podniesieniu – punkt 7.16). Upuszczenie na postać (użycie) – bez okna ilości.
 Test: test_count_dialog (46); test_interaction i test_menu_mode – dwuklik/upuszczenie stosu przez okno ilości.
 
 ### 7.2 Szybkie klawisze i wybór magii (cz. 8)
@@ -271,8 +271,8 @@ Układy `openmw_tooltips.layout` (Text, Faction, Race, Specialization, Class, He
 albo sSkillMaxReached, SkillNoProgress, Level, BirthSign, MagicEffect) i ToolTipInfo ikon działających efektów
 (SpellIcons: źródła z wielkością). Podpięte: okno statystyk (wszystkie wiersze), HUD (paski, ikony efektów), okno
 magii (ikony efektów), kreator (premie rasy, atrybuty w przeglądzie, czary), edytor efektu (MagicEffectToolTip),
-zaklinanie (teksty pomocy), mapa (znaczniki). Test: test_tooltips (43). Brak: podpowiedź obiektu w świecie z ikoną
-(HUD), HandToHandToolTip i Spell/ItemPtr na polach broni i czaru w HUD.
+zaklinanie (teksty pomocy), mapa (znaczniki). Test: test_tooltips (43). Podpowiedź obiektu w świecie z ikoną –
+cz. 22 (punkt 7.16). Brak: HandToHandToolTip i Spell/ItemPtr na polach broni i czaru w HUD.
 
 ### 7.5 Więzienie i towarzysz (cz. 11)
 Więzienie (`mw_jail_screen.gd`): World::goToJail w dwóch krokach (najpierw grzywna, przedmioty i GetPCInJail przy
@@ -483,8 +483,8 @@ Znalezione i naprawione (wszystkie dotyczyły także Morrowinda):
 | test_progress raz nie przeszedł w pełnym zestawie (sen do 10 h zamiast przerwania po 3 h) | test zależny od długości klatki: TimeAdvancer (jak w OpenMW) sprawdza przerwanie raz na klatkę, a jedna wolna klatka przechodziła kilka godzin | test prowadzi okno klatkami o stałym dt = 1/60 s (logika okna bez zmian) | test_progress (4 powtórzenia) |
 | ClassChoiceDialog 2 × 2 px za mały | fitToText przycisku: napis + 8 (port + 6), okno: 10 + … + 10 (port + 8) | wymiary jak InfoBoxDialog (ramka 454…823 × 287…431 jak OpenMW) | test_ui_geometry |
 
-Pozostało (bez zmian): HUD przy 720p 1 px niżej niż w OpenMW (wszystkie elementy przypięte do dołu; okna
-wyśrodkowane zgodne co do piksela – przyczyny nie ustalono, przy 1080p etap 7 – zgodne); górne 3 px paska
+Pozostało: HUD 1 px niżej niż w OpenMW – przyczyna ustalona i usunięta w cz. 22 (układ HUD sprzed 0.51,
+punkt 7.16); górne 3 px paska
 MW_ScrollView (Godot przesunąłby też treść). Mapa lokalna wnętrz w OpenMW na Xvfb jest czarna (poza znacznikami)
 także w odkrytej części, więc obrazu mapy nie porównano – tylko położenia znaczników. Mody: nie sprawdzone
 w tej części (punkt 7.15).
