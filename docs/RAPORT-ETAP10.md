@@ -589,8 +589,9 @@ zaklinanie, awans, naprawa, perswazja, komunikaty, menu główne); **3440 × 144
 `ui_windows_3440` (HUD, Interface: statystyki/ekwipunek/magia/mapa, dziennik, 6 okien kreatora), `ui_stage10_3440`
 (szybkie klawisze, konsola, opcje: 5 zakładek), `ui_windows_e8_3440` (HUD z podpowiedzią obiektu, odpoczynek,
 rozmowa, handel, pojemnik, menu główne), `ui_services_e8_3440` (trening, zakup zaklęć, podróż),
-`ui_messagebox_e9_3440` (komunikaty). Przypadki 3440 dla alchemii, zaklinania, awansu, naprawy i menu głównego
-z kliknięciami są w repozytorium, ale w tej części nie zostały uruchomione.
+`ui_messagebox_e9_3440` (komunikaty), `ui_levelup_e9_3440`, `ui_alchemy_e9_3440`, `ui_enchanting_e9_3440`
+(zaklinanie, tworzenie czarów), `ui_repair_e9_3440` (naprawa młotkiem, naprawa u kupca); `ui_mainmenu_e8_3440` –
+w repozytorium, menu główne porównane w `ui_windows_e8_3440`.
 
 **Wyniki 3440 × 1440 (bloki różne – po poprawkach):**
 
@@ -609,6 +610,10 @@ z kliknięciami są w repozytorium, ale w tej części nie zostały uruchomione.
 | pojemnik | 1,000 × 2 | 1,2 % | podgląd postaci |
 | trening / zakup zaklęć / podróż | 1,000 | 0,4–0,5 % | przycisk teraz tekst + 24 (był ≥ 60) |
 | komunikaty | – | 0,5 % | scena |
+| awans | 1,000 × 2 | 0,5 % | scena |
+| alchemia | 1,000 | 0,3 % | scena |
+| zaklinanie / tworzenie czarów | 1,000 / 1,000 | 0,3 / 0,3 % | scena |
+| naprawa / naprawa u kupca | 1,000 / 1,000 | 0,4 / 0,3 % | wiersz nazwy narzędzia i pole przycisku w naprawie (27 i 15 bloków – do sprawdzenia) |
 
 **Wykryte i naprawione (cz. 22–23):**
 
@@ -647,9 +652,9 @@ i bez przełączników grafiki (tcb, twf, tsky…); pasek zdrowia wroga w HUD; k
 
 ### 7.17 Werdykt etapu GUI
 
-Etapu 10 **nie można zamknąć**: zostały niewyjaśnione różnice (lista towarów kupca, brakujące akcje i ustawienia,
-niesprawdzone przejścia okno ↔ pełny ekran i zmiana rozdzielczości w 21:9, przypadki 3440 dla alchemii,
-zaklinania, awansu i naprawy), a naprawa glitchy wczytywania jest potwierdzona sondą na VM (renderer zgodności,
+Etapu 10 **nie można zamknąć**: zostały niewyjaśnione różnice (lista towarów kupca, wiersz nazwy w oknie
+naprawy, brakujące akcje i ustawienia, niesprawdzone przejścia okno ↔ pełny ekran i zmiana rozdzielczości
+w 21:9), a naprawa glitchy wczytywania jest potwierdzona sondą na VM (renderer zgodności,
 lavapipe), ale nie na GPU i monitorze użytkownika – wymaga lokalnego potwierdzenia sondą z punktu 7.15.
 
 ### 7.18 Pozostałe punkty etapu (do wykonania)
@@ -682,11 +687,12 @@ Mody – zgodnie z poleceniem nie testowane (kolejność: najpierw klasyczne GUI
 * Etap 10 P0: wczytywanie zapisu bez niekompletnych klatek (cz. 21)
 * Etap 10 cz. 22: GUI 21:9 (3440 × 1440) – ramki okien, HUD 0.51, księgi, podpowiedź obiektu
 * Etap 10 cz. 23: DragAndDrop jak OpenMW, przyciski AutoSizedButton, raport audytu
+* Etap 10: raport – 3440 × 1440 dla awansu, alchemii, zaklinania, naprawy; pełny zestaw 68/68
 
-Pełny zestaw tools/run_tests.sh: 67/67 po cz. 20; 66/66 po cz. 19 (38 w przebiegu, test_progress poprawiony i 28 kolejnych po poprawce); 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
+Pełny zestaw tools/run_tests.sh: 68/68 po cz. 21–23 (z nowym test_load_reveal; test_count_dialog, test_trade, test_map_notes, test_load_reveal powtórzone na końcowym kodzie cz. 23); 67/67 po cz. 20; 66/66 po cz. 19 (38 w przebiegu, test_progress poprawiony i 28 kolejnych po poprawce); 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 
 ## 9. Zalecana kolejność dalszych prac
 
 1. Potwierdzenie sondy wczytywania na GPU użytkownika (punkt 7.15), 2. lista towarów kupca (model przedmiotów),
-3. pozostałe przypadki 3440 × 1440 i przejścia okno ↔ pełny ekran, 4. brakujące akcje sterowania i ustawienia
+3. okno naprawy (wiersz nazwy) i przejścia okno ↔ pełny ekran w 21:9, 4. brakujące akcje sterowania i ustawienia
 (punkt 7.16). Mody – dopiero po zamknięciu klasycznego GUI.
