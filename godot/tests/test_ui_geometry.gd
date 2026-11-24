@@ -1,9 +1,10 @@
 extends SceneTree
 ## Geometria klasycznego interfejsu w kilku rozdzielczościach – wartości z układów OpenMW 0.51 (files/data/mygui):
 ##   skala GUI niezależna od rozdzielczości (WindowManager: [GUI] scaling factor × HiDPI), czcionka 16 px;
-##   HUD (openmw_hud.layout, 300 × 200 przypięte do lewego/prawego dolnego rogu): paski 65 × 12 w (12, 147/162/177),
-##   pole broni (81, 147) 36 × 36 + pasek 36 × 6, pole czaru (121, 147), minimapa 65 × 65 w (223, 124), efekty
-##   prawym dolnym rogiem w (219, 189);
+##   HUD (openmw_hud.layout 0.51, 300 × 200 przypięte do lewego/prawego dolnego rogu): paski 65 × 12 w (13, 146/161/176),
+##   pole broni (82, 146) 36 × 36 + pasek 36 × 6, pole czaru (122, 146), minimapa 65 × 65 w (223, 123), efekty
+##   prawym dolnym rogiem w (219, 188), celownik 27 × 27 w ((szer. − 27) / 2, (wys. − 27) / 2) – zmierzone w OpenMW
+##   0.51 (1280 × 720 … 3440 × 1440: ramka paska zdrowia w (13, wys. − 54), minimapy w wys. − 77);
 ##   dziennik (openmw_journal.layout 565 × 390 na ScalingLayer 600 × 520): skala min(szer./600, wys./520), środek ekranu;
 ##   skala gui_scaling_factor powiększa wszystko proporcjonalnie.
 ## godot --headless --path godot -s res://tests/test_ui_geometry.gd -- --data=WYNIKI(aktorzy) --scripts=0
@@ -42,17 +43,21 @@ func _hud_case(main, vp: Vector2, s: float, tag: String) -> void:
 	var kinds := ["health", "magic", "fatigue"]
 	for i in 3:
 		var b: Control = hud.bars[kinds[i]]
-		check(near_v(b.position, lb(vp, 12, 147 + 15 * i, s)) and near_v(b.size, Vector2(65, 12) * s),
+		check(near_v(b.position, lb(vp, 13, 146 + 15 * i, s)) and near_v(b.size, Vector2(65, 12) * s),
 			"%s: pasek %s %s %s" % [tag, kinds[i], b.position, b.size])
-	check(near_v(hud.weap_box.position, lb(vp, 81, 147, s)) and near_v(hud.weap_box.size, Vector2(36, 36) * s),
+	check(near_v(hud.weap_box.position, lb(vp, 82, 146, s)) and near_v(hud.weap_box.size, Vector2(36, 36) * s),
 		"%s: pole broni %s" % [tag, hud.weap_box.position])
-	check(near_v(hud.weap_bar.position, lb(vp, 81, 183, s)) and near_v(hud.weap_bar.size, Vector2(36, 6) * s),
+	check(near_v(hud.weap_bar.position, lb(vp, 82, 182, s)) and near_v(hud.weap_bar.size, Vector2(36, 6) * s),
 		"%s: pasek broni %s %s" % [tag, hud.weap_bar.position, hud.weap_bar.size])
-	check(near_v(hud.spell_box.position, lb(vp, 121, 147, s)), "%s: pole czaru %s" % [tag, hud.spell_box.position])
-	check(near_v(hud.minimap.position, Vector2(vp.x - 77.0 * s, vp.y - 76.0 * s)) and near_v(hud.minimap.size, Vector2(65, 65) * s),
+	check(near_v(hud.spell_box.position, lb(vp, 122, 146, s)), "%s: pole czaru %s" % [tag, hud.spell_box.position])
+	check(near_v(hud.minimap.position, Vector2(vp.x - 77.0 * s, vp.y - 77.0 * s)) and near_v(hud.minimap.size, Vector2(65, 65) * s),
 		"%s: minimapa %s" % [tag, hud.minimap.position])
-	check(is_equal_approx(hud._effects_right, vp.x - 81.0 * s) and is_equal_approx(hud._effects_y, vp.y - 31.0 * s),
+	check(is_equal_approx(hud._effects_right, vp.x - 81.0 * s) and is_equal_approx(hud._effects_y, vp.y - 32.0 * s),
 		"%s: pole efektów (prawy dolny róg)" % tag)
+	var ch: Control = hud.crosshair
+	var want_ch := Vector2(27, 27) * s if (ch as TextureRect).texture != null else ch.size   # dane bez target.dds – kropka
+	check(near_v(ch.size, want_ch) and near_v(ch.position, ((vp - ch.size) / 2.0).floor()),
+		"%s: celownik 27 × 27 na środku (%s %s)" % [tag, ch.position, ch.size])
 	# czcionka motywu: 16 px × skala GUI
 	check(UI.theme(s).default_font_size == roundi(16 * s), "%s: czcionka %d" % [tag, UI.theme(s).default_font_size])
 
@@ -88,14 +93,18 @@ func _run() -> void:
 	UI.gui_scaling = 1.0
 	var base := UI.ui_scale()
 	check(base >= 1.0, "skala GUI ≥ 1 (%s)" % base)
-	for vp in [Vector2(1280, 720), Vector2(1920, 1080), Vector2(2560, 1440), Vector2(3840, 2160)]:
+	for vp in [Vector2(1280, 720), Vector2(1920, 1080), Vector2(2560, 1440), Vector2(3440, 1440), Vector2(3840, 2160)]:
 		await _hud_case(main, vp, base, "%dx%d" % [vp.x, vp.y])
 	# ustawienie skali GUI
 	UI.gui_scaling = 2.0
 	await _hud_case(main, Vector2(3840, 2160), 2.0 * base, "3840x2160 skala 2")
 	UI.gui_scaling = 1.0
 	# dziennik: ScalingLayer 600 × 520
-	for vp in [Vector2(1280, 720), Vector2(1920, 1080), Vector2(3840, 2160)]:
+	# lewy górny róg księgi: WindowBase::center na ScalingLayer (całkowite jednostki warstwy 17, 65 → ekran);
+	# 3440 × 1440 zmierzone w OpenMW 0.51 (krawędź tx_menubook w x 936, y 180)
+	var journal_at := {Vector2(1280, 720): Vector2(248, 90), Vector2(1920, 1080): Vector2(372, 135),
+		Vector2(3440, 1440): Vector2(936, 180), Vector2(3840, 2160): Vector2(744, 270)}
+	for vp in [Vector2(1280, 720), Vector2(1920, 1080), Vector2(3440, 1440), Vector2(3840, 2160)]:
 		root.size = Vector2i(vp)
 		await _frames(2)
 		var jw = main.journal_window
@@ -103,11 +112,11 @@ func _run() -> void:
 		var k: float = minf(vp.x / 600.0, vp.y / 520.0)
 		check(is_equal_approx(jw.scale_ui, k), "dziennik %dx%d: skala %s (oczekiwana %s)" % [vp.x, vp.y, jw.scale_ui, k])
 		check(near_v(jw.panel.size, (Vector2(565, 390) * k).floor(), 1.0), "dziennik: rozmiar %s" % jw.panel.size)
-		check(near_v(jw.panel.position + jw.panel.size / 2.0, vp / 2.0, 1.5), "dziennik: środek ekranu")
+		check(near_v(jw.panel.position, journal_at[vp], 0.1), "dziennik %dx%d: położenie %s (OpenMW %s)" % [vp.x, vp.y, jw.panel.position, journal_at[vp]])
 		jw.close()
 	# okna trybu menu: położenie i rozmiar z ustawień OpenMW ([Windows] x, y, w, h – ułamki ekranu); zawartość
-	# (napisy, paski, siatka) nie może rozpychać okna ponad rozmiar z ustawień
-	for vp in [Vector2(1280, 720), Vector2(1920, 1080), Vector2(3840, 2160)]:
+	# (napisy, paski, siatka) nie może rozpychać okna ponad rozmiar z ustawień; także 21:9 (3440 × 1440)
+	for vp in [Vector2(1280, 720), Vector2(1920, 1080), Vector2(3440, 1440), Vector2(3840, 2160)]:
 		root.size = Vector2i(vp)
 		await _frames(2)
 		var mm = main.menu_mode

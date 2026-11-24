@@ -1298,6 +1298,11 @@ func in_combat(n: Node) -> bool:
 			return true
 	return false
 
+## AiSequence::isFleeing: bieżąca akcja walki – ucieczka.
+func is_fleeing(n: Node) -> bool:
+	var r = rt.get(String(n.get_meta("mw_sid", "")), {})
+	return r is Dictionary and bool(r.get("flee", false))
+
 ## AiSequence::isInCombat(target): pakiet walki z tym celem (sid albo "player").
 func in_combat_with(n: Node, target_sid: String) -> bool:
 	for p in ai_state(n).packages:

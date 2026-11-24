@@ -25,6 +25,19 @@ static func ui_scale() -> float:
 static func book_scale(vp: Vector2) -> float:
 	return minf(vp.x / 600.0, vp.y / 520.0)
 
+## Lewy górny róg okna wyśrodkowanego na ScalingLayer „JournalBooks” (600 × 520): WindowBase::center liczy w
+## jednostkach warstwy liczbami całkowitymi ((600 − szer.) / 2, (520 − wys.) / 2), a ProxyRenderTarget przenosi je na
+## ekran: przesunięcie (ekran − 600 × skala) / 2 i skala ekran / int(ekran / skala) w każdej osi. Wcześniej środek
+## liczony w pikselach – na 3440 × 1440 księga 1 px w prawo.
+static func book_origin(vp: Vector2, size_units: Vector2) -> Vector2:
+	var s := book_scale(vp)
+	var view := Vector2(floorf(vp.x / s), floorf(vp.y / s))
+	var px := Vector2(vp.x / maxf(view.x, 1.0), vp.y / maxf(view.y, 1.0))
+	var off := (vp - Vector2(600.0, 520.0) * s) / 2.0
+	var left := floorf((600.0 - size_units.x) / 2.0)
+	var top := floorf((520.0 - size_units.y) / 2.0)
+	return (off + Vector2(left * px.x, top * px.y)).floor()
+
 static var _font: Font = null
 
 static func setup(root: String) -> void:
@@ -173,8 +186,8 @@ static func _build_frame_box(prefix: String, bg: Color, corner_suffix := "_corne
 		st.texture_margin_right = cw
 		st.texture_margin_top = ch
 		st.texture_margin_bottom = ch
-		st.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE_FIT
-		st.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_TILE_FIT
+		st.axis_stretch_horizontal = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
+		st.axis_stretch_vertical = StyleBoxTexture.AXIS_STRETCH_MODE_TILE
 		st.content_margin_left = lw + 3
 		st.content_margin_right = rw + 3
 		st.content_margin_top = th + 3

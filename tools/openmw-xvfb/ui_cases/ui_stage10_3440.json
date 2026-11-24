@@ -1,0 +1,152 @@
+{
+ "name": "ui_stage10_3440",
+ "cell": "Seyda Neen, Arrille's Tradehouse",
+ "resolution": [
+  3440,
+  1440
+ ],
+ "note": "etap 10: wariant 21:9 (3440×1440, główna rozdzielczość użytkownika) przypadku ui_stage10_1440 – te same kroki; etap 10: nowe okna – szybkie klawisze (I.UI.setMode QuickKeysMenu), konsola (klawisz ` przez XTest / akcja console), okno opcji (Esc → kliknięcie „Options”; współrzędne przycisku z układu menu, takie same w obu silnikach) | wnętrze bez skryptów CharGen; teleport jak w ui_windows_* | menu transparency = 1,0 w obu silnikach: zawartość okien porównywana bez tła sceny | zakładki Audio/Controls/Video klikane w nagłówku TabControl (pozycje z układu: okno 0,8 ekranu, zakładki od (16, 36)) | zakładka Language: w OpenMW szósta (po Scripts), w porcie piąta – osobne współrzędne kliknięcia dla OpenMW (czwarty element kroku „click”)",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [],
+ "ui": [
+  [
+   2.0,
+   "clear",
+   null
+  ],
+  [
+   3.0,
+   "mode",
+   "QuickKeysMenu"
+  ],
+  [
+   5.5,
+   "shot",
+   "quickkeys"
+  ],
+  [
+   7.0,
+   "clear",
+   null
+  ],
+  [
+   10.5,
+   "shot",
+   "console"
+  ],
+  [
+   16.0,
+   "click",
+   [
+    1720,
+    768
+   ]
+  ],
+  [
+   19.0,
+   "shot",
+   "settings"
+  ],
+  [
+   20.0,
+   "click",
+   [
+    454,
+    192
+   ]
+  ],
+  [
+   21.5,
+   "shot",
+   "settings_audio"
+  ],
+  [
+   22.5,
+   "click",
+   [
+    533,
+    192
+   ]
+  ],
+  [
+   24.0,
+   "shot",
+   "settings_controls"
+  ],
+  [
+   25.0,
+   "click",
+   [
+    610,
+    192
+   ]
+  ],
+  [
+   26.5,
+   "shot",
+   "settings_video"
+  ],
+  [
+   28.0,
+   "click",
+   [
+    681,
+    192
+   ],
+   [
+    766,
+    192
+   ]
+  ],
+  [
+   29.5,
+   "shot",
+   "settings_language"
+  ]
+ ],
+ "keys": [
+  [
+   8.0,
+   "grave"
+  ],
+  [
+   11.5,
+   "grave"
+  ],
+  [
+   13.5,
+   "Escape"
+  ],
+  [
+   31.0,
+   "Escape"
+  ]
+ ],
+ "seconds": 34.0,
+ "interior": true,
+ "teleport": [
+  [
+   0,
+   "player",
+   -242.27,
+   -11.77,
+   228.0
+  ]
+ ],
+ "settings": [
+  [
+   "GUI",
+   "menu transparency",
+   1.0,
+   "menu_transparency"
+  ]
+ ]
+}

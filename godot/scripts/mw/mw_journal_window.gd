@@ -184,7 +184,7 @@ func _build() -> void:
 	panel.name = "JournalWindow"
 	panel.size = _px(WIN)
 	panel.custom_minimum_size = panel.size
-	panel.position = ((vp - panel.size) / 2.0).floor()
+	panel.position = UI.book_origin(vp, WIN)       # WindowBase::center na ScalingLayer
 	_root.add_child(panel)
 	_image(panel, "textures/tx_menubook.png", Vector2(-70, 0), Vector2(705, 390), Color(0.82, 0.74, 0.58))
 	for x in [30.0, 295.0]:

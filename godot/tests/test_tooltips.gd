@@ -87,7 +87,7 @@ func _run() -> void:
 	var tx: Label = tt.box.get_node("ToolTipText")
 	check(is_equal_approx(img.position.y, 8 * s) and is_equal_approx(img.size.x, 32 * s), "ikona 32 px od (…, 8)")
 	check(cap.position.x > img.position.x + img.size.x - 1 and is_equal_approx(tx.position.y, (32 + 4 + 8) * s), "nagłówek obok ikony, tekst pod (y = 32 + 4 + 8)")
-	check(is_equal_approx(sz2.y, (32 + 4 + 8 + 8) * s + tx.size.y), "wysokość: nagłówek + 4 + tekst + 2 × 8 (%s, tekst %s, wiersze %d)" % [sz2, tx.size, tx.get_line_count()])
+	check(is_equal_approx(sz2.y, (32 + 4 + 8 + 8) * s + tx.get_line_count() * roundf(16.0 * s)), "wysokość: nagłówek + 4 + wiersze × 16 (getTextSize) + 2 × 8 (%s, tekst %s, wiersze %d)" % [sz2, tx.size, tx.get_line_count()])
 	# efekty mikstury wyśrodkowane, wiersze co 24 px od y + 6
 	tt.create_tooltip(p)
 	var e0: Control = tt.box.get_node("Effects0")
@@ -170,6 +170,45 @@ func _run() -> void:
 		await physics_frame
 	var ei: Dictionary = tt.effect_icon_info(75)
 	check(int(ei.get("image_size", 0)) == 16 and String(ei.text).contains(": 10 "), "ikona efektu: źródło i wielkość (%s)" % String(ei.get("text", "")).replace("\n", " | "))
+	# obiekt pod celownikiem (ToolTips::update poza trybem GUI): pełna podpowiedź getToolTipViaPtr (przedmiot – jak
+	# w ekwipunku, z ikoną; drzwi – „to” i cel; pojemnik – zamek), wyśrodkowana nad górą obrysu obiektu
+	root.size = Vector2i(1280, 720)
+	await _frames(2)
+	var door: Node = null
+	var item: Node = null
+	var cont: Node = null
+	for key in main.loaded:
+		for n in main.loaded[key].get_node("Refs").get_children():
+			var ty := String(main.interaction.base_of(n).get("type", ""))
+			if ty == "DOOR" and door == null and not MWTravel.door_destination(n).is_empty():
+				door = n
+			elif ty == "CONT" and cont == null:
+				cont = n
+			elif main.interaction.kind_of(n) == "item" and item == null:
+				item = n
+	if item != null:
+		var fi: Dictionary = tt.focus_info(item)
+		var ii: Dictionary = tt.item_info(String(item.get_meta("mw_base", "")), main.interaction.count_of_ref(item))
+		check(fi == ii and not String(fi.get("caption", "")).is_empty(), "przedmiot w świecie: podpowiedź jak w ekwipunku (%s)" % fi.get("caption", ""))
+	if door != null:
+		var fd: Dictionary = tt.focus_info(door)
+		check(String(fd.get("text", "")).begins_with("\n" + T.call("sTo", "to") + "\n"), "drzwi: „to” i cel (Door::getToolTipInfo)")
+	if cont != null:
+		check(not String(tt.focus_info(cont).get("caption", "")).is_empty(), "pojemnik: nazwa")
+	var target: Node = item if item != null else door
+	check(target != null, "obiekt do podpowiedzi w świecie syntetycznym")
+	if target != null:
+		main.focus_node = target
+		tt._update_world_focus(false)
+		var fsc: Vector2 = tt.focus_screen
+		var fvp := Vector2(1280, 720)
+		check(tt.box.visible and not tt.focus_key.is_empty(), "podpowiedź obiektu widoczna poza trybem GUI")
+		check(is_equal_approx(tt.box.position.x, float(int(fvp.x) / 2 - int(tt.last_size.x) / 2))
+			and is_equal_approx(tt.box.position.y, float(maxi(0, int(fsc.y * fvp.y - tt.last_size.y - 20.0)))),
+			"położenie: środek poziomo, nad górą obrysu (%s, ekran %s)" % [tt.box.position, fsc])
+		main.focus_node = null
+		tt._update_world_focus(false)
+		check(not tt.box.visible, "bez obiektu – bez podpowiedzi")
 	_finish()
 
 func _finish() -> void:

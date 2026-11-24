@@ -248,20 +248,22 @@ func _run() -> void:
 		return
 	root.add_child(main)
 	await _frames(120)
-	var sv := ProjectSettings.globalize_path("user://probe_loadgame")
+	var sv := _arg("saves", ProjectSettings.globalize_path("user://probe_loadgame"))
 	DirAccess.make_dir_recursive_absolute(sv)
 	var p_ext := sv.path_join("ext.mwsave")
 	var p_int := sv.path_join("int.mwsave")
 	var int_name := _arg("interior", "Synthville, Test House")
 	var int_pos = main.find_interior_position(int_name)
 	var ip: Vector3 = int_pos if int_pos is Vector3 else Vector3(0, 0, 300)
-	main.save_game(p_ext)
-	main.travel_to_cell(int_name, ip, 0.0)
-	while main.is_revealing():
-		await process_frame
-	await _frames(30)
-	main.save_game(p_int)
-	print("SAVES ", p_ext, " ", p_int, " interior=", main.interior)
+	# --reuse=1: zapisy z wcześniejszego uruchomienia (przypadki w osobnych procesach – limit czasu VM)
+	if not (_arg("reuse") == "1" and FileAccess.file_exists(p_ext) and FileAccess.file_exists(p_int)):
+		main.save_game(p_ext)
+		main.travel_to_cell(int_name, ip, 0.0)
+		while main.is_revealing():
+			await process_frame
+		await _frames(30)
+		main.save_game(p_int)
+	print("SAVES ", p_ext, " ", p_int, " interior=", main.interior, " cells=", main.loaded.size())
 	var cases := _arg("cases", "ingame_ext,ingame_int,same,other,menu_int,menu_ext,nogame,after_travel").split(",")
 	for c in cases:
 		match c:
@@ -288,6 +290,8 @@ func _run() -> void:
 				await _case(c, func():
 					main.close_main_menu()
 					main.load_slot(null, p_int), settle)
+			"prepare":
+				pass
 			"after_travel":
 				main.travel_to_cell(int_name, ip + Vector3(80, 0, 0), 45.0)
 				while main.is_revealing():

@@ -1,0 +1,93 @@
+{
+ "name": "ui_repair_e9_3440",
+ "cell": "Seyda Neen, Arrille's Tradehouse",
+ "resolution": [
+  3440,
+  1440
+ ],
+ "note": "etap 10: wariant 21:9 (3440×1440, główna rozdzielczość użytkownika) przypadku ui_repair_e9_1080 – te same kroki; etap 9: naprawa – okno narzędzia (Repair z celem-przedmiotem) i usługa NPC (MerchantRepair); gracz dostaje narzędzie i uszkodzone przedmioty (give: stan przez Item.itemData.condition / „id#c:N”) | cel wybierany wg identyfikatora rekordu w pobliżu gracza; wnętrze bez skryptów CharGen (komunikaty kreatora to różnica stanu, nie interfejsu); teleport: cel drzwi ex_common_door_01 z Seyda Neen – start z --start/--cell w OpenMW nie wczytuje komórek źródłowych drzwi i findInteriorPosition spada do pierwszego obiektu statycznego",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [],
+ "ui": [
+  [
+   2.0,
+   "clear",
+   null
+  ],
+  [
+   4.0,
+   "mode",
+   {
+    "mode": "Repair",
+    "item": "hammer_repair"
+   }
+  ],
+  [
+   7.0,
+   "shot",
+   "repair"
+  ],
+  [
+   9.0,
+   "mode",
+   {
+    "mode": "MerchantRepair",
+    "target": "arrille"
+   }
+  ],
+  [
+   12.0,
+   "shot",
+   "merchantrepair"
+  ],
+  [
+   14.0,
+   "clear",
+   null
+  ]
+ ],
+ "seconds": 19.0,
+ "interior": true,
+ "teleport": [
+  [
+   0,
+   "player",
+   -242.27,
+   -11.77,
+   228.0
+  ]
+ ],
+ "give": [
+  [
+   "hammer_repair",
+   1
+  ],
+  [
+   "iron dagger",
+   1,
+   100
+  ],
+  [
+   "iron_cuirass",
+   1,
+   1500
+  ],
+  [
+   "iron_helmet",
+   1,
+   30
+  ],
+  [
+   "gold_001",
+   500
+  ]
+ ]
+}

@@ -1,0 +1,52 @@
+{
+ "name": "ui_levelup_e9_3440",
+ "cell": "Seyda Neen, Arrille's Tradehouse",
+ "resolution": [
+  3440,
+  1440
+ ],
+ "note": "etap 10: wariant 21:9 (3440×1440, główna rozdzielczość użytkownika) przypadku ui_levelup_e9_1080 – te same kroki; etap 9: LevelupDialog (I.UI.setMode('LevelUp')) – VBox z AutoResize; obraz klasy i opis z fallbacków instalacji",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [],
+ "ui": [
+  [
+   2.0,
+   "clear",
+   null
+  ],
+  [
+   4.0,
+   "mode",
+   "LevelUp"
+  ],
+  [
+   7.0,
+   "shot",
+   "levelup"
+  ],
+  [
+   9.0,
+   "clear",
+   null
+  ]
+ ],
+ "seconds": 13.0,
+ "interior": true,
+ "teleport": [
+  [
+   0,
+   "player",
+   -242.27,
+   -11.77,
+   228.0
+  ]
+ ]
+}

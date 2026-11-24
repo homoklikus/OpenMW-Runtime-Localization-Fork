@@ -45,14 +45,18 @@ func _ready() -> void:
 	date_label = Label.new()
 	date_label.name = "DateTimeText"
 	date_label.add_theme_color_override("font_color", UI.color("normal"))
+	# VBox::align: dzieci bez HStretch wyśrodkowane w poziomie (left = Padding + (szer. − 2 × Padding − w) / 2)
+	date_label.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	box.add_child(date_label)
 	info = Label.new()
 	info.name = "RestText"
 	info.add_theme_color_override("font_color", UI.color("normal"))
+	info.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	box.add_child(info)
 	hours_label = Label.new()
 	hours_label.name = "HourText"
 	hours_label.add_theme_color_override("font_color", UI.color("normal"))
+	hours_label.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	box.add_child(hours_label)
 	# HourSlider: Range 24, Page 1 – pozycja 0..23 = 1..24 godzin; „hours” trzyma wartość w godzinach
 	slider = HScrollBar.new()
@@ -88,6 +92,7 @@ func _ready() -> void:
 func _btn(parent: Control, t: String, cb: Callable) -> Button:
 	var b := Button.new()
 	b.text = t
+	b.custom_minimum_size.y = 24 * UI.ui_scale()        # AutoSizedButton: tekst + (24, 8) – 16 + 8
 	b.pressed.connect(cb)
 	parent.add_child(b)
 	return b

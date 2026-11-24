@@ -1,0 +1,48 @@
+{
+ "name": "ui_mainmenu_e8_3440",
+ "cell": "Seyda Neen, Arrille's Tradehouse",
+ "resolution": [
+  3440,
+  1440
+ ],
+ "note": "etap 10: wariant 21:9 (3440×1440, główna rozdzielczość użytkownika) przypadku ui_mainmenu_e8_1080 – te same kroki; etap 8: menu główne otwarte klawiszem Esc (XTest w OpenMW, akcja „menu” w Godocie) w trakcie gry | cel wybierany wg identyfikatora rekordu w pobliżu gracza; wnętrze bez skryptów CharGen (komunikaty kreatora to różnica stanu, nie interfejsu); teleport: cel drzwi ex_common_door_01 z Seyda Neen – start z --start/--cell w OpenMW nie wczytuje komórek źródłowych drzwi i findInteriorPosition spada do pierwszego obiektu statycznego",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [],
+ "ui": [
+  [
+   2.0,
+   "clear",
+   null
+  ],
+  [
+   9.0,
+   "shot",
+   "mainmenu"
+  ]
+ ],
+ "seconds": 14.0,
+ "interior": true,
+ "teleport": [
+  [
+   0,
+   "player",
+   -242.27,
+   -11.77,
+   228.0
+  ]
+ ],
+ "keys": [
+  [
+   4.0,
+   "Escape"
+  ]
+ ]
+}

@@ -1,0 +1,90 @@
+{
+ "name": "ui_alchemy_e9_3440",
+ "cell": "Seyda Neen, Arrille's Tradehouse",
+ "resolution": [
+  3440,
+  1440
+ ],
+ "note": "etap 10: wariant 21:9 (3440×1440, główna rozdzielczość użytkownika) przypadku ui_alchemy_e9_1080 – te same kroki; etap 9: alchemia – okno po otwarciu (aparaty z ekwipunku, siatka składników); gracz dostaje aparaty i składniki (give) | cel wybierany wg identyfikatora rekordu w pobliżu gracza; wnętrze bez skryptów CharGen (komunikaty kreatora to różnica stanu, nie interfejsu); teleport: cel drzwi ex_common_door_01 z Seyda Neen – start z --start/--cell w OpenMW nie wczytuje komórek źródłowych drzwi i findInteriorPosition spada do pierwszego obiektu statycznego",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [],
+ "ui": [
+  [
+   2.0,
+   "clear",
+   null
+  ],
+  [
+   4.0,
+   "mode",
+   "Alchemy"
+  ],
+  [
+   8.0,
+   "shot",
+   "alchemy"
+  ],
+  [
+   10.0,
+   "clear",
+   null
+  ]
+ ],
+ "seconds": 14.0,
+ "interior": true,
+ "teleport": [
+  [
+   0,
+   "player",
+   -242.27,
+   -11.77,
+   228.0
+  ]
+ ],
+ "give": [
+  [
+   "apparatus_a_mortar_01",
+   1
+  ],
+  [
+   "apparatus_a_alembic_01",
+   1
+  ],
+  [
+   "apparatus_a_calcinator_01",
+   1
+  ],
+  [
+   "apparatus_a_retort_01",
+   1
+  ],
+  [
+   "ingred_marshmerrow_01",
+   3
+  ],
+  [
+   "ingred_saltrice_01",
+   2
+  ],
+  [
+   "ingred_wickwheat_01",
+   4
+  ],
+  [
+   "ingred_comberry_01",
+   1
+  ],
+  [
+   "ingred_kresh_fiber_01",
+   2
+  ]
+ ]
+}

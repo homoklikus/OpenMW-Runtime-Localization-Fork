@@ -78,7 +78,7 @@ func open(id: String, rec: Dictionary, show_take: bool) -> void:
 	var size := SCROLL_SIZE if is_scroll else BOOK_SIZE
 	var win := Control.new()
 	win.size = size * scale_ui
-	win.position = ((vp - win.size) / 2.0).floor()
+	win.position = UI.book_origin(vp, size)        # WindowBase::center na ScalingLayer
 	_root.add_child(win)
 	if is_scroll:
 		_build_scroll(win, text)

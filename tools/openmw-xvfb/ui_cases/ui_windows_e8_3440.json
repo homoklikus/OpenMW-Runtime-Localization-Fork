@@ -1,0 +1,101 @@
+{
+ "name": "ui_windows_e8_3440",
+ "cell": "Seyda Neen, Arrille's Tradehouse",
+ "resolution": [
+  3440,
+  1440
+ ],
+ "note": "etap 10: wariant 21:9 (3440×1440, główna rozdzielczość użytkownika) przypadku ui_windows_e8_1080 – te same kroki; etap 8: okna z celem (rozmowa, handel, pojemnik), odpoczynek, menu główne i oświetlenie wnętrza (hud) | cel wybierany wg identyfikatora rekordu w pobliżu gracza; wnętrze bez skryptów CharGen (komunikaty kreatora to różnica stanu, nie interfejsu); teleport: cel drzwi ex_common_door_01 z Seyda Neen – start z --start/--cell w OpenMW nie wczytuje komórek źródłowych drzwi i findInteriorPosition spada do pierwszego obiektu statycznego",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [],
+ "ui": [
+  [
+   2.0,
+   "clear",
+   null
+  ],
+  [
+   4.5,
+   "shot",
+   "hud"
+  ],
+  [
+   6.5,
+   "mode",
+   "Rest"
+  ],
+  [
+   9.0,
+   "shot",
+   "rest"
+  ],
+  [
+   11.0,
+   "mode",
+   {
+    "mode": "Dialogue",
+    "target": "arrille"
+   }
+  ],
+  [
+   14.0,
+   "shot",
+   "dialogue"
+  ],
+  [
+   16.0,
+   "mode",
+   {
+    "mode": "Barter",
+    "target": "arrille"
+   }
+  ],
+  [
+   19.0,
+   "shot",
+   "barter"
+  ],
+  [
+   21.0,
+   "mode",
+   {
+    "mode": "Container",
+    "target": "chest_small_01_ingred10"
+   }
+  ],
+  [
+   24.0,
+   "shot",
+   "container"
+  ],
+  [
+   26.0,
+   "mode",
+   "MainMenu"
+  ],
+  [
+   28.5,
+   "shot",
+   "mainmenu"
+  ]
+ ],
+ "seconds": 43.5,
+ "interior": true,
+ "teleport": [
+  [
+   0,
+   "player",
+   -242.27,
+   -11.77,
+   228.0
+  ]
+ ]
+}

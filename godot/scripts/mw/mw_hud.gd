@@ -66,7 +66,7 @@ func build() -> void:
 	root.theme = UI.theme(scale_ui)
 	add_child(root)
 	var s := scale_ui
-	var m := 12.0 * s                          # openmw_hud.layout: paski x = 12
+	var m := 13.0 * s                          # openmw_hud.layout (0.51): paski x = 13
 	# paski (od dołu: kondycja, magia, zdrowie)
 	var kinds := [["health", "icons/k/health"], ["magic", "icons/k/magicka"], ["fatigue", "icons/k/fatigue"]]
 	for i in 3:
@@ -74,7 +74,7 @@ func build() -> void:
 		pb.name = "Bar_" + kinds[i][0]
 		pb.custom_minimum_size = Vector2(65, 12) * s
 		pb.size = pb.custom_minimum_size
-		pb.position = Vector2(m, vp.y - (53.0 - 15.0 * i) * s)   # y 147/162/177 w układzie 300 × 200 (od dołu)
+		pb.position = Vector2(m, vp.y - (54.0 - 15.0 * i) * s)   # y 146/161/176 w układzie 300 × 200 (od dołu)
 		pb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		root.add_child(pb)
 		bars[kinds[i][0]] = pb
@@ -82,27 +82,27 @@ func build() -> void:
 	cell_label = _sand_label(Vector2(0, vp.y - 111 * s), vp.x)
 	cell_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	# pola broni i czaru
-	var wb := _box(Vector2(81 * s, vp.y - 53 * s))
+	var wb := _box(Vector2(82 * s, vp.y - 54 * s))    # WeapBox 82 146 36 41
 	weap_box = wb
 	weap_frame = _icon_rect(wb, true)
 	weap_icon = _icon_rect(wb, false)
 	weap_bar = UI.progress_bar("weapon_fill", s)
 	weap_bar.custom_minimum_size = Vector2(36, 6) * s
-	weap_bar.position = Vector2(81 * s, vp.y - 17 * s)
+	weap_bar.position = Vector2(82 * s, vp.y - 18 * s)
 	weap_bar.size = weap_bar.custom_minimum_size
 	weap_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(weap_bar)
-	var sb := _box(Vector2(121 * s, vp.y - 53 * s))
+	var sb := _box(Vector2(122 * s, vp.y - 54 * s))   # SpellBox 122 146
 	spell_box = sb
 	spell_frame = _icon_rect(sb, true)
 	spell_icon = _icon_rect(sb, false)
 	spell_bar = UI.progress_bar("magic_fill", s)
 	spell_bar.custom_minimum_size = Vector2(36, 6) * s
-	spell_bar.position = Vector2(121 * s, vp.y - 17 * s)
+	spell_bar.position = Vector2(122 * s, vp.y - 18 * s)
 	spell_bar.size = spell_bar.custom_minimum_size
 	spell_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(spell_bar)
-	sneak_box = _box(Vector2(161 * s, vp.y - 53 * s))
+	sneak_box = _box(Vector2(162 * s, vp.y - 54 * s))  # SneakBox 162 146
 	var si := _icon_rect(sneak_box, false)
 	si.texture = UI.texture("icons/k/stealth_sneak")
 	sneak_box.visible = false
@@ -111,7 +111,7 @@ func build() -> void:
 	minimap.name = "MiniMap"
 	minimap.add_theme_stylebox_override("panel", UI.inner_box(Color(0, 0, 0, 1)))
 	minimap.size = Vector2(MINIMAP, MINIMAP) * s
-	minimap.position = Vector2(vp.x - (12 + MINIMAP) * s, vp.y - (11 + MINIMAP) * s)   # 223 124 65 65
+	minimap.position = Vector2(vp.x - (12 + MINIMAP) * s, vp.y - (12 + MINIMAP) * s)   # MiniMapBox 223 123 65 65
 	minimap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(minimap)
 	var clip := Control.new()
@@ -151,13 +151,15 @@ func build() -> void:
 	effects_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	effects_frame.add_child(effects_box)
 	_effects_right = vp.x - 81.0 * s
-	_effects_y = vp.y - 31.0 * s
+	_effects_y = vp.y - 32.0 * s                # EffectBox 199 168 20 20 (Right Bottom)
 	# celownik i podpowiedź nad celem
 	crosshair = TextureRect.new()
 	(crosshair as TextureRect).texture = UI.texture("textures/target")
 	(crosshair as TextureRect).expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	crosshair.size = Vector2(32, 32) * s if (crosshair as TextureRect).texture != null else Vector2(4, 4) * s
-	crosshair.position = (vp - crosshair.size) / 2.0
+	# HUD_Crosshair: ImageBox 27 × 27, Center Center – MyGUI wyrównuje do (rodzic − rozmiar) / 2 (liczby całkowite),
+	# tekstura target.dds (32 × 32) skalowana do 27 px
+	crosshair.size = Vector2(27, 27) * s if (crosshair as TextureRect).texture != null else Vector2(4, 4) * s
+	crosshair.position = ((vp - crosshair.size) / 2.0).floor()
 	crosshair.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	if (crosshair as TextureRect).texture == null:
 		var dot := ColorRect.new()
@@ -574,13 +576,6 @@ func update_effects() -> void:
 ## Podpowiedź nad celem (ToolTips::getFocusObject): nazwa obiektu albo osoby; przedmiot – waga i wartość;
 ## klawisz aktywacji w drugiej linii (zamiast paska tekstowego).
 func update_focus() -> void:
-	var text: String = main.focus_text() if main.has_method("focus_text") else ""
-	# ToolTips::onFrame: obiekt w świecie tylko poza trybem GUI (okna, tryb menu, rozmowa – podpowiedzi okien)
-	if main.has_method("_no_window_open") and not main._no_window_open():
-		text = ""
-	focus_panel.visible = not text.is_empty()
-	if focus_panel.visible:
-		focus_label.text = text
-		focus_panel.reset_size()
-		var vp := get_viewport().get_visible_rect().size
-		focus_panel.position = Vector2((vp.x - focus_panel.size.x) / 2.0, vp.y / 2.0 + 24 * scale_ui)
+	# podpowiedź obiektu pod celownikiem rysuje ToolTips (mw_tooltips.gd – getToolTipViaPtr nad obiektem, jak
+	# ToolTips::update poza trybem GUI); jednowierszowego panelu pod celownikiem OpenMW nie ma
+	focus_panel.visible = false

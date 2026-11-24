@@ -1,0 +1,81 @@
+{
+ "name": "ui_services_e8_3440",
+ "cell": "Seyda Neen, Arrille's Tradehouse",
+ "resolution": [
+  3440,
+  1440
+ ],
+ "note": "etap 10: wariant 21:9 (3440×1440, główna rozdzielczość użytkownika) przypadku ui_services_e8_1080 – te same kroki; etap 8: okna usług z celem (trening, zakup zaklęć, podróże) dla kupca Arrille | cel wybierany wg identyfikatora rekordu w pobliżu gracza; wnętrze bez skryptów CharGen (komunikaty kreatora to różnica stanu, nie interfejsu); teleport: cel drzwi ex_common_door_01 z Seyda Neen – start z --start/--cell w OpenMW nie wczytuje komórek źródłowych drzwi i findInteriorPosition spada do pierwszego obiektu statycznego",
+ "actors": [
+  "player"
+ ],
+ "ignore": [
+  ".player",
+  ".objects",
+  ".track"
+ ],
+ "tol": {},
+ "setup": [],
+ "ui": [
+  [
+   2.0,
+   "clear",
+   null
+  ],
+  [
+   4.0,
+   "mode",
+   {
+    "mode": "Training",
+    "target": "arrille"
+   }
+  ],
+  [
+   7.0,
+   "shot",
+   "training"
+  ],
+  [
+   9.0,
+   "mode",
+   {
+    "mode": "SpellBuying",
+    "target": "arrille"
+   }
+  ],
+  [
+   12.0,
+   "shot",
+   "spellbuying"
+  ],
+  [
+   14.0,
+   "mode",
+   {
+    "mode": "Travel",
+    "target": "arrille"
+   }
+  ],
+  [
+   17.0,
+   "shot",
+   "travel"
+  ],
+  [
+   19.0,
+   "clear",
+   null
+  ]
+ ],
+ "seconds": 24.0,
+ "interior": true,
+ "teleport": [
+  [
+   0,
+   "player",
+   -242.27,
+   -11.77,
+   228.0
+  ]
+ ]
+}

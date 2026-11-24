@@ -1975,6 +1975,8 @@ func _process(_d: float) -> void:
 		if not h.is_empty():
 			hint = "\n[lb]E] %s" % Loc.escape_bbcode(h)
 		_focus_hint = h if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or DisplayServer.get_name() == "headless" else ""
+		# World::updateFocusObject – obiekt pod celownikiem dla ToolTips (podpowiedź nad obiektem poza trybem GUI)
+		focus_node = r if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED or DisplayServer.get_name() == "headless" else null
 	var stats_line := ""
 	var pst := player_stats()
 	if not pst.is_empty() and character != null:
@@ -2061,6 +2063,7 @@ func display_location() -> String:
 ## Pozycja w jednostkach Morrowinda (jak w Construction Set i konsoli gry); „--pos=x,y,z” uruchamia grę w tym miejscu.
 var show_coords := false                 # pasek z informacjami (F3) – domyślnie ukryty, jak w Morrowindzie
 var _focus_hint := ""
+var focus_node: Node3D = null            # World::getFocusObject (ToolTips poza trybem GUI)
 var mw_hud = null                        # etap 10: HUD jak w Morrowindzie (paski, broń, czar, minimapa)
 
 ## Podpowiedź nad celem (HUD): co obsłuży klawisz aktywacji.

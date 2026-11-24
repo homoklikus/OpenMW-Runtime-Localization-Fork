@@ -14,6 +14,7 @@ extends CanvasLayer
 const UI := preload("res://scripts/mw/mw_ui.gd")
 const CU := preload("res://scripts/mw/mw_chargen_ui.gd")
 const EQ := preload("res://scripts/mw/mw_equipment.gd")
+const Loc := preload("res://scripts/mw/mw_localization.gd")
 
 const PADDING := 8.0
 const MAX_WRAP := 300.0
@@ -260,7 +261,11 @@ func _text_size(t: String, wrap: float) -> Vector2:
 	var sz: Vector2 = f.get_multiline_string_size(t, HORIZONTAL_ALIGNMENT_CENTER, wrap, _font_size(), -1,
 		TextServer.BREAK_MANDATORY | TextServer.BREAK_WORD_BOUND | TextServer.BREAK_ADAPTIVE)
 	var lines := maxi(1, int(roundf(sz.y / f.get_height(_font_size()))))
-	return Vector2(ceilf(sz.x), _lines_height(lines))
+	return Vector2(ceilf(sz.x), lines * _line_h())
+
+## Wysokość wiersza MyGUI (ResourceTrueTypeFont::getDefaultHeight – wznoszenie + zstępowanie) × skala.
+func _line_h() -> float:
+	return roundf(UI.font().get_height(16) * _s)
 
 ## Wysokość n wierszy tekstu w etykiecie (jak Label rysuje tekst, z odstępami czcionki interfejsu).
 func _lines_height(n: int) -> float:
@@ -322,7 +327,8 @@ func create_tooltip(info: Dictionary) -> Vector2:
 	var vp := get_viewport().get_visible_rect().size
 	var max_w := vp.x - hpad * 2.0
 	var f: Font = UI.font()
-	var cap_size := Vector2(ceilf(f.get_string_size(caption, HORIZONTAL_ALIGNMENT_LEFT, -1, _font_size()).x), roundf(18 * _s)) if not caption.is_empty() else Vector2.ZERO
+	# EditText::getTextSize: wysokość = liczba wierszy × wysokość czcionki (MysticCards, Resolution 70: 16 px)
+	var cap_size := Vector2(ceilf(f.get_string_size(caption, HORIZONTAL_ALIGNMENT_LEFT, -1, _font_size()).x), _line_h()) if not caption.is_empty() else Vector2.ZERO
 	var cap_h := maxf(cap_size.y, img)
 	var tsize := _text_size(text, MAX_WRAP * _s)
 	var cap_with_img := cap_size + Vector2(img, 0)
@@ -518,8 +524,7 @@ func _process(_dt: float) -> void:
 	var gui_mode: bool = main.gui.is_gui_mode() or (main.get("script_host") != null and main.script_host != null
 		and main.script_host.menu_mode())       # isGuiMode – także kreator postaci i okna poza stosem trybów
 	if not gui_mode or Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		if box.visible:
-			hide_tip()
+		_update_world_focus(gui_mode)
 		return
 	var vpt := get_viewport()
 	# ToolTips::onFrame: podpowiedź po „tooltip delay” s bez ruchu myszy (ruch – od nowa)
@@ -540,6 +545,138 @@ func _process(_dt: float) -> void:
 			hide_tip()
 		return
 	show_for(tip, vpt.get_mouse_position())
+
+# --- obiekt pod celownikiem (ToolTips::update poza trybem GUI) -------------------------------------------------
+
+var focus_key := ""                # testy: podpowiedź obiektu w świecie (klucz), pusty – brak
+var focus_screen := Vector2(0.5, 0.0)
+
+## Poza trybem GUI: World::updateFocusObject → getToolTipViaPtr(count, image = true) w skórce HUD_Box, wyśrodkowana
+## poziomo, nad górą obrysu obiektu (RenderingManager::getScreenCoords: środek obrysu, maks. wysokość; poza ekranem
+## albo za kamerą – (0,5; 0)): top = max(0, y × wys. − wys. podpowiedzi − 20).
+func _update_world_focus(gui_mode: bool) -> void:
+	var node: Node = main.get("focus_node") if not gui_mode else null
+	if node != null and not is_instance_valid(node):
+		node = null
+	var info := focus_info(node) if node != null else {}
+	if info.is_empty():
+		if box.visible:
+			hide_tip()
+		focus_key = ""
+		return
+	var key := "focus|" + str(info)
+	if key != current_key:
+		create_tooltip(info)
+		current_key = key
+	focus_key = key
+	var vp := get_viewport().get_visible_rect().size
+	focus_screen = focus_screen_coords(node)
+	var left := int(vp.x) / 2 - int(last_size.x) / 2
+	var top := maxi(0, int(focus_screen.y * vp.y - last_size.y - 20.0 * _s))
+	box.position = Vector2(left, top)
+	box.visible = true
+
+## Class::getToolTipInfo obiektu w świecie; {} – bez podpowiedzi (hasToolTip false albo bez nazwy).
+func focus_info(node: Node) -> Dictionary:
+	var it = main.interaction
+	if it == null or node == null:
+		return {}
+	var b: Dictionary = it.base_of(node)
+	var t := String(b.get("type", ""))
+	var name: String = it.display_name(node)
+	var n: int = it.count_of_ref(node)
+	var lock: int = it.lock_level(node)
+	var trapped := not String(it.trap(node)).is_empty()
+	var dlg = main.get("dialogue")
+	if dlg != null and dlg.is_actor_node(node):
+		# Npc/Creature::hasToolTip: martwy (po animacji śmierci) albo nie w walce (lub uciekający)
+		var cb = main.get("combat")
+		var dead: bool = cb != null and cb.is_dead(cb.fighter_of(node))
+		var ai = main.get("ai")
+		if not dead and ai != null and ai.has_method("in_combat") and ai.in_combat(node) \
+				and not (ai.has_method("is_fleeing") and ai.is_fleeing(node)):
+			return {}
+		var an: String = dlg.actor_name(dlg.make_actor(node))
+		return {"caption": an} if not an.is_empty() else {}
+	match t:
+		"DOOR":
+			var text := ""
+			var d: Dictionary = MWTravel.door_destination(node)
+			if not d.is_empty():
+				text += "\n" + _t("sTo", "to") + "\n" + door_destination_name(d)
+			text += _lock_text(lock, trapped)
+			return {"caption": name, "text": text} if not name.is_empty() else {}
+		"CONT":
+			return {"caption": name, "text": _lock_text(lock, trapped)} if not name.is_empty() else {}
+		"ACTI":
+			return {"caption": name + count_string(n)} if not name.is_empty() else {}
+	if it.kind_of(node) == "item":
+		var info := item_info(String(node.get_meta("mw_base", "")), n)
+		return info
+	return {}
+
+func _lock_text(lock: int, trapped: bool) -> String:
+	var text := ""
+	if lock > 0:
+		text += "\n%s: %d" % [_t("sLockLevel", "Lock Level"), lock]
+	elif lock < 0:
+		text += "\n" + _t("sUnlocked", "Unlocked")
+	if trapped:
+		text += "\n" + _t("sTrapped", "Trapped")
+	return text
+
+## Door::getDestination → World::getCellName: wnętrze – nazwa komórki; świat – nazwa komórki, region albo
+## sDefaultCellname.
+func door_destination_name(d: Dictionary) -> String:
+	var loc = main.get("loc")
+	var cn := String(d.get("cell_name", ""))
+	if not cn.is_empty():
+		return loc.plain(Loc.key("CELL", cn, "NAME"), cn) if loc != null and loc.has_method("plain") else cn
+	var t: Transform3D = d.get("transform", Transform3D())
+	var cell: Dictionary = main.db.get_cell(main.db.exterior_key(MWCoords.cell_of(t.origin)))
+	var nm := String(cell.get("name", ""))
+	if not nm.is_empty():
+		return nm
+	var reg := String(cell.get("region", "")).to_lower()
+	if not reg.is_empty() and main.get("envr") != null:
+		var rn := String((main.envr.regions.get(reg, {}) as Dictionary).get("name", reg))
+		return loc.plain(Loc.key("REGN", reg, "FNAM"), rn) if loc != null and loc.has_method("plain") else rn
+	return _t("sDefaultCellname", "Wilderness")
+
+## RenderingManager::getScreenCoords: punkt (środek x/z obrysu, góra obrysu) w ułamkach ekranu; obrys z kolizji
+## (PhysicsSystem::getBoundingBox), bez niej – z siatek.
+func focus_screen_coords(node: Node) -> Vector2:
+	var cam: Camera3D = get_viewport().get_camera_3d()
+	if cam == null or not (node is Node3D):
+		return Vector2(0.5, 0.0)
+	var bb := AABB()
+	var have := false
+	for kind in ["CollisionShape3D", "VisualInstance3D"]:
+		for c in node.find_children("*", kind, true, false):
+			var ab := AABB()
+			if c is CollisionShape3D:
+				var sh: Shape3D = (c as CollisionShape3D).shape
+				if sh == null or (c as CollisionShape3D).disabled:
+					continue
+				ab = (c as Node3D).global_transform * sh.get_debug_mesh().get_aabb()
+			elif c is VisualInstance3D and (c as VisualInstance3D).is_visible_in_tree() and not (c is Light3D):
+				ab = (c as VisualInstance3D).global_transform * (c as VisualInstance3D).get_aabb()
+			else:
+				continue
+			bb = ab if not have else bb.merge(ab)
+			have = true
+		if have:
+			break
+	if not have:
+		return Vector2(0.5, 0.0)
+	var p := Vector3(bb.position.x + bb.size.x * 0.5, bb.end.y, bb.position.z + bb.size.z * 0.5)
+	if cam.is_position_behind(p):
+		return Vector2(0.5, 0.0)
+	var vp := get_viewport().get_visible_rect().size
+	var sp := cam.unproject_position(p) / vp
+	if sp.x < 0.0 or sp.x > 1.0 or sp.y < 0.0 or sp.y > 1.0:
+		return Vector2(0.5, 0.0)
+	return sp
 
 # --- podpowiedzi układów (openmw_tooltips.layout, typ „Layout”) ------------------------------------------------
 
