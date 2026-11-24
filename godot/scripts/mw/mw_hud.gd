@@ -242,8 +242,16 @@ func update_blindness() -> void:
 	blind_fader.visible = blind > 0
 
 func _process(delta: float) -> void:
+	refresh(delta)
+
+## Aktualizacja HUD (co klatkę; także od razu po zdjęciu ekranu ładowania – WindowManager::updateVisible przy
+## popGuiMode(GM_Loading) – żeby pierwsza klatka po wczytaniu miała już HUD z bieżącymi wartościami i minimapą
+## nowego miejsca, a nie pustą albo starą z poprzedniego stanu).
+func refresh(delta: float, force := false) -> void:
 	if root == null or main == null or main.player == null:
 		return
+	if force:
+		_map_t = 1.0
 	update_blindness()
 	# WindowManager::updateVisible: HUD widoczny zawsze (także pod menu głównym, ekwipunkiem, rozmową),
 	# poza ekranem ładowania, filmem (enableScene(false)) i stanem bez gry; F11 – mHudEnabled

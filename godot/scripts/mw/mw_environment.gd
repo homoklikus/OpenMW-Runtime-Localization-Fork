@@ -301,6 +301,33 @@ func _apply_underwater() -> void:
 	if interior:
 		env.background_color = env.fog_light_color
 
+## WeatherManager::write (ESM::WeatherState): region, czas do zmiany, przejście (bieżąca, następna, w kolejce,
+## mTransitionFactor) – zapis gry.
+func weather_state() -> Dictionary:
+	return {"name": weather, "region": region, "current": wm.current, "next": wm.next_w, "queued": wm.queued,
+		"transition": wm.transition, "update_time": wm.update_time, "change_index": wm.change_index}
+
+## WeatherManager::readRecord: stan pogody z zapisu bez nowego przejścia. Zapis bez stanu pogody (sprzed tej
+## zmiany) – pogoda regionu od razu (jak początek gry), nie przejście od pogody poprzedniej sesji.
+func restore_weather(st: Dictionary, region_id: String) -> void:
+	if not forced_weather.is_empty():
+		return
+	if st.is_empty():
+		region = region_id
+		_weather_started = false
+		pick_weather()
+		return
+	weather = String(st.get("name", "clear"))
+	region = String(st.get("region", region_id))
+	wm.current = clampi(int(st.get("current", wm.idx(weather))), 0, 9)
+	wm.next_w = int(st.get("next", -1))
+	wm.queued = int(st.get("queued", -1))
+	wm.transition = float(st.get("transition", 0.0))
+	wm.update_time = float(st.get("update_time", wm.update_time))
+	wm.change_index = int(st.get("change_index", 0))
+	_weather_started = true
+	apply()
+
 func set_region(region_id: String) -> void:
 	if region_id.to_lower() == region.to_lower():
 		return

@@ -105,8 +105,8 @@ func _build() -> void:
 ## LoadingScreen::loadingOn.
 func loading_on() -> void:
 	nested += 1
-	if nested > 1 and visible:
-		return
+	if nested > 1:                    # loadingOn: `if (mNestedLoadingCount++ > 0) return;` – tryb (tapeta/klatka)
+		return                        # ustala zewnętrzne wywołanie (zagnieżdżone nie widzi już stanu „bez gry”)
 	_build()
 	_on_time = _now()
 	_fader_t = _on_time
@@ -151,6 +151,8 @@ func loading_off() -> void:
 		_box.visible = true
 	if _scene_rect != null:
 		_scene_rect.texture = null
+	if main != null and main.get("mw_hud") != null and main.mw_hud.has_method("refresh"):
+		main.mw_hud.refresh(0.0, true)       # WindowManager::updateVisible – HUD w tej samej klatce co odsłonięcie
 
 func set_label(text: String, is_important := false) -> void:
 	label = text
