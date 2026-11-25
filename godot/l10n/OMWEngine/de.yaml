@@ -131,24 +131,21 @@ InvertXAxis: "X-Achse invertieren"
 InvertYAxis: "Y-Achse invertieren"
 Language: "Sprache"
 LanguageNote: "Hinweis: Diese Einstellungen wirken sich nicht auf Texte aus ESM-Dateien aus."
-LightsClusteredLighting: "Cluster-Beleuchtung"
-LightingResetToDefaults: "Einstellungen wirklich zurücksetzen?"
+LightingMethod: "Beleuchtungsmethode"
+LightingMethodShaders: "Shader"
+LightingMethodShadersCompatibility: "Shader (Kompatibilitätsmodus)"
+LightingResetToDefaults: "Einstellungen wirklich zurücksetzen? Das Ändern der „Beleuchtungsmethode“ erfordert einen Neustart."
 Lights: "Beleuchtung"
-LightRadiusMultiplier: "Multiplikator für den Punktlichtradius"
-LightRadiusMultiplierValue: "Multiplikator für den Punktlichtradius ({value, number, ::.00})"
-LightRadiusMultiplierTooltip: "Standard: 1,75\nMultiplikator für den Punktlichtradius. Größere Werte erhöhen die Reichweite der Lichter."
+LightsBoundingSphereMultiplier: "Multiplikator für Begrenzungssphäre"
+LightsBoundingSphereMultiplierValue: "Multiplikator für Begrenzungssphäre ({value, number, ::.00})"
+LightsBoundingSphereMultiplierTooltip: "Standard: 1,65\nMultiplikator für Größe der Begrenzungssphäre.\nGrößere Werte ermöglichen einen sanfteren Abfall, erfordern jedoch eine Erhöhung der maximalen Anzahl von Lichtquellen.\n\nBeeinflusst nicht die Beleuchtung oder Lichtintensität."
 LightsFadeStartMultiplier: "Multiplikator für Startwert der Lichtabblendung"
 LightsFadeStartMultiplierValue: "Multiplikator für Startwert der Lichtabblendung ({value, number, ::.00})"
 LightsFadeStartMultiplierTooltip: "Standard: 0,85\nBruchteil der maximalen Lichtreichweite, bei der Lichtquellen langsam zu verblassen beginnen.\n\nKleinere Werte führen zu einem sanfteren Übergang, der allerdings bereits bei geringerer Entfernung startet; größere Werte machen den Übergang abrupter, betreffen aber nur weiter entfernte Lichtquellen."
-LightsClusteredLightingTooltip: |-
- Aktiviert Cluster-Beleuchtung.
- Unterteilt den Bildschirm in Bereiche, um Lichtquellen zuzuweisen, wodurch die Begrenzung der Lichtanzahl pro Objekt entfällt.
-
- Die Optionen für klassischen Lichtabfall und maximale Lichtanzahl gelten in diesem Modus nicht.
-
- Aktiviert spiegelnde Highlights von Punktlichtern auf der Wasseroberfläche, wenn der Wassershader aktiviert ist.
-
- Es wird dringend empfohlen, dies zusammen mit Per-Pixel-Beleuchtung zu verwenden, da Vertex-Beleuchtung zu sichtbarem Licht-Popping an den Bildschirmrändern führen kann.
+LightsLightingMethodTooltip: "Legt die interne Behandlung von Lichtquellen fest.\n\n
+   „Shader (Kompatibilitätsmodus)“ Es wird empfohlen, diese Option für ältere Hardware und Maximalwerte für Lichtquellen nahe 8 zu verwenden.\n\n
+   „Shader“ bietet alle Vorteile von „Shader (Kompatibilitätsmodus)“, nutzt aber einen moderneren Ansatz, der größere Maximalwerte für Lichtquellen bei geringen bis keinen Leistungseinbußen ermöglicht. Funktioniert möglicherweise nicht auf älterer Hardware."
+LightsMaximumDistance: "Maximale Lichtreichweite"
 LightsMaximumDistanceValue: "Maximale Lichtreichweite ({value, number, :: group-off})"
 LightsMaximumDistanceTooltip: "Standard: 8192 (1 Zelle)\nMaximale Entfernung, bis zu der Lichtquellen noch dargestellt werden (gemessen in In-Game-Einheiten).\n\nEin Wert von 0 entspricht einer unbegrenzten Reichweite."
 LightsMinimumInteriorBrightness: "Minimale Helligkeit in Innenräumen"
@@ -162,13 +159,10 @@ MatchSunlightToSunTooltip: |-
     Diese Option passt die Position der Sonnenlichtquelle an die sichtbare Position der Sonne an.
 MaxLights: "Max. Lichter"
 MaxLightsValue: "Max. Lichter ({value, number, :: group-off})"
-MaxLightsTooltip: "Standard: 16\nMaximale Anzahl von Lichtquellen, die ein Objekt beleuchten können.\n\nKleine Werte können gerade an Orten mit vielen Lichtquellen zum Aufploppen und zum schnellen Wechsel von Lichtern führen, wie es aus der Original-Engine und anderen The-Elder-Scrolls-Titeln bekannt ist."
+MaxLightsTooltip: "Standard: 8\nMaximale Anzahl von Lichtquellen, die ein Objekt beleuchten können.\n\nKleine Werte können gerade an Orten mit vielen Lichtquellen zum Aufploppen und zum schnellen Wechsel von Lichtern führen, wie es aus der Original-Engine und anderen The-Elder-Scrolls-Titeln bekannt ist."
 MenuHelpDelay: "Verzögerung des Hilfe-Menüs"
 MenuTransparency: "Menü-Transparenz"
 MouseAndKeyboard: "Maus/Tastatur"
-MouseEmulationCursor: "Mausemulationszeiger"
-ParticlePointLighting: "Partikel-Punktlichtbeleuchtung"
-ParticlePointLightingTooltip: "Ermöglicht die Beleuchtung von Partikelsystemen durch Punktlichter."
 PostProcessing: "Post-Processing"
 PostProcessingIsNotEnabled: "Post-Processing ist nicht aktiviert!"
 PostProcessingTooltip: "Wird über Post-Processing-HUD konfiguriert (siehe Tastenbelegung)."
@@ -232,30 +226,6 @@ WindowModeWindowedFullscreen: "Fenster in Vollbildgröße"
 # More fitting translations of "wobbly" are welcome
 WobblyShores: "Wabbelige Uferlinien"
 
-# Shadow settings
-
-Shadows: "Schatten"
-ActorShadows: "Schatten für Akteure aktivieren"
-ActorShadowsTooltip: "Schatten für NPCs und Kreaturen neben dem Spielercharakter aktivieren. Kann geringfügige Auswirkungen auf die Leistung haben."
-PlayerShadows: "Schatten für Spieler aktivieren"
-PlayerShadowsTooltip: "Schatten ausschließlich für den Spielercharakter aktivieren. Kann sehr geringfügige Auswirkungen auf die Leistung haben."
-TerrainShadows: "Schatten für Gelände aktivieren"
-TerrainShadowsTooltip: "Schatten für das Gelände inklusive ferner Geländeteile aktivieren. Kann erhebliche Auswirkungen auf die Leistung und Schattenqualität haben."
-ObjectShadows: "Schatten für Objekte aktivieren"
-ObjectShadowsTooltip: "Schatten für hauptsächlich unbelebte Objekte aktivieren. Kann erhebliche Auswirkungen auf die Leistung haben."
-IndoorShadows: "Schatten in Innenräumen aktivieren"
-IndoorShadowsTooltip: "Aufgrund von Einschränkungen der Spieldaten von Morrowind können in Innenräumen nur Akteure Schatten werfen, was von einigen als störend empfunden werden könnte. Hat keine Wirkung, wenn Akteur- oder Spielerschatten nicht aktiviert sind."
-ShadowPlanesComputationMethod: "Berechnungsmethode für Schattenebenen"
-ShadowPlanesComputationMethodTooltip: |-
-    Art der verwendeten Berechnungsmethode für Szenengrenzen ("compute scene bounds"). Begrenzungen (Standard) für eine gute Balance zwischen Leistung und Schattenqualität, Primitiven für schönere Schatten oder Keine für keine Berechnung.
-ShadowPlanesComputationMethodBounds: "Begrenzungen"
-ShadowPlanesComputationMethodPrimitives: "Primitiven"
-ShadowPlanesComputationMethodNone: "Keine"
-ShadowPlanesComputationMethodWarning: "Die Verwendung der Primitiven-Methode wird die Leistung stark beeinträchtigen und wird für das normale Gameplay nicht empfohlen."
-ShadowMapResolution: "Schattenauflösung"
-ShadowMapResolutionTooltip: "Die Auflösung jeder einzelnen Shadow-Map. Eine Erhöhung verbessert die Schattenqualität erheblich, kann aber geringfügige Auswirkungen auf die Leistung haben."
-ShadowsMaxDistanceValue: "Schatten-Distanzlimit ({value, number, :: group-off})"
-ShadowsMaxDistanceTooltip: "Die Entfernung von der Kamera, bei der Schatten vollständig verschwinden. Auf 0 setzen, um zu deaktivieren."
 
 # Controller button names
 

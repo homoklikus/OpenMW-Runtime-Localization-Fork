@@ -379,16 +379,18 @@ func pick_weather() -> void:
 ## Kierunek padania słońca we wnętrzu: pozycja (−1, 0,785, 0,785) w układzie MW → kierunek do sceny w Godocie.
 const INTERIOR_SUN_DIR := Vector3(1.0, -0.785398, 0.785398)
 const MIN_INTERIOR_BRIGHTNESS := 0.08          # [Shaders] minimum interior brightness (OpenMW, domyślnie)
+static var min_interior_brightness := MIN_INTERIOR_BRIGHTNESS   # ustawienie gry „minimum_interior_brightness”
 
 ## RenderingManager::configureAmbient: ambient wnętrza podniesiony do luminancji 0,08 (współczynniki Rec. 709
 ## na wartościach z rekordu), czarny – do szarości 0,08.
 static func interior_ambient(c: Color) -> Color:
 	var lum := 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b
-	if lum >= MIN_INTERIOR_BRIGHTNESS:
+	var mb := min_interior_brightness
+	if lum >= mb:
 		return c
 	if c.r == 0.0 and c.g == 0.0 and c.b == 0.0:
-		return Color(MIN_INTERIOR_BRIGHTNESS, MIN_INTERIOR_BRIGHTNESS, MIN_INTERIOR_BRIGHTNESS)
-	var k := MIN_INTERIOR_BRIGHTNESS / lum
+		return Color(mb, mb, mb)
+	var k := mb / lum
 	return Color(c.r * k, c.g * k, c.b * k)
 
 ## Wnętrze: światło otoczenia z rekordu komórki (AMBI), mgła liniowa z gęstości komórki (FogManager::configure),

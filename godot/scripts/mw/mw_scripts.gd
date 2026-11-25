@@ -1209,6 +1209,9 @@ func _state_function(fname: String, ref, args: Array, c: Ctx):
 			return null
 		"getpcjumping":
 			return 1.0 if m.player != null and bool(m.player.get("jumping")) else 0.0
+		"addtolevcreature", "removefromlevcreature", "addtolevitem", "removefromlevitem":
+			_lev_list(fname, _str(args, 0).to_lower(), _str(args, 1).to_lower(), int(_num(args, 2, c)))
+			return null
 		"getpcrunning":
 			# MechanicsManager::isRunning: postawa biegu i ruch biegiem albo w powietrzu (nie pływanie, nie lot)
 			var pr = m.player
@@ -1471,6 +1474,32 @@ func _world_function(fname: String, ref, args: Array, c: Ctx):
 	return NONE_FN
 
 var missing := {}                # funkcja → zależność niezrealizowana (raport)
+
+## AddToLev*/RemoveFromLev* (miscextensions.cpp addToLevList/removeFromLevList + ESMStore::overrideRecord): kopia
+## listy z dopisaną (bez duplikatu id + poziom) albo usuniętą pozycją (poziom −1 – wszystkie z tym id) zastępuje
+## rekord – w GameState.created (zapis gry), więc działa dla kolejnych losowań list i po wczytaniu.
+func _lev_list(fname: String, list_id: String, entry: String, level: int) -> void:
+	var m = game.main
+	var file := "leveledcreature" if fname.ends_with("creature") else "leveleditem"
+	var cur: Dictionary = m.builder.actors.record(file, list_id)
+	if cur.is_empty():
+		errors["%s: list %s not found" % [fname, list_id]] = int(errors.get("%s: list %s not found" % [fname, list_id], 0)) + 1
+		return
+	var rec: Dictionary = cur.duplicate(true)
+	var items: Array = rec.get("items", [])
+	if fname.begins_with("add"):
+		for it in items:
+			if int(it.get("level", 0)) == level and String(it.get("id", "")).to_lower() == entry:
+				return
+		items.append({"id": entry, "level": level})
+	else:
+		items = items.filter(func(it): return not (String(it.get("id", "")).to_lower() == entry and (level == -1 or int(it.get("level", 0)) == level)))
+	rec["items"] = items
+	var created: Dictionary = m.state.created
+	if not created.get(file) is Dictionary:
+		created[file] = {}
+	created[file][list_id] = rec
+	m.builder.actors.dynamic = created
 
 ## Get/Set/ModPCVisionBonus: Night Eye gracza (efekt 43) ograniczony do [0, 1]; Set/Mod przez modifyBase.
 func _vision_bonus(fname: String, args: Array, c: Ctx):

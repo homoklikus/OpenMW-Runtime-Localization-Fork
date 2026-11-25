@@ -26,7 +26,8 @@ const MAX_TEXT := 10000
 const CONSOLE_ONLY := ["coc", "centeroncell", "coe", "centeronexterior", "tgm", "togglegodmode", "tcl",
 	"togglecollision", "tai", "toggleai", "fillmap", "tm", "togglemenus", "sv", "showvars", "help", "ra",
 	"resetactors", "fixme", "ts", "togglesky", "twa", "togglewater", "twf", "togglewireframe", "tw",
-	"toggleworld", "togglescripts", "tfh", "togglefullhelp", "user1", "user2", "user3", "user4", "tfow", "togglefogofwar"]
+	"toggleworld", "togglescripts", "tfh", "togglefullhelp", "user1", "user2", "user3", "user4", "tfow", "togglefogofwar", "bc", "betacomment", "ori", "tpg", "togglepathgrid", "tcb", "togglecollisionboxes", "tcg",
+	"togglecollisiongrid", "tb", "toggleborders", "menutest", "testcells", "testinteriorcells", "t3d", "testmodels"]
 
 var main
 var win: Control = null
@@ -342,10 +343,99 @@ func _console_only(name: String, args: Array, ref, who: Dictionary) -> void:
 			if main.get("map_window") != null and main.map_window.visible:
 				main.map_window._build_local()                 # applyFogOfWar: tekstury mgły od razu
 			print_ok("Fog of war -> %s" % ("On" if main.fog_of_war else "Off"))
+		"tpg", "togglepathgrid":
+			var on3: bool = main.debug_render.toggle("pathgrid")
+			print_ok("Path Grid rendering -> On" if on3 else "Path Grid Rendering -> Off")     # sic: OpenMW
+		"tcb", "togglecollisionboxes", "tcg", "togglecollisiongrid":
+			print_ok("Collision Mesh Rendering -> %s" % ("On" if main.debug_render.toggle("collision") else "Off"))
+		"tb", "toggleborders":
+			print_ok("Border Rendering -> %s" % ("On" if main.debug_render.toggle("borders") else "Off"))
+		"testcells", "testinteriorcells":
+			var inter := name == "testinteriorcells"
+			if String(main.game_state) != "nogame":
+				print_ok("Use %s from the main menu, when there is no active game session." % ("TestInteriorCells" if inter else "TestCells"))
+				return
+			var was := is_open()
+			if was:
+				close()                                # toggleConsole – na czas testu konsola zamknięta
+			main.test_cells(inter)
+			if was:
+				open()
+		"t3d", "testmodels":
+			# OpTestModels: modele obiektów (aktywatory, przyrządy, pancerze, mikstury, części ciała, księgi, ubrania,
+			# pojemniki, stworzenia, drzwi, składniki, światła, wytrychy, drobiazgi, sondy, narzędzia, statyki, broń)
+			var types := ["ACTI", "APPA", "ARMO", "ALCH", "BODY", "BOOK", "CLOT", "CONT", "CREA", "DOOR", "INGR", "LIGH",
+				"LOCK", "MISC", "PROB", "REPA", "STAT", "WEAP"]
+			var n := 0
+			var objs: Dictionary = main.db.objects()
+			for id in objs:
+				var o: Dictionary = objs[id]
+				if not String(o.get("type", "")) in types or String(o.get("glb", "")).is_empty():
+					continue
+				if main.builder.models.get_scene(String(o.glb)) == null:
+					push_warning("TestModels: failed to load %s (%s)" % [String(o.glb), String(id)])
+				n += 1
+			print_ok("Attempted to load models for %d objects. Check the log for details." % n)
+		"menutest":
+			# OpMenuTest: bez argumentu – zdjęcie trybów GM_Inventory i GM_Container; 3–6 – przypięcie okna
+			# (statystyki, ekwipunek, magia, mapa – WindowManager::pinWindow)
+			var a := int(_arg_num(args, 0)) if args.size() > 0 else 0
+			if a == 0:
+				for md in ["inventory", "container"]:
+					if main.gui.contains(md):
+						main.gui.remove(md)
+			else:
+				var win_name: String = {3: "stats", 4: "inventory", 5: "magic", 6: "map"}.get(a, "")
+				if not win_name.is_empty() and not main.menu_mode.is_pinned(win_name):
+					main.menu_mode.toggle_pin(win_name)
+		"bc", "betacomment", "ori":
+			var n: Node = selected if ref == null else main.script_host.find_ref_by_base(String(ref).to_lower())
+			if n == null or not is_instance_valid(n):
+				print_error("Error: no object selected")
+				return
+			print_ok(beta_comment(n, args.map(func(a): return _arg_str([a], 0))))
 		"user1", "user2", "user3", "user4":
 			print_ok("%s: not in use" % name)                # OpUser1–4
 		"ra", "resetactors", "fixme":
 			print_error("Error: %s is not supported" % name)
+
+## OpBetaComment (BetaComment / bc / ori – OutputRefInfo): czas zgłoszenia (UTC), plik treści i RefNum (z sid
+## „<plik>#<refnum>”), RefID, komórka, siatka, współrzędne, model, skrypt, notatki. Bez listy tekstur modelu
+## (TextureFetchVisitor i archiwa VFS – port czyta przekonwertowane modele, nie BSA).
+func beta_comment(n: Node, notes: Array) -> String:
+	var it = main.interaction
+	var sid := String(n.get_meta("mw_sid", ""))
+	var base := String(n.get_meta("mw_base", "")).to_lower()
+	var out := "Report time: %s UTC\n" % Time.get_datetime_string_from_system(true).replace("-", ".").replace("T", " ")
+	var file := sid.get_slice("#", 0) if sid.contains("#") else ""
+	if file.is_empty() or file.begins_with("dyn"):
+		out += "Content file: -1 [None]\n"
+	else:
+		var idx := -1
+		var hdr: Array = main.save_header().get("content", [])
+		for i in hdr.size():
+			if String(hdr[i].get("name", "")).to_lower() == file.to_lower():
+				idx = i
+		out += "Content file: %d [%s]\n" % [idx, file]
+	out += "RefNum: %s\n" % (sid.get_slice("#", 1) if sid.contains("#") else sid)
+	if sid != "" and not main.state.is_enabled(sid) and bool(main.state.refs.get(sid, {}).get("deleted", false)):
+		out += "[Deleted]\n"
+	out += "RefID: %s\n" % base
+	var mw: Vector3 = MWCoords.godot_to_mw((n as Node3D).global_position) if n is Node3D else Vector3.ZERO
+	out += "Cell: %s\n" % main.cell_name_for_save()
+	if String(main.interior).is_empty():
+		var g: Vector2i = MWCoords.cell_of((n as Node3D).global_position)
+		out += "Grid: %d %d\n" % [g.x, g.y]
+	out += "Coordinates: %s %s %s\n" % [_num_str(mw.x), _num_str(mw.y), _num_str(mw.z)]
+	var model := String(it.base_of(n).get("model", ""))
+	out += "Model: %s\n" % ("meshes/" + model.to_lower() if not model.is_empty() else "")
+	var scr := String(main.tooltips._record_of(n).get("script", "")) if main.get("tooltips") != null else ""
+	if not scr.is_empty():
+		out += "Script: %s\n" % scr
+	for t in notes:
+		if not String(t).is_empty():
+			out += "Notes: %s\n" % t
+	return out.strip_edges(false, true)
 
 ## ShowVars: zmienne lokalne skryptu wybranego obiektu albo globalne.
 func _show_vars(who) -> void:

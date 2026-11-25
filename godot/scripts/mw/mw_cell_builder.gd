@@ -212,7 +212,21 @@ func build_ref(r: Dictionary) -> Node3D:
 const LIGHT_RADIUS_MULT := 1.75
 const GAMMA := 2.2
 
+## [Shaders] maximum light distance (8192 j., 0 – bez wygaszania) i light fade start (0,85): LightManager – światło
+## gaśnie liniowo między start × odległość a odległością od kamery (u Godota: distance fade świateł).
+static var light_fade_end := 8192.0
+static var light_fade_start := 0.85
+
+static func apply_light_fade(ol: Light3D) -> void:
+	ol.distance_fade_enabled = light_fade_end > 0.0
+	if light_fade_end > 0.0:
+		var b := light_fade_end * light_fade_start / MWCoords.UNITS_PER_METER
+		ol.distance_fade_begin = b
+		ol.distance_fade_length = maxf(light_fade_end / MWCoords.UNITS_PER_METER - b, 0.001)
+		ol.distance_fade_shadow = ol.distance_fade_begin + ol.distance_fade_length
+
 static func configure_light(ol: OmniLight3D, radius_units: float, color: Color) -> void:
+	apply_light_fade(ol)
 	var r := maxf(radius_units, 16.0) / MWCoords.UNITS_PER_METER
 	ol.light_color = color
 	ol.omni_range = LIGHT_RADIUS_MULT * r

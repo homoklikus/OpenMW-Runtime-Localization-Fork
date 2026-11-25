@@ -240,10 +240,8 @@ static func ctx_text(ctx: String, key: String, fallback := "", args := {}) -> St
 		s = s.replace("{%s}" % k, str(args[k]))
 	return s.replace("''", "'")
 
-## DateTimeManager::formatTimeOfDay: Calendar „timeFormat” z {hour}, {hour12}, {minute}, {period} (am/pm).
+## Godzina jak WaitDialog/SaveGameDialog OpenMW 0.51: „%i %s” – godzina 1–12 i #{Calendar:am}/#{Calendar:pm}.
 static func time_of_day(hour: float) -> String:
-	var minutes := int(hour * 60.0)
-	var h24 := minutes / 60
+	var h24 := int(hour * 60.0) / 60
 	var period := ctx_text("Calendar", "am" if h24 < 12 else "pm")
-	return ctx_text("Calendar", "timeFormat", "{hour12} {period}",
-		{"hour": h24, "hour12": (h24 + 11) % 12 + 1, "minute": "%02d" % (minutes % 60), "period": period})
+	return "%d %s" % [(h24 + 11) % 12 + 1, period]

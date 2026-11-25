@@ -705,7 +705,16 @@ Test `test_trade_sources.gd` (26) w `run_tests.sh`; `test_trade.gd` bez zmian za
 
 **Okno naprawy (P1.2, wiersz narzędzia):** wg `openmw_repair.layout` i `Gui::Box` – odstęp 4 px w wierszu i między
 etykietami sUses/sQuality (było 0), etykiety w skórce SandText, ikona narzędzia i ToolBox wyśrodkowane w pionie
-wiersza (HBox::align). Porównanie zrzutem z OpenMW (`ui_repair_e9_3440`) – do powtórzenia na VM. Pozostałe odstępstwa
+wiersza (HBox::align). Porównanie zrzutem z OpenMW (`ui_repair_e9_3440`, VM, renderer zgodności, 3440 × 1440,
+cz. 28): ramka okna IoU 1,000; wiersze tekstu sUses/sQuality w OpenMW zaczynają się w y = 861 i 881 – przed poprawką
+w porcie 863 i 879, po poprawce 861 i 881 (dół wierszy 872/896 wobec 871/894 – rasteryzacja czcionki); przycisk
+Cancel 866–887 wobec 866–888; bloki 8 × 8 z różnicą w oknie: 136 → 133 z 2016 (pozostałe – tekst).
+
+**Lista kupca – porównanie zrzutem** (`ui_windows_e8_3440`, handel u Arrille, VM, cz. 28): siatka okna kupca
+podzielona na pola 42 × 42 (600 pól) – pola z różnicą średniej jasności > 12: przed poprawkami cz. 25 **43**,
+po **15** (średnia różnica 3,48 → 2,48). Pozostałe różnice są pojedyncze w pierwszych kolumnach siatki (nie ma
+przesunięcia całej listy – kolejność i skład zgodne co do pozycji); przyczyna pojedynczych pól (liczby sztuk,
+tła przedmiotów magicznych) – nie zbadana, do sprawdzenia lokalnie. Pozostałe odstępstwa
 modelu przedmiotów: stos po identyfikatorze – założony egzemplarz w tym samym stosie co niezałożone (OpenMW:
 osobny stos Type_Equipped), przedmioty ze skryptem łączone w stos (OpenMW: nie), przedmioty przywołane (Flag_Bound)
 – port nie oznacza ich w ekwipunku kupca. Wpływ: tylko u kupców z założonymi lub oskryptowanymi przedmiotami.
@@ -766,10 +775,11 @@ wybór rozdzielczości nie ma skutku.
 
 | Kategoria | Nazwy |
 |---|---|
-| 1. zaimplementowane (269) | wszystkie pozostałe; w cz. 27 doszły: GetPCRunning, GetWindSpeed (0 we wnętrzach), Get/Set/ModPCVisionBonus (Night Eye ograniczony do [0, 1]), PCGet3rdPerson (0 – widok zawsze pierwszoosobowy), PCForce1stPerson, ToggleSky (ts), ToggleWater (twa), ToggleWireframe (twf), ToggleWorld (tw), ToggleScripts, ToggleFullHelp (tfh – pełna pomoc w podpowiedziach: Owner, Owner Faction, Rank, Global, Script), ToggleFogOfWar (tfow), User1–4 |
-| 2. brakujące, możliwe teraz (zostały) | AddToLevCreature, AddToLevItem, RemoveFromLevCreature, RemoveFromLevItem (zmiana list poziomowanych zapisywana w grze – potrzebny nadpis rekordów LEVC/LEVI w GameState), ToggleBorders (tb), TogglePathGrid (tpg), ToggleCollisionBoxes (tcb), ToggleCollisionGrid (tcg), BetaComment (bc), ORI (informacje o referencji), MenuTest, TestCells, TestInteriorCells, TestModels (t3d) – narzędzia testowe |
+| 1. zaimplementowane (285) | wszystkie pozostałe; w cz. 27–28 doszły: GetPCRunning, GetWindSpeed (0 we wnętrzach), Get/Set/ModPCVisionBonus (Night Eye ograniczony do [0, 1]), PCGet3rdPerson (0 – widok zawsze pierwszoosobowy), PCForce1stPerson, ToggleSky (ts), ToggleWater (twa), ToggleWireframe (twf), ToggleWorld (tw), ToggleScripts, ToggleFullHelp (tfh – pełna pomoc w podpowiedziach: Owner, Owner Faction, Rank, Global, Script), ToggleFogOfWar (tfow), User1–4; **cz. 28:** AddToLevCreature, AddToLevItem, RemoveFromLevCreature, RemoveFromLevItem (kopia listy z dopisaną/usuniętą pozycją jako rekord w GameState.created – ESMStore::overrideRecord, w zapisie gry), TogglePathGrid (tpg – romby i krawędzie jak createPathgridGeometry), ToggleCollisionBoxes / ToggleCollisionGrid (tcb / tcg – kształty kolizji), ToggleBorders (tb – CellBorder: 2 × 40 odcinków 10 j. nad terenem, czarno-żółte), BetaComment / bc / ORI (czas, plik treści, RefNum, RefID, komórka, siatka, współrzędne, model, skrypt, notatki), MenuTest, TestCells, TestInteriorCells (tylko bez gry, jak OpenMW), TestModels (t3d) |
+| 2. brakujące, możliwe teraz | brak |
 | 3. zależne od nieprzeniesionych części | PCForce3rdPerson, ToggleVanityMode (tvm) – kamera trzecioosobowa (MWRender::Camera); GetMasserPhase, GetSecundaPhase, TurnMoonRed/White – księżyce nieba (SkyManager::Moon); ReloadLua – Lua; ShowSceneGraph – graf sceny OSG; ToggleNavMesh, ToggleRecastMesh, ToggleActorsPaths (tap), SetNavMeshNumber – DetourNavigator (port używa nawigacji Godota) |
 
+BetaComment bez listy tekstur modelu (TextureFetchVisitor i archiwa BSA w VFS – port czyta przekonwertowane modele).
 Pełna pomoc: bez wierszy „Stolen … from …” (port nie prowadzi rejestru skradzionych przedmiotów według właścicieli,
 MechanicsManager::getStolenItemOwners) i bez dopisku postaci wilkołaka w nazwie NPC.
 
@@ -778,18 +788,21 @@ MechanicsManager::getStolenItemOwners) i bez dopisku postaci wilkołaka w nazwie
 | Kategoria | Ustawienia |
 |---|---|
 | 1. zaimplementowane | GUI: menu transparency, tooltip delay, subtitles; Game: difficulty, actors processing range, best attack; Saves: autosave; HUD: crosshair; Sound: 5 głośności; Input: invert x/y, camera sensitivity, enable controller; Video: rozdzielczość, tryb okna, VSync, window border; Camera: field of view, viewing distance; Water: shader; General: gmst overrides l10n; Language; w cz. 27: **[General] anisotropy** (suwak w Detail Level, poziom filtrowania anizotropowego widoku), **[Water] refraction, sunlight scattering, wobbly shores** (przełączniki w zakładce Water; gałęzie @waterRefraction / @sunlightScattering / @wobblyShores w shaderze wody, bez załamania – kolor wody z odbiciem i przezroczystość waterTransparency; domyślnie jak settings-default.cfg: refraction wyłączone) |
-| 2. brakujące, możliwe teraz (zostały) | Texture Filtering (Bilinear/Trilinear – filtr mipmap w materiałach), Lights: maximum light distance, light fade start, light bounds multiplier, minimum interior brightness, max lights (odpowiedniki w oświetleniu Godota), Shadows: odległość i rozdzielczość map cieni, cienie aktorów/gracza/obiektów/terenu/wnętrz |
-| 3. zależne | Post Processing enabled – post-processing OpenMW (omwfx) nieprzeniesiony; Video gamma – rampa gammy monitora (SDL_SetWindowGammaRamp), Godot nie ma odpowiednika; Shaders: lighting method, force per pixel lighting, classic falloff, clamp lighting, match sunlight to sun – potok oświetlenia OpenMW (Godot Forward+ ma własny); Water: texture quality, reflection detail, rain ripple detail – odbicie wody jest przybliżeniem nieba (bez kamery odbicia RTT) i bez zmarszczek deszczu; zakładka Scripts – Lua |
+| 2. brakujące, możliwe teraz | brak – w cz. 28 doszły [Shaders] maximum light distance i light fade start (wygaszanie świateł z odległością od kamery: distance fade świateł Godota od start × odległość do odległości) oraz minimum interior brightness (ambient wnętrza); ustawiane w pliku ustawień gry (`maximum_light_distance`, `light_fade_start`, `minimum_interior_brightness`) – zakładki Lights w oknie opcji nie dodano, bo jej pozostałe pola (lighting method, max lights, light bounds multiplier, przełączniki Shaders) zależą od potoku oświetlenia OpenMW, a układ VBox tej zakładki bez nich byłby inny niż w 0.51 |
+| 3. zależne | Texture Filtering (Bilinear/Trilinear) – filtr mipmap próbników Godota ustalany przy starcie (rendering/textures/default_filters), OpenMW zmienia go w trakcie gry; Shadows – w oknie opcji 0.51 tej zakładki nie ma; Post Processing enabled – post-processing OpenMW (omwfx) nieprzeniesiony; Video gamma – rampa gammy monitora (SDL_SetWindowGammaRamp), Godot nie ma odpowiednika; Shaders: lighting method, force per pixel lighting, classic falloff, clamp lighting, match sunlight to sun – potok oświetlenia OpenMW (Godot Forward+ ma własny); Water: texture quality, reflection detail, rain ripple detail – odbicie wody jest przybliżeniem nieba (bez kamery odbicia RTT) i bez zmarszczek deszczu; zakładka Scripts – Lua |
 
-Odstępstwo zauważone przy tym punkcie: pliki `godot/l10n/OMWEngine/*.yaml` w porcie pochodzą z nowszej wersji
-OpenMW niż 0.51 (np. `LightsClusteredLighting` zamiast `LightingMethod`, brak `AnisotropyValue` – dodany z 0.51).
-Teksty okna opcji pochodzą z tych plików – do wymiany na pliki 0.51 w osobnym kroku.
-Test `test_console_toggles.gd` (35).
+Pliki `godot/l10n/OMWEngine/*.yaml` i `Calendar/en.yaml` pochodziły z nowszej wersji OpenMW niż 0.51 (np.
+`LightsClusteredLighting` zamiast `LightingMethod`, Calendar `timeFormat`) – w cz. 28 zastąpione plikami 0.51; żaden
+usunięty klucz nie był używany w kodzie poza `timeFormat` (godzina w oknie odpoczynku i zapisu liczona teraz jak
+WaitDialog/SaveGameDialog 0.51: „%i %s” z #{Calendar:am}/#{Calendar:pm} – ten sam wynik).
+Test `test_console_toggles.gd` (53).
 
 ### 7.21 Werdykt etapu GUI
 
-Etapu 10 **nie można zamknąć**: zostały pozycje kategorii 2 z punktu 7.20 (polecenia konsoli i ustawienia
-możliwe do zrobienia teraz), potwierdzenie przejść okno ↔ pełny ekran z launchera (X11) i wymiana plików l10n na 0.51.
+Etapu 10 **nie można zamknąć** bez potwierdzenia na sprzęcie użytkownika z launchera (X11): ekran ładowania przy
+wczytaniu zapisu, przejścia okno ↔ pełny ekran i wyśrodkowanie okna. Okno naprawy i lista kupca porównane zrzutami
+z OpenMW na VM (punkt 7.17) – w liście kupca zostały pojedyncze różnice pól (do sprawdzenia lokalnie). Kategoria 2
+z punktu 7.20 – wyczerpana; pliki l10n OMWEngine i Calendar – z 0.51 (cz. 28).
 Ekran ładowania przy wczytaniu zapisu – naprawiony i zmierzony na RTX 5090 użytkownika (punkt 7.17; proces przez
 MCP na Wayland – potwierdzenie z launchera po stronie użytkownika). Lista towarów kupca – przyczyny usunięte
 (punkt 7.17), porównanie zrzutem z OpenMW u tego samego kupca – do zrobienia.
@@ -829,11 +842,12 @@ Mody – zgodnie z poleceniem nie testowane (kolejność: najpierw klasyczne GUI
 * Etap 10 cz. 25: ekran ładowania rysowany przez RenderingServer, towar kupca jak TradeWindow OpenMW
 * Etap 10 cz. 26: akcje sterowania OpenMW 0.51 (AlwaysRun, AutoMove, Cycle, Screenshot, domyślne klawisze)
 * Etap 10 cz. 27: konsola i ustawienia – kategorie, przełączniki, anizotropia, opcje wody; diagnostyka trybów okna
+* Etap 10 cz. 28: listy poziomowane, przełączniki debugowe, BetaComment, TestCells/TestModels, światła, l10n 0.51
 
-Pełny zestaw tools/run_tests.sh: 72/72 po cz. 27 (nowe test_player_controls i test_console_toggles; test_loading_render powtórzony osobno po zniknięciu serwera Xvfb w trakcie przebiegu – środowisko, nie test); 70/70 po cz. 25 (nowe test_trade_sources i test_loading_render; Xvfb + lavapipe); 68/68 po cz. 21–23 (z nowym test_load_reveal; test_count_dialog, test_trade, test_map_notes, test_load_reveal powtórzone na końcowym kodzie cz. 23); 67/67 po cz. 20; 66/66 po cz. 19 (38 w przebiegu, test_progress poprawiony i 28 kolejnych po poprawce); 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
+Pełny zestaw tools/run_tests.sh: 72/72 po cz. 28 (test_language wykrył polski komunikat błędu w nowym kodzie – poprawiony, testy od test_language powtórzone); 72/72 po cz. 27 (nowe test_player_controls i test_console_toggles; test_loading_render powtórzony osobno po zniknięciu serwera Xvfb w trakcie przebiegu – środowisko, nie test); 70/70 po cz. 25 (nowe test_trade_sources i test_loading_render; Xvfb + lavapipe); 68/68 po cz. 21–23 (z nowym test_load_reveal; test_count_dialog, test_trade, test_map_notes, test_load_reveal powtórzone na końcowym kodzie cz. 23); 67/67 po cz. 20; 66/66 po cz. 19 (38 w przebiegu, test_progress poprawiony i 28 kolejnych po poprawce); 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 
 ## 9. Zalecana kolejność dalszych prac
 
-1. Kategoria 2 z punktu 7.20 (listy poziomowane, przełączniki debugowe, filtrowanie tekstur, Lights, Shadows),
-2. pliki l10n OMWEngine z 0.51, 3. potwierdzenie przejść okno ↔ pełny ekran z launchera (X11), 4. porównanie zrzutem
-okna naprawy i listy kupca z OpenMW. Mody – dopiero po zamknięciu klasycznego GUI.
+1. Potwierdzenie przez użytkownika z launchera: ekran ładowania, przejścia okno ↔ pełny ekran, wyśrodkowanie okna,
+2. pojedyncze różnice pól listy kupca u Arrille (porównanie listy towaru OpenMW wprost – np. przez Lua – i portu).
+Mody – dopiero po zamknięciu klasycznego GUI.

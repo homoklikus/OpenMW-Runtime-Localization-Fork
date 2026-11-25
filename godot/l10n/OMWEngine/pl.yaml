@@ -131,24 +131,20 @@ InvertXAxis: "Odwróć oś X"
 InvertYAxis: "Odwróć oś Y"
 Language: "Język"
 LanguageNote: "Uwaga: te ustawienia nie wpływają na teksty z plików ESM."
-LightsClusteredLighting: "Oświetlenie klastrowe"
-LightingResetToDefaults: "Przywrócić domyślne wartości?"
+LightingMethod: "Metoda oświetlenia"
+LightingMethodShaders: "Shadery"
+LightingMethodShadersCompatibility: "Shadery (kompatybilne)"
+LightingResetToDefaults: "Przywrócić domyślne wartości? Zmiany w metodzie oświetlenia wymagają ponownego uruchomienia."
 Lights: "Światła"
-LightRadiusMultiplier: "Mnożnik promienia"
-LightRadiusMultiplierValue: "Mnożnik promienia ({value, number, ::.00})"
-LightRadiusMultiplierTooltip: "Domyślnie: 1.75\nMnożnik promienia światła punktowego. Większe wartości zwiększają zasięg świateł."
+LightsBoundingSphereMultiplier: "Mnożnik sfery ograniczającej"
+LightsBoundingSphereMultiplierValue: "Mnożnik sfery ograniczającej ({value, number, ::.00})"
+LightsBoundingSphereMultiplierTooltip: "Domyślnie: 1.65\nMnożnik sfery ograniczającej światła.\nWiększe wartości pozwalają na płynniejsze zanikanie,\nale wymagają zwiększenia liczby maksymalnych świateł.\n\nNie wpływa na siłę ani zasięg światła."
 LightsFadeStartMultiplier: "Mnożnik początku zanikania"
 LightsFadeStartMultiplierValue: "Mnożnik początku zanikania ({value, number, ::.00})"
 LightsFadeStartMultiplierTooltip: "Domyślnie: 0.85\nProcent maksymalnego zasięgu, w którym światła zaczną zanikać.\n\nNiska wartość = wolniejsze przejścia.\nWysoka wartość = szybsze przejścia."
-LightsClusteredLightingTooltip: |-
- Włącza oświetlenie klastrowe.
- Dzieli ekran na regiony w celu przypisania źródeł światła, eliminując ograniczenia liczby świateł przypadających na obiekt.
-
- Opcje klasycznego zanikania światła oraz maksymalnej liczby świateł nie mają zastosowania w tym trybie.
-
- Włącza refleksy świetlne od świateł punktowych na powierzchni wody, gdy shader wody jest aktywny.
-
- Zdecydowanie zaleca się używanie tej opcji wraz z oświetleniem per-pixel, ponieważ oświetlenie wierzchołkowe może powodować widoczne przeskoki oświetlenia na krawędziach ekranu.
+LightsLightingMethodTooltip: "Ustawia wewnętrzne przetwarzanie źródeł światła.\n\n
+    \"Shadery (kompatybilne)\" Zalecane dla starszego sprzętu.\n\n
+    \"Shadery\" oferuje te same zalety co wersja kompatybilna, ale działa nowocześnie i pozwala na więcej świateł bez dużych kosztów wydajności."
 LightsMaximumDistance: "Maksymalny zasięg światła"
 LightsMaximumDistanceValue: "Maksymalny zasięg światła ({value, number, :: group-off})"
 LightsMaximumDistanceTooltip: "Domyślnie: 8192\nMaksymalna odległość wyświetlania świateł (w jednostkach).\n\n0 = brak ograniczenia."
@@ -163,13 +159,10 @@ MatchSunlightToSunTooltip: |-
     Ta opcja sprawia, że źródło światła słonecznego zgadza się z faktyczną pozycją słońca.
 MaxLights: "Maksymalna liczba świateł"
 MaxLightsValue: "Maksymalna liczba świateł ({value, number, :: group-off})"
-MaxLightsTooltip: "Domyślnie: 16\nMaksymalna liczba świateł na obiekt.\n\nNiska wartość = efekt 'wyskakiwania' świateł, jak w Morrowind."
+MaxLightsTooltip: "Domyślnie: 8\nMaksymalna liczba świateł na obiekt.\n\nNiska wartość = efekt 'wyskakiwania' świateł, jak w Morrowind."
 MenuHelpDelay: "Opóźnienie pomocy w menu"
 MenuTransparency: "Przezroczystość menu"
 MouseAndKeyboard: "Mysz i klawiatura"
-MouseEmulationCursor: "Kursor emulujący mysz"
-ParticlePointLighting: "Oświetlenie punktowe cząsteczek"
-ParticlePointLightingTooltip: "Umożliwia oświetlanie systemów cząsteczek przez światła punktowe."
 PostProcessing: "Post-processing"
 PostProcessingIsNotEnabled: "Post-processing nie jest włączony"
 PostProcessingTooltip: "Dostosowywany przez HUD Post-processingu, patrz przypisania klawiszy."
@@ -232,30 +225,6 @@ WindowModeWindowed: "W oknie"
 WindowModeWindowedFullscreen: "Pełny ekran w oknie"
 WobblyShores: "Falujące brzegi"
 
-# Shadow settings
-
-Shadows: "Cienie"
-ActorShadows: "Włącz cienie aktorów"
-ActorShadowsTooltip: "Włącz cienie dla NPC oraz stworzeń oprócz postaci gracza. Może mieć niewielki wpływ na wydajność."
-PlayerShadows: "Włącz cienie gracza"
-PlayerShadowsTooltip: "Włącz cienie wyłącznie dla postaci gracza. Może mieć bardzo niewielki wpływ na wydajność."
-TerrainShadows: "Włącz cienie terenu"
-TerrainShadowsTooltip: "Włącz cienie dla terenu, w tym odległego terenu. Może mieć znaczący wpływ na wydajność i jakość cieni."
-ObjectShadows: "Włącz cienie obiektów"
-ObjectShadowsTooltip: "Włącz cienie dla głównie nieożywionych. Może mieć znaczący wpływ na wydajność."
-IndoorShadows: "Włącz cienie wewnątrz budynków"
-IndoorShadowsTooltip: "Z powodu ograniczeń danych Morrowind, tylko postacie mogą rzucać cienie wewnątrz budynków, co niektórych może rozpraszać. Nie ma efektu, jeśli cienie postaci/gracza nie są włączone."
-ShadowPlanesComputationMethod: "Metoda obliczania płaszczyzn cieni"
-ShadowPlanesComputationMethodTooltip: |-
-    Typ metody obliczania "granicy sceny" do użycia. "Granice" (domyślnie) zapewniają dobrą równowagę między wydajnością a jakością cieni, "elementy podstawowe" dla lepszego wyglądu cieni, a "brak" oznacza brak obliczeń.
-ShadowPlanesComputationMethodBounds: "Granice"
-ShadowPlanesComputationMethodPrimitives: "Elementy podstawowe"
-ShadowPlanesComputationMethodNone: "Brak"
-ShadowPlanesComputationMethodWarning: "Użycie metody elementów podstawowych znacznie obniży wydajność i nie jest zalecane podczas normalnej rozgrywki."
-ShadowMapResolution: "Rozdzielczość mapy cieni"
-ShadowMapResolutionTooltip: "Rozdzielczość każdej indywidualnej mapy cieni. Jej zwiększenie znacznie poprawia jakość cieni, ale może mieć niewielki wpływ na wydajność."
-ShadowsMaxDistanceValue: "Limit odległości cieni ({value, number, :: group-off})"
-ShadowsMaxDistanceTooltip: "Dystans od kamery, przy której cienie całkowicie znikają. Ustaw na 0, aby wyłączyć."
 
 # Controller button names
 

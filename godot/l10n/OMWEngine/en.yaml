@@ -131,24 +131,20 @@ InvertXAxis: "Invert X Axis"
 InvertYAxis: "Invert Y Axis"
 Language: "Language"
 LanguageNote: "Note: these settings do not affect strings from ESM files."
-LightsClusteredLighting: "Clustered Lighting"
-LightingResetToDefaults: "Resets to default values, would you like to continue?"
+LightingMethod: "Lighting Method"
+LightingMethodShaders: "Shaders"
+LightingMethodShadersCompatibility: "Shaders (compatibility)"
+LightingResetToDefaults: "Resets to default values, would you like to continue? Changes to lighting method will require a restart."
 Lights: "Lights"
-LightRadiusMultiplier: "Radius Multiplier"
-LightRadiusMultiplierValue: "Radius Multiplier ({value, number, ::.00})"
-LightRadiusMultiplierTooltip: "Default: 1.75\nMultiplier for point light radius. Larger values will increase the range of lights."
+LightsBoundingSphereMultiplier: "Bounding Sphere Multiplier"
+LightsBoundingSphereMultiplierValue: "Bounding Sphere Multiplier ({value, number, ::.00})"
+LightsBoundingSphereMultiplierTooltip: "Default: 1.65\nMultiplier for bounding sphere of lights.\nHigher numbers allows for smooth falloff but require an increase in number of max lights.\n\nDoes not effect the illumination or strength of lights."
 LightsFadeStartMultiplier: "Fade Start Multiplier"
 LightsFadeStartMultiplierValue: "Fade Start Multiplier ({value, number, ::.00})"
 LightsFadeStartMultiplierTooltip: "Default: 0.85\nFraction of maximum distance at which lights will start to fade.\n\nSet this to a low value for slower transitions or a high value for quicker transitions."
-LightsClusteredLightingTooltip:  |-
-    Enable clustered lighting.
-    Divides the screen into regions to assign lights, removing per-object light limits.
-
-    Classic falloff and max light options do not apply in this mode.
-
-    Enables point light specular highlights on the water plane when the water shader is enabled.
-
-    It is highly recommended to use this with per-pixel lighting enabled, as vertex lighting can cause light pop at screen edges.
+LightsLightingMethodTooltip: "Set the internal handling of light sources.\n\n
+    \"Shaders (compatibility)\" It is recommended to use this with older hardware and a light limit closer to 8.\n\n
+    \"Shaders\" carries all of the benefits that \"Shaders (compatibility)\" does, but uses a modern approach that allows for a higher max lights count with little to no performance penalties on modern hardware."
 LightsMaximumDistance: "Maximum Light Distance"
 LightsMaximumDistanceValue: "Maximum Light Distance ({value, number, :: group-off})"
 LightsMaximumDistanceTooltip: "Default: 8192\nMaximum distance at which lights will appear (measured in units).\n\nSet this to 0 to use an unlimited distance."
@@ -163,13 +159,10 @@ MatchSunlightToSunTooltip: |-
     This option makes the sun light source's position match the sun's position.
 MaxLights: "Max Lights"
 MaxLightsValue: "Max Lights ({value, number, :: group-off})"
-MaxLightsTooltip: "Default: 16\nMaximum number of lights per object.\n\nA low number near default will cause light popping similar to what you would see in Morrowind."
+MaxLightsTooltip: "Default: 8\nMaximum number of lights per object.\n\nA low number near default will cause light popping similar to what you would see in Morrowind."
 MenuHelpDelay: "Menu Help Delay"
 MenuTransparency: "Menu Transparency"
 MouseAndKeyboard: "Mouse/Keyboard"
-MouseEmulationCursor: "Mouse Emulation Cursor"
-ParticlePointLighting: "Particle Point Lighting"
-ParticlePointLightingTooltip: "Allows particle systems to be lit by point lights."
 PostProcessing: "Post Processing"
 PostProcessingIsNotEnabled: "Postprocessor is not enabled"
 PostProcessingTooltip: "Tweaked via Post Processor HUD, see input bindings."
@@ -232,30 +225,6 @@ WindowModeWindowed: "Windowed"
 WindowModeWindowedFullscreen: "Windowed Fullscreen"
 WobblyShores: "Wobbly Shores"
 
-# Shadow settings
-
-Shadows: "Shadows"
-ActorShadows: "Enable Actor Shadows"
-ActorShadowsTooltip: "Enable shadows for NPCs and creatures besides the player character. May have a minor performance impact."
-PlayerShadows: "Enable Player Shadows"
-PlayerShadowsTooltip: "Enable shadows exclusively for the player character. May have a very minor performance impact."
-TerrainShadows: "Enable Terrain Shadows"
-TerrainShadowsTooltip: "Enable shadows for the terrain including distant terrain. May have a significant performance and shadow quality impact."
-ObjectShadows: "Enable Object Shadows"
-ObjectShadowsTooltip: "Enable shadows for primarily inanimate objects. May have a significant performance impact."
-IndoorShadows: "Enable Indoor Shadows"
-IndoorShadowsTooltip: "Due to limitations with Morrowind's data, only actors can cast shadows indoors, which some might feel is distracting. Has no effect if actor/player shadows are not enabled."
-ShadowPlanesComputationMethod: "Shadow Planes Computation Method"
-ShadowPlanesComputationMethodTooltip: |-
-    Type of "compute scene bounds" computation method to be used. Bounds (default) for a good balance between performance and shadow quality, primitives for better-looking shadows or none for no computation.
-ShadowPlanesComputationMethodBounds: "Bounds"
-ShadowPlanesComputationMethodPrimitives: "Primitives"
-ShadowPlanesComputationMethodNone: "None"
-ShadowPlanesComputationMethodWarning: "Using the primitives method will severely impact performance and is not recommended for normal gameplay."
-ShadowMapResolution: "Shadow Map Resolution"
-ShadowMapResolutionTooltip: "The resolution of each individual shadow map. Increasing it significantly improves shadow quality but may have a minor performance impact."
-ShadowsMaxDistanceValue: "Shadow Distance Limit ({value, number, :: group-off})"
-ShadowsMaxDistanceTooltip: "The distance from the camera at which shadows completely disappear. Set to 0 to disable."
 
 # Controller button names
 

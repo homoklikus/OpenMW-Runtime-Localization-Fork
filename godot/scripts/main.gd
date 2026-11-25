@@ -46,6 +46,7 @@ var keyboard_nav = null               # mw_keyboard_nav.gd – KeyboardNavigatio
 var gamepad = null                    # mw_gamepad.gd – ControllerManager (pad)
 var look_diag = null                  # mw_look_diag.gd – źródła obrotu kamery (diagnostyka)
 var scripts_enabled := true            # ToggleScripts (World::toggleScripts) – skrypty lokalne i globalne
+var debug_render = null               # mw_debug_render.gd – ToggleBorders / TogglePathGrid / ToggleCollision*
 var fog_of_war := true                 # ToggleFogOfWar (LocalMapBase::mFogOfWarToggled)
 var full_help := false                 # ToggleFullHelp (WindowManager::toggleFullHelp) – pełna pomoc w podpowiedziach
 var load_diag = null                  # mw_load_diag.gd – klatki wczytania/przejścia (--load-diag)
@@ -306,6 +307,10 @@ func _ready() -> void:
 		load_diag.quit_after = flag("diag-quit")
 		load_diag.shots = flag("load-diag-shots")
 		add_child(load_diag)
+	debug_render = preload("res://scripts/mw/mw_debug_render.gd").new()
+	debug_render.name = "DebugRender"
+	debug_render.main = self
+	add_child(debug_render)
 	if flag("diag-display"):
 		var dd = preload("res://scripts/mw/mw_display_diag.gd").new()
 		dd.name = "DisplayDiag"
@@ -1595,6 +1600,7 @@ func apply_live_settings() -> void:
 	preload("res://scripts/mw/mw_environment.gd").set_water_features(bool(settings.get("water_refraction", false)),
 		bool(settings.get("sunlight_scattering", true)), bool(settings.get("wobbly_shores", true)))
 	get_viewport().anisotropic_filtering_level = anisotropy_level(int(settings.get("anisotropy", 4)))
+	_apply_light_settings()
 	if audio != null:
 		audio.voice_volume = float(settings.get("voice_volume", 0.8))
 		audio.sfx_volume = float(settings.get("sfx_volume", 1.0))
@@ -1637,6 +1643,25 @@ func apply_live_settings() -> void:
 	if DisplayServer.get_name() != "headless":
 		DisplayServer.window_set_vsync_mode(vsync_mode_value())
 		DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, not bool(settings.get("window_border", true)))
+
+## [Shaders] maximum light distance, light fade start, minimum interior brightness (ustawienia gry
+## „maximum_light_distance”, „light_fade_start”, „minimum_interior_brightness”; zakładki Lights w oknie opcji nie ma –
+## połowa jej pól zależy od potoku oświetlenia OpenMW).
+func _apply_light_settings() -> void:
+	var fe := clampf(float(settings.get("maximum_light_distance", 8192.0)), 0.0, 8192.0)
+	var fs := clampf(float(settings.get("light_fade_start", 0.85)), 0.0, 1.0)
+	var mb := clampf(float(settings.get("minimum_interior_brightness", 0.08)), 0.0, 1.0)
+	var changed := fe != MWCellBuilder.light_fade_end or fs != MWCellBuilder.light_fade_start
+	MWCellBuilder.light_fade_end = fe
+	MWCellBuilder.light_fade_start = fs
+	if changed:
+		for l in get_tree().root.find_children("*", "OmniLight3D", true, false):
+			MWCellBuilder.apply_light_fade(l)
+	var env_script := preload("res://scripts/mw/mw_environment.gd")
+	if env_script.min_interior_brightness != mb:
+		env_script.min_interior_brightness = mb
+		if envr != null and not interior.is_empty():
+			envr.set_interior(db.get_cell("int:" + interior.to_lower()))
 
 ## [General] anisotropy (0–16) → poziom filtrowania anizotropowego widoku (wyłączone, 2×, 4×, 8×, 16×).
 static func anisotropy_level(a: int) -> Viewport.AnisotropicFiltering:
@@ -2716,6 +2741,38 @@ func _update_streaming(_force: bool) -> void:
 			loaded.erase(key)
 			if navmesh != null:
 				navmesh.clear_cell(key)
+
+## Scene::testExteriorCells / testInteriorCells (TestCells, TestInteriorCells – tylko bez gry): każda komórka po kolei
+## wczytana i od razu zwolniona pod ekranem ładowania z etykietą „Testing … (i/N)...”. → liczba komórek
+func test_cells(interiors: bool) -> int:
+	var keys := []
+	for c in db.cell_index():
+		if bool(c.get("interior", false)) == interiors:
+			keys.append(String(c["key"]))
+	var label := L10n.ctx_text("OMWEngine", "TestingInteriorCells" if interiors else "TestingExteriorCells",
+		"Testing Interior Cells" if interiors else "Testing Exterior Cells")
+	if loading != null:
+		loading.loading_on()
+		loading.set_progress_range(keys.size())
+	var i := 0
+	for key in keys:
+		i += 1
+		if loading != null:
+			loading.set_label("%s (%d/%d)..." % [label, i, keys.size()])
+		if loaded.has(key):
+			continue
+		_load(key)
+		if loaded.has(key):
+			events.cell_unloaded.emit(key)
+			loaded[key].free()
+			loaded.erase(key)
+			if navmesh != null:
+				navmesh.clear_cell(key)
+		if loading != null:
+			loading.increase_progress()
+	if loading != null:
+		loading.loading_off()
+	return keys.size()
 
 func _load(key: String) -> void:
 	if script_host != null:
