@@ -89,25 +89,30 @@ func _build() -> void:
 	_scroll.add_child(_canvas)
 	_scroll.resized.connect(_layout_lines)
 	var bottom := HBoxContainer.new()
+	bottom.add_theme_constant_override("separation", roundi(4 * _s))     # Gui::Box mSpacing = 4
 	box.add_child(bottom)
 	_tool_icon = Control.new()
 	_tool_icon.name = "ToolIcon"
 	_tool_icon.custom_minimum_size = Vector2(44, 44) * _s
+	_tool_icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_tool_icon.mouse_filter = Control.MOUSE_FILTER_STOP
 	_tool_icon.gui_input.connect(func(e):
 		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
 			open_tool_selection())
 	bottom.add_child(_tool_icon)
+	# ToolBox (HBox → VBox): Gui::Box – odstęp 4, środek w pionie wiersza (HBox::align), etykiety SandText do lewej
 	_tool_box = VBoxContainer.new()
 	_tool_box.name = "ToolBox"
-	_tool_box.add_theme_constant_override("separation", 0)
-	_tool_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	_tool_box.add_theme_constant_override("separation", roundi(4 * _s))
+	_tool_box.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	bottom.add_child(_tool_box)
 	_uses = Label.new()
 	_uses.name = "UsesLabel"
+	UI.text_skin(_uses, "SandText", _s)
 	_tool_box.add_child(_uses)
 	_quality = Label.new()
 	_quality.name = "QualityLabel"
+	UI.text_skin(_quality, "SandText", _s)
 	_tool_box.add_child(_quality)
 	var sp := Control.new()
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL

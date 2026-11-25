@@ -871,7 +871,62 @@ func in_category(kind: String, enchanted: bool, cat: String) -> bool:
 func _enchanted(it: Dictionary) -> bool:
 	return not String(it.get("rec", {}).get("enchant", "")).is_empty()
 
-## Kolejność jak SortFilterItemModel::Compare: założone najpierw, potem typ, nazwa, wartość, waga.
+## Klucze sortowania SortFilterItemModel::Compare dla wpisu {id, kind, rec, name}: stype (ItemStack::Type –
+## 0 Barter, 1 Equipped, 2 Normal), ładunek zaklęcia w % (101 – stały efekt, −1 – bez zaklęcia), stan (−1 – bez
+## stanu), pozostały czas użycia, wartość i waga. holder – „player” (ładunki z postaci) albo "" (pełne).
+func sort_keys(e: Dictionary, stype: int, holder := "") -> Dictionary:
+	var rec: Dictionary = e.rec
+	var kind := String(e.kind)
+	e["stype"] = stype
+	var pct := -1
+	var ench := String(rec.get("enchant", "")).to_lower()
+	if not ench.is_empty():
+		var en: Dictionary = main.builder.actors.record("enchantment", ench)
+		if not en.is_empty():
+			if int(en.get("type", -1)) == 3:
+				pct = 101
+			else:
+				var mx := 0.0
+				if main.get("magic") != null:
+					mx = float(main.magic.enchantment_charge(en))
+				var cur := mx
+				if holder == "player":
+					cur = float((main.player_stats().get("item_charge", {}) as Dictionary).get(String(e.id).to_lower(), mx))
+				pct = int((cur / mx if mx > 0.0 else 1.0) * 100.0)
+	e["charge_pct"] = pct
+	var has_health := kind in ["armor", "lockpick", "probe", "repair"] or (kind == "weapon" and int(rec.get("weapon_type", 0)) < 11)
+	e["health"] = int(main.interaction.inventory.item_charge(String(e.id))) if has_health else -1
+	e["usage"] = float(rec.get("time", -1.0)) if kind == "light" else -1.0
+	e["value"] = int(rec.get("value", 0))
+	e["weight"] = float(rec.get("weight", 0.0))
+	return e
+
+## SortFilterItemModel::Compare (OpenMW 0.51).
+static func item_less(a: Dictionary, b: Dictionary) -> bool:
+	if int(a.stype) != int(b.stype):
+		return int(a.stype) < int(b.stype)
+	var ta := int(TYPE_ORDER.get(a.kind, 99))
+	var tb := int(TYPE_ORDER.get(b.kind, 99))
+	if ta != tb:
+		return ta < tb
+	var na := String(a.name).to_lower()
+	var nb := String(b.name).to_lower()
+	if na != nb:
+		return na < nb
+	if int(a.charge_pct) != int(b.charge_pct):
+		return int(a.charge_pct) > int(b.charge_pct)
+	if int(a.health) >= 0 and int(b.health) >= 0 and int(a.health) != int(b.health):
+		return int(a.health) > int(b.health)
+	if float(a.usage) != float(b.usage):
+		return float(a.usage) > float(b.usage)
+	if int(a.value) != int(b.value):
+		return int(a.value) > int(b.value)
+	if float(a.weight) != float(b.weight):
+		return float(a.weight) > float(b.weight)
+	return String(a.id) < String(b.id)
+
+## Przedmioty pojemnika/gracza w kolejności SortFilterItemModel::Compare: założone najpierw, potem typ, nazwa,
+## ładunek zaklęcia, stan, czas użycia, wartość, waga, id.
 func sorted_items(sid := "player", rec := {}) -> Array:
 	var inv = main.interaction.inventory
 	var out := []
@@ -881,24 +936,9 @@ func sorted_items(sid := "player", rec := {}) -> Array:
 			continue
 		var worn: bool = sid == "player" and main.equipped_slot_of(String(e.id)) >= 0
 		var name: String = main.interaction.item_name(String(it.kind), String(e.id), it.rec)
-		out.append({"id": String(e.id), "count": int(e.count), "kind": String(it.kind), "rec": it.rec, "worn": worn,
-			"name": name, "magic": _enchanted(it)})
-	out.sort_custom(func(a, b):
-		if a.worn != b.worn:
-			return a.worn
-		var ta := int(TYPE_ORDER.get(a.kind, 99))
-		var tb := int(TYPE_ORDER.get(b.kind, 99))
-		if ta != tb:
-			return ta < tb
-		var na := String(a.name).to_lower()
-		var nb := String(b.name).to_lower()
-		if na != nb:
-			return na < nb
-		var va := int(a.rec.get("value", 0))
-		var vb := int(b.rec.get("value", 0))
-		if va != vb:
-			return va > vb
-		return String(a.id) < String(b.id))
+		out.append(sort_keys({"id": String(e.id), "count": int(e.count), "kind": String(it.kind), "rec": it.rec, "worn": worn,
+			"name": name, "magic": _enchanted(it)}, 1 if worn else 2, "player" if sid == "player" else ""))
+	out.sort_custom(item_less)
 	return out
 
 ## Siatka ikon w przewijanym obszarze (ItemView): zwraca kontrolkę siatki; source – „inventory” | „container”.

@@ -650,14 +650,75 @@ przetwarzanie końcowe, filtrowanie tekstur, mouse emulation cursor, [GUI] stret
 i bez przełączników grafiki (tcb, twf, tsky…); pasek zdrowia wroga w HUD; kursor gry (tx_cursor); skórka
 „Owned” podpowiedzi i kolor celownika dla cudzych rzeczy ([Game] show owned – w OpenMW domyślnie wyłączone).
 
-### 7.17 Werdykt etapu GUI
+### 7.17 Ekran ładowania na sprzęcie użytkownika i lista towarów kupca (cz. 24–25)
 
-Etapu 10 **nie można zamknąć**: zostały niewyjaśnione różnice (lista towarów kupca, wiersz nazwy w oknie
-naprawy, brakujące akcje i ustawienia, niesprawdzone przejścia okno ↔ pełny ekran i zmiana rozdzielczości
-w 21:9), a naprawa glitchy wczytywania jest potwierdzona sondą na VM (renderer zgodności,
-lavapipe), ale nie na GPU i monitorze użytkownika – wymaga lokalnego potwierdzenia sondą z punktu 7.15.
+**Ekran ładowania – „nie ma ekranu ładowania, tylko glicze” (zgłoszenie po cz. 23).** Pomiar na komputerze
+użytkownika (RTX 5090, Vulkan Forward+, 3440 × 1440 pełny ekran, prawdziwe dane Morrowind + Tribunal + Bloodmoon,
+kopia zapisu `test.mwsave`), gra uruchamiana przez moduł MCP Godota z `--load-diag` i `--diag-menu-load` (ta sama
+ścieżka co wybór zapisu w oknie wczytywania: `close_main_menu` → `load_slot`). Diagnostyka zapisuje co klatkę
+tylko liczby: czas klatki, kompilacje potoków, obiekty/wywołania rysowania, komórki, zasłonę, HUD oraz – z odczytu
+obrazu – sygnaturę 8 × 4 średnich jasności i jasność pasów lewy/środek/prawy (bez zrzutów, obraz gry nie opuszcza
+komputera).
 
-### 7.18 Pozostałe punkty etapu (do wykonania)
+| Klatki wczytania z menu (12 zasłoniętych) | Przed | Po |
+|---|---|---|
+| klatka 0 (tuż po `loading_on`) | menu główne | tapeta + okienko |
+| klatki 1–9 (komórki 1…9 budowane w trakcie `load_game`) | **budowany świat** – sygnatura zmienia się z każdą komórką | tapeta + okienko (sygnatura stała) |
+| klatki 10–11 (odsłanianie, `nested` = 1) | tapeta | tapeta |
+| klatka 12 (zdjęcie ekranu) | świat + HUD | świat + HUD |
+
+**Przyczyna:** wczytanie jest synchroniczne, a klatki ekranu ładowania rysuje `RenderingServer.force_draw`
+(jak OpenMW `LoadingScreen::draw`). Kontrolki Godota rysują się jednak dopiero przy opróżnieniu kolejki komunikatów
+na końcu klatki (`CanvasItem::queue_redraw` → `call_deferred`) – nowo zbudowany ekran ładowania, zmieniona tapeta,
+etykieta i pasek nie miały w tych klatkach żadnych poleceń rysowania. Ekran był niewidoczny, a pod nim gracz widział
+menu i świat budowany komórka po komórce. Potwierdzone także minimalnym projektem (lavapipe): nowa `ColorRect` po
+`force_draw` – brak, prostokąt dodany przez `RenderingServer.canvas_item_add_rect` – od razu.
+Wcześniejsze sondy (cz. 21) tego nie wykryły, bo w nich ekran ładowania był już zbudowany i narysowany w zwykłej
+klatce wcześniej w sesji, a z launchera (menu główne od startu) jest budowany przy pierwszym wczytaniu.
+
+**Naprawa** (`mw_loading_screen.gd`): obraz ekranu ładowania składany wprost w RenderingServer (`_render()`:
+czarne tło, tapeta 4:3 albo zamrożona klatka, okienko MW_Box z etykietą i paskiem – z tych samych stylów i układu
+co dotąd). Drzewo kontrolek zostaje dla układu i testów, ale jest przezroczyste. Dotyczy wszystkich ścieżek:
+wczytanie z menu, w grze, `--load`, przejścia między komórkami (zamrożona klatka).
+Test regresyjny `test_loading_render.gd` (wymaga wyświetlacza, w `run_tests.sh` w części ze zrzutami): w każdej
+zasłoniętej klatce odczyt obrazu – róg ekranu czarny (tło ekranu ładowania), okienko narysowane. Przed poprawką
+5 z 6 zasłoniętych klatek pokazywało świat, po poprawce 0.
+
+**Wynik po poprawce na RTX 5090:** 12/12 zasłoniętych klatek – tapeta z okienkiem; świat i HUD od klatki
+odsłonięcia. Średni czas klatki po odsłonięciu ok. 35 ms (do sprawdzenia osobno – wydajność nie jest częścią tego
+punktu). **Ograniczenie:** proces uruchomiony przez MCP nie miał dostępu do X11 (brak autoryzacji) i działał na
+Wayland (bez protokołu FIFO), a launcher uruchamia grę przez X11/XWayland – przyczyna jest niezależna od systemu
+okien (kolejka komunikatów Godota), ale potwierdzenie z launchera należy do użytkownika.
+
+**Lista towarów kupca (P1.1).** Porównanie z `TradeWindow::setPtr`, `ContainerItemModel`, `TradeItemModel::update`,
+`World::getItemsOwnedBy/getContainersOwnedBy`, `SortFilterItemModel::Compare`:
+
+| Różnica | Przyczyna (warstwa) | Naprawa |
+|---|---|---|
+| brak przedmiotów leżących w sklepie (półki, lady) | model danych: port brał tylko kupca i jego pojemniki; OpenMW dodaje `getItemsOwnedBy` – referencje aktywnych komórek o właścicielu = kupiec | `world_items()`, łączenie w stosy z towarem pojemników; kupno z referencji – `setCount` (liczba w zapisie gry, `refs[sid].count`) albo `deleteObject` |
+| towar z pojemników o pojemności 0 i wyłączonych | mechanika: brak warunków `GetContainersOwnedByVisitor` | pojemność > 0, tylko dostępne |
+| lista nie urywała się na świetle bez flagi Carry | mechanika: OpenMW `return` (nie `continue`) w `TradeItemModel::update` | to samo (w OpenMW dotyczy to tylko przedmiotów ze świata – pojemniki pomijają takie światła wcześniej) |
+| inna kolejność siatek kupca i gracza | prezentacja: siatki handlu bez sortowania, sprzedawane rzeczy na końcu | `SortFilterItemModel::Compare`: Type_Barter, Type_Equipped, Type_Normal, rodzaj, nazwa, ładunek zaklęcia (%; stały 101), stan, czas użycia, wartość, waga, id – wspólne z ekwipunkiem i pojemnikiem (dodane brakujące poziomy) |
+| ekwipunek gracza w handlu tylko z rzeczami „do sprzedania” | prezentacja: OpenMW pokazuje cały ekwipunek, kliknięcie rzeczy, której kupiec nie przyjmuje – dźwięk i `sBarterDialog4` | to samo |
+
+Test `test_trade_sources.gd` (26) w `run_tests.sh`; `test_trade.gd` bez zmian zaliczony.
+
+**Okno naprawy (P1.2, wiersz narzędzia):** wg `openmw_repair.layout` i `Gui::Box` – odstęp 4 px w wierszu i między
+etykietami sUses/sQuality (było 0), etykiety w skórce SandText, ikona narzędzia i ToolBox wyśrodkowane w pionie
+wiersza (HBox::align). Porównanie zrzutem z OpenMW (`ui_repair_e9_3440`) – do powtórzenia na VM. Pozostałe odstępstwa
+modelu przedmiotów: stos po identyfikatorze – założony egzemplarz w tym samym stosie co niezałożone (OpenMW:
+osobny stos Type_Equipped), przedmioty ze skryptem łączone w stos (OpenMW: nie), przedmioty przywołane (Flag_Bound)
+– port nie oznacza ich w ekwipunku kupca. Wpływ: tylko u kupców z założonymi lub oskryptowanymi przedmiotami.
+
+### 7.18 Werdykt etapu GUI
+
+Etapu 10 **nie można zamknąć**: zostały wiersz nazwy w oknie naprawy, brakujące akcje i ustawienia (P2),
+niesprawdzone przejścia okno ↔ pełny ekran i zmiana rozdzielczości w 21:9 (P3), kategorie konsoli i ustawień (P4).
+Ekran ładowania przy wczytaniu zapisu – naprawiony i zmierzony na RTX 5090 użytkownika (punkt 7.17; proces przez
+MCP na Wayland – potwierdzenie z launchera po stronie użytkownika). Lista towarów kupca – przyczyny usunięte
+(punkt 7.17), porównanie zrzutem z OpenMW u tego samego kupca – do zrobienia.
+
+### 7.19 Pozostałe punkty etapu (do wykonania)
 
 Mody – zgodnie z poleceniem nie testowane (kolejność: najpierw klasyczne GUI).
 
@@ -688,11 +749,13 @@ Mody – zgodnie z poleceniem nie testowane (kolejność: najpierw klasyczne GUI
 * Etap 10 cz. 22: GUI 21:9 (3440 × 1440) – ramki okien, HUD 0.51, księgi, podpowiedź obiektu
 * Etap 10 cz. 23: DragAndDrop jak OpenMW, przyciski AutoSizedButton, raport audytu
 * Etap 10: raport – 3440 × 1440 dla awansu, alchemii, zaklinania, naprawy; pełny zestaw 68/68
+* Etap 10 cz. 24: diagnostyka wczytania na sprzęcie użytkownika (--load-diag)
+* Etap 10 cz. 25: ekran ładowania rysowany przez RenderingServer, towar kupca jak TradeWindow OpenMW
 
-Pełny zestaw tools/run_tests.sh: 68/68 po cz. 21–23 (z nowym test_load_reveal; test_count_dialog, test_trade, test_map_notes, test_load_reveal powtórzone na końcowym kodzie cz. 23); 67/67 po cz. 20; 66/66 po cz. 19 (38 w przebiegu, test_progress poprawiony i 28 kolejnych po poprawce); 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
+Pełny zestaw tools/run_tests.sh: 70/70 po cz. 25 (nowe test_trade_sources i test_loading_render; Xvfb + lavapipe); 68/68 po cz. 21–23 (z nowym test_load_reveal; test_count_dialog, test_trade, test_map_notes, test_load_reveal powtórzone na końcowym kodzie cz. 23); 67/67 po cz. 20; 66/66 po cz. 19 (38 w przebiegu, test_progress poprawiony i 28 kolejnych po poprawce); 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 
 ## 9. Zalecana kolejność dalszych prac
 
-1. Potwierdzenie sondy wczytywania na GPU użytkownika (punkt 7.15), 2. lista towarów kupca (model przedmiotów),
-3. okno naprawy (wiersz nazwy) i przejścia okno ↔ pełny ekran w 21:9, 4. brakujące akcje sterowania i ustawienia
-(punkt 7.16). Mody – dopiero po zamknięciu klasycznego GUI.
+1. Okno naprawy (wiersz nazwy), 2. brakujące akcje sterowania (TogglePOV, zoom, AlwaysRun, AutoMove, Cycle
+Weapon/Spell, Screenshot) i ustawienia (punkt 7.16), 3. przejścia okno ↔ pełny ekran i zmiana rozdzielczości
+w 21:9, 4. porównanie zrzutem listy kupca z OpenMW, 5. kategorie konsoli i ustawień (P4). Mody – dopiero po zamknięciu klasycznego GUI.

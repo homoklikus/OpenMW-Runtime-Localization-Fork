@@ -73,6 +73,14 @@ func delete_ref(sid: String) -> void:
 	_entry(sid)["deleted"] = true
 	ref_changed.emit(sid)
 
+## Liczba sztuk referencji przedmiotu (CellRef::setCount – np. część stosu z półki kupiona u kupca).
+func set_ref_count(sid: String, count: int) -> void:
+	_entry(sid)["count"] = count
+	ref_changed.emit(sid)
+
+func ref_count_of(sid: String, base_count: int) -> int:
+	return int(refs.get(sid, {}).get("count", base_count))
+
 ## Nowa pozycja/obrót referencji w jednostkach MW (np. przesunięty przedmiot).
 func set_ref_mw(sid: String, pos: Vector3, rot: Vector3, scale := 1.0) -> void:
 	_entry(sid)["mw"] = {"pos": [pos.x, pos.y, pos.z], "rot": [rot.x, rot.y, rot.z], "scale": scale}
@@ -118,6 +126,10 @@ func apply_to_ref(r: Dictionary) -> Dictionary:
 		var f := MWCoords.transform_to_ref_fields(t)
 		out["mw"] = m.duplicate()
 		out["godot"] = f["godot"]
+	if e.has("count"):
+		var ex: Dictionary = (r.get("extra", {}) as Dictionary).duplicate()
+		ex["count"] = int(e["count"])
+		out["extra"] = ex
 	if not is_enabled(String(r.get("sid", ""))):
 		out["disabled"] = true
 	return out
@@ -176,7 +188,7 @@ func dynamic_refs(cell_key: String) -> Array:
 func _compact(sid: String) -> void:
 	var e: Dictionary = refs.get(sid, {})
 	if bool(e.get("enabled", true)) and not e.has("mw") and not bool(e.get("deleted", false)) \
-			and not e.has("lock") and not e.has("trap"):
+			and not e.has("lock") and not e.has("trap") and not e.has("count"):
 		refs.erase(sid)
 
 # --- zapis/odczyt -----------------------------------------------------------------------------------

@@ -166,6 +166,7 @@ run_gd test_mwscript_functions.gd --data="$WORK/actors_out" --project="$WORK/pro
 run_gd test_dialogue.gd --data="$WORK/actors_out" --project="$WORK/project_dialogue" --pos=2300,2400,900
 run_gd test_progress.gd --data="$WORK/actors_out" --project="$WORK/project_progress" --pos=2300,2400,900 --scripts=0
 run_gd test_trade.gd --data="$WORK/actors_out" --project="$WORK/project_trade" --pos=2300,2400,900 --scripts=0
+run_gd test_trade_sources.gd --data="$WORK/actors_out" --project="$WORK/project_trade_sources" --pos=2300,2400,900 --scripts=0
 run_gd test_repair.gd --data="$WORK/actors_out" --project="$WORK/project_repair" --pos=2300,2400,900 --scripts=0
 run_gd test_alchemy.gd --data="$WORK/actors_out" --project="$WORK/project_alchemy" --pos=2300,2400,900 --scripts=0
 run_gd test_enchanting.gd --data="$WORK/actors_out" --project="$WORK/project_enchanting" --pos=2300,2400,900 --scripts=0
@@ -209,6 +210,11 @@ if [[ $RENDER == 1 ]]; then
     --data="$OUT" --project="$PROJ" --out="$WORK/shot_world.png" --mode=world --cam=40,60,-60 --look=117,10,-117 2>/dev/null | grep SHOT || true
   eval $XV "$GODOT" --path "$ROOT/godot" --rendering-driver opengl3 -s res://tests/render_shot.gd -- \
     --data="$OUT" --out="$WORK/shot_effects.png" --mode=effects 2>/dev/null | grep SHOT || true
+  # ekran ładowania rysowany w klatkach force_draw (wymaga wyświetlacza – odczyt obrazu)
+  eval $XV "$GODOT" --path "$ROOT/godot" -s res://tests/test_loading_render.gd -- --data="$WORK/actors_out" \
+    --project="$WORK/project_loading_render" --pos=2300,2400,900 --scripts=0 > "$WORK/loading_render.log" 2>&1 \
+    || { grep -E "FAIL|ERROR" "$WORK/loading_render.log" | head; echo "test_loading_render: BŁĄD"; exit 1; }
+  grep RESULT "$WORK/loading_render.log"; pass "test_loading_render.gd"
   (cd "$ROOT/launcher" && QT_QPA_PLATFORM=offscreen $PY tools/screenshots.py "$WORK" >/dev/null 2>&1 && echo "SHOT launcher (Qt)") || true
 fi
 echo -e "\n\e[32mWSZYSTKIE TESTY ZALICZONE\e[0m  (wyniki: $WORK)"

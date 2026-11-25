@@ -221,12 +221,18 @@ func refresh() -> void:
 			basket_label.text = ""
 			gold_label.text = "%s %d" % [_t("sGold", "Gold:"), pg]
 
+## Wpis siatki z kluczami SortFilterItemModel (Type_Barter – przedmioty w koszyku, Type_Equipped – założone
+## przez gracza, Type_Normal – reszta).
 func _entry(it: Dictionary, count: int, src: String, merchant_side: bool, state := "") -> Dictionary:
 	var item: Dictionary = main.interaction.inventory.item(String(it.id))
 	var price: int = trade.barter_offer(actor, trade.item_value(String(it.id), true), merchant_side)
-	return {"id": String(it.id), "count": count, "rec": item.get("rec", {}), "worn": false,
+	var worn: bool = src == "player" and main.has_method("equipped_slot_of") and main.equipped_slot_of(String(it.id)) >= 0
+	var e := {"id": String(it.id), "count": count, "rec": item.get("rec", {}), "worn": worn, "kind": String(item.get("kind", "")),
+		"name": main.interaction.item_name(String(item.get("kind", "")), String(it.id), item.get("rec", {})),
 		"magic": not String(item.get("rec", {}).get("enchant", "")).is_empty(), "state": state, "source": src,
 		"tip": "%s: %d" % [_t("sBarterDialog7", "Price"), price]}
+	var stype := 0 if state == "barter" else (1 if worn else 2)
+	return main.menu_mode.sort_keys(e, stype, "player" if src in ["player", "sold"] else "")
 
 func _fill_barter_grids() -> void:
 	var mm = main.menu_mode
@@ -257,6 +263,8 @@ func _fill_barter_grids() -> void:
 	for it in _merchant:                           # kupowane – po stronie gracza
 		if int(buy.get(it.id, 0)) > 0:
 			pe.append(_entry(it, int(buy[it.id]), "bought", true, "barter"))
+	me.sort_custom(mm.item_less)                   # SortFilterItemModel::Compare
+	pe.sort_custom(mm.item_less)
 	grid_merchant_ids = mm._fill_grid(merchant_grid, me, "merchant", self)
 	grid_player_ids = mm._fill_grid(player_grid, pe, "player", self)
 
@@ -306,6 +314,13 @@ func max_sale() -> void:
 func click_item(id: String, source: String, mods := {}) -> void:
 	var avail := _available(id, source)
 	if avail <= 0:
+		return
+	if source == "player" and not trade.can_sell(id, trade.services(actor)):
+		# InventoryWindow::onItemSelectedFromSourceModel: kupiec tego nie przyjmuje – dźwięk odłożenia i komunikat
+		if main != null and main.get("audio") != null and main.get("interaction") != null:
+			main.audio.play(main.interaction.item_sound(id, false))
+		if main != null and main.has_method("_toast"):
+			main._toast(_t("sBarterDialog4", "The merchant does not want that item."))
 		return
 	var msg := "sQuanityMenuMessage02" if source in ["merchant", "sold"] else "sQuanityMenuMessage01"
 	if main != null and main.get("menu_mode") != null:

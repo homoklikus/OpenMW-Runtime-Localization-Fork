@@ -299,6 +299,9 @@ func _ready() -> void:
 		load_diag = preload("res://scripts/mw/mw_load_diag.gd").new()
 		load_diag.name = "LoadDiag"
 		load_diag.main = self
+		load_diag.menu_load = arg("diag-menu-load")
+		load_diag.quit_after = flag("diag-quit")
+		load_diag.shots = flag("load-diag-shots")
 		add_child(load_diag)
 	gamepad = preload("res://scripts/mw/mw_gamepad.gd").new()
 	gamepad.name = "ControllerManager"

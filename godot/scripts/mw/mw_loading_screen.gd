@@ -35,6 +35,11 @@ var _box: PanelContainer = null
 var _label: Label = null
 var _bar: ProgressBar = null
 var rng := RandomNumberGenerator.new()
+# Rysowanie przez RenderingServer: ładowanie jest synchroniczne, a kontrolki Godota rysują się dopiero przy
+# opróżnieniu kolejki komunikatów na końcu klatki (CanvasItem::queue_redraw → call_deferred). Nowo zbudowane
+# lub zmienione kontrolki w klatkach force_draw byłyby puste albo nieaktualne – na ekranie zostawało menu albo
+# budowany świat. Drzewo kontrolek zostaje (układ, testy), ale jest przezroczyste; obraz składa _render().
+var _ci := RID()
 
 func _ready() -> void:
 	layer = 100
@@ -101,6 +106,58 @@ func _build() -> void:
 	_bar.name = "ProgressBar"
 	_bar.custom_minimum_size = Vector2(260, 6) * sc
 	v.add_child(_bar)
+	_root.modulate = Color(1, 1, 1, 0)
+	_ci = RenderingServer.canvas_item_create()
+	RenderingServer.canvas_item_set_parent(_ci, get_canvas())
+	RenderingServer.canvas_item_set_z_index(_ci, 100)
+	RenderingServer.canvas_item_set_visible(_ci, false)
+
+func _exit_tree() -> void:
+	if _ci.is_valid():
+		RenderingServer.free_rid(_ci)
+		_ci = RID()
+
+## Obraz ekranu ładowania wprost w RenderingServer (natychmiast, także w klatce force_draw): czarne tło, tapeta
+## 4:3 albo zamrożona klatka, okienko MW_Box z etykietą i paskiem postępu – według układu z _layout().
+func _render() -> void:
+	if not _ci.is_valid() or _root == null:
+		return
+	var rs := RenderingServer
+	rs.canvas_item_clear(_ci)
+	rs.canvas_item_set_visible(_ci, visible)
+	var vp := get_viewport().get_visible_rect().size
+	rs.canvas_item_add_rect(_ci, Rect2(Vector2.ZERO, vp), Color.BLACK)
+	if _scene_rect.visible and _scene_rect.texture != null:
+		_scene_rect.texture.draw_rect(_ci, Rect2(Vector2.ZERO, vp), false)
+	if _splash_rect.visible and _splash_rect.texture != null:
+		_splash_rect.texture.draw_rect(_ci, Rect2(_splash_rect.position, _splash_rect.size), false)
+	if not _box.visible:
+		return
+	var bs := _box.get_combined_minimum_size().max(_box.custom_minimum_size)
+	var box := Rect2(_box.position, bs)
+	var panel: StyleBox = _box.get_theme_stylebox("panel")
+	var inner := box
+	if panel != null:
+		panel.draw(_ci, box)
+		inner = Rect2(box.position + Vector2(panel.get_margin(SIDE_LEFT), panel.get_margin(SIDE_TOP)),
+			box.size - Vector2(panel.get_margin(SIDE_LEFT) + panel.get_margin(SIDE_RIGHT), panel.get_margin(SIDE_TOP) + panel.get_margin(SIDE_BOTTOM)))
+	var font: Font = _label.get_theme_font("font")
+	var fs: int = _label.get_theme_font_size("font_size")
+	var lh := _label.get_combined_minimum_size().y
+	if font != null and not _label.text.is_empty():
+		var col: Color = _label.get_theme_color("font_color")
+		var y := inner.position.y + (lh - font.get_height(fs)) / 2.0 + font.get_ascent(fs)
+		font.draw_string(_ci, Vector2(inner.position.x, y), _label.text, HORIZONTAL_ALIGNMENT_CENTER, inner.size.x, fs, col)
+	var sep := float((_label.get_parent() as Control).get_theme_constant("separation"))
+	var bar := Rect2(inner.position.x, inner.position.y + lh + sep, inner.size.x, _bar.get_combined_minimum_size().y)
+	var back: StyleBox = _bar.get_theme_stylebox("background")
+	if back != null:
+		back.draw(_ci, bar)
+	var fill: StyleBox = _bar.get_theme_stylebox("fill")
+	var frac := clampf(_bar.value / maxf(1.0, _bar.max_value), 0.0, 1.0)
+	if fill != null and frac > 0.0:
+		var fw := maxf(bar.size.x * frac, fill.get_minimum_size().x)
+		fill.draw(_ci, Rect2(bar.position, Vector2(fw, bar.size.y)))
 
 ## LoadingScreen::loadingOn.
 func loading_on() -> void:
@@ -135,6 +192,7 @@ func hold() -> void:
 	if _box != null and _last_render < _on_time:
 		_box.visible = false
 	_layout()
+	_render()
 
 ## LoadingScreen::loadingOff.
 func loading_off() -> void:
@@ -147,6 +205,9 @@ func loading_off() -> void:
 			main._toast(label)                   # ładowanie tak szybkie, że ekranu nie było – komunikat
 	important = false
 	visible = false
+	if _ci.is_valid():
+		RenderingServer.canvas_item_clear(_ci)
+		RenderingServer.canvas_item_set_visible(_ci, false)
 	if _box != null:
 		_box.visible = true
 	if _scene_rect != null:
@@ -242,5 +303,6 @@ func draw() -> void:
 	if main != null and main.get("fader") != null:
 		main.fader.step(_now() - _fader_t)
 	_fader_t = _now()
+	_render()
 	if DisplayServer.get_name() != "headless":
 		RenderingServer.force_draw(true)

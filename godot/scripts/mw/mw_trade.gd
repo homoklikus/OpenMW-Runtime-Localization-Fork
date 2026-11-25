@@ -198,10 +198,60 @@ func sources(a: Dictionary) -> Array:
 			var b := String(nd.get_meta("mw_base", "")).to_lower()
 			if String(main.db.get_object(b).get("type", "")) != "CONT":
 				continue
-			out.append({"sid": String(nd.get_meta("mw_sid", "")), "rec": main.interaction.container_record(b), "merchant": false})
+			var sid := String(nd.get_meta("mw_sid", ""))
+			if not main.state.is_enabled(sid):          # forEachType: tylko dostępne (włączone, nieusunięte)
+				continue
+			var rec: Dictionary = main.interaction.container_record(b)
+			if float(rec.get("capacity", 0.0)) <= 0.0:   # GetContainersOwnedByVisitor: pojemność 0 – nie na sprzedaż
+				continue
+			out.append({"sid": sid, "rec": rec, "merchant": false})
 	return out
 
-## Towar kupca: [{id, count}] – suma źródeł, bez złota, przedmiotów spoza usług i założonych przez kupca.
+## Kolejność list CellStore (CellStoreTuple) – World::getItemsOwnedBy przechodzi komórkę lista po liście.
+const CELLSTORE_ORDER := {"ACTI": 0, "ALCH": 1, "APPA": 2, "ARMO": 3, "BOOK": 4, "CLOT": 5, "CONT": 6, "CREA": 7,
+	"DOOR": 8, "INGR": 9, "LEVC": 10, "LEVI": 11, "LIGH": 12, "LOCK": 13, "MISC": 14, "NPC_": 15, "PROB": 16,
+	"REPA": 17, "STAT": 18, "WEAP": 19}
+
+## World::getItemsOwnedBy: referencje aktywnych komórek z węzłem sceny (włączone, nieusunięte) o właścicielu ==
+## kupiec – przedmioty leżące w sklepie (półki, lady). [{sid, id, count}] w kolejności CellStore.
+func world_items(a: Dictionary) -> Array:
+	var out := []
+	for key in main.loaded:
+		var refs: Node = main.loaded[key].get_node_or_null("Refs")
+		if refs == null:
+			continue
+		var cell := []
+		var idx := 0
+		for nd in refs.get_children():
+			idx += 1
+			if nd.get_meta("mw_disabled", false):
+				continue
+			var ex: Dictionary = main.interaction.extra_of(nd)
+			if String(ex.get("owner", "")).to_lower() != a.base:
+				continue
+			var sid := String(nd.get_meta("mw_sid", ""))
+			if sid.is_empty() or sid.begins_with("dyn#") or not main.state.is_enabled(sid):
+				continue
+			var b := String(nd.get_meta("mw_base", "")).to_lower()
+			var t := String(main.db.get_object(b).get("type", ""))
+			cell.append({"sid": sid, "id": b, "count": main.interaction.count_of_ref(nd),
+				"o": int(CELLSTORE_ORDER.get(t, 99)) * 100000 + idx})
+		cell.sort_custom(func(x, y): return int(x.o) < int(y.o))
+		out.append_array(cell)
+	return out
+
+## Class::showsInInventory: światła bez flagi Carry i szata wilkołaka nie są przedmiotami ekwipunku.
+func shows_in_inventory(id: String) -> bool:
+	if id == "werewolfrobe":
+		return false
+	if item_kind(id) == "light":
+		return bool(records.record("light", id).get("carry", false))
+	return true
+
+## Towar kupca (TradeItemModel::update nad ContainerItemModel): [{id, count}] – źródła (kupiec, jego pojemniki),
+## potem przedmioty w świecie należące do kupca, złączone w stosy; bez złota, rzeczy spoza usług i założonych.
+## Pierwsze napotkane światło bez flagi Carry (tylko z przedmiotów w świecie – pojemniki je pomijają) kończy listę
+## (w OpenMW `return`, nie `continue`).
 func merchant_items(a: Dictionary) -> Array:
 	var svc := services(a)
 	var inv = main.interaction.inventory
@@ -220,23 +270,60 @@ func merchant_items(a: Dictionary) -> Array:
 	for src in sources(a):
 		for it in inv.contents(String(src.sid), src.rec):
 			var id := String(it.id).to_lower()
+			if not shows_in_inventory(id):
+				continue
 			var c := int(it.count)
 			if src.merchant and equipped.has(id):
 				c -= int(equipped[id])
-			if c <= 0 or not can_sell(id, svc):
+			if c <= 0:
 				continue
 			if not total.has(id):
 				order.append(id)
 			total[id] = int(total.get(id, 0)) + c
-	return order.map(func(id): return {"id": id, "count": int(total[id])})
+	for w in world_items(a):
+		var id := String(w.id)
+		if not total.has(id):
+			order.append(id)
+		total[id] = int(total.get(id, 0)) + int(w.count)
+	var out := []
+	for id in order:
+		if id.begins_with("gold_"):
+			continue
+		if not shows_in_inventory(id):
+			break
+		if not can_sell(id, svc):
+			continue
+		out.append({"id": id, "count": int(total[id])})
+	return out
 
-## Przedmioty gracza do sprzedania temu kupcowi.
-func player_items(a: Dictionary) -> Array:
-	var svc := services(a)
+## ContainerItemModel::removeItem (przedmioty w świecie): odjęcie liczby z referencji albo usunięcie jej
+## (deleteObject), przedmiot do ekwipunku gracza. → przeniesiona liczba
+func take_world_items(a: Dictionary, id: String, count: int) -> int:
+	var moved := 0
+	for w in world_items(a):
+		if moved >= count:
+			break
+		if String(w.id) != id:
+			continue
+		var n := mini(int(w.count), count - moved)
+		var rest := int(w.count) - n
+		main.interaction.inventory.add("player", {}, id, n)
+		if main.interaction.main_scripts != null:
+			main.interaction.main_scripts.item_to_player(String(w.sid), id)
+		if rest <= 0:
+			main.state.delete_ref(String(w.sid))
+		else:
+			main.state.set_ref_count(String(w.sid), rest)
+		moved += n
+	return moved
+
+## Ekwipunek gracza w oknie handlu (InventoryItemModel w TradeItemModel bez kupca – bez filtrowania usług:
+## rzeczy, których kupiec nie przyjmie, są widoczne, a kliknięcie daje sBarterDialog4).
+func player_items(_a: Dictionary) -> Array:
 	var out := []
 	for it in main.interaction.inventory.contents("player", {}):
 		var id := String(it.id).to_lower()
-		if can_sell(id, svc):
+		if shows_in_inventory(id) and int(it.count) > 0:
 			out.append({"id": id, "count": int(it.count)})
 	return out
 
@@ -309,6 +396,8 @@ func offer(a: Dictionary, buy: Dictionary, sell: Dictionary, balance: int, roll 
 			if left <= 0:
 				break
 			left -= int(inv.transfer(String(src.sid), src.rec, "player", {}, id, left))
+		if left > 0:
+			left -= take_world_items(a, id, left)
 	for id in sell:
 		inv.transfer("player", {}, a.sid, a.rec, id, int(sell[id]))
 	if balance > 0:
