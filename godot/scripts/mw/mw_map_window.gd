@@ -209,7 +209,7 @@ func _build_local() -> void:
 			r.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			layer_tiles.add_child(r)
 		var fog := TextureRect.new()
-		fog.texture = lmap.fog_texture(s)
+		fog.texture = lmap.fog_texture(s) if bool(main.get("fog_of_war") if main.get("fog_of_war") != null else true) else null   # ToggleFogOfWar
 		fog.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		fog.stretch_mode = TextureRect.STRETCH_SCALE
 		fog.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR

@@ -61,10 +61,15 @@ const VIDEO_PAGES := [
 		{"t": "slider", "key": "fov", "cap": "", "label": "FieldOfViewValue", "range": 81, "page": 1, "min": 30.0, "max": 110.0, "kind": "float", "lo": "FieldOfViewLow", "hi": "FieldOfViewHigh", "def": 60, "int_store": true},
 	]],
 	["DetailLevel", [
+		# [General] anisotropy: AnisotropyLabel (0, 58), MW_HScroll (0, 80, 352, 18), Range 17
+		{"t": "slider", "key": "anisotropy", "cap": "Anisotropy", "label": "AnisotropyValue", "range": 17, "page": 1, "min": 0.0, "max": 16.0, "kind": "int", "def": 4},
 		{"t": "slider", "key": "view_distance", "cap": "ViewDistance", "label": "ViewDistanceValueCells", "range": 79421, "page": 2048, "min": 2500.0, "max": 81920.0, "kind": "cell", "lo": "DistanceLow", "hi": "DistanceHigh", "conv": "meters", "def": 1500},
 	]],
 	["Water", [
 		{"t": "check", "key": "water_shader", "cap": "WaterShader", "def": true},
+		{"t": "check", "key": "water_refraction", "cap": "Refraction", "def": false},         # [Water] refraction
+		{"t": "check", "key": "sunlight_scattering", "cap": "SunlightScattering", "def": true},
+		{"t": "check", "key": "wobbly_shores", "cap": "WobblyShores", "def": true},
 	]],
 ]
 const STANDARD_RESOLUTIONS := ["1280x720", "1366x768", "1600x900", "1920x1080", "1920x1200", "2560x1080",
@@ -317,6 +322,8 @@ func _page(name: String, entries: Array, pw: float, ph: float) -> Control:
 						y = 250.0 + 30.0 * nc
 					"Controls":
 						y = (228.0 if String(e.t) == "checks" else 328.0) + d
+					"VideoWater":
+						y = 28.0 * nc                 # VBox: wiersze HBox 24 px (MW_Button) + odstęp 4
 					_:
 						y = 0.0
 				var items: Array = e.items if String(e.t) == "checks" else [e]
@@ -342,6 +349,8 @@ func _slider_geo(page: String, k: int, d: float) -> Array:
 		"VideoVideo":
 			return [0.0, 238.0, 0.0, 18.0, 24.0, 18.0, 66.0, 48.0]
 		"VideoDetailLevel":
+			if k == 0:
+				return [0.0, 58.0, 0.0, 18.0, 22.0, 18.0, 40.0, -1.0]
 			return [0.0, 104.0, 0.0, 18.0, 22.0, 18.0, 62.0, 44.0]
 	return [4.0, 4.0 + 60.0 * k, 0.0, 16.0, 20.0, 14.0, 54.0, 38.0]
 

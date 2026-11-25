@@ -736,15 +736,65 @@ klawisze poprawione na wartości OpenMW (wcześniej test utrwalał odwrócone Ac
 Ustawienie „Always Run” w GUI jest w OpenMW 0.51 na stronie skryptów Lua (Scripts → OpenMW Controls) – zakładka
 Scripts zależy od nieprzeniesionego Lua (punkt 7.16); przełącza je klawisz.
 
-### 7.19 Werdykt etapu GUI
+### 7.19 Okno ↔ pełny ekran i rozdzielczości na sprzęcie użytkownika (P3, cz. 27)
 
-Etapu 10 **nie można zamknąć**: zostały brakujące ustawienia (P2; akcje sterowania – punkt 7.18),
-niesprawdzone przejścia okno ↔ pełny ekran i zmiana rozdzielczości w 21:9 (P3), kategorie konsoli i ustawień (P4).
+Diagnostyka `--diag-display` (`mw_display_diag.gd`) uruchomiona przez MCP na RTX 5090 użytkownika (3440 × 1440,
+dane gry, kopia zapisu): kolejno okno 1280 × 720, 2560 × 1440, 3440 × 1440, 3840 × 2160, pełny ekran w oknie,
+pełny ekran wyłączny, okno 1280 × 720, pełny ekran – przez `main.apply_display` (ta sama ścieżka co okno opcji),
+po 45 klatkach wiersz liczb. Wyniki:
+
+| Sprawdzenie | Wynik |
+|---|---|
+| rozmiar widoku = rozmiar okna we wszystkich krokach (bez rozciągania 16:9 do 21:9 – projekt bez trybu stretch) | tak (8/8) |
+| HUD po zmianie: paski przy lewej krawędzi (x = 15), minimapa i ikony efektów przy prawej, dół ekranu – według rozmiaru widoku | tak (8/8) |
+| celownik na środku ((widok − 31) / 2) | tak (8/8) |
+| powrót z pełnego ekranu do okna i ponownie do pełnego ekranu | tryb i rozmiar zgodne |
+| wyśrodkowanie okna | **niesprawdzalne w tym przebiegu**: proces z MCP działał na Wayland (bez autoryzacji X11), a Wayland nie pozwala programowi ustawiać ani odczytywać położenia okna (zawsze 0, 0); launcher uruchamia grę przez X11 |
+| pełny ekran wyłączny | na Wayland Godot daje tryb pełnoekranowy okna (brak trybu wyłącznego) |
+| skala interfejsu | na Wayland `screen_get_scale` = 2,0 z ułamkową skalą pulpitu – UI w tym przebiegu 1,15; przez X11 (launcher) skala 1,0. OpenMW na Wayland/XWayland – nieporównane |
+
+Do potwierdzenia przez użytkownika z launchera (X11): wyśrodkowanie okna po przejściu z pełnego ekranu, przełączanie
+w trakcie gry, podpowiedzi przy krawędziach 21:9 i przewijanie list (automatycznie sprawdzone tylko w testach
+`test_tooltips` i `test_ui_geometry`).
+OpenMW przy pełnym ekranie wyłącznym zmienia tryb monitora na wybraną rozdzielczość; Godot 4 nie zmienia trybu
+monitora (pełny ekran zawsze w rozdzielczości pulpitu) – **odstępstwo zależne od silnika Godot**: w pełnym ekranie
+wybór rozdzielczości nie ma skutku.
+
+### 7.20 Konsola i ustawienia – trzy kategorie (P4, cz. 27)
+
+**Konsola / MWScript** – 298 nazw instrukcji i funkcji z `components/compiler/extensions0.cpp` (OpenMW 0.51):
+
+| Kategoria | Nazwy |
+|---|---|
+| 1. zaimplementowane (269) | wszystkie pozostałe; w cz. 27 doszły: GetPCRunning, GetWindSpeed (0 we wnętrzach), Get/Set/ModPCVisionBonus (Night Eye ograniczony do [0, 1]), PCGet3rdPerson (0 – widok zawsze pierwszoosobowy), PCForce1stPerson, ToggleSky (ts), ToggleWater (twa), ToggleWireframe (twf), ToggleWorld (tw), ToggleScripts, ToggleFullHelp (tfh – pełna pomoc w podpowiedziach: Owner, Owner Faction, Rank, Global, Script), ToggleFogOfWar (tfow), User1–4 |
+| 2. brakujące, możliwe teraz (zostały) | AddToLevCreature, AddToLevItem, RemoveFromLevCreature, RemoveFromLevItem (zmiana list poziomowanych zapisywana w grze – potrzebny nadpis rekordów LEVC/LEVI w GameState), ToggleBorders (tb), TogglePathGrid (tpg), ToggleCollisionBoxes (tcb), ToggleCollisionGrid (tcg), BetaComment (bc), ORI (informacje o referencji), MenuTest, TestCells, TestInteriorCells, TestModels (t3d) – narzędzia testowe |
+| 3. zależne od nieprzeniesionych części | PCForce3rdPerson, ToggleVanityMode (tvm) – kamera trzecioosobowa (MWRender::Camera); GetMasserPhase, GetSecundaPhase, TurnMoonRed/White – księżyce nieba (SkyManager::Moon); ReloadLua – Lua; ShowSceneGraph – graf sceny OSG; ToggleNavMesh, ToggleRecastMesh, ToggleActorsPaths (tap), SetNavMeshNumber – DetourNavigator (port używa nawigacji Godota) |
+
+Pełna pomoc: bez wierszy „Stolen … from …” (port nie prowadzi rejestru skradzionych przedmiotów według właścicieli,
+MechanicsManager::getStolenItemOwners) i bez dopisku postaci wilkołaka w nazwie NPC.
+
+**Ustawienia okna opcji** (37 ustawień z `openmw_settings_window.layout` 0.51):
+
+| Kategoria | Ustawienia |
+|---|---|
+| 1. zaimplementowane | GUI: menu transparency, tooltip delay, subtitles; Game: difficulty, actors processing range, best attack; Saves: autosave; HUD: crosshair; Sound: 5 głośności; Input: invert x/y, camera sensitivity, enable controller; Video: rozdzielczość, tryb okna, VSync, window border; Camera: field of view, viewing distance; Water: shader; General: gmst overrides l10n; Language; w cz. 27: **[General] anisotropy** (suwak w Detail Level, poziom filtrowania anizotropowego widoku), **[Water] refraction, sunlight scattering, wobbly shores** (przełączniki w zakładce Water; gałęzie @waterRefraction / @sunlightScattering / @wobblyShores w shaderze wody, bez załamania – kolor wody z odbiciem i przezroczystość waterTransparency; domyślnie jak settings-default.cfg: refraction wyłączone) |
+| 2. brakujące, możliwe teraz (zostały) | Texture Filtering (Bilinear/Trilinear – filtr mipmap w materiałach), Lights: maximum light distance, light fade start, light bounds multiplier, minimum interior brightness, max lights (odpowiedniki w oświetleniu Godota), Shadows: odległość i rozdzielczość map cieni, cienie aktorów/gracza/obiektów/terenu/wnętrz |
+| 3. zależne | Post Processing enabled – post-processing OpenMW (omwfx) nieprzeniesiony; Video gamma – rampa gammy monitora (SDL_SetWindowGammaRamp), Godot nie ma odpowiednika; Shaders: lighting method, force per pixel lighting, classic falloff, clamp lighting, match sunlight to sun – potok oświetlenia OpenMW (Godot Forward+ ma własny); Water: texture quality, reflection detail, rain ripple detail – odbicie wody jest przybliżeniem nieba (bez kamery odbicia RTT) i bez zmarszczek deszczu; zakładka Scripts – Lua |
+
+Odstępstwo zauważone przy tym punkcie: pliki `godot/l10n/OMWEngine/*.yaml` w porcie pochodzą z nowszej wersji
+OpenMW niż 0.51 (np. `LightsClusteredLighting` zamiast `LightingMethod`, brak `AnisotropyValue` – dodany z 0.51).
+Teksty okna opcji pochodzą z tych plików – do wymiany na pliki 0.51 w osobnym kroku.
+Test `test_console_toggles.gd` (35).
+
+### 7.21 Werdykt etapu GUI
+
+Etapu 10 **nie można zamknąć**: zostały pozycje kategorii 2 z punktu 7.20 (polecenia konsoli i ustawienia
+możliwe do zrobienia teraz), potwierdzenie przejść okno ↔ pełny ekran z launchera (X11) i wymiana plików l10n na 0.51.
 Ekran ładowania przy wczytaniu zapisu – naprawiony i zmierzony na RTX 5090 użytkownika (punkt 7.17; proces przez
 MCP na Wayland – potwierdzenie z launchera po stronie użytkownika). Lista towarów kupca – przyczyny usunięte
 (punkt 7.17), porównanie zrzutem z OpenMW u tego samego kupca – do zrobienia.
 
-### 7.20 Pozostałe punkty etapu (do wykonania)
+### 7.22 Pozostałe punkty etapu (do wykonania)
 
 Mody – zgodnie z poleceniem nie testowane (kolejność: najpierw klasyczne GUI).
 
@@ -778,10 +828,12 @@ Mody – zgodnie z poleceniem nie testowane (kolejność: najpierw klasyczne GUI
 * Etap 10 cz. 24: diagnostyka wczytania na sprzęcie użytkownika (--load-diag)
 * Etap 10 cz. 25: ekran ładowania rysowany przez RenderingServer, towar kupca jak TradeWindow OpenMW
 * Etap 10 cz. 26: akcje sterowania OpenMW 0.51 (AlwaysRun, AutoMove, Cycle, Screenshot, domyślne klawisze)
+* Etap 10 cz. 27: konsola i ustawienia – kategorie, przełączniki, anizotropia, opcje wody; diagnostyka trybów okna
 
-Pełny zestaw tools/run_tests.sh: 70/70 po cz. 25 (nowe test_trade_sources i test_loading_render; Xvfb + lavapipe); 68/68 po cz. 21–23 (z nowym test_load_reveal; test_count_dialog, test_trade, test_map_notes, test_load_reveal powtórzone na końcowym kodzie cz. 23); 67/67 po cz. 20; 66/66 po cz. 19 (38 w przebiegu, test_progress poprawiony i 28 kolejnych po poprawce); 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
+Pełny zestaw tools/run_tests.sh: 72/72 po cz. 27 (nowe test_player_controls i test_console_toggles; test_loading_render powtórzony osobno po zniknięciu serwera Xvfb w trakcie przebiegu – środowisko, nie test); 70/70 po cz. 25 (nowe test_trade_sources i test_loading_render; Xvfb + lavapipe); 68/68 po cz. 21–23 (z nowym test_load_reveal; test_count_dialog, test_trade, test_map_notes, test_load_reveal powtórzone na końcowym kodzie cz. 23); 67/67 po cz. 20; 66/66 po cz. 19 (38 w przebiegu, test_progress poprawiony i 28 kolejnych po poprawce); 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 
 ## 9. Zalecana kolejność dalszych prac
 
-1. Porównanie zrzutem okna naprawy, 2. brakujące ustawienia (punkt 7.16), 3. przejścia okno ↔ pełny ekran i zmiana rozdzielczości
-w 21:9, 4. porównanie zrzutem listy kupca z OpenMW, 5. kategorie konsoli i ustawień (P4). Mody – dopiero po zamknięciu klasycznego GUI.
+1. Kategoria 2 z punktu 7.20 (listy poziomowane, przełączniki debugowe, filtrowanie tekstur, Lights, Shadows),
+2. pliki l10n OMWEngine z 0.51, 3. potwierdzenie przejść okno ↔ pełny ekran z launchera (X11), 4. porównanie zrzutem
+okna naprawy i listy kupca z OpenMW. Mody – dopiero po zamknięciu klasycznego GUI.

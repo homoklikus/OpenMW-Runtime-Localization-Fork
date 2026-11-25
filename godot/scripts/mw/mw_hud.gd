@@ -437,7 +437,7 @@ func update_minimap() -> void:
 		var sgm2: Vector2i = holder.get_meta("seg")
 		(holder.get_node("Map") as TextureRect).texture = lmap.texture(sgm2)
 		# HudWindow: LocalMapBase(…, [Map] local map hud fog of war = false) – minimapa bez mgły
-		(holder.get_node("Fog") as TextureRect).texture = lmap.fog_texture(sgm2) if hud_fog_of_war else null
+		(holder.get_node("Fog") as TextureRect).texture = lmap.fog_texture(sgm2) if hud_fog_of_war and bool(main.get("fog_of_war") if main.get("fog_of_war") != null else true) else null
 	minimap_tiles.position = center - (L.f as Vector2) * T
 	_update_minimap_markers(lmap, L, T)
 	var cam := main.player.get_node_or_null("Camera3D") as Node3D

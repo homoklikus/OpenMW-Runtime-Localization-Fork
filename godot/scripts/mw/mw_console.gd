@@ -25,7 +25,8 @@ const COLOR_INFO := "#AAAAAA"
 const MAX_TEXT := 10000
 const CONSOLE_ONLY := ["coc", "centeroncell", "coe", "centeronexterior", "tgm", "togglegodmode", "tcl",
 	"togglecollision", "tai", "toggleai", "fillmap", "tm", "togglemenus", "sv", "showvars", "help", "ra",
-	"resetactors", "fixme"]
+	"resetactors", "fixme", "ts", "togglesky", "twa", "togglewater", "twf", "togglewireframe", "tw",
+	"toggleworld", "togglescripts", "tfh", "togglefullhelp", "user1", "user2", "user3", "user4", "tfow", "togglefogofwar"]
 
 var main
 var win: Control = null
@@ -308,6 +309,41 @@ func _console_only(name: String, args: Array, ref, who: Dictionary) -> void:
 			var names := SIG.SIG.keys()
 			names.sort()
 			print_ok(" ".join(names))
+		"ts", "togglesky":
+			print_ok("Sky -> %s" % ("On" if main.envr.toggle_sky() else "Off"))
+		"twa", "togglewater":
+			print_ok("Water -> %s" % ("On" if main.envr.toggle_water() else "Off"))
+		"twf", "togglewireframe":
+			# RenderingManager::toggleRenderMode(Render_Wireframe): cała scena w siatce
+			var vp: Viewport = main.get_viewport()
+			var on: bool = vp.debug_draw != Viewport.DEBUG_DRAW_WIREFRAME
+			vp.debug_draw = Viewport.DEBUG_DRAW_WIREFRAME if on else Viewport.DEBUG_DRAW_DISABLED
+			print_ok("Wireframe Rendering -> %s" % ("On" if on else "Off"))
+		"tw", "toggleworld":
+			# Render_Scene: świat (bez nieba i interfejsu) niewidoczny
+			var cam: Camera3D = main.get_viewport().get_camera_3d()
+			if cam != null:
+				var on2: bool = cam.cull_mask == 0
+				if on2:
+					cam.cull_mask = int(main.get_meta("world_cull_mask", 0xFFFFF))
+				else:
+					main.set_meta("world_cull_mask", cam.cull_mask)
+					cam.cull_mask = 0
+				print_ok("World -> %s" % ("On" if on2 else "Off"))
+		"togglescripts":
+			# World::toggleScripts: skrypty lokalne i globalne wstrzymane
+			main.scripts_enabled = not main.scripts_enabled
+			print_ok("Scripts -> %s" % ("On" if main.scripts_enabled else "Off"))
+		"tfh", "togglefullhelp":
+			main.full_help = not main.full_help
+			print_ok("Full help -> %s" % ("On" if main.full_help else "Off"))
+		"tfow", "togglefogofwar":
+			main.fog_of_war = not main.fog_of_war              # WindowManager::toggleFogOfWar (mapa i minimapa)
+			if main.get("map_window") != null and main.map_window.visible:
+				main.map_window._build_local()                 # applyFogOfWar: tekstury mgły od razu
+			print_ok("Fog of war -> %s" % ("On" if main.fog_of_war else "Off"))
+		"user1", "user2", "user3", "user4":
+			print_ok("%s: not in use" % name)                # OpUser1–4
 		"ra", "resetactors", "fixme":
 			print_error("Error: %s is not supported" % name)
 

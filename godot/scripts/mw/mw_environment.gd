@@ -240,7 +240,8 @@ func apply() -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = r.ambient + _night_eye_add()
 	env.ambient_light_energy = 1.0
-	env.background_mode = Environment.BG_SKY
+	env.background_mode = Environment.BG_SKY if sky_enabled else Environment.BG_COLOR
+	env.background_color = r.fog
 	env.fog_light_color = r.fog
 	var depth: float = r.fog_depth
 	if depth <= 0.0:
@@ -450,6 +451,9 @@ uniform vec3 ambient = vec3(0.5);
 uniform vec3 sky_color = vec3(0.37, 0.53, 0.8);
 uniform vec3 fog_color = vec3(0.8, 0.88, 1.0);
 uniform float rain = 0.0;
+uniform bool refraction_on = true;
+uniform bool scattering_on = true;
+uniform bool wobbly_on = true;
 varying vec3 wpos;
 const float VISIBILITY = 2500.0;
 const float VISIBILITY_DEPTH = VISIBILITY * 1.5;
@@ -535,7 +539,8 @@ void fragment() {
 	float surf = -VERTEX.z * upm;
 	float real_depth = lin_depth(SCREEN_UV, INV_PROJECTION_MATRIX) - surf;
 	float ddist = max(lin_depth(SCREEN_UV - off, INV_PROJECTION_MATRIX) - surf, 0.0);
-	off *= clamp(real_depth / BUMP_SUPPRESS_DEPTH, 0.0, 1.0);
+	if (refraction_on)
+		off *= clamp(real_depth / BUMP_SUPPRESS_DEPTH, 0.0, 1.0);
 	// odbicie: niebo w kierunku odbitym (mgła przy horyzoncie → kolor nieba)
 	vec3 rdir = reflect(view_dir, n);
 	vec3 reflection = mix(fog_color, sky_color, smoothstep(-0.02, 0.35, abs(rdir.z)));
@@ -545,36 +550,48 @@ void fragment() {
 	vec3 spec_n = normalize(vec3(n.x * SPEC_BUMPINESS, n.y * SPEC_BUMPINESS, n.z));
 	float phong = max(dot(reflect(view_dir, spec_n), sun_w), 0.0);
 	float specular = clamp(pow(atan(phong * 1.55), SPEC_HARDNESS) * SPEC_BRIGHTNESS, 0.0, 1.0) * ss.a;
-	if (above && real_depth <= VISIBILITY_DEPTH && ddist > VISIBILITY_DEPTH)
-		off = vec2(0.0);
-	ddist = max(lin_depth(SCREEN_UV - off, INV_PROJECTION_MATRIX) - surf, 0.0);
-	ddist = mix(ddist, real_depth, min(surf / REFR_FOG_DISTORT_DISTANCE, 1.0));
-	vec3 raw_refr = to_srgb(textureLod(screen_tex, SCREEN_UV - off, 0.0).rgb);
-	vec3 refraction = raw_refr;
-	if (!above) {
-		refraction = clamp(refraction * 1.5, 0.0, 1.0);
+	vec3 col;
+	float alpha_out = 1.0;
+	// [Water] refraction (@waterRefraction): bez załamania – kolor wody z odbiciem i przezroczystość waterTransparency
+	if (refraction_on) {
+		if (above && real_depth <= VISIBILITY_DEPTH && ddist > VISIBILITY_DEPTH)
+			off = vec2(0.0);
+		ddist = max(lin_depth(SCREEN_UV - off, INV_PROJECTION_MATRIX) - surf, 0.0);
+		ddist = mix(ddist, real_depth, min(surf / REFR_FOG_DISTORT_DISTANCE, 1.0));
+		vec3 raw_refr = to_srgb(textureLod(screen_tex, SCREEN_UV - off, 0.0).rgb);
+		vec3 refraction = raw_refr;
+		if (!above) {
+			refraction = clamp(refraction * 1.5, 0.0, 1.0);
+		} else {
+			float dc = sqrt(1.0 + 4.0 * DEPTH_FADE * DEPTH_FADE);
+			float factor = DEPTH_FADE * DEPTH_FADE / (-0.5 * dc + 0.5 - ddist / VISIBILITY) + 0.5 * dc + 0.5;
+			refraction = mix(refraction, water_color, clamp(factor, 0.0, 1.0));
+		}
+		if (scattering_on) {
+		vec3 sn = n0 * BIG_WAVES.x * 0.5 + n1 * BIG_WAVES.y * 0.5 + n2 * mid_w.x * 0.2 + n3 * mid_w.y * 0.2 + n4 * small_w.x * 0.1 + n5 * small_w.y * 0.1;
+		sn = normalize(vec3(-sn.xy * bump, sn.z));
+		float sun_h = sun_w.z;
+		vec3 scol = mix(SCATTER_COLOUR * vec3(1.0, 0.4, 0.0), SCATTER_COLOUR, max(1.0 - exp(-sun_h * SUN_EXT), 0.0));
+		float sl = max(dot(sun_w, sn) * 0.7 + 0.3, 0.0);
+		float sra = max(dot(reflect(sun_w, sn), view_dir) * 2.0 - 1.2, 0.0);
+		refraction = mix(refraction, scol, sl * sra * SCATTER_AMOUNT * sun_fade * ss.a * max(1.0 - exp(-sun_h), 0.0));
+		}
+		col = mix(refraction, reflection, fresnel) + specular * ss.rgb;
+		// chwiejne brzegi: na płyciźnie przejście w czyste załamanie
+		if (wobbly_on) {
+		vec3 sr = texture(normal_map, normal_coords(wuv, 2.0, 2.7, -t, 0.05, 0.1, n3)).rgb - 0.5 + texture(normal_map, normal_coords(wuv, 2.0, 2.7, t, 0.04, -0.13, n4)).rgb - 0.5;
+		float vf = mix(abs(view_dir.z), 1.0, 0.2);
+		float shore = real_depth * vf - (n2.r + mix(0.0, sr.r, rain) + 0.15) * 8.0;
+		shore *= min(1.0, 1000.0 / max(surf, 1.0)) * vf;
+		shore = clamp(mix(shore, 1.0, clamp(surf / WOBBLY_SHORE_FADE_DISTANCE, 0.0, 1.0)), 0.0, 1.0);
+		col = mix(raw_refr, col, shore);
+		}
 	} else {
-		float dc = sqrt(1.0 + 4.0 * DEPTH_FADE * DEPTH_FADE);
-		float factor = DEPTH_FADE * DEPTH_FADE / (-0.5 * dc + 0.5 - ddist / VISIBILITY) + 0.5 * dc + 0.5;
-		refraction = mix(refraction, water_color, clamp(factor, 0.0, 1.0));
+		col = mix(water_color, reflection, (1.0 + fresnel) * 0.5) + specular * ss.rgb;
+		alpha_out = clamp(fresnel * 6.0 + specular, 0.0, 1.0);
 	}
-	vec3 sn = n0 * BIG_WAVES.x * 0.5 + n1 * BIG_WAVES.y * 0.5 + n2 * mid_w.x * 0.2 + n3 * mid_w.y * 0.2 + n4 * small_w.x * 0.1 + n5 * small_w.y * 0.1;
-	sn = normalize(vec3(-sn.xy * bump, sn.z));
-	float sun_h = sun_w.z;
-	vec3 scol = mix(SCATTER_COLOUR * vec3(1.0, 0.4, 0.0), SCATTER_COLOUR, max(1.0 - exp(-sun_h * SUN_EXT), 0.0));
-	float sl = max(dot(sun_w, sn) * 0.7 + 0.3, 0.0);
-	float sra = max(dot(reflect(sun_w, sn), view_dir) * 2.0 - 1.2, 0.0);
-	refraction = mix(refraction, scol, sl * sra * SCATTER_AMOUNT * sun_fade * ss.a * max(1.0 - exp(-sun_h), 0.0));
-	vec3 col = mix(refraction, reflection, fresnel) + specular * ss.rgb;
-	// chwiejne brzegi: na płyciźnie przejście w czyste załamanie
-	vec3 sr = texture(normal_map, normal_coords(wuv, 2.0, 2.7, -t, 0.05, 0.1, n3)).rgb - 0.5 + texture(normal_map, normal_coords(wuv, 2.0, 2.7, t, 0.04, -0.13, n4)).rgb - 0.5;
-	float vf = mix(abs(view_dir.z), 1.0, 0.2);
-	float shore = real_depth * vf - (n2.r + mix(0.0, sr.r, rain) + 0.15) * 8.0;
-	shore *= min(1.0, 1000.0 / max(surf, 1.0)) * vf;
-	shore = clamp(mix(shore, 1.0, clamp(surf / WOBBLY_SHORE_FADE_DISTANCE, 0.0, 1.0)), 0.0, 1.0);
-	col = mix(raw_refr, col, shore);
 	ALBEDO = to_linear(clamp(col, 0.0, 1.0));
-	ALPHA = 1.0;
+	ALPHA = alpha_out;
 }"
 
 const SIMPLE_WATER_SHADER := "shader_type spatial;
@@ -630,6 +647,7 @@ static func _water_material() -> ShaderMaterial:
 					img.generate_mipmaps()
 					_nm_tex = ImageTexture.create_from_image(img)
 		_water_mat.set_shader_parameter("normal_map", _nm_tex)
+		_apply_water_features(_water_mat)
 	return _water_mat
 
 ## Klatki prostej wody: textures/water/<Water_SurfaceTexture>NN (Water_SurfaceFrameCount, FPS z fallbacków).
@@ -646,9 +664,27 @@ func _load_simple_frames() -> void:
 			break
 		_simple_frames.append(t)
 
+## ToggleSky (World::toggleSky → setSkyEnabled): bez nieba tło w kolorze mgły (kolor czyszczenia OpenMW).
+var sky_enabled := true
+## ToggleWater (Render_Water): płaszczyzny wody ukryte – także w komórkach wczytanych później.
+static var water_visible := true
+
+func toggle_sky() -> bool:
+	sky_enabled = not sky_enabled
+	apply()
+	return sky_enabled
+
+func toggle_water() -> bool:
+	water_visible = not water_visible
+	for n in get_tree().root.find_children("Water", "MeshInstance3D", true, false):
+		if n.has_meta("mw_water"):
+			(n as MeshInstance3D).visible = water_visible
+	return water_visible
+
 static func water_plane(size_m: float, height_m: float) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
 	mi.name = "Water"
+	mi.visible = water_visible
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(size_m, size_m)
 	pm.material = _water_material()
@@ -657,6 +693,20 @@ static func water_plane(size_m: float, height_m: float) -> MeshInstance3D:
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.set_meta("mw_water", true)
 	return mi
+
+## [Water] refraction / sunlight scattering / wobbly shores (@waterRefraction, @sunlightScattering, @wobblyShores
+## shadera wody OpenMW): rozpraszanie światła i chwiejne brzegi działają tylko z załamaniem.
+static var water_features := {"refraction": false, "scattering": true, "wobbly": true}
+
+static func set_water_features(refraction: bool, scattering: bool, wobbly: bool) -> void:
+	water_features = {"refraction": refraction, "scattering": scattering, "wobbly": wobbly}
+	if _water_mat != null:
+		_apply_water_features(_water_mat)
+
+static func _apply_water_features(m: ShaderMaterial) -> void:
+	m.set_shader_parameter("refraction_on", bool(water_features.refraction))
+	m.set_shader_parameter("scattering_on", bool(water_features.scattering))
+	m.set_shader_parameter("wobbly_on", bool(water_features.wobbly))
 
 ## Zmiana rodzaju wody w trakcie gry (ustawienia): podmiana materiału istniejących płaszczyzn.
 func set_water_mode(mode: String) -> void:

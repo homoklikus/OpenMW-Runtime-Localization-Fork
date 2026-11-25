@@ -45,6 +45,9 @@ var edit_note = null                  # mw_edit_note.gd – EditNoteDialog
 var keyboard_nav = null               # mw_keyboard_nav.gd – KeyboardNavigation
 var gamepad = null                    # mw_gamepad.gd – ControllerManager (pad)
 var look_diag = null                  # mw_look_diag.gd – źródła obrotu kamery (diagnostyka)
+var scripts_enabled := true            # ToggleScripts (World::toggleScripts) – skrypty lokalne i globalne
+var fog_of_war := true                 # ToggleFogOfWar (LocalMapBase::mFogOfWarToggled)
+var full_help := false                 # ToggleFullHelp (WindowManager::toggleFullHelp) – pełna pomoc w podpowiedziach
 var load_diag = null                  # mw_load_diag.gd – klatki wczytania/przejścia (--load-diag)
 var console = null                    # mw_console.gd – konsola (MWScript, polecenia tylko konsoli)
 var god_mode := false                 # TGM: bez obrażeń i kosztów (zdrowie, kondycja, magia gracza)
@@ -303,6 +306,12 @@ func _ready() -> void:
 		load_diag.quit_after = flag("diag-quit")
 		load_diag.shots = flag("load-diag-shots")
 		add_child(load_diag)
+	if flag("diag-display"):
+		var dd = preload("res://scripts/mw/mw_display_diag.gd").new()
+		dd.name = "DisplayDiag"
+		dd.main = self
+		dd.quit_after = flag("diag-quit")
+		add_child(dd)
 	gamepad = preload("res://scripts/mw/mw_gamepad.gd").new()
 	gamepad.name = "ControllerManager"
 	gamepad.main = self
@@ -1583,6 +1592,9 @@ func migrate_window_settings_from_save() -> void:
 ## Opcje zmieniane w trakcie gry: dźwięk, napisy, mysz, pole widzenia, odległość widzenia, cienie, mgła,
 ## V-Sync, limit FPS (bez przebudowy świata).
 func apply_live_settings() -> void:
+	preload("res://scripts/mw/mw_environment.gd").set_water_features(bool(settings.get("water_refraction", false)),
+		bool(settings.get("sunlight_scattering", true)), bool(settings.get("wobbly_shores", true)))
+	get_viewport().anisotropic_filtering_level = anisotropy_level(int(settings.get("anisotropy", 4)))
 	if audio != null:
 		audio.voice_volume = float(settings.get("voice_volume", 0.8))
 		audio.sfx_volume = float(settings.get("sfx_volume", 1.0))
@@ -1625,6 +1637,18 @@ func apply_live_settings() -> void:
 	if DisplayServer.get_name() != "headless":
 		DisplayServer.window_set_vsync_mode(vsync_mode_value())
 		DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, not bool(settings.get("window_border", true)))
+
+## [General] anisotropy (0–16) → poziom filtrowania anizotropowego widoku (wyłączone, 2×, 4×, 8×, 16×).
+static func anisotropy_level(a: int) -> Viewport.AnisotropicFiltering:
+	if a >= 16:
+		return Viewport.ANISOTROPY_16X
+	if a >= 8:
+		return Viewport.ANISOTROPY_8X
+	if a >= 4:
+		return Viewport.ANISOTROPY_4X
+	if a >= 2:
+		return Viewport.ANISOTROPY_2X
+	return Viewport.ANISOTROPY_DISABLED
 
 ## [Video] vsync mode: 0 wyłączone, 1 włączone, 2 adaptacyjne (ustawienia: vsync + vsync_adaptive).
 func vsync_mode_value() -> int:
@@ -1949,7 +1973,7 @@ func _process(_d: float) -> void:
 			if ai.enabled:
 				crime.tick(_d)
 		_perf_mark("ai+crime")
-	if scripts != null and player != null and not get_tree().paused and arg("scripts", "1") != "0":
+	if scripts != null and player != null and not get_tree().paused and arg("scripts", "1") != "0" and scripts_enabled:
 		scripts.tick(_d, script_host.scripted_refs())
 	_perf_mark("scripts")
 	_capture_tick()

@@ -158,6 +158,8 @@ func item_info(id: String, count := 1) -> Dictionary:
 			info["effects"] = effs2
 			info["is_ingredient"] = true
 	info["text"] = text
+	if main != null and bool(main.get("full_help")):
+		info["extra"] = misc_line(String(rec.get("script", "")), "Script")       # przedmiot w ekwipunku – CellRef bez właściciela
 	return info
 
 ## Obrażenia broni z rekordu (WPDT: chop/slash/thrust = [min, max]).
@@ -577,7 +579,56 @@ func _update_world_focus(gui_mode: bool) -> void:
 	box.visible = true
 
 ## Class::getToolTipInfo obiektu w świecie; {} – bez podpowiedzi (hasToolTip false albo bez nazwy).
+## ToolTips::getMiscString / getValueString.
+static func misc_line(text: String, prefix: String) -> String:
+	return "" if text.is_empty() else "\n%s: %s" % [prefix, text]
+
+## ToolTips::getCellRefString (pełna pomoc, ToggleFullHelp): właściciel, frakcja właściciela i ranga, zmienna
+## globalna referencji. Bez listy „Stolen … from …” (MechanicsManager::getStolenItemOwners – port nie prowadzi
+## rejestru skradzionych przedmiotów po właścicielach).
+func cellref_string(ex: Dictionary) -> String:
+	var out := misc_line(String(ex.get("owner", "")), "Owner")
+	var fid := String(ex.get("faction", "")).to_lower()
+	if not fid.is_empty():
+		var fr: Dictionary = main.builder.actors.record("faction", fid)
+		if not fr.is_empty():
+			out += misc_line(String(fr.get("name", "")) if not String(fr.get("name", "")).is_empty() else fid, "Owner Faction")
+			var rank := int(ex.get("faction_rank", -1))
+			if rank >= 0:
+				var ranks: Array = fr.get("ranks", [])
+				var rn := String(ranks[rank]) if rank < ranks.size() else ""
+				out += ("" if rank == 0 else "\n%s: %d" % ["Rank", rank]) if rn.is_empty() else misc_line(rn, "Rank")
+	out += misc_line(String(ex.get("global", "")), "Global")
+	return out
+
+## Pełna pomoc obiektu w świecie (klasy MWClass::getToolTipInfo przy getFullHelp): aktorzy – skrypt; pozostali –
+## getCellRefString + skrypt.
+func _full_help_extra(node: Node, rec_script: String, with_cellref: bool) -> String:
+	if main == null or not bool(main.get("full_help")):
+		return ""
+	var out := cellref_string(main.interaction.extra_of(node)) if with_cellref else ""
+	return out + misc_line(rec_script, "Script")
+
 func focus_info(node: Node) -> Dictionary:
+	var info := _focus_info(node)
+	if info.is_empty() or main == null or not bool(main.get("full_help")):
+		return info
+	var b: Dictionary = main.interaction.base_of(node)
+	var t := String(b.get("type", ""))
+	var scr := String(_record_of(node).get("script", ""))
+	info["extra"] = _full_help_extra(node, scr, not t in ["NPC_", "CREA"])     # zastępuje linię skryptu z item_info
+	return info
+
+func _record_of(node: Node) -> Dictionary:
+	var base := String(node.get_meta("mw_base", "")).to_lower()
+	var t := String(main.interaction.base_of(node).get("type", ""))
+	var files := {"NPC_": "npc", "CREA": "creature", "DOOR": "door", "CONT": "container", "ACTI": "activator"}
+	if files.has(t):
+		return main.builder.actors.record(files[t], base)
+	var it: Dictionary = main.interaction.inventory.item(base)
+	return it.get("rec", {}) if not it.is_empty() else {}
+
+func _focus_info(node: Node) -> Dictionary:
 	var it = main.interaction
 	if it == null or node == null:
 		return {}

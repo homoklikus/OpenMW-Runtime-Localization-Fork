@@ -23,7 +23,8 @@ const BARE_FUNCTIONS := ["saydone", "getaipackagedone", "onactivate", "menumode"
 	"getsecondspassed", "ondeath", "onknockout", "onmurder", "getpcsleep",
 	"getpcjumping", "getstandingpc", "getcurrenttime", "getdisabled", "getinterior", "getcurrentaipackage",
 	"getweapondrawn", "getspellreadied", "getpccrimelevel", "random100", "getlevel", "gethealth", "getpcrank",
-	"getdeadcount", "getlocked", "getscale", "getpcinjail", "getpctraveling", "getwaterlevel"]
+	"getdeadcount", "getlocked", "getscale", "getpcinjail", "getpctraveling", "getwaterlevel", "getpcrunning",
+	"getwindspeed", "getpcvisionbonus", "pcget3rdperson", "getmasserphase", "getsecundaphase"]
 var delta := 0.0
 var button_pressed := -1
 var cell_changed := false
@@ -1208,6 +1209,31 @@ func _state_function(fname: String, ref, args: Array, c: Ctx):
 			return null
 		"getpcjumping":
 			return 1.0 if m.player != null and bool(m.player.get("jumping")) else 0.0
+		"getpcrunning":
+			# MechanicsManager::isRunning: postawa biegu i ruch biegiem albo w powietrzu (nie pływanie, nie lot)
+			var pr = m.player
+			if pr == null or not bool(pr.want_run):
+				return 0.0
+			var moving: bool = (pr.move_input as Vector2).length() > 0.0 and not bool(pr.fly)
+			var air: bool = not pr.is_on_floor() and not bool(pr.swimming) and not bool(pr.fly)
+			return 1.0 if moving or air else 0.0
+		"getwindspeed":
+			# WeatherManager::getWindSpeed: 0 we wnętrzach, inaczej wynik pogody (Weather_*_Wind_Speed z przejściem)
+			if not String(m.interior).is_empty() or m.envr == null:
+				return 0.0
+			return float((m.envr.wm.result as Dictionary).get("wind_speed", 0.0))
+		"getpcvisionbonus", "setpcvisionbonus", "modpcvisionbonus":
+			return _vision_bonus(fname, args, c)
+		"pcget3rdperson":
+			return 0.0                     # widok zawsze pierwszoosobowy (kamera TPP nieprzeniesiona) – stan prawdziwy
+		"pcforce1stperson":
+			return null                    # już widok pierwszoosobowy (Camera::forceFirstPerson – bez zmian)
+		"pcforce3rdperson", "togglevanitymode", "tvm":
+			_missing(fname, "kamera trzecioosobowa i tryb vanity (MWRender::Camera) nieprzeniesione")
+			return null
+		"getmasserphase", "getsecundaphase":
+			_missing(fname, "fazy księżyców ze stanu nieba (SkyManager::Moon) – Masser i Secunda nie są przeniesione")
+			return 0.0
 		"getpcsneaking":
 			# MechanicsManager::isSneaking: postawa skradania (klawisz albo ForceSneak) poza wodą i lewitacją
 			var p = m.player
@@ -1445,6 +1471,29 @@ func _world_function(fname: String, ref, args: Array, c: Ctx):
 	return NONE_FN
 
 var missing := {}                # funkcja → zależność niezrealizowana (raport)
+
+## Get/Set/ModPCVisionBonus: Night Eye gracza (efekt 43) ograniczony do [0, 1]; Set/Mod przez modifyBase.
+func _vision_bonus(fname: String, args: Array, c: Ctx):
+	var m = game.main
+	var f: Dictionary = m.combat.player_fighter()
+	var mag := float(m.combat.magic_effect(f, 43))
+	if fname == "getpcvisionbonus":
+		return clampf(mag / 100.0, 0.0, 1.0)
+	var arg := _num(args, 0, c)
+	var st: Dictionary = m.player_stats()
+	var base := float((st.get("effect_base", {}) as Dictionary).get("43", 0.0)) if st.get("effect_base") is Dictionary else 0.0
+	var delta := 0.0
+	if fname == "setpcvisionbonus":
+		delta = clampf(arg * 100.0, 0.0, 100.0) - mag
+	else:
+		var nb := clampf(mag + arg * 100.0, 0.0, 100.0) - (mag - base)      # newBase −= modifier
+		delta = clampf(nb, 0.0, 100.0) - mag
+	if not st.get("effect_base") is Dictionary:
+		st["effect_base"] = {}
+	st.effect_base["43"] = float(st.effect_base.get("43", 0.0)) + float(int(delta))
+	if m.magic != null and m.magic.has_method("sync_dynamic"):
+		m.magic.sync_dynamic(f)
+	return null
 
 ## Funkcja rozpoznana, ale zależna od systemu, którego silnik jeszcze nie ma – jawnie w raporcie, bez skutku.
 func _missing(fname: String, dependency: String) -> void:
