@@ -904,6 +904,10 @@ func _protection_effects(f: Dictionary) -> Array:
 	return out
 
 ## Jedno przejście applyMagicEffect dla efektu (dt = 0 – nałożenie przy rzuceniu).
+## Efekty, po których applyMagicEffect zwraca affectedHealth (mShowHealth): obrażenia żywiołów, Uszkodzenie i Wyssanie
+## zdrowia, Trucizna, Przywrócenie zdrowia, Pochłonięcie zdrowia, obrażenia od słońca.
+const HEALTH_FX := [14, 15, 16, 23, 27, 75, 18, 86, 135]
+
 func _apply_effect(f: Dictionary, entry: Dictionary, e: Dictionary, dt: float) -> void:
 	var id := int(e.effect)
 	var mg := effect(id)
@@ -933,6 +937,12 @@ func _apply_effect(f: Dictionary, entry: Dictionary, e: Dictionary, dt: float) -
 			e.time_left = float(e.time_left) - dt
 			return
 	_actor_effect(f, entry, e, amount)
+	# ActiveSpells::update: efekt gracza zmieniający zdrowie innego aktora (applyMagicEffect – affectedHealth)
+	# pokazuje pasek zdrowia celu (setEnemy)
+	if String(entry.get("caster", "")) == "player" and f.get("kind", "") != "player" and id in HEALTH_FX:
+		var hud = main.get("mw_hud") if main != null else null
+		if hud != null and hud.has_method("set_enemy"):
+			hud.set_enemy(f)
 	e.magnitude = magnitude
 	e.applied = true
 	e.time_left = float(e.time_left) - dt

@@ -529,6 +529,8 @@ func _process(_dt: float) -> void:
 		_update_world_focus(gui_mode)
 		return
 	var vpt := get_viewport()
+	if _update_gui_world(vpt):
+		return
 	# ToolTips::onFrame: podpowiedź po „tooltip delay” s bez ruchu myszy (ruch – od nowa)
 	var mp := vpt.get_mouse_position()
 	if mp == _last_mouse:
@@ -547,6 +549,43 @@ func _process(_dt: float) -> void:
 			hide_tip()
 		return
 	show_for(tip, vpt.get_mouse_position())
+
+## ToolTips::update w trybie GUI, kursor nad światem (HUD: mWorldMouseOver – bez przedmiotu przy kursorze) w trybie
+## ekwipunku, pojemnika albo konsoli: podpowiedź obiektu pod kursorem (getFocusObject przez kursor) od razu, przy
+## kursorze; konsola – także obiekt bez podpowiedzi (nazwa albo identyfikator). → czy obsłużone
+const _Backdrop := preload("res://scripts/mw/mw_menu_backdrop.gd")
+var gui_world_key := ""            # testy: klucz podpowiedzi obiektu pod kursorem w trybie GUI
+
+func _update_gui_world(vpt: Viewport, at = null) -> bool:
+	gui_world_key = ""
+	var mm = main.get("menu_mode")
+	var console = main.get("console")
+	var console_on: bool = console != null and console.visible
+	var inv_mode: bool = mm != null and mm.visible and mm.get("barter") == null and (mm.get("companion") as Dictionary).is_empty()
+	if not (console_on or inv_mode) or not main.has_method("gui_focus_object"):
+		return false
+	var c: Control = vpt.gui_get_hovered_control() if at == null else null
+	var over_world: bool = c == null or c.get_script() == _Backdrop
+	if not over_world or (mm != null and mm.has_method("is_holding") and mm.is_holding()):
+		return false
+	var mp: Vector2 = vpt.get_mouse_position() if at == null else at
+	var node: Node = main.gui_focus_object(mp)
+	var info := focus_info(node) if node != null else {}
+	if info.is_empty() and node != null and console_on:
+		var nm: String = main.interaction.display_name(node) if main.get("interaction") != null else ""
+		info = {"caption": nm if not nm.is_empty() else String(node.get_meta("mw_base", ""))}
+	if info.is_empty():
+		if box.visible:
+			hide_tip()
+		return true
+	var key := "guiworld|" + str(info)
+	if key != current_key:
+		create_tooltip(info)
+		current_key = key
+	gui_world_key = key
+	box.position = place(mp, last_size, vpt.get_visible_rect().size)
+	box.visible = true
+	return true
 
 # --- obiekt pod celownikiem (ToolTips::update poza trybem GUI) -------------------------------------------------
 

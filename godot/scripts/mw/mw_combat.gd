@@ -460,6 +460,8 @@ func melee(att: Dictionary, vic: Dictionary, attack_type: int, strength: float, 
 	set_fatigue(att, fatigue(att) - attack_fatigue(att, w, strength))
 	if vic.is_empty() or is_dead(vic):
 		return {"success": false}
+	if att.kind == "player":
+		_set_enemy(vic)                          # Npc::hit: WindowManager::setEnemy przed rzutem na trafienie
 	var helpless := knocked_down(vic)        # Npc::hit: fCombatKODamageMult – także powalony gracz
 	var chance := hit_chance(att, vic, skill(att, weapon_skill(w)), helpless)
 	var r := roll if roll >= 0 else roll100()
@@ -685,7 +687,15 @@ func _stagger(vic: Dictionary, raw: float, has_damage: bool) -> void:
 			_actor_state(vic)["knocked_down"] = true
 
 ## Pocisk (projectileHit): łuk/kusza + strzała – obie wartości „chop”; broń rzucana – dwa razy (jak OpenMW).
+## WindowManager::setEnemy → HUD (pasek zdrowia celu).
+func _set_enemy(vic: Dictionary) -> void:
+	var hud = main.get("mw_hud") if main != null else null
+	if hud != null and hud.has_method("set_enemy") and vic.get("kind", "") != "player":
+		hud.set_enemy(vic)
+
 func projectile_hit(att: Dictionary, vic: Dictionary, launcher: Dictionary, ammo: Dictionary, strength: float, roll := -1) -> Dictionary:
+	if att.kind == "player" and not vic.is_empty():
+		_set_enemy(vic)                          # projectileHit: cel – aktor, setEnemy przed rzutem
 	if vic.is_empty() or is_dead(vic):
 		return {"success": false}
 	var skid := weapon_skill(launcher) if not launcher.is_empty() else SK_MARKSMAN

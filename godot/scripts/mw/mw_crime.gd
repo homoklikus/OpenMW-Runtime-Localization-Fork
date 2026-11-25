@@ -128,6 +128,53 @@ func container_taken(sid: String, item: String, count: int) -> void:
 		return                                 # ciało (kradzież kieszonkowa – później)
 	item_taken(r.get("extra", {}), item, count)
 
+## itemTaken z ekwipunku żywego NPC (powalony albo okradany po cichu – isAllowedToUse fałsz): rejestr skradzionych
+## (właściciel = identyfikator NPC), przy alarm – commitCrime(OT_Theft, wartość).
+func npc_item_taken(victim: Node, item: String, count: int, alarm := true) -> void:
+	if victim == null or main.combat.is_dead(main.combat.fighter_of(victim)):
+		return
+	var gold := item.begins_with("gold_")
+	if not gold:
+		if not st().get("stolen") is Dictionary:
+			st()["stolen"] = {}
+		var key := String(victim.get_meta("mw_base", "")).to_lower()
+		var m: Dictionary = st().stolen.get(item, {})
+		m[key] = int(m.get(key, 0)) + count
+		st().stolen[item] = m
+	if alarm:
+		var value := count if gold else count * int(main.trade.item_value(item))
+		commit(victim, THEFT, "", value)
+
+## Pickpocket::getChanceModifier: (add + 0,2 × Zręczność + 0,1 × Szczęście + Skradanie) × fatigueTerm.
+func _pick_modifier(f: Dictionary, add := 0.0) -> float:
+	var cb = main.combat
+	var at: Array = cb.attributes(f)
+	return (add + 0.2 * float(at[3]) + 0.1 * float(at[7]) + cb.skill(f, 19)) * cb.fatigue_term(f)
+
+## Pickpocket::getDetected: t = 2x − y; poniżej Skradanie / iPickMinChance – rzut > Skradanie / iPickMinChance,
+## inaczej rzut > min(iPickMaxChance, t). → wykryty
+func pick_detected(victim: Node, value_term: float) -> bool:
+	var me: Dictionary = main.combat.player_fighter()
+	var x := _pick_modifier(me)
+	var y := _pick_modifier(main.combat.fighter_of(victim), value_term)
+	var t := 2.0 * x - y
+	var pc_sneak: float = main.combat.skill(me, 19)
+	var min_c := maxf(1.0, float(_gmst("iPickMinChance", 5)))
+	var max_c := float(_gmst("iPickMaxChance", 75))
+	var roll := _roll()
+	if t < pc_sneak / min_c:
+		return roll > int(pc_sneak / min_c)
+	return roll > int(minf(max_c, t))
+
+## Pickpocket::pick: valueTerm = 10 × fPickPocketMod × wartość stosu.
+func pick(victim: Node, item: String, count: int) -> bool:
+	var value := float(main.trade.item_value(item) * count)
+	return pick_detected(victim, 10.0 * float(_gmst("fPickPocketMod", 0.3)) * value)
+
+## Pickpocket::finish (zamknięcie okna).
+func pick_finish(victim: Node) -> bool:
+	return pick_detected(victim, 0.0)
+
 ## unlockAttempted: próba otwarcia cudzego zamka/pułapki (wytrych, sonda, czar Otwarcia).
 func unlock_attempted(extra: Dictionary, locked: bool) -> void:
 	var o := ownership(extra)

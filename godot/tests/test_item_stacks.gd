@@ -119,6 +119,28 @@ func _run() -> void:
 		main.equip_item(SWORD, false)
 		var pi: Array = main.trade.player_items(a).filter(func(x): return String(x.id) == SWORD)
 		check(pi.size() == 1 and (pi[0].stacks as Array).size() == 2, "ekwipunek gracza w handlu: założony stos osobno (%s)" % [pi])
+		# zwłoki / towarzysz: InventoryItemModel aktora – założone egzemplarze NPC osobnym stosem Type_Equipped
+		var own: Array = inv.contents(String(a.sid), a.rec)
+		var aw: Dictionary = mm.actor_worn(String(a.sid), a.rec, own)
+		var ce: Array = mm.sorted_items(String(a.sid), a.rec)
+		var ok_worn := not aw.is_empty()
+		for id in aw:
+			var w := ce.filter(func(e): return String(e.id) == id and bool(e.worn))
+			ok_worn = ok_worn and w.size() == mini(int(aw[id]), inv.count_of(String(a.sid), a.rec, id)) and int(w[0].stype) == 1
+		check(ok_worn, "założone przedmioty NPC w oknie pojemnika osobno, przed zwykłymi (%s)" % [aw])
+		# sprzedaż sztuki z założonego stosu – zdjęcie (InventoryStore::remove), niezałożone zostają
+		var c0: int = inv.count_of("player", {}, SWORD)
+		main.equip_item(SWORD, false)
+		var mo: int = main.trade.merchant_offer(a, {}, {SWORD: 1})
+		var r: Dictionary = main.trade.offer(a, {}, {SWORD: 1}, mo, 1, {SWORD: 1})
+		check(bool(r.ok) and inv.count_of("player", {}, SWORD) == c0 - 1 and main.equipped_slot_of(SWORD) < 0,
+			"sprzedany założony egzemplarz zdjęty (%s, %d)" % [r, inv.count_of("player", {}, SWORD)])
+		main.equip_item(SWORD, false)
+		mo = main.trade.merchant_offer(a, {}, {SWORD: 1})
+		r = main.trade.offer(a, {}, {SWORD: 1}, mo, 1, {})
+		check(bool(r.ok) and main.equipped_slot_of(SWORD) >= 0, "sprzedana sztuka niezałożona – założony egzemplarz zostaje")
+		var sw: Array = TW.split_stacks({"count": 3, "stacks": [{"count": 1, "worn": true}, {"count": 2, "worn": false}]}, 2, 1)
+		check(sw.size() == 1 and not bool(sw[0].worn) and int(sw[0].count) == 2, "koszyk ze sztuką z założonego stosu (%s)" % [sw])
 		for it in main.trade.merchant_items(a):
 			var tot := 0
 			for p in it.stacks:

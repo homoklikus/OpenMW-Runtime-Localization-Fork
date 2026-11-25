@@ -18,6 +18,7 @@ const L10n := preload("res://scripts/mw/mw_l10n.gd")
 const Flora := preload("res://scripts/mw/mw_flora.gd")
 const GameStateScript := preload("res://scripts/mw/mw_game_state.gd")
 const Events := preload("res://scripts/mw/mw_events.gd")
+const MWCursor := preload("res://scripts/mw/mw_cursor.gd")
 const MWInput := preload("res://scripts/mw/mw_input.gd")
 const InteractionScript := preload("res://scripts/mw/mw_interaction.gd")
 const InventoryScript := preload("res://scripts/mw/mw_inventory.gd")
@@ -382,6 +383,7 @@ func _ready() -> void:
 	mw_hud.main = self
 	add_child(mw_hud)
 	mw_hud.build()
+	MWCursor.apply(String(data_dir))         # WindowManager::createCursors: kursory z tekstur gry
 	_apply_settings()
 	_setup_start_ui()
 	if menu_start_wanted():
@@ -2445,14 +2447,31 @@ func activate(r: Node, force_default := false) -> bool:
 			return true
 		# Npc::activate: gracz-wilkołak nie rozmawia z NPC (sWerewolfRefusal, dźwięk WolfNPC); NPC-wilkołak też nie
 		var fa: Dictionary = combat.fighter_of(r) if combat != null else {}
-		if String(r.get_meta("mw_actor", "")) == "npc" and bool(player_stats().get("werewolf", false)):
+		var is_npc := String(r.get_meta("mw_actor", "")) == "npc" or String(fa.get("kind", "")) == "npc"
+		if bool(player_stats().get("werewolf", false)):          # Npc/Creature::activate: WolfNPC / WolfCreature
 			_toast(dialogue.gmst_text("sWerewolfRefusal", ""))
 			if audio != null:
-				audio.play("wolfnpc", (r as Node3D).global_position)
+				audio.play("wolfnpc" if is_npc else "wolfcreature", (r as Node3D).global_position)
 			return true
-		if not fa.is_empty() and state.actors.has(String(fa.sid)) and bool(state.actors[String(fa.sid)].get("werewolf", false)):
+		var knocked: bool = not fa.is_empty() and combat.knocked_down(fa)
+		if not is_npc:
+			if knocked:
+				return true                                          # Creature::activate: powalone – FailedAction
+			open_dialogue(r)                                          # ActionTalk
 			return true
-		open_dialogue(r)                  # ActionTalk (NPC, stworzenia); bez powitania okno się nie otwiera
+		# Npc::activate: walka z graczem (isInCombat(actor) albo pościg) – bez rozmowy i kradzieży (sActorInCombat);
+		# powalony – przeszukanie (PickpocketItemModel bez ukrywania), gracz skrada się – kradzież kieszonkowa
+		var in_combat: bool = ai != null and (ai.in_combat_with(r, "player") or (crime != null and crime._in_pursuit(r)))
+		if (knocked or player_sneaking()) and not in_combat:
+			menu_mode.open_container(String(fa.sid), fa.rec, dialogue.actor_name(dialogue.make_actor(r)), false, r, knocked)
+			return true
+		var npc_werewolf: bool = not fa.is_empty() and state.actors.has(String(fa.sid)) and bool(state.actors[String(fa.sid)].get("werewolf", false))
+		if not in_combat and not npc_werewolf:
+			open_dialogue(r)                  # ActionTalk; bez powitania okno się nie otwiera
+			return true
+		var refusal: String = dialogue.gmst_text("sActorInCombat", "") if in_combat else ""
+		if not refusal.is_empty():
+			_toast(refusal)
 		return true
 	var at: Vector3 = (r as Node3D).global_position
 	var snap: Dictionary = interaction.snapshot(r)
@@ -2554,21 +2573,89 @@ func on_dialogue_closed() -> void:
 		script_host.dirty = true
 
 ## Odłożenie przedmiotu z ekwipunku przed graczem (na ziemi pod punktem 0,8 m przed nim).
-func drop_item(id: String, count: int) -> String:
+func drop_item(id: String, count: int, screen = null) -> String:
 	if player == null:
 		return ""
-	var fwd := -player.global_transform.basis.z
-	fwd.y = 0
-	var at := player.global_position + fwd.normalized() * 0.8 + Vector3(0, 1.0, 0)
-	var q := PhysicsRayQueryParameters3D.create(at, at - Vector3(0, 6, 0))
-	q.exclude = [player.get_rid()]
-	var hit := player.get_world_3d().direct_space_state.intersect_ray(q)
-	var ground: Vector3 = hit["position"] if not hit.is_empty() else player.global_position
+	# WorldItemModel::dropItemImpl: canPlaceObject → placeObject (punkt trafienia promienia kamery przez kursor),
+	# inaczej dropObjectOnGround – pozycja gracza, wysokość z promienia w dół od 20 j. nad nim
+	var ground: Vector3 = player.global_position
+	var hit := cursor_place_hit(screen) if screen is Vector2 else {}
+	if not hit.is_empty() and _flat(hit):
+		ground = hit.position
+	else:
+		var at: Vector3 = player.global_position + Vector3(0, 20.0 / MWCoords.UNITS_PER_METER, 0)
+		var q := PhysicsRayQueryParameters3D.create(at, at - Vector3(0, 1000000.0 / MWCoords.UNITS_PER_METER, 0))
+		q.exclude = [player.get_rid()]
+		var down := player.get_world_3d().direct_space_state.intersect_ray(q)
+		if not down.is_empty():
+			ground.y = float(down.position.y)
 	var key := ("int:" + interior.to_lower()) if not interior.is_empty() else db.exterior_key(MWCoords.cell_of(ground))
 	var sid: String = interaction.drop(id, count, key, MWCoords.godot_to_mw(ground), -player.rotation.y)
 	if scripts != null and not sid.is_empty():
 		scripts.item_dropped(id, sid)            # World::PCDropped: zmienne skryptu z przedmiotem, OnPCDrop = 1
 	return sid
+
+## RenderingManager::castCameraToViewportRay(kursor, 200 j., bez gracza i aktorów): trafienie {position, normal}
+## albo {}. Zasięg 200 j. liczony wzdłuż osi widoku kamery (koniec odcinka na głębokości 200).
+func cursor_place_hit(screen: Vector2) -> Dictionary:
+	var cam: Camera3D = get_viewport().get_camera_3d()
+	if cam == null or player == null:
+		return {}
+	var from := cam.project_ray_origin(screen)
+	var dir := cam.project_ray_normal(screen)
+	var fwd := -cam.global_transform.basis.z
+	var depth := maxf(dir.dot(fwd), 0.05)
+	var to := from + dir * (200.0 / MWCoords.UNITS_PER_METER / depth)
+	var space := player.get_world_3d().direct_space_state
+	var excl: Array[RID] = [player.get_rid()]
+	for i in 8:
+		var q := PhysicsRayQueryParameters3D.create(from, to)
+		q.exclude = excl
+		var hit := space.intersect_ray(q)
+		if hit.is_empty():
+			return {}
+		var n: Node = hit.collider
+		while n != null and not n.has_meta("mw_sid"):
+			n = n.get_parent()
+		if n != null and dialogue != null and dialogue.is_actor_node(n) and hit.collider is CollisionObject3D:
+			excl.append((hit.collider as CollisionObject3D).get_rid())      # ignoreActors
+			continue
+		return hit
+	return {}
+
+## World::getFocusObject w trybie GUI: promień kamery przez kursor myszy, zasięg iMaxInfoDist + Telekineza (+ odległość kamery),
+## bez gracza (aktorzy trafiani). → węzeł referencji albo null.
+func gui_focus_object(screen: Vector2) -> Node:
+	var cam: Camera3D = get_viewport().get_camera_3d()
+	if cam == null or player == null:
+		return null
+	var units := float(combat._gmst("iMaxInfoDist", 200)) if combat != null else 200.0
+	var tk: float = magic.magnitude_of(combat.player_fighter(), magic.FX_TELEKINESIS) if magic != null and combat != null else 0.0
+	units += tk * (64.0 / 3.0)                           # + feetToGameUnits(Telekineza)
+	var off: Vector3 = cam.global_position - player.global_position
+	var cam_dist := Vector2(off.x, off.z).length()       # getCameraDistance: 0 w pierwszej osobie
+	var from := cam.project_ray_origin(screen)
+	var dir := cam.project_ray_normal(screen)
+	var depth := maxf(dir.dot(-cam.global_transform.basis.z), 0.05)
+	var to := from + dir * ((units / MWCoords.UNITS_PER_METER + cam_dist) / depth)
+	var q := PhysicsRayQueryParameters3D.create(from, to)
+	q.exclude = [player.get_rid()]
+	var hit := player.get_world_3d().direct_space_state.intersect_ray(q)
+	if hit.is_empty():
+		return null
+	var n: Node = hit.collider
+	while n != null and not n.has_meta("mw_sid"):
+		n = n.get_parent()
+	return n
+
+## World::canPlaceObject: trafienie promienia kursora na powierzchni nachylonej mniej niż 30°.
+func can_place_object(screen: Vector2) -> bool:
+	var hit := cursor_place_hit(screen)
+	return not hit.is_empty() and _flat(hit)
+
+static func _flat(hit: Dictionary) -> bool:
+	var nrm: Vector3 = (hit.get("normal", Vector3.UP) as Vector3).normalized()
+	return acos(clampf(nrm.dot(Vector3.UP), -1.0, 1.0)) < deg_to_rad(30.0)
 
 func travel(dest: Dictionary) -> void:
 	if load_diag != null:
@@ -3038,6 +3125,7 @@ func load_game(path: String) -> Array:
 		player.visible = true
 	if mw_hud != null:
 		mw_hud.visible = true
+		mw_hud.clear_enemy()                   # WindowManager::clear → HUD::clear
 	time_played = float((d.get("header", {}) as Dictionary).get("time_played", 0.0))
 	last_savegame = path
 	_apply_state()
@@ -3458,6 +3546,7 @@ func new_game() -> void:
 	player.visible = true
 	if mw_hud != null:
 		mw_hud.visible = true
+		mw_hud.clear_enemy()
 	var t := _start_transform()
 	player.global_position = t.origin
 	player.rotation.y = t.basis.get_euler().y

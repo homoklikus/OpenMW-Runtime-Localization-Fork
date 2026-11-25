@@ -22,6 +22,7 @@ var gold_label: Label
 var offer_btn: Button
 var buy := {}
 var sell := {}
+var sell_worn := {}                             # id → sztuki sprzedawane z założonego stosu
 var _left_ids: Array = []
 var _right_ids: Array = []
 var _merchant: Array = []
@@ -94,7 +95,7 @@ func _ready() -> void:
 	var clear_btn := Button.new()
 	clear_btn.text = "Cancel"
 	clear_btn.name = "Clear"
-	clear_btn.pressed.connect(func(): buy = {}; sell = {}; refresh())
+	clear_btn.pressed.connect(func(): buy = {}; sell = {}; sell_worn = {}; refresh())
 	bottom.add_child(clear_btn)
 	var close_btn := Button.new()
 	close_btn.text = "Close"
@@ -134,6 +135,7 @@ func open(service: String) -> bool:
 	mode = service
 	buy = {}
 	sell = {}
+	sell_worn = {}
 	merchant_category = "all"
 	merchant_filter = ""
 	trade.restock(actor)
@@ -240,7 +242,7 @@ func _entry(it: Dictionary, count: int, src: String, merchant_side: bool, state 
 
 ## Stosy (ItemStack) wpisu towaru po odjęciu sztuk w koszyku: [{count, worn}]. Koszyk zabiera sztuki od ostatnich
 ## niezałożonych stosów (kupiec – stosy przedmiotów ze skryptem; gracz – także założony egzemplarz osobno).
-static func split_stacks(it: Dictionary, remaining: int) -> Array:
+static func split_stacks(it: Dictionary, remaining: int, worn_cut := 0) -> Array:
 	var st := []
 	for x in it.get("stacks", []):
 		st.append({"count": int(x.count), "worn": bool(x.get("worn", false))} if x is Dictionary else {"count": int(x), "worn": false})
@@ -250,6 +252,15 @@ static func split_stacks(it: Dictionary, remaining: int) -> Array:
 	for x in st:
 		cut += int(x.count)
 	cut -= maxi(0, remaining)
+	var wcut := mini(worn_cut, cut)
+	for i in range(st.size() - 1, -1, -1):          # sztuki z założonego stosu w koszyku (sellItem ze stosu Equipped)
+		if wcut <= 0:
+			break
+		if bool(st[i].worn):
+			var m := mini(wcut, int(st[i].count))
+			st[i].count = int(st[i].count) - m
+			wcut -= m
+			cut -= m
 	for worn_pass in [false, true]:
 		for i in range(st.size() - 1, -1, -1):
 			if cut <= 0:
@@ -287,7 +298,7 @@ func _fill_barter_grids() -> void:
 	for it in _player:
 		var n2 := int(it.count) - int(sell.get(it.id, 0))
 		if n2 > 0:
-			for st in split_stacks(it, n2):
+			for st in split_stacks(it, n2, int(sell_worn.get(it.id, 0))):
 				pe.append(_entry(it, int(st.count), "player", false, "", st))
 	for it in _merchant:                           # kupowane – po stronie gracza
 		if int(buy.get(it.id, 0)) > 0:
@@ -346,6 +357,7 @@ func click_item(id: String, source: String, mods := {}) -> void:
 	var avail := _available(id, source)
 	if source in ["merchant", "player"] and pressed_stack.has("count"):
 		avail = mini(avail, int(pressed_stack.count))
+	var from_worn := source == "player" and bool(pressed_stack.get("worn", false))
 	if avail <= 0:
 		return
 	if source == "player" and not trade.can_sell(id, trade.services(actor)):
@@ -357,9 +369,9 @@ func click_item(id: String, source: String, mods := {}) -> void:
 		return
 	var msg := "sQuanityMenuMessage02" if source in ["merchant", "sold"] else "sQuanityMenuMessage01"
 	if main != null and main.get("menu_mode") != null:
-		main.menu_mode.ask_count(id, avail, msg, mods, func(n: int): move_item(id, source, n))
+		main.menu_mode.ask_count(id, avail, msg, mods, func(n: int): move_item(id, source, n, from_worn))
 	else:
-		move_item(id, source, 1 if bool(mods.get("ctrl", false)) else avail)
+		move_item(id, source, 1 if bool(mods.get("ctrl", false)) else avail, from_worn)
 
 ## Liczba sztuk stosu widocznego w danej siatce.
 func _available(id: String, source: String) -> int:
@@ -379,21 +391,27 @@ func _available(id: String, source: String) -> int:
 	return 0
 
 ## sellItem/borrowItem/returnItem: przeniesienie n sztuk między stronami handlu (dźwięk podniesienia).
-func move_item(id: String, source: String, n: int) -> void:
+func move_item(id: String, source: String, n: int, from_worn := false) -> void:
 	n = mini(n, _available(id, source))
 	if n <= 0:
 		return
 	match source:
 		"merchant": buy[id] = int(buy.get(id, 0)) + n
-		"player": sell[id] = int(sell.get(id, 0)) + n
+		"player":
+			sell[id] = int(sell.get(id, 0)) + n
+			if from_worn:
+				sell_worn[id] = int(sell_worn.get(id, 0)) + n
 		"bought":
 			buy[id] = int(buy.get(id, 0)) - n
 			if int(buy[id]) <= 0:
 				buy.erase(id)
 		"sold":
 			sell[id] = int(sell.get(id, 0)) - n
+			if int(sell_worn.get(id, 0)) > int(sell.get(id, 0)):     # cofnięte najpierw sztuki niezałożone
+				sell_worn[id] = maxi(0, int(sell.get(id, 0)))
 			if int(sell[id]) <= 0:
 				sell.erase(id)
+				sell_worn.erase(id)
 	if main != null and main.get("audio") != null and main.get("interaction") != null:
 		main.audio.play(main.interaction.item_sound(id, true))       # getUpSoundId
 	refresh()
@@ -442,7 +460,7 @@ func _click_right(i: int) -> void:
 
 ## „Oferta”: kwota z pola (dodatnia – kupiec płaci). roll – test.
 func make_offer(roll := -1) -> Dictionary:
-	var r: Dictionary = trade.offer(actor, buy, sell, int(offer_spin.value), roll)
+	var r: Dictionary = trade.offer(actor, buy, sell, int(offer_spin.value), roll, sell_worn)
 	if not String(r.message).is_empty():
 		main._toast(String(r.message))
 	if bool(r.ok):
@@ -457,6 +475,7 @@ func close() -> void:
 	visible = false
 	buy = {}
 	sell = {}
+	sell_worn = {}
 	if was_barter:
 		main.menu_mode.close()
 		merchant_grid = null

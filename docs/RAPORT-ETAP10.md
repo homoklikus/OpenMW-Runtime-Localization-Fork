@@ -770,9 +770,49 @@ i dusza już wcześniej w identyfikatorze stosu: „id#c:N”, „id@stworzenie�
   dotąd; koszyk zabiera sztuki od ostatnich niezałożonych stosów;
 * test_item_stacks (18 sprawdzeń); test_trade_sources, test_trade, test_menu_mode, test_interaction,
   test_count_dialog, test_alchemy, test_repair, test_quick_keys, test_keyboard_nav, test_crime, test_language bez zmian.
-Pozostaje: towarzysz i zwłoki – założone przedmioty NPC w oknie pojemnika nie są oddzielone (port nie przechowuje
-wyposażenia NPC w inwentarzu); sprzedaż sztuki z założonego stosu zabiera w porcie sztukę niezałożoną (ten sam
-przedmiot, wynik handlu jednakowy, założenie zostaje).
+Cz. 33 domyka oba wyjątki: zwłoki i towarzysz – założone przedmioty NPC (dobór wyposażenia aktora, jak przy wyglądzie
+i u kupca) osobnym stosem Type_Equipped z tłem „założony”, przed zwykłymi (InventoryItemModel aktora); sprzedaż ze
+stosu założonego – koszyk zapamiętuje sztuki z założonego stosu, po transakcji egzemplarz zdjęty (InventoryStore::remove),
+sprzedaż sztuk niezałożonych nie zdejmuje założonego (test_item_stacks: 22 sprawdzenia).
+
+**HUD, kursory, świat w trybie GUI (cz. 33):**
+* pasek zdrowia wroga (HUD::setEnemy / updateEnemyHealthBar / onFrame, openmw_hud.layout 0.51: EnemyHealth
+  MW_EnergyBar_Yellow 13 131 65 12, kolor 1 0,729 0): pokazywany przy ataku gracza w zwarciu (Npc::hit – przed rzutem,
+  także przy chybieniu), trafieniu pociskiem gracza (projectileHit) i efekcie czaru gracza zmieniającym zdrowie celu
+  (applyMagicEffect – affectedHealth: obrażenia żywiołów, Uszkodzenie/Wyssanie/Pochłonięcie/Przywrócenie zdrowia,
+  Trucizna, Słońce); wartość int(zdrowie/maks × 100), czas fNPCHealthBarTime, wygaszanie fNPCHealthBarFade,
+  WeaponSpellName 20 px wyżej przy widocznym pasku, HUD::clear przy nowej grze i wczytaniu (test_enemy_health, 10);
+* kursory z tekstur gry jak WindowManager::createCursors (openmw_pointer.xml): arrow (tx_cursor, punkt 7 0),
+  hresize/vresize/dresize/dresize2 (tx_cursormove obrócony o 0/90/−45/45°, SDL_RenderCopyEx z kątem −Rotation),
+  drop_ground (cursor_drop_ground, 0 24) – obraz skalowany do 32 × 32; tekstury z istniejącej konwersji (prefiksy
+  textures/tx_cursor, textures/cursor_drop_ground);
+* zmiana rozmiaru okien wszystkimi krawędziami i rogami jak widżety „Action” skórki MW_Window (16 stref: krawędzie
+  4 px od 14 px od rogów, rogi z trzech części, Scale – lewa/górna krawędź przesuwa okno; kursory jak w skórce;
+  wcześniej tylko uchwyt 12 px w prawym dolnym rogu);
+* upuszczanie przedmiotu w świat jak WorldItemModel: canPlaceObject (promień kamery przez kursor, 200 j. głębokości,
+  bez gracza i aktorów, powierzchnia nachylona < 30°) → w punkcie kursora, inaczej dropObjectOnGround – pod nogi
+  gracza (wcześniej zawsze 0,8 m przed graczem); kursor drop_ground nad światem, gdy nie da się postawić przedmiotu
+  (HUD::onWorldMouseOver);
+* kliknięcie przedmiotu w świecie przy otwartym ekwipunku lub pojemniku (HUD::onWorldClicked → pickUpObject):
+  getFocusObject w trybie GUI (kursor, iMaxInfoDist + Telekineza), przedmiot do ekwipunku i od razu przy kursorze
+  (Alt – tylko do ekwipunku), kradzież jak przy podniesieniu, skrypt z OnActivate – aktywacja przez skrypt,
+  sparaliżowany/powalony/martwy gracz – bez podniesienia;
+* podpowiedź obiektu pod kursorem w trybie GUI (ToolTips::update – kursor nad światem bez przedmiotu przy kursorze,
+  tryb ekwipunku, pojemnika albo konsoli): od razu (bez tooltip delay), przy kursorze; w konsoli także obiekt bez
+  podpowiedzi – nazwa albo identyfikator (test_cursor_drop, 19).
+
+**Kradzież kieszonkowa i aktywacja aktorów (cz. 33)** – wcześniej brak (aktywacja żywego NPC zawsze otwierała rozmowę):
+* Npc::activate: walka z graczem (isInCombat(gracz) albo pościg) – bez rozmowy i kradzieży, komunikat sActorInCombat;
+  NPC powalony – ActionOpen (przeszukanie), gracz się skrada – ActionOpen (kradzież); gracz-wilkołak – sWerewolfRefusal
+  także przy stworzeniach (dźwięk WolfCreature); Creature::activate: powalone stworzenie – bez rozmowy;
+* ContainerWindow z PickpocketItemModel: przy otwarciu każdy stos ukryty, gdy rzut 0–99 > Skradanie (nie dla
+  powalonego), bez stosów założonych (Type_Equipped) i przywołanych; bez wkładania (onDropItem – przedmiot zostaje przy
+  kursorze), przycisk Take All – onTakeItem kolejno do pierwszego wykrycia;
+* Pickpocket::pick (valueTerm = 10 × fPickPocketMod × wartość stosu) i finish przy zamknięciu okna: getDetected –
+  t = 2x − y z (add + 0,2 Zręczność + 0,1 Szczęście + Skradanie) × fatigueTerm, iPickMinChance/iPickMaxChance;
+  wykrycie – commitCrime(OT_Pickpocket, ofiara świadoma), okno zamknięte, przedmiot zostaje; powodzenie – postęp
+  Skradania (Sneak_PickPocket) i itemTaken bez alarmu (rejestr skradzionych z właścicielem NPC); powalony NPC –
+  itemTaken z alarmem (kradzież, gdy ktoś widzi) (test_pickpocket, 13).
 
 ### 7.18 Akcje sterowania OpenMW 0.51 (P2, cz. 26)
 
@@ -905,8 +945,9 @@ Mody – zgodnie z poleceniem nie testowane (kolejność: najpierw klasyczne GUI
 * Etap 10 cz. 31: przedmioty przywołane poza towarem kupca (Flag_Bound)
 * Etap 10: raport – lista kupca, porównanie dwóch przebiegów OpenMW (losowanie list poziomowanych)
 * Etap 10 cz. 32: stosy przedmiotów jak ItemStack OpenMW (skrypt, założony egzemplarz, stan z referencji)
+* Etap 10 cz. 33: pasek zdrowia wroga, kursory gry, krawędzie okien, upuszczanie i podnoszenie w trybie GUI, kradzież kieszonkowa
 
-Pełny zestaw tools/run_tests.sh: 73/73 po cz. 32 (z nowym test_item_stacks; Xvfb + lavapipe); 72/72 po cz. 30 (Xvfb + lavapipe, pytest z test_game_command_window_args); 72/72 po cz. 28 (test_language wykrył polski komunikat błędu w nowym kodzie – poprawiony, testy od test_language powtórzone); 72/72 po cz. 27 (nowe test_player_controls i test_console_toggles; test_loading_render powtórzony osobno po zniknięciu serwera Xvfb w trakcie przebiegu – środowisko, nie test); 70/70 po cz. 25 (nowe test_trade_sources i test_loading_render; Xvfb + lavapipe); 68/68 po cz. 21–23 (z nowym test_load_reveal; test_count_dialog, test_trade, test_map_notes, test_load_reveal powtórzone na końcowym kodzie cz. 23); 67/67 po cz. 20; 66/66 po cz. 19 (38 w przebiegu, test_progress poprawiony i 28 kolejnych po poprawce); 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
+Pełny zestaw tools/run_tests.sh: 76/76 po cz. 33 (nowe test_enemy_health, test_cursor_drop, test_pickpocket; Xvfb + lavapipe); 73/73 po cz. 32 (z nowym test_item_stacks; Xvfb + lavapipe); 72/72 po cz. 30 (Xvfb + lavapipe, pytest z test_game_command_window_args); 72/72 po cz. 28 (test_language wykrył polski komunikat błędu w nowym kodzie – poprawiony, testy od test_language powtórzone); 72/72 po cz. 27 (nowe test_player_controls i test_console_toggles; test_loading_render powtórzony osobno po zniknięciu serwera Xvfb w trakcie przebiegu – środowisko, nie test); 70/70 po cz. 25 (nowe test_trade_sources i test_loading_render; Xvfb + lavapipe); 68/68 po cz. 21–23 (z nowym test_load_reveal; test_count_dialog, test_trade, test_map_notes, test_load_reveal powtórzone na końcowym kodzie cz. 23); 67/67 po cz. 20; 66/66 po cz. 19 (38 w przebiegu, test_progress poprawiony i 28 kolejnych po poprawce); 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 
 ## 9. Zalecana kolejność dalszych prac
 

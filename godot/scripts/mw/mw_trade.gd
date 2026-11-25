@@ -417,7 +417,7 @@ func haggle(a: Dictionary, player_offer: int, merch_offer: int, roll := -1) -> D
 
 ## Transakcja (onOfferButtonClicked): sprawdzenia złota, targowanie, postawa, przeniesienie towaru i złota.
 ## balance – oferta gracza (dodatnia: kupiec płaci). → {ok, message}
-func offer(a: Dictionary, buy: Dictionary, sell: Dictionary, balance: int, roll := -1) -> Dictionary:
+func offer(a: Dictionary, buy: Dictionary, sell: Dictionary, balance: int, roll := -1, sell_worn := {}) -> Dictionary:
 	if buy.is_empty() and sell.is_empty():
 		return {"ok": false, "message": _dl().gmst_text("sBarterDialog11", "Nothing is selected.")}
 	if balance < 0 and player_gold() < -balance:
@@ -445,6 +445,15 @@ func offer(a: Dictionary, buy: Dictionary, sell: Dictionary, balance: int, roll 
 			left -= take_world_items(a, id, left)
 	for id in sell:
 		inv.transfer("player", {}, a.sid, a.rec, id, int(sell[id]))
+		# sprzedane sztuki założonego stosu – zdjęte (InventoryStore::remove); bez nich założony egzemplarz zostaje,
+		# o ile w ekwipunku są jeszcze sztuki tego przedmiotu
+		var unequip := int(sell_worn.get(id, 0))
+		var have: int = inv.count_of("player", {}, id)
+		var worn_n: int = main.menu_mode.worn_copies(id) if main.get("menu_mode") != null else 0
+		unequip = maxi(unequip, worn_n - have)
+		while unequip > 0 and main.has_method("equipped_slot_of") and main.equipped_slot_of(id) >= 0:
+			main.unequip_slot(main.equipped_slot_of(id))
+			unequip -= 1
 	if balance > 0:
 		inv.add("player", {}, "gold_001", balance)
 	elif balance < 0:

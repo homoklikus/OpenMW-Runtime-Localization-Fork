@@ -44,6 +44,10 @@ var _last_spell := ""
 var _map_t := 0.0
 var _map_key := ""
 var hud_visible := true
+var enemy_bar: ProgressBar         # EnemyHealth (MW_EnergyBar_Yellow 13 131 65 12)
+var enemy: Dictionary = {}         # mEnemyActor – wojownik (combat.fighter_of)
+var _enemy_t := -1.0               # mEnemyHealthTimer
+var _flash_y := 0.0                # położenie WeaponSpellName bez paska wroga
 
 const MINIMAP := 65.0
 const MAP_TILE := 256.0           # „local map hud widget size” (OpenMW) – wielkość segmentu na minimapie
@@ -78,7 +82,22 @@ func build() -> void:
 		pb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		root.add_child(pb)
 		bars[kinds[i][0]] = pb
+	# EnemyHealth: pasek zdrowia ostatnio trafionego przez gracza (HUD::setEnemy), nad paskiem zdrowia
+	enemy_bar = UI.progress_bar("enemy", s)
+	enemy_bar.name = "EnemyHealth"
+	enemy_bar.custom_minimum_size = Vector2(65, 12) * s
+	enemy_bar.size = enemy_bar.custom_minimum_size
+	enemy_bar.position = Vector2(m, vp.y - 69.0 * s)
+	enemy_bar.max_value = 100
+	enemy_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	enemy_bar.visible = false
+	root.add_child(enemy_bar)
 	flash_label = _sand_label(Vector2(m, vp.y - 82 * s), 270 * s)
+	_flash_y = flash_label.position.y
+	if _enemy_t >= 0.0 and not enemy.is_empty():        # przebudowa HUD (zmiana rozmiaru okna) przy widocznym pasku
+		enemy_bar.visible = true
+		flash_label.position.y = _flash_y - 20.0 * s
+		_update_enemy_bar()
 	cell_label = _sand_label(Vector2(0, vp.y - 111 * s), vp.x)
 	cell_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	# pola broni i czaru
@@ -219,6 +238,50 @@ static func big_icon(path: String) -> String:
 	var i := p.rfind("/")
 	return p.substr(0, i + 1) + "b_" + p.substr(i + 1)
 
+## HUD::setEnemy: pasek zdrowia celu na fNPCHealthBarTime s; WeaponSpellName przesunięta o 20 w górę.
+func set_enemy(f: Dictionary) -> void:
+	if f.is_empty() or enemy_bar == null:
+		return
+	enemy = f
+	_enemy_t = _gmst_f("fNPCHealthBarTime", 5.0)
+	if not enemy_bar.visible:
+		flash_label.position.y = _flash_y - 20.0 * scale_ui
+	enemy_bar.visible = true
+	_update_enemy_bar()
+
+## HUD::clear (nowa gra, wczytanie): bez celu.
+func clear_enemy() -> void:
+	enemy = {}
+	_enemy_t = -1.0
+	if enemy_bar != null and enemy_bar.visible:
+		enemy_bar.visible = false
+		flash_label.position.y = _flash_y
+
+## HUD::updateEnemyHealthBar: int(getRatio() × 100), krycie clamp(czas / fNPCHealthBarFade, 0, 1).
+func _update_enemy_bar() -> void:
+	if enemy.is_empty() or main.get("combat") == null or main.combat == null:
+		return
+	var mx: float = main.combat.max_health(enemy)
+	var ratio: float = main.combat.health(enemy) / mx if mx > 0.0 else 0.0
+	enemy_bar.value = int(clampf(ratio, 0.0, 1.0) * 100.0)
+	var fade := _gmst_f("fNPCHealthBarFade", 1.0)
+	if fade > 0.0:
+		enemy_bar.modulate.a = clampf(_enemy_t / fade, 0.0, 1.0)
+
+func _enemy_tick(delta: float) -> void:
+	_enemy_t -= delta
+	if enemy_bar == null:
+		return
+	if enemy_bar.visible and _enemy_t < 0.0:
+		enemy_bar.visible = false
+		flash_label.position.y = _flash_y
+	if not enemy.is_empty() and enemy_bar.visible:
+		_update_enemy_bar()
+
+func _gmst_f(id: String, def: float) -> float:
+	var r = main.builder.actors.record("gmst", id.to_lower()) if main.get("builder") != null and main.builder != null else {}
+	return float(r.get("value", def)) if r is Dictionary and not r.is_empty() else def
+
 func flash(text: String) -> void:
 	flash_label.text = text
 	_flash_t = 2.5
@@ -252,6 +315,7 @@ func _process(delta: float) -> void:
 func refresh(delta: float, force := false) -> void:
 	if root == null or main == null or main.player == null:
 		return
+	_enemy_tick(delta)                         # HUD::onFrame – licznik także pod oknami
 	if force:
 		_map_t = 1.0
 	update_blindness()

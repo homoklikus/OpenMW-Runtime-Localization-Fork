@@ -286,7 +286,7 @@ static func bar_fill(kind: String, inset := 0.0) -> StyleBox:
 	var key := "bar|%s|%.2f" % [kind, inset]
 	if _themes.has(key):
 		return _themes[key]
-	var c := color(kind)
+	var c := Color(1.0, 0.729, 0.0) if kind == "enemy" else color(kind)     # MW_BarTrack_Yellow: Colour 1 0.729 0
 	var t := texture("textures/menu_bar_gray")
 	var sb: StyleBox
 	if t != null:

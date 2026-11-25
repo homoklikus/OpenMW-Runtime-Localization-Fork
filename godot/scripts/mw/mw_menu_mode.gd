@@ -139,6 +139,13 @@ func close() -> void:
 			main.gui._set_visible([self], true, [])
 		main.gui.remove(m)
 	var was_container := not cont_sid.is_empty()
+	if not pickpocket.is_empty():
+		var pp := pickpocket
+		pickpocket = {}
+		# PickpocketItemModel::onClose: Pickpocket::finish – wykrycie przy zamknięciu (bez wykrycia wcześniej)
+		if not bool(pp.detected) and main.get("crime") != null and is_instance_valid(pp.node):
+			if main.crime.pick_finish(pp.node):
+				main.crime.commit(pp.node, main.crime.PICKPOCKET, "", 0, true)
 	barter = null
 	barter_total = null
 	barter_total_label = null
@@ -216,22 +223,38 @@ func _window(name: String, rect: Rect2) -> PanelContainer:
 	body.name = "Body"
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_child(body)
-	# uchwyt zmiany rozmiaru w prawym dolnym rogu, w nakładce nad treścią: Body wypełnia cały obszar Client
-	# (MW_Window: Client do 8 px od dołu), jak w OpenMW, gdzie zmianę rozmiaru dają krawędzie okna
+	# zmiana rozmiaru krawędziami okna jak skórka MW_Window (openmw_windows.skin.xml, widżety „Action”): krawędzie
+	# 4 px (TB_T/L/R/B, od 14 px od rogów), rogi z trzech części (4 × 4 i dwa odcinki 10 × 4 / 4 × 10); Scale –
+	# przesunięcie lewej/górnej krawędzi i zmiana rozmiaru; kursory hresize/vresize/dresize/dresize2. W nakładce nad
+	# treścią (Body wypełnia obszar Client).
 	var over := Control.new()
 	over.name = "Overlay"
+	over.set_anchors_preset(Control.PRESET_FULL_RECT)
 	over.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	w.add_child(over)
-	var grip := Control.new()
-	grip.name = "Resize"
-	grip.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	grip.offset_left = -12 * scale_ui
-	grip.offset_top = -12 * scale_ui
-	grip.offset_right = 0
-	grip.offset_bottom = 0
-	grip.mouse_default_cursor_shape = Control.CURSOR_FDIAGSIZE
-	grip.gui_input.connect(_resize_window.bind(w))
-	over.add_child(grip)
+	# nakładka leży w obszarze treści panelu – strefy wysunięte o marginesy skórki do zewnętrznej krawędzi okna
+	var sb: StyleBox = w.get_theme_stylebox("panel")
+	var ml := sb.get_margin(SIDE_LEFT) if sb != null else 0.0
+	var mt := sb.get_margin(SIDE_TOP) if sb != null else 0.0
+	var mr := sb.get_margin(SIDE_RIGHT) if sb != null else 0.0
+	var mb := sb.get_margin(SIDE_BOTTOM) if sb != null else 0.0
+	var hx := func(anchor: float, off: float) -> float: return off * scale_ui + (mr if anchor > 0.5 else -ml)
+	var vy := func(anchor: float, off: float) -> float: return off * scale_ui + (mb if anchor > 0.5 else -mt)
+	for a in WINDOW_ACTIONS:
+		var z := Control.new()
+		z.name = "Resize_" + String(a[0])
+		var r: Array = a[1]                        # [anchor_l, off_l, anchor_t, off_t, anchor_r, off_r, anchor_b, off_b]
+		z.anchor_left = r[0]
+		z.offset_left = hx.call(float(r[0]), float(r[1]))
+		z.anchor_top = r[2]
+		z.offset_top = vy.call(float(r[2]), float(r[3]))
+		z.anchor_right = r[4]
+		z.offset_right = hx.call(float(r[4]), float(r[5]))
+		z.anchor_bottom = r[6]
+		z.offset_bottom = vy.call(float(r[6]), float(r[7]))
+		z.mouse_default_cursor_shape = int(a[3])
+		z.gui_input.connect(_resize_window.bind(w, a[2]))
+		over.add_child(z)
 	return w
 
 # --- przypinanie, ukrywanie, maksymalizacja (WindowPinnableBase, WindowManager) -----------------------------
@@ -315,6 +338,49 @@ func _rect_frac(n: String) -> Rect2:
 
 ## HUD::on*Clicked w trybie Interface: paski – statystyki, broń – ekwipunek, czar – magia, minimapa – mapa
 ## (tło trybu menu leży nad HUD, więc kliknięcie przychodzi tutaj).
+## HUD::onWorldClicked w trybie ekwipunku/pojemnika (bez przedmiotu przy kursorze) → InventoryWindow::pickUpObject:
+## przedmiot pod kursorem (getFocusObject w trybie GUI) do ekwipunku i od razu przy kursorze (startDrag); z Alt –
+## tylko do ekwipunku (dźwięk odłożenia). Warunki: ekwipunek dozwolony, przedmiot z podpowiedzią, skrypt bez OnActivate
+## (RefData::activate), gracz nie sparaliżowany, nie powalony, żywy. → czy kliknięcie obsłużone
+func world_pick(screen: Vector2, mods := {}) -> bool:
+	if main == null or not main.has_method("gui_focus_object") or barter != null or not companion.is_empty():
+		return false
+	if main.has_method("menu_allowed") and not main.menu_allowed("inventory"):
+		return false
+	var node: Node = main.gui_focus_object(screen)
+	if node == null or main.interaction.kind_of(node) != "item":
+		return false
+	var c: Dictionary = main.interaction.snapshot(node)
+	if String(c.get("name", "")).is_empty():
+		return false                                  # hasToolTip
+	var scr: String = String(main.interaction.base_of(node).get("script", ""))
+	if main.get("scripts") != null and main.scripts != null and not scr.is_empty() and main.scripts.uses(scr, "onactivate"):
+		main.scripts.activated[String(c.sid)] = true  # Flag_SuppressActivate: aktywacja przez skrypt
+		return true
+	if main.get("magic") != null and main.magic != null:
+		main.magic.break_invisibility(main.combat.player_fighter())
+	var me: Dictionary = main.combat.player_fighter()
+	if main.combat.magic_effect(me, 45) > 0.0 or main.combat.knocked_down(me) or main.combat.is_dead(me):
+		return true
+	var r: Dictionary = main.interaction.take_ref(c)
+	var id := String(r.get("item", ""))
+	var n := int(r.get("count", 0))
+	if id.is_empty() or n <= 0:
+		return true
+	if is_holding():
+		held = {}
+		_hide_held()
+	if bool(mods.get("alt", false)):
+		if main.get("audio") != null:
+			main.audio.play(main.interaction.item_sound(id, false))    # getDownSoundId
+	else:
+		if main.get("audio") != null:
+			main.audio.play(main.interaction.item_sound(id, true))     # startDrag: getUpSoundId
+		held = {"id": id, "count": n, "worn": false}
+		_show_held()
+	refresh()
+	return true
+
 func hud_click(pos: Vector2) -> bool:
 	if main == null or main.get("mw_hud") == null or not cont_sid.is_empty():
 		return false
@@ -387,9 +453,41 @@ func _drag_window(e: InputEvent, w: Control) -> void:
 		var vp := get_viewport().get_visible_rect().size
 		w.position = (w.position + e.relative).clamp(Vector2.ZERO, vp - Vector2(40, 20))
 
-func _resize_window(e: InputEvent, w: Control) -> void:
+## Widżety „Action” skórki MW_Window: [nazwa, kotwice/przesunięcia (px okna 256 × 256 → kotwice), Scale (x, y, w, h),
+## kursor]. Kotwica 0 – od lewej/górnej, 1 – od prawej/dolnej krawędzi.
+const WINDOW_ACTIONS := [
+	["T", [0, 14, 0, 0, 1, -14, 0, 4], [0, 1, 0, -1], Control.CURSOR_VSIZE],
+	["L", [0, 0, 0, 14, 0, 4, 1, -14], [1, 0, -1, 0], Control.CURSOR_HSIZE],
+	["R", [1, -4, 0, 14, 1, 0, 1, -14], [0, 0, 1, 0], Control.CURSOR_HSIZE],
+	["B", [0, 14, 1, -4, 1, -14, 1, 0], [0, 0, 0, 1], Control.CURSOR_VSIZE],
+	["TL_T", [0, 4, 0, 0, 0, 14, 0, 4], [1, 1, -1, -1], Control.CURSOR_FDIAGSIZE],
+	["TL", [0, 0, 0, 0, 0, 4, 0, 4], [1, 1, -1, -1], Control.CURSOR_FDIAGSIZE],
+	["TL_B", [0, 0, 0, 4, 0, 4, 0, 14], [1, 1, -1, -1], Control.CURSOR_FDIAGSIZE],
+	["TR_T", [1, -14, 0, 0, 1, -4, 0, 4], [0, 1, 1, -1], Control.CURSOR_BDIAGSIZE],
+	["TR", [1, -4, 0, 0, 1, 0, 0, 4], [0, 1, 1, -1], Control.CURSOR_BDIAGSIZE],
+	["TR_B", [1, -4, 0, 4, 1, 0, 0, 14], [0, 1, 1, -1], Control.CURSOR_BDIAGSIZE],
+	["BL_T", [0, 0, 1, -14, 0, 4, 1, -4], [1, 0, -1, 1], Control.CURSOR_BDIAGSIZE],
+	["BL", [0, 0, 1, -4, 0, 4, 1, 0], [1, 0, -1, 1], Control.CURSOR_BDIAGSIZE],
+	["BL_B", [0, 4, 1, -4, 0, 14, 1, 0], [1, 0, -1, 1], Control.CURSOR_BDIAGSIZE],
+	["BR_T", [1, -4, 1, -14, 1, 0, 1, -4], [0, 0, 1, 1], Control.CURSOR_FDIAGSIZE],
+	["BR", [1, -4, 1, -4, 1, 0, 1, 0], [0, 0, 1, 1], Control.CURSOR_FDIAGSIZE],
+	["BR_B", [1, -14, 1, -4, 1, -4, 1, 0], [0, 0, 1, 1], Control.CURSOR_FDIAGSIZE],
+]
+
+## Window::notifyMouseDrag (MyGUI) dla widżetu „Action”: przesunięcie myszy × Scale – lewa/górna krawędź i rozmiar,
+## z minimalnym rozmiarem okna (krawędź przeciwna stoi w miejscu).
+func _resize_window(e: InputEvent, w: Control, sc := [0, 0, 1, 1]) -> void:
 	if e is InputEventMouseMotion and (e.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
-		w.size = (w.size + e.relative).max(w.custom_minimum_size)
+		var d: Vector2 = e.relative
+		var new_size := w.size + Vector2(d.x * float(sc[2]), d.y * float(sc[3]))
+		var clamped := new_size.max(w.custom_minimum_size)
+		var pos := w.position
+		if float(sc[0]) != 0.0:
+			pos.x += w.size.x - clamped.x             # lewa krawędź: prawa zostaje
+		if float(sc[1]) != 0.0:
+			pos.y += w.size.y - clamped.y
+		w.position = pos
+		w.size = clamped
 		_layout_grid.call_deferred()
 
 func refresh() -> void:
@@ -930,16 +1028,36 @@ static func item_less(a: Dictionary, b: Dictionary) -> bool:
 func sorted_items(sid := "player", rec := {}) -> Array:
 	var inv = main.interaction.inventory
 	var out := []
-	for e in inv.contents(sid, rec):
+	var items: Array = inv.contents(sid, rec)
+	var npc_worn := actor_worn(sid, rec, items) if sid != "player" else {}
+	for e in items:
 		var it: Dictionary = inv.item(String(e.id))
 		if it.is_empty():
 			continue
 		var name: String = main.interaction.item_name(String(it.kind), String(e.id), it.rec)
-		for st in item_stacks(e, it, sid == "player"):
+		var wc := worn_copies(String(e.id)) if sid == "player" else int(npc_worn.get(String(e.id), 0))
+		for st in item_stacks(e, it, wc):
 			var worn := bool(st.worn)
 			out.append(sort_keys({"id": String(e.id), "count": int(st.count), "kind": String(it.kind), "rec": it.rec, "worn": worn,
 				"name": name, "magic": _enchanted(it), "stack": st}, 1 if worn else 2, "player" if sid == "player" else ""))
 	out.sort_custom(item_less)
+	return out
+
+const SK_SNEAK := 19
+
+## Klucz stosu (ItemStack) do porównań PickpocketItemModel (mHiddenItems).
+static func _stack_key(e: Dictionary) -> String:
+	return "%s|%s|%d" % [String(e.id), str(bool(e.get("worn", false))), int((e.get("stack", {}) as Dictionary).get("count", e.get("count", 0)))]
+
+## PickpocketItemModel::update: bez przedmiotów przywołanych, ukrytych i założonych (Type_Equipped).
+func pickpocket_items() -> Array:
+	var out := []
+	for e in sorted_items(cont_sid, cont_rec):
+		if bool(e.get("worn", false)) or (main.get("trade") != null and main.trade.is_bound_item(String(e.id))):
+			continue
+		if (pickpocket.hidden as Dictionary).has(_stack_key(e)):
+			continue
+		out.append(e)
 	return out
 
 ## Liczba założonych egzemplarzy przedmiotu gracza (miejsca ekwipunku z tym identyfikatorem).
@@ -951,14 +1069,31 @@ func worn_copies(id: String) -> int:
 			n += 1
 	return n
 
+## Założone przedmioty NPC (zwłoki, towarzysz – InventoryItemModel aktora: Type_Equipped): id → liczba egzemplarzy,
+## wg doboru wyposażenia aktora (autoEquip, jak przy wyglądzie i u kupca). Pojemnik i stworzenie – brak.
+func actor_worn(sid: String, rec: Dictionary, items: Array) -> Dictionary:
+	var out := {}
+	if not rec.has("race") or main == null or main.get("builder") == null:
+		return out
+	var eq = main.builder.actors
+	if eq.equipment == null:
+		eq.equipment = eq.Equipment.new(eq)
+	var slots: Dictionary = eq.equipment.auto_equip(rec, items)
+	for slot in slots:
+		var id := String((slots[slot] as Dictionary).get("id", "")).to_lower()
+		if not id.is_empty():
+			out[id] = int(out.get(id, 0)) + 1
+	return out
+
 ## Stosy wpisu inwentarza jak ItemStack-i OpenMW: [{count, worn}]. InventoryStore::stacks – założony egzemplarz nie
 ## łączy się z niezałożonymi (osobny stos Type_Equipped; dwa jednakowe pierścienie – dwa stosy), chyba że przedmiot
 ## łączy się w stos także założony (getEquipmentSlots().second: amunicja i broń miotana – cały stos założony).
 ## ContainerStore::stacks – przedmioty ze skryptem: każdy stos osobno („parts” wpisu).
-func item_stacks(e: Dictionary, it: Dictionary, player: bool) -> Array:
+func item_stacks(e: Dictionary, it: Dictionary, worn = 0) -> Array:
 	var parts: Array = Inv.stacks_of(e)
 	var out := []
-	var worn := worn_copies(String(e.id)) if player else 0
+	if worn is bool:
+		worn = worn_copies(String(e.id)) if worn else 0
 	if worn > 0 and String(it.get("kind", "")) == "weapon" and int((it.get("rec", {}) as Dictionary).get("weapon_type", 0)) >= 11:
 		if not parts.is_empty():
 			out.append({"count": int(parts[0]), "worn": true})
@@ -1148,10 +1283,18 @@ var cont_ids: Array = []          # testy
 ## Pojemnik jak OpenMW: okno pojemnika (ułożenie [Windows] container) i ekwipunek gracza obok; przeciąganie między
 ## oknami, dwuklik w pojemniku – weź stos, dwuklik w ekwipunku – włóż; „Weź wszystko”, „Zamknij”.
 ## corpse – przeszukanie martwego aktora (ContainerWindow: przycisk sDisposeofCorpse widoczny przy łupieniu).
-func open_container(sid: String, rec: Dictionary, name: String, corpse := false) -> void:
+func open_container(sid: String, rec: Dictionary, name: String, corpse := false, pick_node: Node = null, knocked := false) -> void:
 	if visible:
 		close()
 	cont_corpse = corpse
+	pickpocket = {}
+	if pick_node != null:
+		pickpocket = {"node": pick_node, "knocked": knocked, "hidden": {}, "detected": false}
+		if not knocked:                       # PickpocketItemModel: mHiddenItems – osobno dla każdego stosu
+			var sneak: float = main.combat.skill(main.combat.player_fighter(), SK_SNEAK)
+			for e in sorted_items(sid, rec):
+				if main.crime._roll() > sneak:
+					pickpocket.hidden[_stack_key(e)] = true
 	cont_sid = sid
 	cont_rec = rec
 	cont_name = name
@@ -1523,7 +1666,7 @@ func _refresh_container() -> void:
 		_refresh_companion()
 		return
 	_title("container", cont_name + ("  (%d/%d)" % [roundi(w), roundi(cap)] if cap > 0.0 else ""))
-	cont_ids = _fill_grid(_cont_grid, sorted_items(cont_sid, cont_rec), "container")
+	cont_ids = _fill_grid(_cont_grid, pickpocket_items() if not pickpocket.is_empty() else sorted_items(cont_sid, cont_rec), "container")
 
 func _count(sid: String, rec: Dictionary, id: String) -> int:
 	return int(main.interaction.inventory.count_of(sid, rec, id))
@@ -1554,13 +1697,35 @@ func take_item(id: String, count := -1) -> void:
 	if not companion.is_empty():
 		companion_transfer(id, n, false)
 		return
+	if not pickpocket.is_empty() and n > 0:
+		if not _pickpocket_take(id, n):
+			return
 	if n > 0 and main.interaction.move(cont_sid, cont_rec, "player", {}, id, n) > 0 and main.get("audio") != null:
 		main.audio.play(main.interaction.item_sound(id, true))
 	refresh()
 
+## PickpocketItemModel::onTakeItem: NPC powalony – zwykłe itemTaken (kradzież, gdy ktoś widzi); inaczej stealItem:
+## Pickpocket::pick (wartość stosu) – wykrycie: commitCrime(OT_Pickpocket, ofiara świadoma), okno zamknięte, przedmiot
+## zostaje; powodzenie – postęp Skradania (Sneak_PickPocket) i itemTaken bez alarmu. → czy zabrać
+func _pickpocket_take(id: String, n: int) -> bool:
+	var node: Node = pickpocket.node
+	if bool(pickpocket.knocked):
+		main.crime.npc_item_taken(node, id, n, true)
+		return true
+	if main.crime.pick(node, id, n):
+		main.crime.commit(node, main.crime.PICKPOCKET, "", 0, true)
+		pickpocket.detected = true
+		close()
+		return false
+	main.skill_used(SK_SNEAK, "sneak_pickpocket")
+	main.crime.npc_item_taken(node, id, n, false)
+	return true
+
 ## Od gracza do pojemnika (cały stos; założone – zdejmowane). Pojemność: OpenMW nie pozwala przekroczyć
 ## (sContentsMessage3).
 func put_item(id: String, count := -1) -> void:
+	if not pickpocket.is_empty():
+		return                                 # PickpocketItemModel::onDropItem: bez „odwrotnej kradzieży”
 	var n := _count("player", {}, id)
 	if count > 0:
 		n = mini(n, count)
@@ -1583,6 +1748,9 @@ func put_item(id: String, count := -1) -> void:
 	refresh()
 
 var cont_corpse := false
+## Kradzież kieszonkowa (ContainerWindow::setPtr z żywym NPC – PickpocketItemModel): {"node", "knocked", "hidden"
+## (klucze stosów niewidocznych: rzut 0–99 > Skradanie przy otwarciu, gdy NPC nie jest powalony), "detected"}; pusty – zwykły pojemnik.
+var pickpocket := {}
 
 ## ContainerWindow::onDisposeCorpseButtonClicked: najpierw „weź wszystko”, potem ciało trwałego aktora zostaje
 ## (sDisposeCorpseFail), a pozostałe są usuwane ze świata (deleteObject).
@@ -1596,6 +1764,17 @@ func dispose_corpse() -> void:
 		main.state.delete_ref(sid)
 
 func take_all() -> void:
+	if not pickpocket.is_empty():              # onTakeAllButtonClicked: onTakeItem dla każdego stosu, do wykrycia
+		for e in pickpocket_items():
+			if pickpocket.is_empty() or bool(pickpocket.get("detected", false)):
+				return
+			if not _pickpocket_take(String(e.id), int(e.count)):
+				return
+			main.interaction.move(cont_sid, cont_rec, "player", {}, String(e.id), int(e.count))
+		if main.get("audio") != null:
+			main.audio.play("Item Misc Up")
+		close()
+		return
 	main.interaction.take_all(cont_sid, cont_rec)
 	if main.get("audio") != null:
 		main.audio.play("Item Misc Up")
@@ -1664,7 +1843,7 @@ func _pick_up(id: String, source: String, n: int, worn := true) -> void:
 	_show_held()
 	refresh()
 
-func held_drop(target: String) -> void:
+func held_drop(target: String, screen = null) -> void:
 	if not is_holding():
 		return
 	var h := held
@@ -1674,11 +1853,15 @@ func held_drop(target: String) -> void:
 	var n := int(h.count)
 	match target:
 		"container":
+			if not pickpocket.is_empty():      # onDropItem = false – przedmiot zostaje przy kursorze
+				held = h
+				_show_held()
+				return
 			put_item(id, n)
 		"avatar":
 			use_item(id)
 		"world":
-			_drop_count(id, n)
+			_drop_count(id, n, screen)
 		_:
 			if main.get("audio") != null:
 				main.audio.play(main.interaction.item_sound(id, false))  # getDownSoundId
@@ -1794,17 +1977,18 @@ func use_item(id: String) -> void:
 	iw.visible = false
 	refresh()
 
-func drop_to_world(id: String, source := "inventory", mods := {}) -> void:
+func drop_to_world(id: String, source := "inventory", mods := {}, screen = null) -> void:
 	if source != "inventory":
 		return
-	ask_count(id, main.interaction.inventory.count_of("player", {}, id), "sTake", mods,
-		func(n: int): _drop_count(id, n))
+	pressed_stack = mods.get("stack", {}) if mods.get("stack") is Dictionary else {}
+	ask_count(id, _stack_avail(main.interaction.inventory.count_of("player", {}, id)), "sTake", mods,
+		func(n: int): _drop_count(id, n, screen))
 
-func _drop_count(id: String, count: int) -> void:
+func _drop_count(id: String, count: int, screen = null) -> void:
 	var n: int = mini(count, main.interaction.inventory.count_of("player", {}, id))
 	if n <= 0:
 		return
-	main.drop_item(id, n)
+	main.drop_item(id, n, screen)
 	if main.get("audio") != null:
 		main.audio.play(main.interaction.item_sound(id, false))
 	refresh()
