@@ -319,6 +319,7 @@ func _ready() -> void:
 		vd.name = "VoiceDiag"
 		vd.main = self
 		vd.attack = flag("diag-attack")
+		vd.move = flag("diag-move")
 		vd.seconds = float(arg("diag-seconds", "0"))
 		add_child(vd)
 	debug_render = preload("res://scripts/mw/mw_debug_render.gd").new()
