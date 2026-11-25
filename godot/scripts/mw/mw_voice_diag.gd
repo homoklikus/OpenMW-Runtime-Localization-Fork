@@ -11,6 +11,7 @@ var seconds := 0.0
 var _t := 0.0
 var _tick := 0.0
 var _atk := 0.0
+var _vt := 0.0
 
 var _hooked := false
 
@@ -38,6 +39,10 @@ func _process(dt: float) -> void:
 		return
 	if String(main.get("game_state")) != "running" or main.player == null or main.ai == null:
 		return
+	_vt += dt
+	if _vt >= 0.25 and main.audio != null and not (main.audio._voices as Dictionary).is_empty():
+		_vt = 0.0
+		_audio_report()
 	_tick += dt
 	if _tick >= 1.0:
 		_tick = 0.0
@@ -90,3 +95,22 @@ func _report() -> void:
 			"played": int(au.stats.played) if au != null else -1, "missing": int(au.stats.missing) if au != null else -1},
 		"sneak": main.player_sneaking(), "idle_odds": float(ai._gmst("fVoiceIdleOdds", 0.0)),
 		"greet_mult": float(ai._gmst("iGreetDistanceMultiplier", 6))})
+
+func _audio_report() -> void:
+	var au = main.audio
+	var voices := []
+	var cam: Camera3D = get_viewport().get_camera_3d()
+	if au != null:
+		for k in au._voices:
+			var p = au._voices[k]
+			if p != null and is_instance_valid(p):
+				var v := {"sid": String(k), "playing": bool(p.playing), "db": snappedf(float(p.volume_db), 0.1), "bus": String(p.bus)}
+				if p is AudioStreamPlayer3D and cam != null:
+					v["cam_d"] = snappedf((p as Node3D).global_position.distance_to(cam.global_position), 0.01)
+					v["unit"] = snappedf(float(p.unit_size), 0.01)
+					v["maxd"] = snappedf(float(p.max_distance), 0.1)
+					v["listener_world"] = (p as Node3D).get_world_3d() == cam.get_world_3d()
+				voices.append(v)
+	var peak := snappedf(maxf(AudioServer.get_bus_peak_volume_left_db(0, 0), AudioServer.get_bus_peak_volume_right_db(0, 0)), 0.1)
+	_log({"ev": "audio", "voices": voices, "master_peak_db": peak, "master_db": snappedf(AudioServer.get_bus_volume_db(0), 0.1),
+		"master_mute": AudioServer.is_bus_mute(0), "buses": AudioServer.bus_count})
