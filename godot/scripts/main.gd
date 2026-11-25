@@ -327,6 +327,7 @@ func _ready() -> void:
 		cd.name = "CameraDiag"
 		cd.main = self
 		cd.death = flag("diag-death")
+		cd.water = flag("water-diag")
 		cd.seconds = float(arg("diag-seconds", "0"))
 		add_child(cd)
 	debug_render = preload("res://scripts/mw/mw_debug_render.gd").new()

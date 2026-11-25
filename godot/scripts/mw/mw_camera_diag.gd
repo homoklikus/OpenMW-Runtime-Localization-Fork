@@ -6,6 +6,7 @@ extends Node
 
 var main
 var death := false
+var water := false                       # --water-diag: wysokości terenu wokół gracza względem poziomu wody
 var seconds := 0.0
 var _t := 0.0
 var _start := -1.0
@@ -53,6 +54,8 @@ func _process(dt: float) -> void:
 	if _start < 0.0:
 		_start = _t
 		_log(_state("loaded"))
+		if water:
+			_water_report()
 	var e := _t - _start
 	_tick += dt
 	if _tick >= (0.2 if _step == 7 else 1.0):
@@ -117,3 +120,64 @@ func _process(dt: float) -> void:
 			if e > 14.0:
 				_log(_state("end"))
 				_step = 10
+
+## Teren wokół gracza (promień 50 m, co 0,5 m – promienie w dół) względem poziomu wody komórki: ile punktów leży
+## blisko płaszczyzny wody (ryzyko migotania głębi), ile bez terenu (dziury – widać płaszczyznę wody).
+func _water_report() -> void:
+	var pl: CharacterBody3D = main.player
+	var wl := float(pl.get("water_level"))
+	var space := pl.get_world_3d().direct_space_state
+	var c := pl.global_position
+	var hist := {"lt_1cm": 0, "lt_5cm": 0, "lt_20cm": 0, "below": 0, "above": 0, "miss": 0, "n": 0}
+	var mn := INF
+	var mx := -INF
+	var near_pts := []
+	var x := -50.0
+	while x <= 50.0:
+		var z := -50.0
+		while z <= 50.0:
+			var from := c + Vector3(x, 60.0, z)
+			var q := PhysicsRayQueryParameters3D.create(from, from - Vector3(0, 200.0, 0))
+			q.exclude = [pl.get_rid()]
+			var hit := space.intersect_ray(q)
+			hist.n += 1
+			if hit.is_empty():
+				hist.miss += 1
+			else:
+				var col: Object = hit.collider
+				var is_terrain: bool = col is Node and String((col as Node).get_parent().name).begins_with("Terrain")
+				if not is_terrain:
+					# pod obiektem – drugi promień tylko po teren nie jest potrzebny do statystyki: pomiń
+					pass
+				else:
+					var h: float = (hit.position as Vector3).y
+					mn = minf(mn, h)
+					mx = maxf(mx, h)
+					var d := absf(h - wl)
+					if d < 0.01:
+						hist.lt_1cm += 1
+					if d < 0.05:
+						hist.lt_5cm += 1
+						if near_pts.size() < 12:
+							near_pts.append([snappedf(x, 0.5), snappedf(z, 0.5), snappedf(h - wl, 0.001)])
+					if d < 0.2:
+						hist.lt_20cm += 1
+					if h < wl:
+						hist.below += 1
+					else:
+						hist.above += 1
+			z += 0.5
+		x += 0.5
+	var cam: Camera3D = main.view_camera()
+	_log({"ev": "water", "water_level": wl, "player_y": snappedf(c.y, 0.01), "terrain_min": snappedf(mn, 0.01),
+		"terrain_max": snappedf(mx, 0.01), "hist": hist, "near_pts": near_pts, "near": cam.near, "far": cam.far,
+		"interior": main.get("interior"), "waters": _water_planes()})
+
+func _water_planes() -> Array:
+	var out := []
+	for w in main.get_tree().root.find_children("Water", "MeshInstance3D", true, false):
+		if w.has_meta("mw_water") and (w as Node3D).is_visible_in_tree():
+			var mi := w as MeshInstance3D
+			out.append([snappedf(mi.global_position.x, 0.1), snappedf(mi.global_position.y, 0.001), snappedf(mi.global_position.z, 0.1),
+				(mi.mesh as PlaneMesh).size.x if mi.mesh is PlaneMesh else 0.0])
+	return out
