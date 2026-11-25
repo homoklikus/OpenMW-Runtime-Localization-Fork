@@ -307,13 +307,14 @@ func _run() -> void:
 		await _frames(60)
 	check(saved_names.size() == 1, "autozapis wyłączony – bez zapisu")
 	# napisy wyłączone – brak napisu; napisy i komunikaty na warstwie nad oknami
+	# napisy jak OpenMW: [GUI] subtitles (domyślnie wyłączone) – zwykły komunikat z samym tekstem kwestii
 	main.settings["subtitles"] = true
 	main.subtitle("Test napisu", 2.0)
-	check(main._subtitle != null and main._subtitle.get_parent() == main.overlay() and main.overlay().layer > 24,
-			"napisy nad oknami (warstwa %d)" % main.overlay().layer)
+	check(main.message_boxes != null and "Test napisu" in main.message_boxes.texts(), "napisy – komunikat WindowManager::messageBox")
 	main.settings["subtitles"] = false
 	main.apply_live_settings()
-	check(not main._subtitle.visible, "napisy wyłączone w ustawieniach")
+	main.subtitle("Drugi napis", 2.0)
+	check(not ("Drugi napis" in main.message_boxes.texts()), "napisy wyłączone w ustawieniach – bez komunikatu")
 	main._toast("Komunikat")
 	check(main.message_boxes != null and main.message_boxes.layer > 24 and "Komunikat" in main.message_boxes.texts(),
 		"komunikat (MessageBoxManager) na warstwie nad oknami")

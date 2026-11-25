@@ -897,7 +897,7 @@ func say_voice(node: Node, topic: String) -> bool:
 			float(node.get("height")) * 0.9 if node.get("height") != null else 1.6)
 	voice_said.emit(a.sid, topic, String(info.get("id", "")))
 	if not text.is_empty() and main.has_method("subtitle"):
-		main.subtitle(actor_name(a) + ": " + text, secs if secs > 0.0 else 1.0 + 0.06 * text.length())
+		main.subtitle(text, secs if secs > 0.0 else 1.0 + 0.06 * text.length())
 	if not (info.get("result_body", []) as Array).is_empty():
 		main.scripts.run_dialogue(info.get("result_body", []), a)
 	return true

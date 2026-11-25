@@ -600,8 +600,9 @@ func _rebuild_player_visual() -> void:
 	if player != null and player.has_method("rebuild_visual"):
 		player.rebuild_visual()
 
-## Napis kwestii (Say) – bez okna, nie wstrzymuje gry.
-var _subtitle: Label = null
+## Napis kwestii (DialogueManager::say, Say ze skryptu): przy [GUI] subtitles (domyślnie wyłączone) – zwykły komunikat
+## WindowManager::messageBox z samym tekstem kwestii (bez imienia), jak w OpenMW.
+var _subtitle: Label = null             # zgodność: dawna etykieta napisów (nieużywana)
 ## Warstwa komunikatów i napisów nad oknami (książki, dialog, mapa) – jak okna komunikatów OpenMW zawsze na wierzchu.
 var _overlay: CanvasLayer = null
 
@@ -614,27 +615,11 @@ func overlay() -> CanvasLayer:
 		add_child(_overlay)
 	return _overlay
 
-func subtitle(text: String, seconds: float) -> void:
+func subtitle(text: String, _seconds: float) -> void:
 	print("MWGODOT_SAY ", text.length())
-	if not bool(settings.get("subtitles", true)):
+	if not bool(settings.get("subtitles", false)):
 		return
-	if _subtitle == null:
-		_subtitle = Label.new()
-		_subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_subtitle.anchor_left = 0.15
-		_subtitle.anchor_right = 0.85
-		_subtitle.anchor_top = 0.78
-		_subtitle.anchor_bottom = 0.9
-		_subtitle.add_theme_color_override("font_outline_color", Color.BLACK)
-		_subtitle.add_theme_constant_override("outline_size", 6)
-		_subtitle.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		overlay().add_child(_subtitle)
-	if _subtitle != null:
-		_subtitle.text = text
-		_subtitle.visible = true
-		var t := get_tree().create_timer(seconds, true)    # głos gra także przy otwartym oknie (pauza)
-		t.timeout.connect(func(): if _subtitle != null and _subtitle.text == text: _subtitle.visible = false)
+	_toast(text)
 
 # --- postać gracza (etap 4) ---------------------------------------------------------------------------------
 
@@ -1626,8 +1611,6 @@ func apply_live_settings() -> void:
 		if music.is_playing() and music._fade <= 0.0:
 			music._player.volume_db = linear_to_db(maxf(music.volume, 0.0001))
 	AudioServer.set_bus_volume_db(0, linear_to_db(maxf(float(settings.get("master_volume", 1.0)), 0.0001)))
-	if _subtitle != null and not bool(settings.get("subtitles", true)):
-		_subtitle.visible = false
 	if player != null:
 		player.mouse_sens = float(settings.get("mouse_sensitivity", 0.0025))
 		player.invert_y = bool(settings.get("invert_y", false))

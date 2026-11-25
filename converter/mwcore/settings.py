@@ -56,7 +56,7 @@ GAME_SCHEMA: list[Opt] = [
     Opt("voice_volume", "audio", "float", 0.8, "Głosy", "Voice volume", lo=0.0, hi=1.0),
     Opt("sfx_volume", "audio", "float", 1.0, "Efekty", "Effects volume", lo=0.0, hi=1.0),
     Opt("footsteps_volume", "audio", "float", 0.2, "Kroki", "Footsteps volume", lo=0.0, hi=1.0),
-    Opt("subtitles", "audio", "bool", True, "Napisy kwestii", "Subtitles"),
+    Opt("subtitles", "audio", "bool", False, "Napisy kwestii", "Subtitles"),   # OpenMW [GUI] subtitles = false
     Opt("fov", "controls", "int", 60, "Pole widzenia (pionowe) [°]", "Field of view (vertical) [°]", lo=40, hi=110),
     Opt("mouse_sensitivity", "controls", "float", 0.0025, "Czułość myszy", "Mouse sensitivity", lo=0.0005, hi=0.0125),
     Opt("invert_x", "controls", "bool", False, "Odwróć oś X", "Invert X axis"),

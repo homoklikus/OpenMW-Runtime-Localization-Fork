@@ -36,7 +36,7 @@ const PAGES := [
 		{"t": "slider", "key": "actors_processing_range", "cap": "ActorsProcessingRange", "label": "ActorsProcessingRangeValue", "range": 3584, "page": 300, "min": 3584, "max": 7168, "kind": "int", "lo": "DistanceLow", "hi": "DistanceHigh", "def": 7168},
 		{"t": "check", "key": "autosave", "cap": "AutoSaveOnResting", "def": true},
 		{"t": "check", "key": "best_attack", "cap": "BestAttack", "def": false},
-		{"t": "check", "key": "subtitles", "cap": "Subtitles", "def": true},
+		{"t": "check", "key": "subtitles", "cap": "Subtitles", "def": false},
 		{"t": "check", "key": "crosshair", "cap": "Crosshair", "def": true},
 	]],
 	["Audio", [

@@ -548,10 +548,7 @@ func say(t: Dictionary, file: String, text: String) -> void:
 		secs = 1.0 + 0.06 * text.length()
 	_say_until[key] = float(main.scripts.clock) + secs
 	if not text.is_empty():
-		var who := ""
-		if n != null and main.dialogue != null and main.dialogue.is_actor_node(n):
-			who = main.dialogue.actor_name(main.dialogue.make_actor(n)) + ": "
-		main.subtitle(who + text, secs)
+		main.subtitle(text, secs)
 
 func say_done(t: Dictionary) -> bool:
 	var key := String(t.get("sid", ""))

@@ -835,6 +835,12 @@ Teraz po wczytaniu jak WindowManager::updateVisible w StateManager::loadGame: be
 ukryty i przechwycony, bez fokusu klawiatury z zamkniętego okna zapisów (test_load_ui: wczytanie przez interfejs
 w grze z potwierdzeniem i z menu głównego, 9 sprawdzeń; wcześniej sprawdzenie kursora nie przechodziło).
 
+**Napisy kwestii (cz. 36):** port pokazywał własną etykietę „imię: tekst” z obrysem w 78 % wysokości ekranu,
+domyślnie włączoną. OpenMW: [GUI] subtitles = false (settings-default.cfg); włączone – DialogueManager::say i Say ze
+skryptu wywołują WindowManager::messageBox z samym tekstem kwestii. Teraz tak samo: domyślnie wyłączone (okno opcji,
+launcher), włączone – zwykły komunikat (MessageBoxManager) bez imienia (test_settings). Profil, który ma już zapisane
+„subtitles = true”, zachowuje wybór użytkownika.
+
 ### 7.18 Akcje sterowania OpenMW 0.51 (P2, cz. 26)
 
 Porównane z `BindingsManager::loadKeyDefaults/loadControllerDefaults/getActionKeySorting/getActionControllerSorting/
@@ -971,6 +977,8 @@ Mody – zgodnie z poleceniem nie testowane (kolejność: najpierw klasyczne GUI
 * Etap 10 cz. 34: zasięg głosów i dźwięków 3D, głośność rekordów jak OpenMW
 * Etap 10: diagnostyka sterowania po wczytaniu (--diag-move), test wczytania przez interfejs
 * Etap 10 cz. 35: po wczytaniu z menu kursor przechwycony, bez pauzy (updateVisible)
+* Etap 10: pliki .uid nowych skryptów
+* Etap 10 cz. 36: napisy kwestii jak OpenMW (domyślnie wyłączone, messageBox)
 
 Pełny zestaw tools/run_tests.sh: 76/76 po cz. 33 (nowe test_enemy_health, test_cursor_drop, test_pickpocket; Xvfb + lavapipe); 73/73 po cz. 32 (z nowym test_item_stacks; Xvfb + lavapipe); 72/72 po cz. 30 (Xvfb + lavapipe, pytest z test_game_command_window_args); 72/72 po cz. 28 (test_language wykrył polski komunikat błędu w nowym kodzie – poprawiony, testy od test_language powtórzone); 72/72 po cz. 27 (nowe test_player_controls i test_console_toggles; test_loading_render powtórzony osobno po zniknięciu serwera Xvfb w trakcie przebiegu – środowisko, nie test); 70/70 po cz. 25 (nowe test_trade_sources i test_loading_render; Xvfb + lavapipe); 68/68 po cz. 21–23 (z nowym test_load_reveal; test_count_dialog, test_trade, test_map_notes, test_load_reveal powtórzone na końcowym kodzie cz. 23); 67/67 po cz. 20; 66/66 po cz. 19 (38 w przebiegu, test_progress poprawiony i 28 kolejnych po poprawce); 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 
