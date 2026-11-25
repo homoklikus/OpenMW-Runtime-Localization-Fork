@@ -814,6 +814,18 @@ sprzedaż sztuk niezałożonych nie zdejmuje założonego (test_item_stacks: 22 
   Skradania (Sneak_PickPocket) i itemTaken bez alarmu (rejestr skradzionych z właścicielem NPC); powalony NPC –
   itemTaken z alarmem (kradzież, gdy ktoś widzi) (test_pickpocket, 13).
 
+**Głosy NPC i zasięg dźwięków (cz. 34, zgłoszenie użytkownika: „NPC nie mają głosów, nie pozdrawiają”):**
+diagnostyka na RTX 5090 użytkownika (`--voice-diag`, prawdziwe dane, zapis z Seyda Neen – tylko identyfikatory i liczby)
+pokazała, że powitania i okrzyki są wybierane i odtwarzane jak w OpenMW (Fargoth: hello – Hlo_WM133, strażnik:
+attack), ale odtwarzacz głosu miał zasięg 5–40 j. (unit_size 0,07 m, max_distance 0,6 m): port brał
+fAudioDefaultMin/MaxDistance bez mnożników i bez osobnych GMST głosu – z 1,5 m głos był wycięty. Teraz jak OpenMW:
+głos – fAudioVoiceDefaultMin/MaxDistance × fAudioMin/MaxDistanceMult (SoundManager::say), pozostałe dźwięki 3D –
+MinRange/MaxRange rekordu albo fAudioDefaultMin/MaxDistance, zawsze × mnożniki (SoundBufferPool::insertSound; wcześniej
+dźwięki bez zasięgu w rekordzie też miały 5–40 j.), głośność rekordu 10^((v/255 × 3348 − 3348)/2000) zamiast v/255
+(test_audio_ranges, 6). Pasek zdrowia wroga w tej samej diagnostyce: widoczny po ataku gracza (także chybionym),
+fNPCHealthBarTime z danych = 3 s, wygaszanie w ostatniej sekundzie – pasek pojawia się tylko po ataku gracza, nie
+gdy atakuje wróg (jak HUD::setEnemy w OpenMW).
+
 ### 7.18 Akcje sterowania OpenMW 0.51 (P2, cz. 26)
 
 Porównane z `BindingsManager::loadKeyDefaults/loadControllerDefaults/getActionKeySorting/getActionControllerSorting/
@@ -946,6 +958,8 @@ Mody – zgodnie z poleceniem nie testowane (kolejność: najpierw klasyczne GUI
 * Etap 10: raport – lista kupca, porównanie dwóch przebiegów OpenMW (losowanie list poziomowanych)
 * Etap 10 cz. 32: stosy przedmiotów jak ItemStack OpenMW (skrypt, założony egzemplarz, stan z referencji)
 * Etap 10 cz. 33: pasek zdrowia wroga, kursory gry, krawędzie okien, upuszczanie i podnoszenie w trybie GUI, kradzież kieszonkowa
+* Etap 10: diagnostyka głosów NPC i paska wroga (--voice-diag)
+* Etap 10 cz. 34: zasięg głosów i dźwięków 3D, głośność rekordów jak OpenMW
 
 Pełny zestaw tools/run_tests.sh: 76/76 po cz. 33 (nowe test_enemy_health, test_cursor_drop, test_pickpocket; Xvfb + lavapipe); 73/73 po cz. 32 (z nowym test_item_stacks; Xvfb + lavapipe); 72/72 po cz. 30 (Xvfb + lavapipe, pytest z test_game_command_window_args); 72/72 po cz. 28 (test_language wykrył polski komunikat błędu w nowym kodzie – poprawiony, testy od test_language powtórzone); 72/72 po cz. 27 (nowe test_player_controls i test_console_toggles; test_loading_render powtórzony osobno po zniknięciu serwera Xvfb w trakcie przebiegu – środowisko, nie test); 70/70 po cz. 25 (nowe test_trade_sources i test_loading_render; Xvfb + lavapipe); 68/68 po cz. 21–23 (z nowym test_load_reveal; test_count_dialog, test_trade, test_map_notes, test_load_reveal powtórzone na końcowym kodzie cz. 23); 67/67 po cz. 20; 66/66 po cz. 19 (38 w przebiegu, test_progress poprawiony i 28 kolejnych po poprawce); 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 

@@ -102,20 +102,13 @@ func play(sound_id: String, at = null, volume := 1.0) -> Node:
 	if s == null:
 		return null
 	var rec: Dictionary = records.record("sound", sound_id.to_lower())
-	var vol := float(rec.get("volume", 255)) / 255.0 * volume * sfx_volume
+	var vol := record_volume(rec) * volume * sfx_volume
 	var p: Node
 	if at is Vector3:
 		var p3 := AudioStreamPlayer3D.new()
-		var mn := float(rec.get("min_range", 0))
-		var mx := float(rec.get("max_range", 0))
-		if mn == 0.0 and mx == 0.0:
-			mn = _gmst("faudiodefaultmindistance", 100.0)
-			mx = _gmst("faudiodefaultmaxdistance", 2000.0)
-		else:
-			mn = maxf(mn, 1.0) * _gmst("faudiomindistancemult", 20.0)
-			mx = maxf(mx, 1.0) * _gmst("faudiomaxdistancemult", 50.0)
-		p3.unit_size = mn / MWCoords.UNITS_PER_METER
-		p3.max_distance = maxf(mx, mn) / MWCoords.UNITS_PER_METER
+		var r := sound_range(float(rec.get("min_range", 0)), float(rec.get("max_range", 0)))
+		p3.unit_size = r.x / MWCoords.UNITS_PER_METER
+		p3.max_distance = r.y / MWCoords.UNITS_PER_METER
 		p3.position = at
 		p = p3
 	else:
@@ -176,6 +169,29 @@ static func voice_path(file: String) -> String:
 	var f := norm(file)
 	return f if f.begins_with("sound/") else "sound/" + f
 
+## SoundBufferPool::insertSound: zasięg dźwięku (jednostki MW) – MinRange/MaxRange rekordu, przy obu zerowych
+## fAudioDefaultMin/MaxDistance; potem × fAudioMin/MaxDistanceMult, min ≥ 1, max ≥ min. → (min, max)
+func sound_range(min_range: float, max_range: float) -> Vector2:
+	var mn := min_range
+	var mx := max_range
+	if mn == 0.0 and mx == 0.0:
+		mn = _gmst("faudiodefaultmindistance", 5.0)
+		mx = _gmst("faudiodefaultmaxdistance", 40.0)
+	mn = maxf(mn * _gmst("faudiomindistancemult", 20.0), 1.0)
+	mx = maxf(mx * _gmst("faudiomaxdistancemult", 50.0), mn)
+	return Vector2(mn, mx)
+
+## SoundManager::say: zasięg głosu – fAudioVoiceDefaultMin/MaxDistance × fAudioMin/MaxDistanceMult (min ≥ 1).
+func voice_range() -> Vector2:
+	var mn := maxf(_gmst("faudiovoicedefaultmindistance", 10.0) * _gmst("faudiomindistancemult", 20.0), 1.0)
+	var mx := maxf(_gmst("faudiovoicedefaultmaxdistance", 80.0) * _gmst("faudiomaxdistancemult", 50.0), mn)
+	return Vector2(mn, mx)
+
+## Głośność rekordu SOUN jak SoundBufferPool: 10^((v / 255 × 3348 − 3348) / 2000).
+static func record_volume(rec: Dictionary) -> float:
+	var v := float(rec.get("volume", 255))
+	return pow(10.0, (v / 255.0 * 3348.0 - 3348.0) / 2000.0)
+
 ## Say: głos aktora (node – węzeł aktora albo null = gracz/bez pozycji). Poprzednia kwestia tego aktora jest
 ## przerywana (stopSay). Zwraca długość nagrania w sekundach albo -1, gdy pliku nie ma.
 func say(owner_key: String, file: String, node: Node3D = null, head_height := 1.6) -> float:
@@ -189,8 +205,9 @@ func say(owner_key: String, file: String, node: Node3D = null, head_height := 1.
 	var p: Node
 	if node != null and is_instance_valid(node):
 		var p3 := AudioStreamPlayer3D.new()
-		p3.unit_size = _gmst("faudiodefaultmindistance", 100.0) / MWCoords.UNITS_PER_METER
-		p3.max_distance = _gmst("faudiodefaultmaxdistance", 2000.0) / MWCoords.UNITS_PER_METER
+		var vr := voice_range()
+		p3.unit_size = vr.x / MWCoords.UNITS_PER_METER
+		p3.max_distance = vr.y / MWCoords.UNITS_PER_METER
 		p3.position = Vector3(0, head_height, 0)
 		node.add_child(p3)             # głos idzie za aktorem (OpenMW aktualizuje pozycję z głowy)
 		p = p3

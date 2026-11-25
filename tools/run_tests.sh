@@ -177,6 +177,7 @@ run_gd test_combat.gd --data="$WORK/actors_out" --project="$WORK/project_combat"
 run_gd test_enemy_health.gd --data="$WORK/actors_out" --project="$WORK/project_enemy_health" --pos=2300,2400,900 --scripts=0
 run_gd test_cursor_drop.gd --data="$WORK/actors_out" --project="$WORK/project_cursor_drop" --pos=2300,2400,900 --scripts=0
 run_gd test_pickpocket.gd --data="$WORK/actors_out" --project="$WORK/project_pickpocket" --pos=2300,2400,900 --scripts=0
+run_gd test_audio_ranges.gd --data="$WORK/actors_out" --project="$WORK/project_audio_ranges" --pos=2300,2400,900 --scripts=0
 run_gd test_magic.gd --data="$WORK/actors_out" --project="$WORK/project_magic" --pos=2300,2400,900 --scripts=0
 run_gd test_ai.gd --data="$WORK/actors_out" --project="$WORK/project_ai" --pos=2300,2400,900 --scripts=0
 run_gd test_combat_ai.gd --data="$WORK/actors_out" --project="$WORK/project_cai" --pos=2300,2400,900 --scripts=0
