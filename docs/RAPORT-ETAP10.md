@@ -749,7 +749,10 @@ najbliższego pola portu) pokazuje w pierwszych kolumnach przesunięcia o 1–3 
 Przedmioty stałe sprawdzone wprost: przedmioty w świecie należące do Arrille (48 referencji) – bez skryptów, bez
 zaklęć, uszkodzona broń (srebrny krótki miecz 270/570, srebrny kij 240/270) jako osobne pojedyncze sztuki, strzały
 bez wytrzymałości (WeaponType bez HasHealth – łączą się w stos, jak w porcie), klucz `key_arrile` odrzucony
-(Miscellaneous::canSell – flaga Key), założone ubrania kupca pominięte (TradeItemModel: isEquipped). Wniosek:
+(Miscellaneous::canSell – flaga Key), założone ubrania kupca pominięte (TradeItemModel: isEquipped). Potwierdzenie
+pomiarem: dwa przebiegi samego OpenMW 0.51 (VM, Xvfb, 3440 × 1440, ten sam przypadek handlu u Arrille) różnią się
+w siatce kupca w **7** polach 42 × 42 (kolumny 4–6 z ok. 6 zajętych przez towar), port względem
+OpenMW – w 15. Wniosek:
 pozostałe pola różnic to losowość list poziomowanych, nie błąd modelu towaru; zgodności co do pola nie da się
 uzyskać bez wspólnego ziarna losowania (porównanie z `--random-seed` wymagałoby odtworzenia generatora OpenMW
 w porcie – poza zakresem etapu 10).
