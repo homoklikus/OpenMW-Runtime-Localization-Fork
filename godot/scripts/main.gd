@@ -45,6 +45,7 @@ var edit_note = null                  # mw_edit_note.gd – EditNoteDialog
 var keyboard_nav = null               # mw_keyboard_nav.gd – KeyboardNavigation
 var gamepad = null                    # mw_gamepad.gd – ControllerManager (pad)
 var look_diag = null                  # mw_look_diag.gd – źródła obrotu kamery (diagnostyka)
+var load_diag = null                  # mw_load_diag.gd – klatki wczytania/przejścia (--load-diag)
 var console = null                    # mw_console.gd – konsola (MWScript, polecenia tylko konsoli)
 var god_mode := false                 # TGM: bez obrażeń i kosztów (zdrowie, kondycja, magia gracza)
 var tooltips = null                   # mw_tooltips.gd – ToolTips (podpowiedzi w układzie OpenMW)
@@ -102,6 +103,12 @@ func arg(name: String, def := "") -> String:
 	if ProjectSettings.has_setting(ps):
 		return str(ProjectSettings.get_setting(ps))
 	return def
+
+## Przełącznik diagnostyczny: `--nazwa` po `--` (argumenty użytkownika) albo przed nim – pole „argumenty
+## uruchomienia” launchera trafia do argumentów silnika (launch.game_command).
+func flag(name: String) -> bool:
+	return not arg(name).is_empty() or OS.get_cmdline_user_args().has("--" + name) \
+		or OS.get_cmdline_args().has("--" + name)
 
 func _ready() -> void:
 	MWInput.register_defaults()
@@ -286,8 +293,13 @@ func _ready() -> void:
 	look_diag = preload("res://scripts/mw/mw_look_diag.gd").new()
 	look_diag.name = "LookDiag"
 	look_diag.main = self
-	look_diag.verbose = not arg("look-diag").is_empty() or OS.get_cmdline_user_args().has("--look-diag")
+	look_diag.verbose = flag("look-diag")
 	add_child(look_diag)
+	if flag("load-diag"):
+		load_diag = preload("res://scripts/mw/mw_load_diag.gd").new()
+		load_diag.name = "LoadDiag"
+		load_diag.main = self
+		add_child(load_diag)
 	gamepad = preload("res://scripts/mw/mw_gamepad.gd").new()
 	gamepad.name = "ControllerManager"
 	gamepad.main = self
@@ -2349,6 +2361,8 @@ func drop_item(id: String, count: int) -> String:
 	return sid
 
 func travel(dest: Dictionary) -> void:
+	if load_diag != null:
+		load_diag.begin("travel")
 	if scripts != null:
 		scripts.cell_changed = true
 	if ai != null:
@@ -3344,6 +3358,8 @@ func quick_load() -> Array:
 ## StateManager::loadGame(character, path): ekran ładowania, odczyt; błąd – stan wyczyszczony, menu główne
 ## i komunikat (printSavegameFormatError); oryginalny plik zostaje bez zmian.
 func load_slot(ch, path: String) -> Array:
+	if load_diag != null:
+		load_diag.begin("load")
 	var raw_ok := not GameStateScript.read_file(path).has("error")
 	var prev_state := game_state
 	if raw_ok:
