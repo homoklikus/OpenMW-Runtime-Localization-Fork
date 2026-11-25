@@ -934,11 +934,44 @@ func sorted_items(sid := "player", rec := {}) -> Array:
 		var it: Dictionary = inv.item(String(e.id))
 		if it.is_empty():
 			continue
-		var worn: bool = sid == "player" and main.equipped_slot_of(String(e.id)) >= 0
 		var name: String = main.interaction.item_name(String(it.kind), String(e.id), it.rec)
-		out.append(sort_keys({"id": String(e.id), "count": int(e.count), "kind": String(it.kind), "rec": it.rec, "worn": worn,
-			"name": name, "magic": _enchanted(it)}, 1 if worn else 2, "player" if sid == "player" else ""))
+		for st in item_stacks(e, it, sid == "player"):
+			var worn := bool(st.worn)
+			out.append(sort_keys({"id": String(e.id), "count": int(st.count), "kind": String(it.kind), "rec": it.rec, "worn": worn,
+				"name": name, "magic": _enchanted(it), "stack": st}, 1 if worn else 2, "player" if sid == "player" else ""))
 	out.sort_custom(item_less)
+	return out
+
+## Liczba założonych egzemplarzy przedmiotu gracza (miejsca ekwipunku z tym identyfikatorem).
+func worn_copies(id: String) -> int:
+	var eq: Dictionary = main.player_stats().get("equipment", {}) if main != null and main.has_method("player_stats") else {}
+	var n := 0
+	for s in eq:
+		if eq[s] is Dictionary and String(eq[s].get("id", "")) == id.to_lower():
+			n += 1
+	return n
+
+## Stosy wpisu inwentarza jak ItemStack-i OpenMW: [{count, worn}]. InventoryStore::stacks – założony egzemplarz nie
+## łączy się z niezałożonymi (osobny stos Type_Equipped; dwa jednakowe pierścienie – dwa stosy), chyba że przedmiot
+## łączy się w stos także założony (getEquipmentSlots().second: amunicja i broń miotana – cały stos założony).
+## ContainerStore::stacks – przedmioty ze skryptem: każdy stos osobno („parts” wpisu).
+func item_stacks(e: Dictionary, it: Dictionary, player: bool) -> Array:
+	var parts: Array = Inv.stacks_of(e)
+	var out := []
+	var worn := worn_copies(String(e.id)) if player else 0
+	if worn > 0 and String(it.get("kind", "")) == "weapon" and int((it.get("rec", {}) as Dictionary).get("weapon_type", 0)) >= 11:
+		if not parts.is_empty():
+			out.append({"count": int(parts[0]), "worn": true})
+			parts.remove_at(0)
+		worn = 0
+	while worn > 0 and not parts.is_empty():
+		out.append({"count": 1, "worn": true})
+		parts[0] = int(parts[0]) - 1
+		if int(parts[0]) <= 0:
+			parts.remove_at(0)
+		worn -= 1
+	for p in parts:
+		out.append({"count": int(p), "worn": false})
 	return out
 
 ## Siatka ikon w przewijanym obszarze (ItemView): zwraca kontrolkę siatki; source – „inventory” | „container”.
@@ -975,6 +1008,7 @@ func _fill_grid(grid: Control, entries: Array, source: String, owner = null) -> 
 		cell.menu = owner if owner != null else self
 		cell.item_id = e.id
 		cell.source = String(e.get("source", source))
+		cell.stack = e.get("stack", {})
 		cell.mouse_filter = Control.MOUSE_FILTER_PASS
 		cell.custom_minimum_size = Vector2(CELL, CELL) * scale_ui
 		cell.size = cell.custom_minimum_size
@@ -1051,13 +1085,20 @@ func _refresh_inventory() -> void:
 			entries.append(e)
 	if is_holding():                          # SortFilterItemModel::addDragItem – podniesiona liczba ukryta
 		var kept := []
-		for e in entries:
-			if String(e.id) == String(held.id):
-				var left := int(e.count) - int(held.count)
-				if left <= 0:
+		var hide := int(held.count)
+		for pass_worn in [bool(held.get("worn", false)), not bool(held.get("worn", false))]:
+			for i in entries.size():
+				var e: Dictionary = entries[i]
+				if hide <= 0 or String(e.id) != String(held.id) or bool(e.get("worn", false)) != pass_worn:
 					continue
+				var take := mini(hide, int(e.count))
+				hide -= take
 				e = e.duplicate()
-				e.count = left
+				e.count = int(e.count) - take
+				entries[i] = e
+		for e in entries:
+			if int(e.count) <= 0:
+				continue
 			kept.append(e)
 		entries = kept
 	item_ids = _fill_grid(_grid, entries, "inventory")
@@ -1565,10 +1606,11 @@ func take_all() -> void:
 func dropped_on(target: String, data: Dictionary) -> void:
 	var id := String(data.get("mw_item", ""))
 	var src := String(data.get("source", "inventory"))
+	pressed_stack = data.get("stack", {}) if data.get("stack") is Dictionary else {}
 	if target == "container" and src == "inventory":
-		ask_count(id, _count("player", {}, id), "sTake", data, func(n: int): put_item(id, n))
+		ask_count(id, _stack_avail(_count("player", {}, id)), "sTake", data, func(n: int): put_item(id, n))
 	elif target in ["inventory", "avatar"] and src == "container":
-		ask_count(id, _count(cont_sid, cont_rec, id), "sTake", data, func(n: int): take_item(id, n))
+		ask_count(id, _stack_avail(_count(cont_sid, cont_rec, id)), "sTake", data, func(n: int): take_item(id, n))
 	elif target == "avatar" and src == "inventory":
 		use_item(id)
 
@@ -1577,7 +1619,13 @@ func dropped_on(target: String, data: Dictionary) -> void:
 ## ensureSelectedItemUnequipped); ikona 42 × 42 z liczbą idzie za kursorem (lewy górny róg w punkcie kursora,
 ## ControllerFollowMouse); następne kliknięcie odkłada: siatka ekwipunku – bez zmian, pojemnik – przełożenie, postać –
 ## użyj/załóż, poza oknami – na ziemię. Zamknięcie okna – przedmiot zostaje w ekwipunku (finish).
-var held := {}                              # {"id", "count"} – mIsOnDragAndDrop
+var held := {}                              # {"id", "count", "worn"} – mIsOnDragAndDrop
+var pressed_stack := {}                     # stos klikniętej komórki ({count, worn}; pusty – cały wpis)
+
+## Liczba sztuk do przeniesienia: stos klikniętej komórki (ItemStack::mCount), bez niego – wszystkie sztuki.
+func _stack_avail(total: int) -> int:
+	return mini(total, int(pressed_stack.count)) if pressed_stack.has("count") else total
+
 var _held_layer: CanvasLayer = null
 var _held_icon: Control = null
 
@@ -1591,10 +1639,11 @@ func cell_pressed(id: String, source: String, mods := {}) -> void:
 	if bool(mods.get("alt", false)) and _cont_grid != null and is_instance_valid(_cont_grid):
 		activate_item(id, source, mods)            # transferItem (Alt)
 		return
-	var avail := _count(cont_sid, cont_rec, id) if source == "container" else _count("player", {}, id)
-	ask_count(id, avail, "sTake", mods, func(n: int): _pick_up(id, source, n))
+	var avail := _stack_avail(_count(cont_sid, cont_rec, id) if source == "container" else _count("player", {}, id))
+	var worn := bool(pressed_stack.get("worn", source != "container"))
+	ask_count(id, avail, "sTake", mods, func(n: int): _pick_up(id, source, n, worn))
 
-func _pick_up(id: String, source: String, n: int) -> void:
+func _pick_up(id: String, source: String, n: int, worn := true) -> void:
 	if n <= 0:
 		return
 	if source == "container":
@@ -1604,12 +1653,14 @@ func _pick_up(id: String, source: String, n: int) -> void:
 		if n <= 0:
 			return
 	else:
+		# ensureSelectedItemUnequipped: tylko gdy podniesiony stos jest założony (niezałożone sztuki tego samego
+		# przedmiotu to osobny stos – założony egzemplarz zostaje)
 		var slot: int = main.equipped_slot_of(id) if main.has_method("equipped_slot_of") else -1
-		if slot >= 0 and main.has_method("unequip_slot"):
+		if worn and slot >= 0 and main.has_method("unequip_slot"):
 			main.unequip_slot(slot)
 		if main.get("audio") != null:
 			main.audio.play(main.interaction.item_sound(id, true))      # getUpSoundId
-	held = {"id": id, "count": n}
+	held = {"id": id, "count": n, "worn": worn and source != "container"}
 	_show_held()
 	refresh()
 
@@ -1677,9 +1728,9 @@ func _hide_held() -> void:
 ## Dwuklik: w trybie pojemnika – przełożenie (z oknem ilości), inaczej – użyj/załóż.
 func activate_item(id: String, source: String, mods := {}) -> void:
 	if source == "container":
-		ask_count(id, _count(cont_sid, cont_rec, id), "sTake", mods, func(n: int): take_item(id, n))
+		ask_count(id, _stack_avail(_count(cont_sid, cont_rec, id)), "sTake", mods, func(n: int): take_item(id, n))
 	elif _cont_grid != null and is_instance_valid(_cont_grid):
-		ask_count(id, _count("player", {}, id), "sTake", mods, func(n: int): put_item(id, n))
+		ask_count(id, _stack_avail(_count("player", {}, id)), "sTake", mods, func(n: int): put_item(id, n))
 	else:
 		use_item(id)
 
@@ -1979,3 +2030,4 @@ func spell_model(flt := "") -> Array:
 const _ItemCell := preload("res://scripts/mw/mw_menu_cell.gd")
 const _DollDrop := preload("res://scripts/mw/mw_menu_doll.gd")
 const _Backdrop := preload("res://scripts/mw/mw_menu_backdrop.gd")
+const Inv := preload("res://scripts/mw/mw_inventory.gd")

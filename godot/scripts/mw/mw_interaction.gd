@@ -201,9 +201,8 @@ static func _join(parts: Array) -> String:
 func take_ref(c: Dictionary) -> Dictionary:
 	var n := int(c.count)
 	var g := normalize_gold(String(c.base), n)
-	var soul := String(c.extra.get("soul", "")).to_lower()       # kamień dusz z duszą (XSOL) – „id@stworzenie”
-	if not soul.is_empty() and g[0].begins_with("misc_soulgem"):
-		g[0] = g[0] + "@" + soul
+	if String(g[0]) == String(c.base).to_lower():
+		g[0] = inventory.ref_stack_id(g[0], c.extra)          # dusza (XSOL, „id@stworzenie”) i stan (INTV, „id#c:N”)
 	inventory.add(PLAYER, {}, g[0], g[1])
 	if main_scripts != null:
 		main_scripts.item_to_player(String(c.sid), g[0])     # zmienne skryptu przedmiotu idą z nim

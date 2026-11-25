@@ -47,6 +47,23 @@ static func charged_id(id: String, charge: float, max_charge: float) -> String:
 static func max_charge(rec: Dictionary) -> float:
 	return float(rec.get("health", rec.get("uses", 0)))
 
+## Class::hasItemHealth: broń z wytrzymałością (bez amunicji i broni miotanej – WeaponType bez HasHealth), pancerz,
+## wytrychy, sondy, narzędzia naprawcze (liczba użyć).
+static func has_item_health(kind: String, rec: Dictionary) -> bool:
+	return kind in ["armor", "lockpick", "probe", "repair"] or (kind == "weapon" and int(rec.get("weapon_type", 0)) < 11)
+
+## Identyfikator stosu przedmiotu z referencji w świecie: dusza kamienia (XSOL) i stan (INTV – CellRef::getCharge)
+## przechodzą do stosu jak w OpenMW (ContainerStore::stacks – różny stan albo dusza: osobne stosy).
+func ref_stack_id(base: String, extra: Dictionary) -> String:
+	var k := base.to_lower()
+	var soul := String(extra.get("soul", "")).to_lower()
+	if not soul.is_empty() and k.begins_with("misc_soulgem"):
+		k = k + "@" + soul
+	var it := item(k)
+	if not it.is_empty() and extra.has("health") and has_item_health(String(it.kind), it.rec):
+		k = charged_id(k, float(extra.health), max_charge(it.rec))
+	return k
+
 ## {"kind": plik rekordu, "rec": rekord} albo {} – przedmiot, który może leżeć w inwentarzu.
 ## Kamień dusz z duszą: „id@stworzenie” (OpenMW: dusza w CellRef; tu – w id, osobny stos jak w OpenMW).
 func item(id: String) -> Dictionary:
@@ -116,8 +133,62 @@ static func _add(out: Array, id: String, count: int) -> void:
 	for e in out:
 		if e.id == id:
 			e.count += count
+			if e.has("parts"):
+				e["parts"] = stacks_of(e) + [count] if count > 0 else stacks_of(e)
 			return
 	out.append({"id": id, "count": count})
+
+## ContainerStore::stacks: przedmioty ze skryptem nigdy nie łączą się w stos – każda dodana porcja (wpis NPCO
+## rekordu, podniesiona referencja, przełożona część) to osobny stos. Wpis inwentarza trzyma wtedy „parts”: liczby
+## sztuk kolejnych stosów (suma = count).
+func is_scripted(id: String) -> bool:
+	var it := item(id)
+	return not it.is_empty() and not String(it.rec.get("script", "")).is_empty()
+
+func _put(out: Array, id: String, count: int) -> void:
+	if count <= 0 or not is_scripted(id):
+		_add(out, id, count)
+		return
+	for e in out:
+		if e.id == id:
+			var parts := stacks_of(e)
+			e.count += count
+			parts.append(count)
+			e["parts"] = parts
+			return
+	out.append({"id": id, "count": count, "parts": [count]})
+
+## Odjęcie n sztuk z wpisu; stosy (parts) ubywają od ostatniego (najnowszego).
+static func _take(e: Dictionary, n: int) -> void:
+	var parts := stacks_of(e) if e.has("parts") else []
+	e.count -= n
+	if e.has("parts"):
+		var left := n
+		while left > 0 and not parts.is_empty():
+			var last := int(parts[-1])
+			if last <= left:
+				left -= last
+				parts.pop_back()
+			else:
+				parts[-1] = last - left
+				left = 0
+		e["parts"] = parts
+
+## Liczby sztuk stosów wpisu (parts uzgodnione z count; bez parts – jeden stos).
+static func stacks_of(e: Dictionary) -> Array:
+	var c := int(e.get("count", 0))
+	if not e.has("parts"):
+		return [c] if c > 0 else []
+	var out := []
+	var sum := 0
+	for p in e.parts:
+		var n := mini(int(p), c - sum)
+		if n > 0:
+			out.append(n)
+			sum += n
+	if sum < c:
+		out.append(c - sum)
+	return out
 
 ## addInitialItem: listy z flagą „każdy” i liczbą > 1 losowane osobno dla każdej sztuki; zagnieżdżone listy
 ## rozwiązywane do przedmiotu; liczby ujemne (uzupełnianie u kupców) – liczone jako wartość bezwzględna.
@@ -139,7 +210,7 @@ func _add_initial(out: Array, id: String, count: int, rng: RandomNumberGenerator
 	if not is_item(k):
 		stats.missing += 1
 		return
-	_add(out, k, absi(count))
+	_put(out, k, absi(count))
 
 ## Zawartość z rekordu (bez zmian z gry) – deterministyczna dla danego sid i ziarna.
 func base_contents(rec: Dictionary, sid: String) -> Array:
@@ -175,18 +246,18 @@ func transfer(from_sid: String, from_rec: Dictionary, to_sid: String, to_rec: Di
 	for e in src:
 		if e.id == k:
 			moved = mini(count, int(e.count))
-			e.count -= moved
+			_take(e, moved)
 			break
 	if moved <= 0:
 		return 0
-	_add(dst, k, moved)
+	_put(dst, k, moved)
 	state.set_inventory(from_sid, src)
 	state.set_inventory(to_sid, dst)
 	return moved
 
 func add(sid: String, rec: Dictionary, id: String, count: int) -> void:
 	var items := contents(sid, rec)
-	_add(items, id.to_lower(), count)
+	_put(items, id.to_lower(), count)
 	state.set_inventory(sid, items)
 
 ## Usuwa do count sztuk; zwraca usuniętą liczbę.
@@ -196,7 +267,7 @@ func remove(sid: String, rec: Dictionary, id: String, count: int) -> int:
 	for e in items:
 		if e.id == k:
 			var n := mini(count, int(e.count))
-			e.count -= n
+			_take(e, n)
 			state.set_inventory(sid, items)
 			return n
 	return 0

@@ -730,10 +730,8 @@ dodatkowo gra ustawia tryb okna zaraz po wczytaniu ustawień. Test `test_game_co
 podzielona na pola 42 × 42 (600 pól) – pola z różnicą średniej jasności > 12: przed poprawkami cz. 25 **43**,
 po **15** (średnia różnica 3,48 → 2,48). Pozostałe różnice są pojedyncze w pierwszych kolumnach siatki (nie ma
 przesunięcia całej listy – kolejność i skład zgodne co do pozycji); przyczyna pojedynczych pól (liczby sztuk,
-tła przedmiotów magicznych) – zbadana w cz. 31 (niżej). Pozostałe odstępstwa
-modelu przedmiotów: stos po identyfikatorze – założony egzemplarz w tym samym stosie co niezałożone (OpenMW:
-osobny stos Type_Equipped), przedmioty ze skryptem łączone w stos (OpenMW: nie). Wpływ: tylko u kupców z założonymi lub oskryptowanymi
-przedmiotami. Przedmioty przywołane (Flag_Bound – identyfikatory z GMST sMagicBound*, MechanicsManager::isBoundItem)
+tła przedmiotów magicznych) – zbadana w cz. 31 (niżej). Odstępstwa
+modelu stosów usunięte w cz. 32 (niżej). Przedmioty przywołane (Flag_Bound – identyfikatory z GMST sMagicBound*, MechanicsManager::isBoundItem)
 od cz. 31 są pomijane w towarze kupca jak w TradeItemModel::update (test_trade_sources, 28 sprawdzeń).
 
 **Lista kupca – przyczyna pozostałych różnic (cz. 31, analiza danych na VM, tylko identyfikatory i liczby):**
@@ -756,6 +754,25 @@ OpenMW – w 15. Wniosek:
 pozostałe pola różnic to losowość list poziomowanych, nie błąd modelu towaru; zgodności co do pola nie da się
 uzyskać bez wspólnego ziarna losowania (porównanie z `--random-seed` wymagałoby odtworzenia generatora OpenMW
 w porcie – poza zakresem etapu 10).
+
+**Stosy przedmiotów jak ItemStack OpenMW (cz. 32):** inwentarz portu był liczony po identyfikatorze (stan
+i dusza już wcześniej w identyfikatorze stosu: „id#c:N”, „id@stworzenie”). Teraz:
+* przedmioty ze skryptem nigdy nie łączą się w stos (ContainerStore::stacks) – wpis inwentarza trzyma `parts`
+  (liczby sztuk kolejnych stosów: wpis NPCO rekordu, podniesiona referencja, przełożona część); zabieranie od
+  ostatniego stosu; `parts` w zapisie gry (wpis bez `parts` – jeden stos, zgodność ze starymi zapisami);
+* założony egzemplarz gracza to osobny stos (InventoryStore::stacks, InventoryItemModel – Type_Equipped, sortowany
+  przed zwykłymi), dwa jednakowe założone pierścienie – dwa stosy; amunicja i broń miotana – cały stos założony
+  (getEquipmentSlots().second); podniesienie stosu niezałożonego nie zdejmuje założonego egzemplarza
+  (ensureSelectedItemUnequipped dotyczy tylko wybranego stosu), okno ilości – liczba sztuk klikniętego stosu;
+* towar kupca: stosy przedmiotów ze skryptem osobno (ContainerItemModel::update), założony egzemplarz kupca
+  niewidoczny, amunicja założona – cały stos niewidoczny; przedmioty w świecie z uszkodzeniem (INTV) jako osobny stos
+  „id#c:N” – także po kupnie i po podniesieniu ze świata (wcześniej trafiały do ekwipunku jako pełne), z duszą jak
+  dotąd; koszyk zabiera sztuki od ostatnich niezałożonych stosów;
+* test_item_stacks (18 sprawdzeń); test_trade_sources, test_trade, test_menu_mode, test_interaction,
+  test_count_dialog, test_alchemy, test_repair, test_quick_keys, test_keyboard_nav, test_crime, test_language bez zmian.
+Pozostaje: towarzysz i zwłoki – założone przedmioty NPC w oknie pojemnika nie są oddzielone (port nie przechowuje
+wyposażenia NPC w inwentarzu); sprzedaż sztuki z założonego stosu zabiera w porcie sztukę niezałożoną (ten sam
+przedmiot, wynik handlu jednakowy, założenie zostaje).
 
 ### 7.18 Akcje sterowania OpenMW 0.51 (P2, cz. 26)
 
@@ -886,8 +903,10 @@ Mody – zgodnie z poleceniem nie testowane (kolejność: najpierw klasyczne GUI
 * Etap 10 cz. 30: okno od razu w trybie z ustawień (launcher: --fullscreen / --resolution)
 * Etap 10: raport – przyczyna różnic listy kupca (listy poziomowane, cz. 31)
 * Etap 10 cz. 31: przedmioty przywołane poza towarem kupca (Flag_Bound)
+* Etap 10: raport – lista kupca, porównanie dwóch przebiegów OpenMW (losowanie list poziomowanych)
+* Etap 10 cz. 32: stosy przedmiotów jak ItemStack OpenMW (skrypt, założony egzemplarz, stan z referencji)
 
-Pełny zestaw tools/run_tests.sh: 72/72 po cz. 30 (Xvfb + lavapipe, pytest z test_game_command_window_args); 72/72 po cz. 28 (test_language wykrył polski komunikat błędu w nowym kodzie – poprawiony, testy od test_language powtórzone); 72/72 po cz. 27 (nowe test_player_controls i test_console_toggles; test_loading_render powtórzony osobno po zniknięciu serwera Xvfb w trakcie przebiegu – środowisko, nie test); 70/70 po cz. 25 (nowe test_trade_sources i test_loading_render; Xvfb + lavapipe); 68/68 po cz. 21–23 (z nowym test_load_reveal; test_count_dialog, test_trade, test_map_notes, test_load_reveal powtórzone na końcowym kodzie cz. 23); 67/67 po cz. 20; 66/66 po cz. 19 (38 w przebiegu, test_progress poprawiony i 28 kolejnych po poprawce); 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
+Pełny zestaw tools/run_tests.sh: 73/73 po cz. 32 (z nowym test_item_stacks; Xvfb + lavapipe); 72/72 po cz. 30 (Xvfb + lavapipe, pytest z test_game_command_window_args); 72/72 po cz. 28 (test_language wykrył polski komunikat błędu w nowym kodzie – poprawiony, testy od test_language powtórzone); 72/72 po cz. 27 (nowe test_player_controls i test_console_toggles; test_loading_render powtórzony osobno po zniknięciu serwera Xvfb w trakcie przebiegu – środowisko, nie test); 70/70 po cz. 25 (nowe test_trade_sources i test_loading_render; Xvfb + lavapipe); 68/68 po cz. 21–23 (z nowym test_load_reveal; test_count_dialog, test_trade, test_map_notes, test_load_reveal powtórzone na końcowym kodzie cz. 23); 67/67 po cz. 20; 66/66 po cz. 19 (38 w przebiegu, test_progress poprawiony i 28 kolejnych po poprawce); 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 
 ## 9. Zalecana kolejność dalszych prac
 

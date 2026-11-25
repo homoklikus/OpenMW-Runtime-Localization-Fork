@@ -151,7 +151,7 @@ func can_sell(id: String, svc: int) -> bool:
 	var k := item_kind(id)
 	if k.is_empty() or id.begins_with("gold_"):
 		return false
-	var rec: Dictionary = records.record(k, id)
+	var rec: Dictionary = main.interaction.inventory.item(id).get("rec", {})
 	if k == "misc" and bool(rec.get("key", false)):
 		return false
 	if svc & int(SVC.get(k, 0)):
@@ -234,7 +234,7 @@ func world_items(a: Dictionary) -> Array:
 				continue
 			var b := String(nd.get_meta("mw_base", "")).to_lower()
 			var t := String(main.db.get_object(b).get("type", ""))
-			cell.append({"sid": sid, "id": b, "count": main.interaction.count_of_ref(nd),
+			cell.append({"sid": sid, "id": main.interaction.inventory.ref_stack_id(b, ex), "count": main.interaction.count_of_ref(nd),
 				"o": int(CELLSTORE_ORDER.get(t, 99)) * 100000 + idx})
 		cell.sort_custom(func(x, y): return int(x.o) < int(y.o))
 		out.append_array(cell)
@@ -279,25 +279,42 @@ func merchant_items(a: Dictionary) -> Array:
 			var e: Dictionary = slots[slot]
 			equipped[String(e.id)] = int(equipped.get(String(e.id), 0)) + 1
 	var total := {}
+	var stacks := {}                               # id → liczby sztuk osobnych stosów (przedmioty ze skryptem)
 	var order := []
 	for src in sources(a):
 		for it in inv.contents(String(src.sid), src.rec):
 			var id := String(it.id).to_lower()
 			if not shows_in_inventory(id):
 				continue
-			var c := int(it.count)
-			if src.merchant and equipped.has(id):
-				c -= int(equipped[id])
+			var parts: Array = inv.stacks_of(it)
+			if src.merchant and equipped.has(id):      # założone (isEquipped) – osobny stos, niewidoczny
+				var k := int(equipped[id])
+				var wt := int((inv.item(id).get("rec", {}) as Dictionary).get("weapon_type", 0))
+				if item_kind(id) == "weapon" and wt >= 11 and not parts.is_empty():
+					parts.remove_at(0)                 # amunicja, broń miotana: założony cały stos (stackWhenEquipped)
+					k = 0
+				while k > 0 and not parts.is_empty():
+					parts[0] = int(parts[0]) - 1
+					if int(parts[0]) <= 0:
+						parts.remove_at(0)
+					k -= 1
+			var c := 0
+			for p in parts:
+				c += int(p)
 			if c <= 0:
 				continue
 			if not total.has(id):
 				order.append(id)
+				stacks[id] = []
 			total[id] = int(total.get(id, 0)) + c
+			_merge_stacks(stacks[id], parts, inv.is_scripted(id))
 	for w in world_items(a):
 		var id := String(w.id)
 		if not total.has(id):
 			order.append(id)
+			stacks[id] = []
 		total[id] = int(total.get(id, 0)) + int(w.count)
+		_merge_stacks(stacks[id], [int(w.count)], inv.is_scripted(id))
 	var out := []
 	for id in order:
 		if id.begins_with("gold_"):
@@ -308,8 +325,19 @@ func merchant_items(a: Dictionary) -> Array:
 			continue
 		if is_bound_item(id):                      # TradeItemModel: przedmiotów przywołanych (Flag_Bound) nie można kupić
 			continue
-		out.append({"id": id, "count": int(total[id])})
+		out.append({"id": id, "count": int(total[id]), "stacks": stacks[id]})
 	return out
+
+## ContainerItemModel::update: sztuki tego samego przedmiotu łączą się w jeden stos (ContainerStore::stacks), poza
+## przedmiotami ze skryptem – te zawsze osobno.
+static func _merge_stacks(into: Array, parts: Array, scripted: bool) -> void:
+	for p in parts:
+		if int(p) <= 0:
+			continue
+		if scripted or into.is_empty():
+			into.append(int(p))
+		else:
+			into[0] = int(into[0]) + int(p)
 
 ## ContainerItemModel::removeItem (przedmioty w świecie): odjęcie liczby z referencji albo usunięcie jej
 ## (deleteObject), przedmiot do ekwipunku gracza. → przeniesiona liczba
@@ -336,10 +364,12 @@ func take_world_items(a: Dictionary, id: String, count: int) -> int:
 ## rzeczy, których kupiec nie przyjmie, są widoczne, a kliknięcie daje sBarterDialog4).
 func player_items(_a: Dictionary) -> Array:
 	var out := []
-	for it in main.interaction.inventory.contents("player", {}):
+	var inv = main.interaction.inventory
+	for it in inv.contents("player", {}):
 		var id := String(it.id).to_lower()
 		if shows_in_inventory(id) and int(it.count) > 0:
-			out.append({"id": id, "count": int(it.count)})
+			var st: Array = main.menu_mode.item_stacks(it, inv.item(id), true) if main.get("menu_mode") != null else []
+			out.append({"id": id, "count": int(it.count), "stacks": st})
 	return out
 
 ## TradeWindow::updateOffer: oferta kupca (ujemna – gracz płaci).

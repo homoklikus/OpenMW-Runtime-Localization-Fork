@@ -9,7 +9,7 @@ extends RefCounted
 ##   time     {"day", "hour"}
 ##   player   {"interior": nazwa wnętrza albo "", "mw": {"pos", "rot"}}  (jednostki i kąty Morrowinda)
 ##   dyn_next licznik referencji utworzonych w grze ("dyn#N")
-##   inventories  (v2) sid pojemnika/NPC (albo "player") → [{"id", "count"}, …] – pełna zawartość po pierwszej
+##   inventories  (v2) sid pojemnika/NPC (albo "player") → [{"id", "count"[, "parts"]}, …] – pełna zawartość po pierwszej
 ##            zmianie; bez wpisu = zawartość z rekordu (z listami poziomowanymi rozlosowanymi wg seed i sid)
 ##   dynamic  (v2) sid "dyn#N" → {"base", "cell" (klucz komórki), "mw": {"pos","rot","scale"}, "count"} – przedmioty
 ##            położone w świecie w trakcie gry
@@ -151,9 +151,16 @@ func set_inventory(sid: String, items: Array) -> void:
 	var clean := []
 	for it in items:
 		if int(it.get("count", 0)) != 0:
-			clean.append({"id": String(it["id"]).to_lower(), "count": int(it["count"])})
+			clean.append(_inv_entry(it))
 	inventories[sid] = clean
 	inventory_changed.emit(sid)
+
+## Wpis inwentarza: {"id", "count"} oraz – dla przedmiotów ze skryptem (osobne stosy) – „parts”: liczby sztuk stosów.
+static func _inv_entry(it: Dictionary) -> Dictionary:
+	var e := {"id": String(it["id"]).to_lower(), "count": int(it["count"])}
+	if it.get("parts") is Array and (it.parts as Array).size() > 1:
+		e["parts"] = (it.parts as Array).map(func(p): return int(p))
+	return e
 
 ## Przedmiot położony w świecie (gracz wyrzucił/odłożył): nowy sid dyn#N.
 func add_dynamic(base: String, cell_key: String, pos: Vector3, rot: Vector3, count := 1) -> String:
@@ -212,7 +219,7 @@ func from_dict(d: Dictionary) -> Array:
 	dyn_next = int(d.get("dyn_next", 1))
 	inventories = (d.get("inventories", {}) as Dictionary).duplicate(true)
 	for k in inventories:        # JSON: liczby jako float
-		inventories[k] = (inventories[k] as Array).map(func(it): return {"id": String(it["id"]), "count": int(it["count"])})
+		inventories[k] = (inventories[k] as Array).map(func(it): return _inv_entry(it))
 	dynamic = (d.get("dynamic", {}) as Dictionary).duplicate(true)
 	seed = int(d.get("seed", 0))
 	scripts = (d.get("scripts", {}) as Dictionary).duplicate(true)

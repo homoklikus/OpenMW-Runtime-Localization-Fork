@@ -169,6 +169,7 @@ run_gd test_trade.gd --data="$WORK/actors_out" --project="$WORK/project_trade" -
 run_gd test_player_controls.gd --data="$WORK/actors_out" --project="$WORK/project_player_controls" --pos=2300,2400,900 --scripts=0
 run_gd test_console_toggles.gd --data="$WORK/actors_out" --project="$WORK/project_console_toggles" --pos=2300,2400,900 --scripts=0
 run_gd test_trade_sources.gd --data="$WORK/actors_out" --project="$WORK/project_trade_sources" --pos=2300,2400,900 --scripts=0
+run_gd test_item_stacks.gd --data="$WORK/actors_out" --project="$WORK/project_item_stacks" --pos=2300,2400,900 --scripts=0
 run_gd test_repair.gd --data="$WORK/actors_out" --project="$WORK/project_repair" --pos=2300,2400,900 --scripts=0
 run_gd test_alchemy.gd --data="$WORK/actors_out" --project="$WORK/project_alchemy" --pos=2300,2400,900 --scripts=0
 run_gd test_enchanting.gd --data="$WORK/actors_out" --project="$WORK/project_enchanting" --pos=2300,2400,900 --scripts=0

@@ -223,16 +223,43 @@ func refresh() -> void:
 
 ## Wpis siatki z kluczami SortFilterItemModel (Type_Barter – przedmioty w koszyku, Type_Equipped – założone
 ## przez gracza, Type_Normal – reszta).
-func _entry(it: Dictionary, count: int, src: String, merchant_side: bool, state := "") -> Dictionary:
+func _entry(it: Dictionary, count: int, src: String, merchant_side: bool, state := "", stack := {}) -> Dictionary:
 	var item: Dictionary = main.interaction.inventory.item(String(it.id))
 	var price: int = trade.barter_offer(actor, trade.item_value(String(it.id), true), merchant_side)
 	var worn: bool = src == "player" and main.has_method("equipped_slot_of") and main.equipped_slot_of(String(it.id)) >= 0
+	if stack.has("worn"):
+		worn = src == "player" and bool(stack.worn)
 	var e := {"id": String(it.id), "count": count, "rec": item.get("rec", {}), "worn": worn, "kind": String(item.get("kind", "")),
 		"name": main.interaction.item_name(String(item.get("kind", "")), String(it.id), item.get("rec", {})),
 		"magic": not String(item.get("rec", {}).get("enchant", "")).is_empty(), "state": state, "source": src,
 		"tip": "%s: %d" % [_t("sBarterDialog7", "Price"), price]}
+	if not stack.is_empty():
+		e["stack"] = {"count": count, "worn": worn}
 	var stype := 0 if state == "barter" else (1 if worn else 2)
 	return main.menu_mode.sort_keys(e, stype, "player" if src in ["player", "sold"] else "")
+
+## Stosy (ItemStack) wpisu towaru po odjęciu sztuk w koszyku: [{count, worn}]. Koszyk zabiera sztuki od ostatnich
+## niezałożonych stosów (kupiec – stosy przedmiotów ze skryptem; gracz – także założony egzemplarz osobno).
+static func split_stacks(it: Dictionary, remaining: int) -> Array:
+	var st := []
+	for x in it.get("stacks", []):
+		st.append({"count": int(x.count), "worn": bool(x.get("worn", false))} if x is Dictionary else {"count": int(x), "worn": false})
+	if st.is_empty():
+		st = [{"count": int(it.count), "worn": false}]
+	var cut := 0
+	for x in st:
+		cut += int(x.count)
+	cut -= maxi(0, remaining)
+	for worn_pass in [false, true]:
+		for i in range(st.size() - 1, -1, -1):
+			if cut <= 0:
+				break
+			if bool(st[i].worn) != worn_pass:
+				continue
+			var n := mini(cut, int(st[i].count))
+			st[i].count = int(st[i].count) - n
+			cut -= n
+	return st.filter(func(x): return int(x.count) > 0)
 
 func _fill_barter_grids() -> void:
 	var mm = main.menu_mode
@@ -251,7 +278,8 @@ func _fill_barter_grids() -> void:
 	for it in _merchant:
 		var n := int(it.count) - int(buy.get(it.id, 0))
 		if n > 0 and _merchant_shown(String(it.id), flt):
-			me.append(_entry(it, n, "merchant", true))
+			for st in split_stacks(it, n):
+				me.append(_entry(it, int(st.count), "merchant", true, "", st))
 	for it in _player:                             # sprzedawane – po stronie kupca, z tłem „barter”
 		if int(sell.get(it.id, 0)) > 0 and _merchant_shown(String(it.id), flt):
 			me.append(_entry(it, int(sell[it.id]), "sold", false, "barter"))
@@ -259,7 +287,8 @@ func _fill_barter_grids() -> void:
 	for it in _player:
 		var n2 := int(it.count) - int(sell.get(it.id, 0))
 		if n2 > 0:
-			pe.append(_entry(it, n2, "player", false))
+			for st in split_stacks(it, n2):
+				pe.append(_entry(it, int(st.count), "player", false, "", st))
 	for it in _merchant:                           # kupowane – po stronie gracza
 		if int(buy.get(it.id, 0)) > 0:
 			pe.append(_entry(it, int(buy[it.id]), "bought", true, "barter"))
@@ -311,8 +340,12 @@ func max_sale() -> void:
 ## towar kupca → koszyk zakupu, rzecz gracza → sprzedaż, z tłem „barter” – cofnięcie. Stos > 1 bez Shift –
 ## okno ilości (okno kupca: sQuanityMenuMessage02, ekwipunek: sQuanityMenuMessage01), domyślnie cały stos;
 ## Ctrl – 1 sztuka.
+var pressed_stack := {}                        # stos klikniętej komórki ({count, worn}) – ItemStack::mCount
+
 func click_item(id: String, source: String, mods := {}) -> void:
 	var avail := _available(id, source)
+	if source in ["merchant", "player"] and pressed_stack.has("count"):
+		avail = mini(avail, int(pressed_stack.count))
 	if avail <= 0:
 		return
 	if source == "player" and not trade.can_sell(id, trade.services(actor)):
@@ -372,7 +405,9 @@ func activate_item(_id: String, _source: String, _mods := {}) -> void:
 func dropped_on(target: String, data: Dictionary) -> void:
 	var src := String(data.get("source", ""))
 	if (target == "merchant" and src in ["player", "bought"]) or (target == "player" and src in ["merchant", "sold"]):
+		pressed_stack = data.get("stack", {}) if data.get("stack") is Dictionary else {}
 		click_item(String(data.get("mw_item", "")), src, data)
+		pressed_stack = {}
 
 func _click_left(i: int) -> void:
 	if i < 0 or i >= _left_ids.size():
