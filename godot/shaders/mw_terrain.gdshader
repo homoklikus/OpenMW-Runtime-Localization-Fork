@@ -8,11 +8,16 @@ uniform sampler2D index_map : filter_nearest, repeat_disable;  // R8: indeks w p
 uniform float tiles = 16.0;       // kafli na komórkę
 uniform float uv_repeat = 16.0;   // powtórzeń tekstury na komórkę (raz na kaflę, jak w grze)
 uniform float layer_count = 1.0;
+// Odbicie wody (OpenMW Reflection: ClipCullNode z płaszczyzną poziomu wody): w przebiegu odbicia (warstwa 20 kamery)
+// teren poniżej wody odrzucony – inaczej dno zasłaniałoby odbicie.
+global uniform float mw_water_clip_y;
 
 varying vec2 cell_uv;
+varying float world_y;
 
 void vertex() {
 	cell_uv = UV;  // 0..1 w obrębie komórki: u = +X, v = północ MW (−Z)
+	world_y = (MODEL_MATRIX * vec4(VERTEX, 1.0)).y;
 }
 
 float layer_at(ivec2 t) {
@@ -21,6 +26,8 @@ float layer_at(ivec2 t) {
 }
 
 void fragment() {
+	if ((CAMERA_VISIBLE_LAYERS & 524288u) != 0u && world_y < mw_water_clip_y)
+		discard;
 	vec2 t = cell_uv * tiles - 0.5;
 	ivec2 i0 = ivec2(floor(t));
 	vec2 f = fract(t);

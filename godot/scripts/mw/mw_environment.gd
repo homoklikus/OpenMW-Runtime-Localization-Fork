@@ -436,8 +436,8 @@ func set_interior(cell: Dictionary) -> void:
 ## Woda jak OpenMW (apps/openmw/mwrender/water.cpp):
 ## * „shader” – port files/shaders/compatibility/water.frag: 6 warstw mapy normalnych (water_nm z OpenMW) przesuwanych
 ##   wiatrem, Fresnel, załamanie (tekstura ekranu) z barwą głębi (VISIBILITY 2500 j.), rozpraszanie światła słońca,
-##   odblask słońca (kolor słońca × Glare_View), „chwiejne brzegi”; deszcz wzmacnia fale. Odbicie: samo niebo
-##   (jak „reflection detail = 0” w OpenMW – bez drugiej kamery).
+##   odblask słońca (kolor słońca × Glare_View), „chwiejne brzegi”; deszcz wzmacnia fale. Odbicie: tekstura kamery
+##   odbicia (mw_water_reflection.gd, [Water] reflection detail i rtt size); bez niej (pod wodą) – niebo i mgła.
 ## * „simple” – domyślna woda OpenMW: animowane tekstury textures/water/water00–31 (Water_SurfaceFPS), jedno
 ##   powtórzenie na 8192 × 150 / 900 j., przezroczystość Water_World_Alpha, oświetlenie słońcem i otoczeniem.
 ## Współrzędne liczone w układzie świata – sąsiednie komórki łączą się bez szwów.
@@ -456,6 +456,8 @@ uniform float rain = 0.0;
 uniform bool refraction_on = true;
 uniform bool scattering_on = true;
 uniform bool wobbly_on = true;
+uniform sampler2D reflection_tex : filter_linear, repeat_disable;
+uniform bool reflection_on = false;
 varying vec3 wpos;
 const float VISIBILITY = 2500.0;
 const float VISIBILITY_DEPTH = VISIBILITY * 1.5;
@@ -546,6 +548,9 @@ void fragment() {
 	// odbicie: niebo w kierunku odbitym (mgła przy horyzoncie → kolor nieba)
 	vec3 rdir = reflect(view_dir, n);
 	vec3 reflection = mix(fog_color, sky_color, smoothstep(-0.02, 0.35, abs(rdir.z)));
+	// water.frag: sampleReflectionMap(screenCoords + screenCoordsOffset), screenCoords.y = 1 − y
+	if (reflection_on && above)
+		reflection = texture(reflection_tex, clamp(vec2(SCREEN_UV.x, 1.0 - SCREEN_UV.y) + off, vec2(0.0), vec2(1.0))).rgb;
 	vec3 water_color = WATER_COLOR * sun_fade;
 	vec4 ss = sun_spec;
 	ss.a = min(1.0, ss.a / SUN_SPEC_FADING_THRESHOLD);
@@ -694,11 +699,23 @@ static func water_plane(size_m: float, height_m: float) -> MeshInstance3D:
 	mi.position.y = height_m
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.set_meta("mw_water", true)
+	mi.layers = 1 << 10                  # mw_water_reflection.LAYER_WATER – woda nie odbija się sama w sobie
 	return mi
 
 ## [Water] refraction / sunlight scattering / wobbly shores (@waterRefraction, @sunlightScattering, @wobblyShores
 ## shadera wody OpenMW): rozpraszanie światła i chwiejne brzegi działają tylko z załamaniem.
 static var water_features := {"refraction": false, "scattering": true, "wobbly": true}
+
+static var _reflection_tex: Texture2D = null
+
+## Tekstura kamery odbicia (null – brak: odbicie nieba).
+static func set_reflection(tex: Texture2D) -> void:
+	if tex == _reflection_tex and _water_mat != null and _water_mat.get_shader_parameter("reflection_on") == (tex != null):
+		return
+	_reflection_tex = tex
+	if _water_mat != null:
+		_water_mat.set_shader_parameter("reflection_tex", tex)
+		_water_mat.set_shader_parameter("reflection_on", tex != null)
 
 static func set_water_features(refraction: bool, scattering: bool, wobbly: bool) -> void:
 	water_features = {"refraction": refraction, "scattering": scattering, "wobbly": wobbly}

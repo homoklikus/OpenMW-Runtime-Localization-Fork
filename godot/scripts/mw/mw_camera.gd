@@ -59,8 +59,10 @@ var _sphere_focal := SphereShape3D.new()
 func setup(a: CharacterBody3D, e: Camera3D) -> void:
 	actor = a
 	eye = e
+	eye.cull_mask = 0xFFFFF & ~(1 << 19)   # warstwa 20 – znacznik przebiegu odbicia wody (mw_water_reflection)
 	view = Camera3D.new()
 	view.name = "ViewCamera"
+	view.cull_mask = eye.cull_mask
 	view.top_level = true
 	view.far = eye.far
 	view.fov = eye.fov

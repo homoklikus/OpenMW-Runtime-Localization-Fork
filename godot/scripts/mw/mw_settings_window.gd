@@ -70,6 +70,14 @@ const VIDEO_PAGES := [
 		{"t": "check", "key": "water_refraction", "cap": "Refraction", "def": false},         # [Water] refraction
 		{"t": "check", "key": "sunlight_scattering", "cap": "SunlightScattering", "def": true},
 		{"t": "check", "key": "wobbly_shores", "cap": "WobblyShores", "def": true},
+		# WaterTextureSize ([Water] rtt size: 512 / 1024 / 2048) i WaterReflectionDetail ([Water] reflection detail);
+		# WaterRainRippleDetail pominięte – port nie ma kręgów deszczu na wodzie
+		{"t": "combo", "key": "water_rtt_size", "cap": "WaterShaderTextureQuality", "def": 512,
+			"options": ["QualityLow", "QualityMedium", "QualityHigh"], "values": [512, 1024, 2048]},
+		{"t": "combo", "key": "water_reflection_detail", "cap": "ReflectionShaderDetail", "def": 2,
+			"options": ["ReflectionShaderDetailSky", "ReflectionShaderDetailTerrain", "ReflectionShaderDetailWorld",
+				"ReflectionShaderDetailObjects", "ReflectionShaderDetailActors", "ReflectionShaderDetailGroundcover"],
+			"values": [0, 1, 2, 3, 4, 5]},
 	]],
 ]
 const STANDARD_RESOLUTIONS := ["1280x720", "1366x768", "1600x900", "1920x1080", "1920x1200", "2560x1080",
@@ -89,6 +97,7 @@ var ok_button: Button = null
 var sliders := {}                   # klucz → HScrollBar
 var slider_labels := {}             # klucz → Label nagłówka
 var checks := {}                    # klucz → Button On/Off
+var combos := {}                    # klucz → OptionButton (MW_ComboBox)
 var controls_box: VBoxContainer = null
 var keyboard_mode := true           # mKeyboardMode: lista klawiatury albo pada
 var keyboard_switch: Button = null
@@ -188,6 +197,7 @@ func _build() -> void:
 	sliders = {}
 	slider_labels = {}
 	checks = {}
+	combos = {}
 	binding_buttons = {}
 	tab_buttons = []
 	video_tab_buttons = []
@@ -309,6 +319,7 @@ func _page(name: String, entries: Array, pw: float, ph: float) -> Control:
 	var d := ph - 369.0                                 # elementy z align Bottom (Controls)
 	var ns := 0
 	var nc := 0
+	var ns_combo := 0
 	for e in entries:
 		match String(e.t):
 			"slider":
@@ -329,6 +340,31 @@ func _page(name: String, entries: Array, pw: float, ph: float) -> Control:
 				var items: Array = e.items if String(e.t) == "checks" else [e]
 				_at(pg, _check_row(items), 4.0 if not name.begins_with("Video") else 0.0, y, pw, 28)
 				nc += 1
+			"combo":
+				# VBox: napis (AutoSizedTextBox, 18 px) i HBox z MW_ComboBox 200 × 24, odstępy 4 px po wierszach przełączników
+				var cy := 28.0 * nc + 50.0 * (ns_combo)
+				var l := Label.new()
+				l.text = _t(String(e.cap))
+				l.add_theme_color_override("font_color", UI.color("normal"))
+				_at(pg, l, 0, cy, pw, 18)
+				var ob := OptionButton.new()
+				ob.name = "Combo_" + String(e.key)
+				ob.focus_mode = Control.FOCUS_NONE
+				for it in e.options:
+					ob.add_item(_t(String(it)))
+				var vals: Array = e.values
+				var cur := vals.find(int(value(String(e.key))))
+				if cur < 0:
+					# onWaterTextureSizeChanged / updateControls: rozmiar ≥ 1024 → średnia, ≥ 2048 → wysoka
+					cur = 0
+					for vi in vals.size():
+						if int(value(String(e.key))) >= int(vals[vi]):
+							cur = vi
+				ob.select(cur)
+				ob.item_selected.connect(func(i: int): set_value(String(e.key), int(vals[i])))
+				_at(pg, ob, 0, cy + 22.0, 200, 24)
+				combos[String(e.key)] = ob
+				ns_combo += 1
 			"controls":
 				_build_controls(pg, pw, d)
 			"video":

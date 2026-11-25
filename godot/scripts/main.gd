@@ -394,6 +394,11 @@ func _ready() -> void:
 		player.controller.allowed = control_allowed       # blokady sterowania ze skryptów (CharGen)
 		player.controller.diag = look_diag
 		player.controller.camera.main = self
+	water_reflection = preload("res://scripts/mw/mw_water_reflection.gd").new()
+	water_reflection.name = "WaterReflection"
+	water_reflection.main = self
+	water_reflection.configure(int(settings.get("water_reflection_detail", 2)), int(settings.get("water_rtt_size", 512)))
+	add_child(water_reflection)
 	player_body = preload("res://scripts/mw/mw_player_body.gd").new()
 	player_body.name = "PlayerBody"
 	player_body.actor = player
@@ -615,6 +620,7 @@ func _rebuild_player_visual() -> void:
 		player_body.rebuild()
 
 var player_body = null                  # mw_player_body.gd – postać gracza w trzeciej osobie
+var water_reflection = null             # mw_water_reflection.gd – kamera odbicia wody
 
 ## Kamera gracza (mw_camera.gd) albo null.
 func player_camera():
@@ -1637,6 +1643,8 @@ func migrate_window_settings_from_save() -> void:
 ## Opcje zmieniane w trakcie gry: dźwięk, napisy, mysz, pole widzenia, odległość widzenia, cienie, mgła,
 ## V-Sync, limit FPS (bez przebudowy świata).
 func apply_live_settings() -> void:
+	if water_reflection != null:
+		water_reflection.configure(int(settings.get("water_reflection_detail", 2)), int(settings.get("water_rtt_size", 512)))
 	preload("res://scripts/mw/mw_environment.gd").set_water_features(bool(settings.get("water_refraction", false)),
 		bool(settings.get("sunlight_scattering", true)), bool(settings.get("wobbly_shores", true)))
 	get_viewport().anisotropic_filtering_level = anisotropy_level(int(settings.get("anisotropy", 4)))

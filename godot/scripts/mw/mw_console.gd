@@ -326,7 +326,7 @@ func _console_only(name: String, args: Array, ref, who: Dictionary) -> void:
 			if cam != null:
 				var on2: bool = cam.cull_mask == 0
 				if on2:
-					cam.cull_mask = int(main.get_meta("world_cull_mask", 0xFFFFF))
+					cam.cull_mask = int(main.get_meta("world_cull_mask", 0xFFFFF & ~(1 << 19)))
 				else:
 					main.set_meta("world_cull_mask", cam.cull_mask)
 					cam.cull_mask = 0

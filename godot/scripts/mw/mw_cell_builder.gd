@@ -45,6 +45,7 @@ func build_cell(key: String) -> Node3D:
 		var t := db.get_terrain(c["terrain"])
 		var tn := MWTerrain.build(t, db.data_root, not editor_mode)
 		if tn:
+			preload("res://scripts/mw/mw_water_reflection.gd").set_layers(tn, 1 << 13)     # Mask_Terrain
 			root.add_child(tn)
 	var wov = (state.player.get("cell_water", {}) as Dictionary).get(key) if state != null and state.player.get("cell_water") is Dictionary else null
 	if with_water and c.get("has_water", false):
@@ -171,6 +172,7 @@ func build_ref(r: Dictionary) -> Node3D:
 		var am: Node3D = actors.build_npc(String(r.get("base", "")), String(r.get("sid", "")).hash(), String(r.get("sid", "")))
 		if am:
 			_strip_collision(am)            # części ciała i ekwipunek nie kolidują z kapsułą aktora (dryf – etap 8)
+			preload("res://scripts/mw/mw_water_reflection.gd").set_layers(am, 1 << 11)     # Mask_Actor
 			n.add_child(am)
 			n.set_meta("mw_actor", "npc")
 			return n
@@ -185,6 +187,7 @@ func build_ref(r: Dictionary) -> Node3D:
 				n.set_meta("mw_actor", "creature")
 			if is_actor:
 				_strip_collision(m)
+				preload("res://scripts/mw/mw_water_reflection.gd").set_layers(m, 1 << 11)      # Mask_Actor
 				_fit_capsule(n, m, actors.record("creature", String(r.get("base", ""))) if actors != null else {})
 		else:
 			stats.missing_model += 1

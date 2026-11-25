@@ -76,3 +76,10 @@ load_radius=1
 [physics]
 
 3d/physics_engine="Jolt Physics"
+
+[shader_globals]
+
+mw_water_clip_y={
+"type": "float",
+"value": -100000.0
+}

@@ -877,6 +877,22 @@ użytkownika. Poprawka po zgłoszeniu (bieg „jakby się resetował”): grupy 
 tylko „loop start” → „loop stop” (np. runforward 0,93 s zamiast 1,33 s), także u NPC; prędkość grupy i klawisze
 kroków z odcinka pętli (test_anim_loop). Animacja skoku tylko od skoku do lądowania albo przy spadku dłuższym niż
 0,25 s (is_on_floor Godota migocze na stokach). Zmierzone na RTX: podczas biegu bez przebudów modelu i bez zmian grupy.
+**Odbicia wody (cz. 38, zgłoszenie: woda „pojawia się i znika” zależnie od kąta, także w pierwszej osobie):**
+przezroczystość wody z shaderem bez załamania to w OpenMW i w porcie ten sam wzór (water.frag: clamp(fresnel · 6 +
+odblask)) – z góry woda prawie przezroczysta, pod płaskim kątem kryjąca. Różnica: port odbijał tylko kolor nieba
+i mgły („reflection detail = 0”), więc kryjąca kałuża była jasnoniebieska zamiast ciemna od odbitego otoczenia.
+Teraz kamera odbicia jak klasa Reflection z water.cpp (`mw_water_reflection.gd`): pozycja i kierunek odbite względem
+poziomu wody bieżącej komórki, tekstura RTT [Water] rtt size (512/1024/2048) z proporcjami ekranu, bez cieni
+punktowych, maska wg [Water] reflection detail (calcNodeMask: niebo, teren, świat, obiekty, aktorzy, roślinność;
+we wnętrzach ≥ 2; domyślnie 2), ToggleWorld także w odbiciu; shader wody próbkuje teksturę jak water.frag
+(screenCoords.y = 1 − y, przesunięcie od fal). Odcięcie pod wodą (ClipCullNode): teren odrzuca fragmenty poniżej
+poziomu wody w przebiegu odbicia (warstwa 20 kamery, globalny parametr mw_water_clip_y); siatki aktorów, roślinności,
+terenu i wody na osobnych warstwach. Okno opcji, Video → Water: listy Texture Quality i Reflection Shader Detail
+jak openmw_settings_window.layout (Rain Ripple Detail pominięte – port nie ma kręgów deszczu). Testy
+test_water_reflection (22), test_settings (+4). Zostaje: siatki statyczne z GLB nie są odcinane pod wodą (Godot nie ma
+płaszczyzn obcinania ani ukośnej płaszczyzny bliskiej) – zanurzone części obiektów mogą pojawić się w odbiciu;
+cienie kierunkowe liczone także dla kamery odbicia (OpenMW je wyłącza).
+
 Test `test_camera.gd` (45 sprawdzeń); test_player_controls (kolejność i domyślne klawisze nowych akcji),
 test_console_toggles (PCForce1st/3rdPerson) zaktualizowane do zachowania OpenMW.
 Różnice, które zostają: strona ustawień „Camera” skryptów Lua (view over shoulder, standing preview, move360,
@@ -1025,6 +1041,7 @@ Mody – zgodnie z poleceniem nie testowane (kolejność: najpierw klasyczne GUI
 * Etap 10 cz. 36: napisy kwestii jak OpenMW (domyślnie wyłączone, messageBox)
 * Etap 10 cz. 37: kamera trzeciej osoby, podgląd, vanity, zoom, postać gracza i kamera śmierci jak OpenMW 0.51
 * Etap 10: pętle animacji ruchu loop start → loop stop, skok postaci tylko w powietrzu
+* Etap 10 cz. 38: odbicia wody jak OpenMW (kamera odbicia, reflection detail, rtt size)
 
 Pełny zestaw tools/run_tests.sh: 79/79 po cz. 37 (nowy test_camera – kamera sterowana w teście stałym krokiem
 1/60 s, bo pierwszy przebieg pod obciążeniem Xvfb dał wynik zależny od tempa klatek; test_settings – celownik ukryty

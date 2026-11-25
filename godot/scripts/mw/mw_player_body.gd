@@ -61,6 +61,7 @@ func rebuild() -> void:
 	if m == null:
 		return
 	CellBuilder._strip_collision(m)
+	preload("res://scripts/mw/mw_water_reflection.gd").set_layers(m, 1 << 11)          # Mask_Player
 	m.name = "Body"
 	actor.add_child(m)
 	model = m

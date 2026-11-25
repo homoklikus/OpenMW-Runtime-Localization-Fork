@@ -99,6 +99,7 @@ func build_cell(key: String) -> Node3D:
 			for k in xs.size():
 				mm.set_instance_transform(k, xs[k] * local)
 			var mmi := MultiMeshInstance3D.new()
+			mmi.layers = 1 << 12             # Mask_Groundcover (odbicie wody: reflection detail 5)
 			mmi.multimesh = mm
 			mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			mmi.visibility_range_end = distance
