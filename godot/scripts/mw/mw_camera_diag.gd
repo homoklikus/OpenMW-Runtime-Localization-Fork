@@ -34,7 +34,10 @@ func _state(ev: String) -> Dictionary:
 					groups[k] += 1
 	return {"ev": ev, "mode": pc.mode, "primary": pc.primary, "queued": pc.queued, "base": pc.base_distance,
 		"dist": snappedf(pc.camera_distance, 0.1), "view_current": pc.view.current, "eye_current": pc.eye.current,
-		"body": b != null and b.model != null, "shown": b != null and b.shown, "anim": b.current if b != null else "",
+		"body": b != null and b.model != null, "shown": b != null and b.shown, "anim": b.current if b != null else "", "rebuilds": b.rebuilds if b != null else 0,
+		"changes": b.changes if b != null else 0, "last": b.last_changes if b != null else [],
+		"pos": ap.current_animation_position if ap != null else 0.0, "speed": ap.speed_scale if ap != null else 0.0,
+		"floor": main.player.is_on_floor(),
 		"groups": groups, "crosshair": main.mw_hud.crosshair.visible if main.mw_hud != null else null,
 		"listener": pc.listener.is_current(), "fps": Engine.get_frames_per_second(), "state": main.game_state}
 
@@ -52,7 +55,7 @@ func _process(dt: float) -> void:
 		_log(_state("loaded"))
 	var e := _t - _start
 	_tick += dt
-	if _tick >= 1.0:
+	if _tick >= (0.2 if _step == 7 else 1.0):
 		_tick = 0.0
 		_log(_state("tick"))
 	var pc = main.player_camera()
@@ -89,14 +92,16 @@ func _process(dt: float) -> void:
 			if e > 6.5:
 				_log(_state("after_preview"))
 				Input.action_press("move_forward")
+				Input.action_press("run")
 				_step = 7
 		7:
-			if e > 8.0:
+			if e > 10.0:
 				_log(_state("walking"))
 				Input.action_release("move_forward")
+				Input.action_release("run")
 				_step = 8
 		8:
-			if e > 9.0:
+			if e > 11.0:
 				if death:
 					main._player_died()
 					var b = main.player_body
@@ -109,6 +114,6 @@ func _process(dt: float) -> void:
 					_log(_state("zoomed_to_first"))
 				_step = 9
 		9:
-			if e > 12.0:
+			if e > 14.0:
 				_log(_state("end"))
 				_step = 10

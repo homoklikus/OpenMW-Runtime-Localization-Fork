@@ -18,6 +18,10 @@ var dead := false
 var death_group := ""
 var current := ""
 var _sig := ""
+var _air_t := 0.0                         # czas w powietrzu (is_on_floor Godota migocze na stokach i stopniach)
+var rebuilds := 0                         # diagnostyka: przebudowy modelu
+var changes := 0                          # diagnostyka: zmiany grupy animacji
+var last_changes: Array = []
 var _check_t := 0.0
 
 func _process(delta: float) -> void:
@@ -29,6 +33,7 @@ func _process(delta: float) -> void:
 		var s := signature()
 		if s != _sig:
 			rebuild()
+	_air_t = 0.0 if actor.is_on_floor() or actor.swimming or actor.fly else _air_t + delta
 	if model != null and shown:
 		_animate()
 
@@ -47,6 +52,7 @@ func signature() -> String:
 
 func rebuild() -> void:
 	_sig = signature()
+	rebuilds += 1
 	if model != null:
 		model.queue_free()
 		model = null
@@ -132,7 +138,9 @@ func _animate() -> void:
 	var swim: bool = actor.swimming
 	var sneak: bool = actor.want_sneak and not swim
 	var run: bool = actor.want_run
-	if not swim and not actor.is_on_floor() and not actor.fly and not actor.levitate and ap.has_animation("jump"):
+	# skok (JumpState_InAir): od skoku do lądowania albo dłuższy spadek – nie pojedyncze klatki bez podłoża
+	var in_air: bool = actor.jumping or _air_t > 0.25
+	if not swim and in_air and not actor.fly and not actor.levitate and ap.has_animation("jump"):
 		want = "jump"
 	elif mi != Vector2.ZERO and hv > 0.05:
 		var dir := ""
@@ -162,5 +170,9 @@ func _animate() -> void:
 		return
 	if ap.current_animation != want:
 		ap.play(want, 0.2)
+		changes += 1
+		last_changes.append(want)
+		if last_changes.size() > 12:
+			last_changes.pop_front()
 	ap.speed_scale = speed
 	current = want
