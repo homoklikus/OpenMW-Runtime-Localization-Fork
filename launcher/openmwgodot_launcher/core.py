@@ -220,8 +220,9 @@ class LauncherCore:
         return launch.user_args(plan.play_out, plan.base_out, project, settings, p.id, saves, extra_user)
 
     def game_command(self, extra_user: list[str] | None = None) -> list[str]:
-        return launch.game_command(self.godot(), self.project_dir(), self.runtime_args(extra_user),
-                                   self.config["launch_args"])
+        args = self.runtime_args(extra_user)
+        return launch.game_command(self.godot(), self.project_dir(), args, self.config["launch_args"],
+                                   settings=self.profile.settings)
 
     def editor_command(self, extra_user: list[str] | None = None) -> list[str]:
         return launch.editor_command(self.godot(), self.project_dir(), self.runtime_args(extra_user),

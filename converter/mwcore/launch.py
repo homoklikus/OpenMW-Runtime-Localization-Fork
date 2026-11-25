@@ -125,8 +125,24 @@ def user_args(data: Path, base: Path, project: Path, settings: Path, profile: st
     return a
 
 
-def game_command(godot: str, project_dir: Path, uargs: list[str], extra: str = "") -> list[str]:
-    return [godot, "--path", str(project_dir), *safe_split(extra), "res://main.tscn", "--", *uargs]
+def window_args(settings: dict | None) -> list[str]:
+    """Okno od razu w trybie i rozdzielczości z ustawień (Engine::createWindow w OpenMW): pełny ekran – --fullscreen,
+    okno – --resolution. Bez tego Godot tworzy okno domyślne i przełącza je dopiero w grze, a przy starcie
+    z wczytaniem zapisu przejście w pełny ekran trafiało w środek wczytywania."""
+    if not settings:
+        return []
+    mode = str(settings.get("window_mode", "windowed"))
+    if mode in ("fullscreen", "exclusive"):
+        return ["--fullscreen"]
+    res = str(settings.get("resolution", ""))
+    w, _, h = res.partition("x")
+    return ["--resolution", f"{int(w)}x{int(h)}"] if w.isdigit() and h.isdigit() else []
+
+
+def game_command(godot: str, project_dir: Path, uargs: list[str], extra: str = "",
+                 settings: dict | None = None) -> list[str]:
+    return [godot, "--path", str(project_dir), *window_args(settings), *safe_split(extra), "res://main.tscn", "--",
+            *uargs]
 
 
 def editor_command(godot: str, project_dir: Path, uargs: list[str], extra: str = "") -> list[str]:

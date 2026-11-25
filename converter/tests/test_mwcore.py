@@ -293,6 +293,17 @@ def test_commands_are_lists_without_shell(tmp_path):
     assert launch.editor_command("g", tmp_path, ua)[1] == "-e"
 
 
+def test_game_command_window_args(tmp_path):
+    ua = launch.user_args(tmp_path / "d", tmp_path / "d", tmp_path / "p", tmp_path / "s.json", "default", tmp_path / "sv")
+    full = launch.game_command("g", tmp_path, ua, settings={"window_mode": "fullscreen", "resolution": "3440x1440"})
+    assert "--fullscreen" in full and full.index("--fullscreen") < full.index("--")
+    win = launch.game_command("g", tmp_path, ua, settings={"window_mode": "windowed", "resolution": "2560x1440"})
+    i = win.index("--resolution")
+    assert win[i + 1] == "2560x1440" and i < win.index("--")
+    assert launch.window_args({"window_mode": "windowed", "resolution": "zly"}) == []
+    assert launch.window_args(None) == []
+
+
 def test_find_godot_official_binary_next_to_project(tmp_path, monkeypatch):
     from mwcore import launch
     monkeypatch.setenv("PATH", "")

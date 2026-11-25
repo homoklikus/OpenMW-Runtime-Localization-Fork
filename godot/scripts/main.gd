@@ -134,13 +134,17 @@ func _ready() -> void:
 	if not base.is_empty():
 		MWModelCache.base_roots = PackedStringArray([ProjectSettings.globalize_path(base)])
 	settings = _load_settings(arg("settings"))
+	settings.merge(_load_ingame_settings(), true)      # etap 10: zmiany z „Ustawienia” w grze (nowsze)
+	# Engine::createWindow: okno w trybie i rozdzielczości z ustawień, zanim cokolwiek się wczyta – bez tego start
+	# z --load wczytywał świat w oknie domyślnym 1152 × 648, a przejście w pełny ekran następowało w trakcie
+	if not settings.is_empty() and arg("screenshot").is_empty():
+		apply_display()
 	UI.gui_scaling = clampf(float(settings.get("gui_scaling_factor", 1.0)), 0.5, 8.0)
 	# tekstury interfejsu (ramki MW_Box/MW_Dialog, przyciski) dostępne przed budową okien w _ready – bez tego
 	# texture() zapamiętuje brak pliku i okna dostają zapasowe płaskie ramki zamiast menu_thin_border_*
 	UI.setup(data_dir)
 	# paski przewijania jak MW_VScroll: krok 36 px i MoveToClick w każdym oknie (także listy i pola tekstu)
 	get_tree().node_added.connect(_on_node_added_scroll)
-	settings.merge(_load_ingame_settings(), true)      # etap 10: zmiany z „Ustawienia” w grze (nowsze)
 	# [General] preferred locales (OpenMW, domyślnie „en”) i gmst overrides l10n (domyślnie true) – teksty silnika
 	# z l10n OMWEngine/Interface/Calendar/Mechanics; język „gmst” (vfs-mw/l10n/*/gmst.yaml) z GMST danych gry
 	var l10n := preload("res://scripts/mw/mw_l10n.gd")
