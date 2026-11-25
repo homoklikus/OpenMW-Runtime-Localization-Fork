@@ -305,6 +305,7 @@ func _ready() -> void:
 		load_diag.main = self
 		load_diag.menu_load = arg("diag-menu-load")
 		load_diag.ingame_load = arg("diag-ingame-load")
+		load_diag.travel_cell = arg("diag-travel")
 		load_diag.quit_after = flag("diag-quit")
 		load_diag.shots = flag("load-diag-shots")
 		add_child(load_diag)

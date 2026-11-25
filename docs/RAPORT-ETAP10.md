@@ -716,7 +716,10 @@ w pełny ekran 3440 × 1440 – obraz ekranu ładowania (polecenia RenderingServ
 rozmiarze i w dwóch klatkach odsłaniania poza nim widać było świat. Naprawa: przy zmianie rozmiaru widoku w trakcie
 ładowania układ i obraz składane na nowo. Po poprawce: start z `--load` – 12/12 zasłoniętych klatek to tapeta
 (także po zmianie rozmiaru), wczytanie w grze – 11/11. `test_loading_render` sprawdza też zmianę rozmiaru okna
-pod ekranem ładowania (przed poprawką – świat w nowym obszarze).
+pod ekranem ładowania (przed poprawką – świat w nowym obszarze). Przejście do wnętrza w trakcie gry
+(`--diag-travel`, jak coc do „Seyda Neen, Census and Excise Office”): 3 zasłonięte klatki z zamrożonym obrazem
+poprzedniej sceny, potem czerń zaciemnienia (fade 0,99) i rozjaśnianie w nowym wnętrzu – bez klatek z niekompletną
+sceną.
 
 **Lista kupca – porównanie zrzutem** (`ui_windows_e8_3440`, handel u Arrille, VM, cz. 28): siatka okna kupca
 podzielona na pola 42 × 42 (600 pól) – pola z różnicą średniej jasności > 12: przed poprawkami cz. 25 **43**,
