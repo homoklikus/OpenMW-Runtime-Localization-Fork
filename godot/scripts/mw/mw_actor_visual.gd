@@ -276,9 +276,19 @@ func anim_library(key: String, docs: Array, sk: Skeleton3D) -> AnimationLibrary:
 		var clips: Dictionary = doc.get("clips", {})
 		for name in clips:
 			var c: Dictionary = clips[name]
-			var a := MWControllers.slice(full, float(c["start"]), float(c["stop"]))
-			a.set_meta("mw_keys", MWControllers.sound_keys(doc, float(c["start"]), float(c["stop"])))
 			var nm := String(name).to_lower()
+			var t0 := float(c["start"])
+			var t1 := float(c["stop"])
+			# ruch i bezczynność zapętlone jak Animation::play z nieskończoną liczbą pętli: po odcinku „start” →
+			# „loop start” powtarza się tylko „loop start” → „loop stop” (cały klip w pętli dawał skok pozy co cykl)
+			var movement := nm.begins_with("walk") or nm.begins_with("run") or nm.begins_with("swim") \
+					or nm.begins_with("sneak") or nm.begins_with("idle") or nm.begins_with("turn")
+			if movement and c.get("loop_start") != null and c.get("loop_stop") != null \
+					and float(c["loop_stop"]) > float(c["loop_start"]):
+				t0 = float(c["loop_start"])
+				t1 = float(c["loop_stop"])
+			var a := MWControllers.slice(full, t0, t1)
+			a.set_meta("mw_keys", MWControllers.sound_keys(doc, t0, t1))
 			if c.get("loop_start") != null or nm.begins_with("idle"):
 				a.loop_mode = Animation.LOOP_LINEAR
 			if nm.begins_with("walk") or nm.begins_with("run") or nm.begins_with("swim") or nm.begins_with("sneak"):

@@ -872,7 +872,12 @@ powaleniu; askLoadRecent po końcu animacji (wcześniej stałe 3 s – zostaje t
 Na RTX 5090 użytkownika (proces przez MCP, Wayland, zapis użytkownika z kopii, --camera-diag --diag-death):
 trzecia osoba po TogglePOV, odległość 192 → 242 j. po pięciu ząbkach, podgląd i powrót, chód walkforward,
 w szkielecie 7 grup śmierci – śmierć zagrała death3 (2,2 s) w trzeciej osobie; wygląd obrazu – do oceny przez
-użytkownika. Test `test_camera.gd` (45 sprawdzeń); test_player_controls (kolejność i domyślne klawisze nowych akcji),
+użytkownika. Poprawka po zgłoszeniu (bieg „jakby się resetował”): grupy ruchu i bezczynności były zapętlane w całości
+(start → stop, z odcinkiem wejściowym) – co cykl skok pozy; teraz jak Animation::play z nieskończoną pętlą: w pętli
+tylko „loop start” → „loop stop” (np. runforward 0,93 s zamiast 1,33 s), także u NPC; prędkość grupy i klawisze
+kroków z odcinka pętli (test_anim_loop). Animacja skoku tylko od skoku do lądowania albo przy spadku dłuższym niż
+0,25 s (is_on_floor Godota migocze na stokach). Zmierzone na RTX: podczas biegu bez przebudów modelu i bez zmian grupy.
+Test `test_camera.gd` (45 sprawdzeń); test_player_controls (kolejność i domyślne klawisze nowych akcji),
 test_console_toggles (PCForce1st/3rdPerson) zaktualizowane do zachowania OpenMW.
 Różnice, które zostają: strona ustawień „Camera” skryptów Lua (view over shoulder, standing preview, move360,
 head bobbing, zmiana ramienia, ignoreNC) – port nie ma ustawień skryptów Lua, obowiązują domyślne wartości OpenMW
@@ -1019,6 +1024,7 @@ Mody – zgodnie z poleceniem nie testowane (kolejność: najpierw klasyczne GUI
 * Etap 10: pliki .uid nowych skryptów
 * Etap 10 cz. 36: napisy kwestii jak OpenMW (domyślnie wyłączone, messageBox)
 * Etap 10 cz. 37: kamera trzeciej osoby, podgląd, vanity, zoom, postać gracza i kamera śmierci jak OpenMW 0.51
+* Etap 10: pętle animacji ruchu loop start → loop stop, skok postaci tylko w powietrzu
 
 Pełny zestaw tools/run_tests.sh: 79/79 po cz. 37 (nowy test_camera – kamera sterowana w teście stałym krokiem
 1/60 s, bo pierwszy przebieg pod obciążeniem Xvfb dał wynik zależny od tempa klatek; test_settings – celownik ukryty
