@@ -23,6 +23,7 @@ var menu_load := ""                 # --diag-menu-load=<zapis>: wczytanie jak kl
 var quit_after := false
 var shots := false                  # --load-diag-shots: zapis zrzutów PNG (lokalnie; spowalnia klatki)             # --diag-quit: zamknięcie gry po zakończeniu pomiaru
 var _menu_frames := 0
+var ingame_load := ""               # --diag-ingame-load=<zapis>: wczytanie w trakcie gry (po 240 klatkach rozgrywki)
 
 func begin(tag: String) -> void:
 	_tag = tag
@@ -46,6 +47,15 @@ func begin(tag: String) -> void:
 ## Samodzielny test bez klikania (MCP): po 120 klatkach otwartego menu głównego bez gry – ta sama ścieżka co
 ## wybór zapisu w oknie wczytywania (mw_save_dialog → main.load_slot).
 func _process(_dt: float) -> void:
+	if not ingame_load.is_empty() and main != null and String(main.get("game_state")) == "running" \
+			and not (main.has_method("is_revealing") and main.is_revealing()):
+		_menu_frames += 1
+		if _menu_frames >= 240:
+			var q := ingame_load
+			ingame_load = ""
+			_menu_frames = 0
+			main.load_slot(null, q)           # SaveGameDialog::accept w trakcie gry (bez pytania – jak po potwierdzeniu)
+		return
 	if menu_load.is_empty() or main == null:
 		return
 	if String(main.get("game_state")) != "nogame" or main.main_menu == null or not main.main_menu.is_open():
@@ -119,7 +129,7 @@ func _on_post_draw() -> void:
 	if _after >= FRAMES:
 		active = false
 		print("MWGODOT_LOADDIAG end ", _tag, " klatek=", _i)
-		if quit_after:
+		if quit_after and ingame_load.is_empty():
 			get_tree().quit()
 
 ## Widoczne kontrolki pokrywające ≥ 60% ekranu (ścieżki węzłów, warstwa) – co zasłania świat.

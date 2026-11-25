@@ -75,6 +75,24 @@ func _run() -> void:
 		if not main.loading.visible and not main.is_revealing():
 			break
 	RenderingServer.frame_post_draw.disconnect(_post)
+	# zmiana rozmiaru okna pod ekranem ładowania (start z --load przed przejściem w pełny ekran): obraz złożony na
+	# nowo w nowym rozmiarze – róg dodanego obszaru czarny, nie świat
+	root.size = Vector2i(960, 540)
+	for i in 5:
+		await process_frame
+	main.cleanup()
+	main.game_state = "nogame"                  # tapeta 4:3 z czarnymi pasami (jak wczytanie z menu)
+	main.loading.loading_on()
+	main.loading._last_render = -1.0
+	main.loading.draw()
+	root.size = Vector2i(1280, 720)
+	for i in 8:
+		await process_frame
+	var vs := root.get_visible_rect().size
+	var img2: Image = root.get_texture().get_image()
+	var far := img2.get_pixel(int(vs.x) - 4, 4) if img2 != null and not img2.is_empty() else Color.WHITE
+	check(vs.x > 1000.0 and far.get_luminance() < 0.03, "po powiększeniu okna ekran ładowania pokrywa nowy obszar (%s, %.3f)" % [vs, far.get_luminance()])
+	main.loading.loading_off()
 	check(covered >= 1, "klatki z ekranem ładowania (%d)" % covered)
 	check(corner_bad == 0, "zasłonięte klatki: czarne tło ekranu ładowania, nie menu ani świat (%d/%d)" % [corner_bad, covered])
 	check(box_bad == 0, "zasłonięte klatki: okienko z paskiem postępu narysowane (%d/%d)" % [box_bad, covered])

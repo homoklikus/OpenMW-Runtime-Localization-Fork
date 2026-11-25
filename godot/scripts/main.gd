@@ -304,6 +304,7 @@ func _ready() -> void:
 		load_diag.name = "LoadDiag"
 		load_diag.main = self
 		load_diag.menu_load = arg("diag-menu-load")
+		load_diag.ingame_load = arg("diag-ingame-load")
 		load_diag.quit_after = flag("diag-quit")
 		load_diag.shots = flag("load-diag-shots")
 		add_child(load_diag)

@@ -111,6 +111,12 @@ func _build() -> void:
 	RenderingServer.canvas_item_set_parent(_ci, get_canvas())
 	RenderingServer.canvas_item_set_z_index(_ci, 100)
 	RenderingServer.canvas_item_set_visible(_ci, false)
+	# zmiana rozmiaru okna w trakcie ładowania (np. przejście w pełny ekran przy starcie z --load) – obraz jest
+	# poleceniami RenderingServer bez kotwic, więc składany na nowo w nowym rozmiarze
+	get_viewport().size_changed.connect(func():
+		if visible and nested > 0:
+			_layout()
+			_render())
 
 func _exit_tree() -> void:
 	if _ci.is_valid():

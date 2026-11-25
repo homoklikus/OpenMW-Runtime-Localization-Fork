@@ -710,6 +710,14 @@ cz. 28): ramka okna IoU 1,000; wiersze tekstu sUses/sQuality w OpenMW zaczynają
 w porcie 863 i 879, po poprawce 861 i 881 (dół wierszy 872/896 wobec 871/894 – rasteryzacja czcionki); przycisk
 Cancel 866–887 wobec 866–888; bloki 8 × 8 z różnicą w oknie: 136 → 133 z 2016 (pozostałe – tekst).
 
+**Ekran ładowania – pozostałe ścieżki na RTX 5090 (cz. 29):** start z `--load` i wczytanie w trakcie gry
+(`--diag-ingame-load`). Przy starcie z `--load` wczytanie trwa jeszcze w oknie 1152 × 648, a w trakcie okno przechodzi
+w pełny ekran 3440 × 1440 – obraz ekranu ładowania (polecenia RenderingServer bez kotwic) zostawał w starym
+rozmiarze i w dwóch klatkach odsłaniania poza nim widać było świat. Naprawa: przy zmianie rozmiaru widoku w trakcie
+ładowania układ i obraz składane na nowo. Po poprawce: start z `--load` – 12/12 zasłoniętych klatek to tapeta
+(także po zmianie rozmiaru), wczytanie w grze – 11/11. `test_loading_render` sprawdza też zmianę rozmiaru okna
+pod ekranem ładowania (przed poprawką – świat w nowym obszarze).
+
 **Lista kupca – porównanie zrzutem** (`ui_windows_e8_3440`, handel u Arrille, VM, cz. 28): siatka okna kupca
 podzielona na pola 42 × 42 (600 pól) – pola z różnicą średniej jasności > 12: przed poprawkami cz. 25 **43**,
 po **15** (średnia różnica 3,48 → 2,48). Pozostałe różnice są pojedyncze w pierwszych kolumnach siatki (nie ma
@@ -843,6 +851,7 @@ Mody – zgodnie z poleceniem nie testowane (kolejność: najpierw klasyczne GUI
 * Etap 10 cz. 26: akcje sterowania OpenMW 0.51 (AlwaysRun, AutoMove, Cycle, Screenshot, domyślne klawisze)
 * Etap 10 cz. 27: konsola i ustawienia – kategorie, przełączniki, anizotropia, opcje wody; diagnostyka trybów okna
 * Etap 10 cz. 28: listy poziomowane, przełączniki debugowe, BetaComment, TestCells/TestModels, światła, l10n 0.51
+* Etap 10 cz. 29: ekran ładowania przy zmianie rozmiaru okna, diagnostyka wczytania w trakcie gry
 
 Pełny zestaw tools/run_tests.sh: 72/72 po cz. 28 (test_language wykrył polski komunikat błędu w nowym kodzie – poprawiony, testy od test_language powtórzone); 72/72 po cz. 27 (nowe test_player_controls i test_console_toggles; test_loading_render powtórzony osobno po zniknięciu serwera Xvfb w trakcie przebiegu – środowisko, nie test); 70/70 po cz. 25 (nowe test_trade_sources i test_loading_render; Xvfb + lavapipe); 68/68 po cz. 21–23 (z nowym test_load_reveal; test_count_dialog, test_trade, test_map_notes, test_load_reveal powtórzone na końcowym kodzie cz. 23); 67/67 po cz. 20; 66/66 po cz. 19 (38 w przebiegu, test_progress poprawiony i 28 kolejnych po poprawce); 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 
