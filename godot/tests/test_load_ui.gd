@@ -68,6 +68,7 @@ func _run() -> void:
 	# --- bez gry: menu główne → Wczytaj → slot → OK ---
 	main.cleanup()
 	main._enter_nogame()
+	main.gui.cursor = ""
 	main.open_main_menu()
 	for i in 5:
 		await process_frame
@@ -79,6 +80,8 @@ func _run() -> void:
 	print("STATE menu ", _state(main))
 	check(not main.get_tree().paused and main.gui.stack.is_empty() and not main.main_menu.is_open() and main._movement_allowed(),
 		"po wczytaniu z menu: bez pauzy, bez trybów GUI (%s)" % _state(main))
+	check(main.gui.cursor == "captured" and main.get_viewport().gui_get_focus_owner() == null,
+		"po wczytaniu z menu: kursor przechwycony (updateVisible), bez fokusu okna zapisów (%s)" % main.gui.cursor)
 	var d2: float = await _move(main)
 	check(d2 > 0.5, "po wczytaniu z menu gracz się porusza (%.2f m)" % d2)
 	print("RESULT ", JSON.stringify({"checks": checks, "failures": failures}))

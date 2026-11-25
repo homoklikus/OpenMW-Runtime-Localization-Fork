@@ -63,9 +63,9 @@ func _process(dt: float) -> void:
 		if not _mv_on and _mv >= 3.0:
 			_mv_on = true
 			_mv_p0 = main.player.global_position
-			Input.action_press("move_forward")
+			_key("move_forward", true)
 		elif _mv_on and _mv >= 4.0:
-			Input.action_release("move_forward")
+			_key("move_forward", false)
 			_mv_on = false
 			_mv = 0.0
 			_log({"ev": "move", "dist_m": snappedf((main.player.global_position - _mv_p0).length(), 0.01),
@@ -149,3 +149,19 @@ func _state() -> void:
 		"phys": main.player.is_physics_processing(), "pmode": main.player.process_mode, "reveal": main.is_revealing(),
 		"loading": main.loading != null and main.loading.visible, "focus": foc.get_class() + ":" + String(foc.name) if foc != null else "",
 		"msgbox": main.msgbox != null and is_instance_valid(main.msgbox), "fwd": Input.is_action_pressed("move_forward")})
+
+## Zdarzenie klawisza przypisanego do akcji (pierwsze InputEventKey z InputMap) przez Input.parse_input_event – ta sama
+## droga co prawdziwy klawisz (okno → GUI → _unhandled_input → stan akcji).
+func _key(action: String, pressed: bool) -> void:
+	for ev in InputMap.action_get_events(action):
+		if ev is InputEventKey:
+			var k := InputEventKey.new()
+			k.keycode = (ev as InputEventKey).keycode
+			k.physical_keycode = (ev as InputEventKey).physical_keycode
+			k.pressed = pressed
+			Input.parse_input_event(k)
+			return
+	if pressed:
+		Input.action_press(action)
+	else:
+		Input.action_release(action)

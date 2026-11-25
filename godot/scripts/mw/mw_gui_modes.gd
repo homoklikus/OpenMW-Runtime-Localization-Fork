@@ -15,6 +15,7 @@ extends RefCounted
 var main
 var stack: Array = []            # [{"mode": String, "windows": Array[Node], "exit": Callable}]
 var history: Array = []            # testy: historia operacji
+var cursor := ""                   # testy (headless): ostatni tryb kursora z updateVisible – "visible" / "captured"
 
 func _init(game_main) -> void:
 	main = game_main
@@ -156,9 +157,12 @@ func update_visible() -> void:
 		or (main.get("chargen") != null and main.chargen != null and main.chargen.visible)
 	if not stack.is_empty() or is_console_mode():
 		main.get_tree().paused = true
+		cursor = "visible"
 		if DisplayServer.get_name() != "headless":
 			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif not other_ui:
 		main.get_tree().paused = false
-		if DisplayServer.get_name() != "headless" and String(main.get("game_state")) == "running":
-			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		if String(main.get("game_state")) == "running":
+			cursor = "captured"
+			if DisplayServer.get_name() != "headless":
+				Input.mouse_mode = Input.MOUSE_MODE_CAPTURED

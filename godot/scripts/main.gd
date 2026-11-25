@@ -3727,6 +3727,13 @@ func load_slot(ch, path: String) -> Array:
 		_write_saves_character(String(saves.current.dir))
 	if not w.is_empty():
 		_toast("\n".join(w), 8.0)
+	# StateManager::loadGame → WindowManager::updateVisible: po wczytaniu (także z menu głównego bez gry) bez trybów GUI
+	# – kursor ukryty i przechwycony, bez pauzy, bez fokusu klawiatury z zamkniętego okna zapisów (wcześniej przy
+	# wczytaniu z menu głównego kursor zostawał widoczny do zamknięcia menu pauzy)
+	if game_state == "running" and not (main_menu != null and main_menu.is_open()):
+		get_viewport().gui_release_focus()
+		if gui != null:
+			gui.update_visible()
 	return w
 
 func delete_save(ch, slot) -> void:
