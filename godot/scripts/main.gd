@@ -314,6 +314,13 @@ func _ready() -> void:
 		load_diag.quit_after = flag("diag-quit")
 		load_diag.shots = flag("load-diag-shots")
 		add_child(load_diag)
+	if flag("voice-diag"):                    # głosy NPC i pasek wroga na sprzęcie użytkownika (MWGODOT_VOICEDIAG)
+		var vd = preload("res://scripts/mw/mw_voice_diag.gd").new()
+		vd.name = "VoiceDiag"
+		vd.main = self
+		vd.attack = flag("diag-attack")
+		vd.seconds = float(arg("diag-seconds", "0"))
+		add_child(vd)
 	debug_render = preload("res://scripts/mw/mw_debug_render.gd").new()
 	debug_render.name = "DebugRender"
 	debug_render.main = self
