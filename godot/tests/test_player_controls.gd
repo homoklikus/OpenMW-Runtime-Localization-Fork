@@ -37,14 +37,16 @@ func _run() -> void:
 	# --- domyślne klawisze ---
 	var want := {"activate": KEY_SPACE, "jump": KEY_E, "always_run": KEY_CAPSLOCK, "auto_move": KEY_Q,
 		"cycle_spell_left": KEY_MINUS, "cycle_spell_right": KEY_EQUAL, "cycle_weapon_left": KEY_BRACKETLEFT,
-		"cycle_weapon_right": KEY_BRACKETRIGHT, "screenshot": KEY_F12, "run": KEY_SHIFT, "sneak": KEY_CTRL}
+		"cycle_weapon_right": KEY_BRACKETRIGHT, "screenshot": KEY_F12, "run": KEY_SHIFT, "sneak": KEY_CTRL,
+		"toggle_pov": KEY_TAB, "zoom_in": -MOUSE_BUTTON_WHEEL_UP, "zoom_out": -MOUSE_BUTTON_WHEEL_DOWN}
 	for a in want:
 		check(MWInput.default_code(a) == int(want[a]), "domyślny klawisz %s (%d)" % [a, MWInput.default_code(a)])
 		check(InputMap.has_action(a) and MWInput.binding_code(a) == int(want[a]), "przypisanie %s w InputMap (%d)" % [a, MWInput.binding_code(a)])
 	var order: Array = MWInput.CONFIGURABLE.map(func(x): return String(x[0]))
-	check(order.slice(0, 17) == ["move_forward", "move_back", "move_left", "move_right", "run", "always_run", "sneak",
-		"activate", "attack", "ready_weapon", "ready_magic", "cycle_spell_left", "cycle_spell_right",
-		"cycle_weapon_left", "cycle_weapon_right", "auto_move", "jump"], "kolejność getActionKeySorting (%s)" % [order.slice(0, 17)])
+	check(order.slice(0, 20) == ["move_forward", "move_back", "move_left", "move_right", "toggle_pov", "zoom_in", "zoom_out",
+		"run", "always_run", "sneak", "activate", "attack", "ready_weapon", "ready_magic", "cycle_spell_left",
+		"cycle_spell_right", "cycle_weapon_left", "cycle_weapon_right", "auto_move", "jump"],
+		"kolejność getActionKeySorting (%s)" % [order.slice(0, 20)])
 	check(order.find("screenshot") == order.find("toggle_hud") + 1, "Screenshot po ToggleHUD")
 	var pc = main.player.controller
 	var a = main.player

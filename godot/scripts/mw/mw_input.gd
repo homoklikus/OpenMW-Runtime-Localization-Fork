@@ -43,6 +43,9 @@ const DEFAULTS := {
 	"cycle_weapon_left": KEY_BRACKETLEFT,  # A_CycleWeaponLeft
 	"cycle_weapon_right": KEY_BRACKETRIGHT,  # A_CycleWeaponRight
 	"screenshot": KEY_F12,                 # A_Screenshot
+	"toggle_pov": KEY_TAB,                 # A_TogglePOV
+	"zoom_in": -MOUSE_BUTTON_WHEEL_UP,     # A_ZoomIn (defaultMouseWheelBindings)
+	"zoom_out": -MOUSE_BUTTON_WHEEL_DOWN,  # A_ZoomOut
 }
 
 ## Klawisze akcji z project.godot (do przywracania domyślnych).
@@ -53,10 +56,11 @@ const PROJECT_DEFAULTS := {
 
 ## Akcje konfigurowalne w kolejności BindingsManager::getActionKeySorting (tylko te, które ma port) i ich opisy
 ## (GMST „#{s…}” albo OMWEngine:…).
-## TogglePOV, ZoomIn/ZoomOut (kamera trzecioosobowa – nieprzeniesiona) i TogglePostProcessorHUD (post-processing –
-## nieprzeniesiony) pominięte: nie ma działającej funkcji, którą mogłyby wywołać.
+## TogglePostProcessorHUD (post-processing – nieprzeniesiony) pominięte: nie ma działającej funkcji, którą mógłby
+## wywołać.
 const CONFIGURABLE := [
 	["move_forward", "sForward"], ["move_back", "sBack"], ["move_left", "sLeft"], ["move_right", "sRight"],
+	["toggle_pov", "sTogglePOVCmd"], ["zoom_in", "OMWEngine:CameraZoomIn"], ["zoom_out", "OMWEngine:CameraZoomOut"],
 	["run", "sRun"], ["always_run", "sAlways_Run"], ["sneak", "sCrouch_Sneak"], ["activate", "sActivate"],
 	["attack", "sUse"], ["ready_weapon", "sReady_Weapon"], ["ready_magic", "sReady_Magic"],
 	["cycle_spell_left", "sPrevSpell"], ["cycle_spell_right", "sNextSpell"], ["cycle_weapon_left", "sPrevWeapon"],
@@ -70,9 +74,9 @@ const CONFIGURABLE := [
 	["quick_key_10", "sQuick10Cmd"],
 ]
 const RESERVED := [KEY_F3, KEY_F4, KEY_F10, KEY_META]
-## getActionControllerSorting (OpenMW 0.51) – akcje obsługiwane przez port, w tej kolejności (bez TogglePOV
-## i ZoomIn/Out – kamera trzecioosobowa nieprzeniesiona).
-const CONTROLLER_SORTING := ["move_forward", "move_back", "move_left", "move_right", "sneak", "activate", "attack",
+## getActionControllerSorting (OpenMW 0.51) – akcje obsługiwane przez port, w tej kolejności.
+const CONTROLLER_SORTING := ["move_forward", "move_back", "move_left", "move_right", "toggle_pov", "zoom_in",
+	"zoom_out", "sneak", "activate", "attack",
 	"ready_weapon", "ready_magic", "auto_move", "jump", "menu_mode", "journal", "rest", "quick_save", "quick_load",
 	"toggle_hud", "screenshot", "quick_keys_menu", "quick_key_1", "quick_key_2", "quick_key_3", "quick_key_4",
 	"quick_key_5", "quick_key_6", "quick_key_7", "quick_key_8", "quick_key_9", "quick_key_10", "cycle_spell_left",

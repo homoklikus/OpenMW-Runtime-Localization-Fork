@@ -148,9 +148,12 @@ func _run() -> void:
 	check(is_equal_approx(float(sc.call_("getpcvisionbonus", [])), 1.0), "ModPCVisionBonus – ograniczenie do 1")
 	sc.call_("modpcvisionbonus", [-2.0])
 	check(is_equal_approx(float(sc.call_("getpcvisionbonus", [])), 0.0), "ModPCVisionBonus – ograniczenie do 0")
-	check(float(sc.call_("pcget3rdperson", [])) == 0.0, "PCGet3rdPerson = 0")
+	check(float(sc.call_("pcget3rdperson", [])) == 0.0, "PCGet3rdPerson = 0 (pierwsza osoba)")
 	sc.call_("pcforce3rdperson", [])
-	check(vm.missing.has("pcforce3rdperson"), "PCForce3rdPerson – zależność w raporcie")
+	check(float(sc.call_("pcget3rdperson", [])) == 1.0 and not main.player_camera().is_first_person(),
+		"PCForce3rdPerson – trzecia osoba, PCGet3rdPerson = 1")
+	sc.call_("pcforce1stperson", [])
+	check(float(sc.call_("pcget3rdperson", [])) == 0.0 and main.player_camera().is_first_person(), "PCForce1stPerson")
 	# --- ustawienia: [General] anisotropy, [Water] refraction / sunlight scattering / wobbly shores ---
 	var ENV := preload("res://scripts/mw/mw_environment.gd")
 	check(main.get_viewport().anisotropic_filtering_level == Viewport.ANISOTROPY_4X, "anisotropy 4 (domyślnie) → 4×")

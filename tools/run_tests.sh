@@ -156,6 +156,7 @@ run_gd test_quick_keys.gd --data="$WORK/actors_out" --project="$WORK/project_qui
 run_gd test_tooltips.gd --data="$WORK/actors_out" --project="$WORK/project_tooltips" --pos=2300,2400,900 --scripts=0
 run_gd test_load_controls.gd --data="$WORK/actors_out" --project="$WORK/project_load_controls" --pos=2300,2400,900 --scripts=0
 run_gd test_load_ui.gd --data="$WORK/actors_out" --project="$WORK/project_load_ui" --pos=2300,2400,900 --saves="$WORK/load_ui_saves"
+run_gd test_camera.gd --data="$WORK/actors_out" --project="$WORK/project_camera" --pos=2300,2400,900 --scripts=0
 run_gd test_look_stability.gd --data="$WORK/actors_out" --project="$WORK/project_look" --pos=2300,2400,900 --scripts=0
 run_gd test_companion.gd --data="$WORK/actors_out" --project="$WORK/project_companion" --pos=2300,2400,900 --scripts=0
 run_gd test_console.gd --data="$WORK/actors_out" --project="$WORK/project_console" --pos=2300,2400,900 --scripts=0

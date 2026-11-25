@@ -34,6 +34,7 @@ var blind_fader: ColorRect        # WindowManager::setBlindness – warstwa Fade
 var _blind_layer: CanvasLayer
 var crosshair: Control
 var crosshair_enabled := true      # [HUD] crosshair (WindowManager::showCrosshair)
+var camera_crosshair := true       # Camera::showCrosshair (camera.lua updateCrosshair: tylko pierwsza osoba)
 var focus_panel: PanelContainer
 var focus_label: Label
 var _flash_t := 0.0
@@ -328,7 +329,9 @@ func refresh(delta: float, force := false) -> void:
 		return
 	_apply_allowed()
 	if crosshair != null:
-		crosshair.visible = crosshair_enabled
+		# Camera::update: showCrosshair(!isGuiMode() && mShowCrosshair) && [HUD] crosshair
+		var gm = main.get("gui")
+		crosshair.visible = crosshair_enabled and camera_crosshair and not (gm != null and gm.is_gui_mode())
 	update_stats()
 	update_weapon_spell()
 	sneak_box.visible = bool(main.player.want_sneak)

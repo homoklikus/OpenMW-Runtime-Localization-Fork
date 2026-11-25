@@ -26,6 +26,7 @@ const BARE_FUNCTIONS := ["saydone", "getaipackagedone", "onactivate", "menumode"
 	"getdeadcount", "getlocked", "getscale", "getpcinjail", "getpctraveling", "getwaterlevel", "getpcrunning",
 	"getwindspeed", "getpcvisionbonus", "pcget3rdperson", "getmasserphase", "getsecundaphase"]
 var delta := 0.0
+var _vanity_activate := true       # OpToggleVanityMode::sActivate
 var button_pressed := -1
 var cell_changed := false
 var activated := {}              # sid → true (aktywowany w tej klatce; OnActivate)
@@ -1228,11 +1229,26 @@ func _state_function(fname: String, ref, args: Array, c: Ctx):
 		"getpcvisionbonus", "setpcvisionbonus", "modpcvisionbonus":
 			return _vision_bonus(fname, args, c)
 		"pcget3rdperson":
-			return 0.0                     # widok zawsze pierwszoosobowy (kamera TPP nieprzeniesiona) – stan prawdziwy
+			var cg = m.player_camera() if m.has_method("player_camera") else null
+			return 0.0 if cg == null or cg.is_first_person() else 1.0     # !World::isFirstPerson
 		"pcforce1stperson":
-			return null                    # już widok pierwszoosobowy (Camera::forceFirstPerson – bez zmian)
-		"pcforce3rdperson", "togglevanitymode", "tvm":
-			_missing(fname, "kamera trzecioosobowa i tryb vanity (MWRender::Camera) nieprzeniesione")
+			var c1 = m.player_camera() if m.has_method("player_camera") else null
+			if c1 != null and not c1.is_first_person():
+				c1.toggle_view_mode(true)  # World::togglePOV(true)
+			return null
+		"pcforce3rdperson":
+			var c3 = m.player_camera() if m.has_method("player_camera") else null
+			if c3 != null and c3.is_first_person():
+				c3.toggle_view_mode(true)
+			return null
+		"togglevanitymode", "tvm":
+			# OpToggleVanityMode: przełącznik statyczny sActivate, komunikat w konsoli
+			var cv = m.player_camera() if m.has_method("player_camera") else null
+			if cv != null and cv.toggle_vanity_mode(_vanity_activate):
+				_console_report("Vanity Mode -> On" if _vanity_activate else "Vanity Mode -> Off")
+				_vanity_activate = not _vanity_activate
+			else:
+				_console_report("Vanity Mode -> No")
 			return null
 		"getmasserphase", "getsecundaphase":
 			_missing(fname, "fazy księżyców ze stanu nieba (SkyManager::Moon) – Masser i Secunda nie są przeniesione")
@@ -1525,6 +1541,12 @@ func _vision_bonus(fname: String, args: Array, c: Ctx):
 	return null
 
 ## Funkcja rozpoznana, ale zależna od systemu, którego silnik jeszcze nie ma – jawnie w raporcie, bez skutku.
+## ConsoleInterpreterContext::report – tylko w konsoli (InterpreterContext::report skryptów nic nie robi).
+func _console_report(msg: String) -> void:
+	var con = game.get("console") if game != null else null
+	if con != null and con.has_method("is_open") and con.is_open():
+		con.print_ok(msg)
+
 func _missing(fname: String, dependency: String) -> void:
 	missing[fname] = dependency
 	unsupported[fname] = int(unsupported.get(fname, 0)) + 1

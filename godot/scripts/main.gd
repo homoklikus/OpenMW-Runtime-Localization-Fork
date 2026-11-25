@@ -386,6 +386,13 @@ func _ready() -> void:
 	if player.controller != null:
 		player.controller.allowed = control_allowed       # blokady sterowania ze skryptów (CharGen)
 		player.controller.diag = look_diag
+		player.controller.camera.main = self
+	player_body = preload("res://scripts/mw/mw_player_body.gd").new()
+	player_body.name = "PlayerBody"
+	player_body.actor = player
+	player_body.main = self
+	player.add_child(player_body)
+	player.body = player_body
 	mw_hud = preload("res://scripts/mw/mw_hud.gd").new()
 	mw_hud.name = "MWHud"
 	mw_hud.main = self
@@ -597,8 +604,21 @@ func player_doll() -> Node3D:
 	return av.build_npc_rec(npc, "player", 0, "", slots)
 
 func _rebuild_player_visual() -> void:
-	if player != null and player.has_method("rebuild_visual"):
-		player.rebuild_visual()
+	if player_body != null:
+		player_body.rebuild()
+
+var player_body = null                  # mw_player_body.gd – postać gracza w trzeciej osobie
+
+## Kamera gracza (mw_camera.gd) albo null.
+func player_camera():
+	return player.controller.camera if player != null and player.controller != null and player.controller.get("camera") != null else null
+
+## Kamera, przez którą widać świat (pierwsza osoba – oko gracza, inaczej kamera trzeciej osoby).
+func view_camera() -> Camera3D:
+	var c = player_camera()
+	if c != null:
+		return c.render_camera()
+	return player.get_node_or_null("Camera3D") as Camera3D if player != null else null
 
 ## Napis kwestii (DialogueManager::say, Say ze skryptu): przy [GUI] subtitles (domyślnie wyłączone) – zwykły komunikat
 ## WindowManager::messageBox z samym tekstem kwestii (bez imienia), jak w OpenMW.
@@ -1459,16 +1479,28 @@ func _player_died() -> void:
 		return
 	_death_handled = true
 	game_state = "ended"
-	# czas animacji śmierci gracza (CharacterController::Result_DeathAnimJustFinished) – u nas stały
-	get_tree().create_timer(DEATH_ANIM_SECONDS, true, false, true).timeout.connect(ask_load_recent)
+	# CharacterController::playRandomDeath: animacje pierwszej osoby nie mają śmierci – World::useDeathCamera
+	# (trzecia osoba), potem losowa animacja śmierci; askLoadRecent po jej końcu (Result_DeathAnimJustFinished)
+	var cam = player_camera()
+	if cam != null:
+		cam.use_death_camera()
+	var t := 0.0
+	if player_body != null:
+		var st := player_stats()
+		var fat_out: bool = st.has("fatigue") and float(st.fatigue) < 0.0
+		var kd := bool(st.get("knocked_down", false))
+		t = player_body.play_death(player != null and bool(player.swimming), kd and not fat_out, kd and fat_out)
+	get_tree().create_timer(t if t > 0.0 else DEATH_ANIM_SECONDS, true, false, true).timeout.connect(ask_load_recent)
 
-const DEATH_ANIM_SECONDS := 3.0
+const DEATH_ANIM_SECONDS := 3.0         # bez grupy śmierci w szkielecie gracza
 
 ## Resurrect na graczu (StateManager::resumeGame): koniec gry cofnięty, pytanie o wczytanie już się nie pojawi.
 func resume_after_death() -> void:
 	if game_state == "ended":
 		game_state = "running"
 	_death_handled = false
+	if player_body != null:
+		player_body.revive()
 
 func ask_load_recent() -> void:
 	if game_state != "ended":
@@ -2370,7 +2402,15 @@ func activation_pick(cam: Camera3D) -> Node3D:
 	var upm := MWCoords.UNITS_PER_METER
 	var base := float(combat._gmst("iMaxActivateDist", 192)) / upm
 	var tk: float = magic.magnitude_of(combat.player_fighter(), magic.FX_TELEKINESIS) if magic != null else 0.0
-	var hit := MWTravel.pick_hit(cam, base + tk * (64.0 / 3.0) / upm)
+	# World::getFocusObject: promień z kamery widoku (w trzeciej osobie dłuższy o odległość kamery, bez gracza)
+	var pc = player_camera()
+	var cam_dist := 0.0
+	if pc != null and not pc.is_first_person():
+		cam = pc.render_camera()
+		cam_dist = float(pc.camera_distance) / upm
+	var ex: Array[RID] = [player.get_rid()]
+	var hit := MWTravel.pick_hit(cam, base + tk * (64.0 / 3.0) / upm + cam_dist, ex)
+	hit.dist = float(hit.dist) - cam_dist
 	var r = hit.node
 	if r == null or tk <= 0.0 or float(hit.dist) <= base:
 		return r
@@ -2919,7 +2959,7 @@ func _update_sound_world(delta: float) -> void:
 		anim_sounds.tick(delta)
 	var exterior: bool = interior.is_empty() or bool(db.get_cell("int:" + interior.to_lower()).get("behave_like_exterior", false))
 	audio.region_tick(delta, envr.regions.get(current_region.to_lower(), {}) if envr != null else {}, exterior)
-	var cam := player.get_node_or_null("Camera3D") as Node3D
+	var cam := view_camera() as Node3D             # RenderingManager: pod wodą wg pozycji kamery
 	var head_y: float = cam.global_position.y if cam != null else player.global_position.y + 1.6
 	audio.ambient_tick(envr.weather if envr != null else "", exterior, head_y < float(player.water_level))
 	if envr != null:
@@ -3069,6 +3109,8 @@ func capture_state() -> void:
 	var keep: Dictionary = state.player.duplicate()      # np. poziom gracza (etap 4)
 	keep.merge({"interior": interior, "fly": player.fly,
 		"mw": {"pos": [p.x, p.y, p.z], "rot": [-(cam.rotation.x if cam else 0.0), 0.0, -player.rotation.y]}}, true)
+	if player_camera() != null:
+		keep["camera"] = player_camera().save_data()     # REC_CAM_ FIRS + odległość (camera.lua onSave)
 	state.player = keep
 
 ## Zwraca "" albo opis błędu.
@@ -3148,6 +3190,11 @@ func _apply_state() -> void:
 	var cam := player.get_node_or_null("Camera3D") as Camera3D
 	if cam:
 		cam.rotation.x = -float(rot[0])
+	if player_body != null:
+		player_body.revive()
+		player_body.rebuild()
+	if player_camera() != null:
+		player_camera().load_data(pl.get("camera", {}) if pl.get("camera") is Dictionary else {})
 	if look_diag != null:
 		look_diag.mark("state")
 	player.fly = bool(pl.get("fly", false))
@@ -3400,9 +3447,9 @@ func fallback(key: String) -> String:
 
 func set_scene_visible(on: bool) -> void:
 	if player != null:
-		var cam := player.get_node_or_null("Camera3D") as Camera3D
-		if cam != null:
-			cam.current = on or cam.current
+		var pc = player_camera()
+		if pc != null and on:
+			pc.make_current()
 
 ## Brak gry: świat pusty, gracz i HUD ukryte (MWState::StateManager::State_NoGame).
 func _enter_nogame() -> void:
@@ -3541,6 +3588,10 @@ func new_game() -> void:
 	var t := _start_transform()
 	player.global_position = t.origin
 	player.rotation.y = t.basis.get_euler().y
+	if player_body != null:
+		player_body.revive()
+	if player_camera() != null:
+		player_camera().load_data({"first_person": true, "distance": 192.0})    # Camera::reset, nowe skrypty Lua
 	if look_diag != null:
 		look_diag.mark("state")
 	player.velocity = Vector3.ZERO

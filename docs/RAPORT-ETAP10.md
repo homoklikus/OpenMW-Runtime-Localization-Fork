@@ -841,6 +841,42 @@ skryptu wywołują WindowManager::messageBox z samym tekstem kwestii. Teraz tak 
 launcher), włączone – zwykły komunikat (MessageBoxManager) bez imienia (test_settings). Profil, który ma już zapisane
 „subtitles = true”, zachowuje wybór użytkownika.
 
+**Kamera trzeciej osoby (cz. 37, wybór użytkownika):** przeniesione MWRender::Camera (camera.cpp) i skrypty
+omw/camera 0.51 (camera.lua, third_person.lua) w `mw_camera.gd`:
+* tryby pierwsza / trzecia osoba, podgląd (Preview), vanity; tryb główny; TogglePOV (Tab, prawa gałka pada):
+  krótkie wciśnięcie ≤ 0,25 s przełącza widok, przytrzymanie – podgląd z obrotem kamery myszą/gałką
+  (World::vanityRotateCamera), z trzeciej osoby podgląd od razu; po podglądzie kamera wraca za gracza
+  (obrót odroczony, deferredPreviewRotation = false: min(Δ, (Δ + 1)·3·dt));
+* Zoom3rdPerson: ZoomIn/ZoomOut (kółko myszy) ±10 j., spusty pada przy wciśniętym TogglePOV 100 j./s; odległość
+  bazowa 192 j., zakres 30–800, przybliżenie przy 30 → pierwsza osoba, oddalenie w pierwszej → trzecia z 30 j.
+  (z poprawką o przeszkodę jak camera.lua zoom);
+* punkt śledzenia: początek gracza + 124 j. × skala; kolizja sferami 10 j. (ogniskowa, +10 j. nad głową) i 5 j.
+  (kamera) z pominięciem aktorów; vanity po fVanityDelay bezczynności (+0,5 s isIdle), 3°/s, wejście kończy;
+  blokady DisablePlayerViewSwitch / DisableVanityMode, paraliż blokuje przełączanie;
+* zmiana z/na pierwszą osobę czeka (mQueuedMode) na upperBodyReady – animacja śmierci, powalenie;
+* celownik tylko w pierwszej osobie i nie w trybie GUI (Camera::update: showCrosshair(!isGuiMode() && …));
+* aktywacja (World::getFocusObject): promień z kamery widoku, dłuższy o odległość kamery, bez gracza;
+* słuchacz dźwięku poza pierwszą osobą – gracz na 1,85 × połowy wysokości (World::updateSoundListener);
+* pod wodą (mgła, efekt) – wg pozycji kamery widoku;
+* zapis: widok (REC_CAM_ FIRS) i odległość (camera.lua onSave); wczytanie: toggleVanityMode(false), togglePOV
+  przy innym widoku; nowa gra – Camera::reset (pierwsza osoba, 192 j.);
+* skrypty: PCGet3rdPerson, PCForce1stPerson, PCForce3rdPerson, ToggleVanityMode/TVM (komunikat w konsoli);
+* akcje TogglePOV, ZoomIn, ZoomOut na listach przypisań (kolejność getActionKeySorting/getActionControllerSorting,
+  domyślnie Tab, kółko w górę/w dół, prawa gałka).
+Postać gracza (`mw_player_body.gd`): model z rekordu „player” z wyglądem i ekwipunkiem (ten sam co podgląd
+w ekwipunku), przebudowa po zmianie wyglądu/ekwipunku, w pierwszej osobie siatki ukryte (światło trzymanej
+pochodni zostaje); animacje ruchu idle/idlesneak/idleswim, walk/run/sneak/swimwalk/swimrun × forward/back/left/
+right z tempem wg prędkości, jump w powietrzu. Śmierć jak CharacterController::playRandomDeath: World::useDeathCamera
+(trzecia osoba), losowa grupa deathN (chooseRandomGroup), swimdeath w wodzie, deathknockdown/deathknockout przy
+powaleniu; askLoadRecent po końcu animacji (wcześniej stałe 3 s – zostaje tylko, gdy szkielet nie ma grupy śmierci).
+Test `test_camera.gd` (45 sprawdzeń); test_player_controls (kolejność i domyślne klawisze nowych akcji),
+test_console_toggles (PCForce1st/3rdPerson) zaktualizowane do zachowania OpenMW.
+Różnice, które zostają: strona ustawień „Camera” skryptów Lua (view over shoulder, standing preview, move360,
+head bobbing, zmiana ramienia, ignoreNC) – port nie ma ustawień skryptów Lua, obowiązują domyślne wartości OpenMW
+(wyłączone); w pierwszej osobie brak rąk i broni 1st (VM_FirstPerson); w trzeciej osobie brak animacji broni
+i czarów (postawy, ataki, wyciągnięta broń w dłoni), obrotu w miejscu (turnleft/right) i animacji trafienia;
+ciała zabitych NPC nadal układane obrotem, nie animacją śmierci.
+
 ### 7.18 Akcje sterowania OpenMW 0.51 (P2, cz. 26)
 
 Porównane z `BindingsManager::loadKeyDefaults/loadControllerDefaults/getActionKeySorting/getActionControllerSorting/
@@ -855,7 +891,7 @@ actionValueChanged`, `ActionManager::executeAction`, `InventoryWindow::cycle`, `
 | CycleWeaponLeft/Right | [ / ] · X + lewy/prawy spust | zaimplementowane: kolejna broń prawej ręki w kolejności SortFilterItemModel bez grupowania typów, z pominięciem stosów tego samego przedmiotu, założenie jak użycie w ekwipunku; nie w trybie GUI, w ataku, przy paraliżu, powaleniu, śmierci; wilkołak – sWerewolfRefusal |
 | CycleSpellLeft/Right | - / = · Y + lewy/prawy spust | zaimplementowane: kolejna pozycja SpellModel (moce, czary, przedmioty magiczne), bez wyboru – pierwsza |
 | Screenshot | F12 · – | zaimplementowane: `screenshots/screenshotNNN.<format>` w katalogu danych (launcher: obok `saves`), `[General] screenshot format` (png), komunikat ScreenshotMade/Failed tylko przy `notify on saved screenshot` (domyślnie wył.) |
-| TogglePOV, ZoomIn/ZoomOut | Tab, kółko · prawa gałka | **zależne od nieprzeniesionej kamery trzecioosobowej** (MWRender::Camera: widok TPP, oddalanie, ciało gracza w TPP) – akcji nie dodano, by nie tworzyć przycisków bez działania |
+| TogglePOV, ZoomIn/ZoomOut | Tab, kółko · prawa gałka | zgodne od cz. 37 (kamera trzeciej osoby – punkt 7.17) |
 | TogglePostProcessorHUD | F2 | zależne od nieprzeniesionego post-processingu (shadery Lua/omwfx) |
 
 Nowe akcje są na liście przypisań okna opcji w kolejności OpenMW (klawiatura i pad) z opisami z GMST
@@ -899,7 +935,7 @@ wybór rozdzielczości nie ma skutku.
 |---|---|
 | 1. zaimplementowane (285) | wszystkie pozostałe; w cz. 27–28 doszły: GetPCRunning, GetWindSpeed (0 we wnętrzach), Get/Set/ModPCVisionBonus (Night Eye ograniczony do [0, 1]), PCGet3rdPerson (0 – widok zawsze pierwszoosobowy), PCForce1stPerson, ToggleSky (ts), ToggleWater (twa), ToggleWireframe (twf), ToggleWorld (tw), ToggleScripts, ToggleFullHelp (tfh – pełna pomoc w podpowiedziach: Owner, Owner Faction, Rank, Global, Script), ToggleFogOfWar (tfow), User1–4; **cz. 28:** AddToLevCreature, AddToLevItem, RemoveFromLevCreature, RemoveFromLevItem (kopia listy z dopisaną/usuniętą pozycją jako rekord w GameState.created – ESMStore::overrideRecord, w zapisie gry), TogglePathGrid (tpg – romby i krawędzie jak createPathgridGeometry), ToggleCollisionBoxes / ToggleCollisionGrid (tcb / tcg – kształty kolizji), ToggleBorders (tb – CellBorder: 2 × 40 odcinków 10 j. nad terenem, czarno-żółte), BetaComment / bc / ORI (czas, plik treści, RefNum, RefID, komórka, siatka, współrzędne, model, skrypt, notatki), MenuTest, TestCells, TestInteriorCells (tylko bez gry, jak OpenMW), TestModels (t3d) |
 | 2. brakujące, możliwe teraz | brak |
-| 3. zależne od nieprzeniesionych części | PCForce3rdPerson, ToggleVanityMode (tvm) – kamera trzecioosobowa (MWRender::Camera); GetMasserPhase, GetSecundaPhase, TurnMoonRed/White – księżyce nieba (SkyManager::Moon); ReloadLua – Lua; ShowSceneGraph – graf sceny OSG; ToggleNavMesh, ToggleRecastMesh, ToggleActorsPaths (tap), SetNavMeshNumber – DetourNavigator (port używa nawigacji Godota) |
+| 3. zależne od nieprzeniesionych części | (PCForce3rdPerson, ToggleVanityMode – przeniesione w cz. 37); GetMasserPhase, GetSecundaPhase, TurnMoonRed/White – księżyce nieba (SkyManager::Moon); ReloadLua – Lua; ShowSceneGraph – graf sceny OSG; ToggleNavMesh, ToggleRecastMesh, ToggleActorsPaths (tap), SetNavMeshNumber – DetourNavigator (port używa nawigacji Godota) |
 
 BetaComment bez listy tekstur modelu (TextureFetchVisitor i archiwa BSA w VFS – port czyta przekonwertowane modele).
 Pełna pomoc: bez wierszy „Stolen … from …” (port nie prowadzi rejestru skradzionych przedmiotów według właścicieli,
@@ -979,6 +1015,7 @@ Mody – zgodnie z poleceniem nie testowane (kolejność: najpierw klasyczne GUI
 * Etap 10 cz. 35: po wczytaniu z menu kursor przechwycony, bez pauzy (updateVisible)
 * Etap 10: pliki .uid nowych skryptów
 * Etap 10 cz. 36: napisy kwestii jak OpenMW (domyślnie wyłączone, messageBox)
+* Etap 10 cz. 37: kamera trzeciej osoby, podgląd, vanity, zoom, postać gracza i kamera śmierci jak OpenMW 0.51
 
 Pełny zestaw tools/run_tests.sh: 78/78 po cz. 36 (nowe test_audio_ranges, test_load_ui; Xvfb + lavapipe); 76/76 po cz. 33 (nowe test_enemy_health, test_cursor_drop, test_pickpocket; Xvfb + lavapipe); 73/73 po cz. 32 (z nowym test_item_stacks; Xvfb + lavapipe); 72/72 po cz. 30 (Xvfb + lavapipe, pytest z test_game_command_window_args); 72/72 po cz. 28 (test_language wykrył polski komunikat błędu w nowym kodzie – poprawiony, testy od test_language powtórzone); 72/72 po cz. 27 (nowe test_player_controls i test_console_toggles; test_loading_render powtórzony osobno po zniknięciu serwera Xvfb w trakcie przebiegu – środowisko, nie test); 70/70 po cz. 25 (nowe test_trade_sources i test_loading_render; Xvfb + lavapipe); 68/68 po cz. 21–23 (z nowym test_load_reveal; test_count_dialog, test_trade, test_map_notes, test_load_reveal powtórzone na końcowym kodzie cz. 23); 67/67 po cz. 20; 66/66 po cz. 19 (38 w przebiegu, test_progress poprawiony i 28 kolejnych po poprawce); 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 

@@ -3,6 +3,7 @@ extends "res://scripts/mw/mw_actor.gd"
 
 const PlayerController := preload("res://scripts/mw/mw_player_controller.gd")
 var cam: Camera3D
+var body = null                     # mw_player_body.gd (main)
 var mouse_sens := 0.0025:
 	set(v):
 		mouse_sens = v
@@ -26,3 +27,12 @@ func _ready() -> void:
 	c.attach(self)
 	cam = c.cam
 	controller = c
+
+## Camera::processViewChange: w pierwszej osobie postać ukryta (NpcAnimation::VM_FirstPerson), inaczej widoczna.
+func camera_view_changed(first_person: bool) -> void:
+	if body != null:
+		body.set_shown(not first_person)
+
+## Animation::upperBodyReady (zmiana widoku czeka na koniec animacji śmierci / powalenia).
+func upper_body_ready() -> bool:
+	return body == null or body.upper_body_ready()

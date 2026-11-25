@@ -20,6 +20,7 @@ const DEFAULT_BUTTONS := {
 	"activate": JOY_BUTTON_A, "ready_weapon": JOY_BUTTON_X, "ready_magic": JOY_BUTTON_Y,
 	"sneak": JOY_BUTTON_LEFT_STICK, "journal": JOY_BUTTON_LEFT_SHOULDER, "rest": JOY_BUTTON_RIGHT_SHOULDER,
 	"menu_mode": JOY_BUTTON_B, "menu": JOY_BUTTON_START, "quick_save": JOY_BUTTON_GUIDE,
+	"toggle_pov": JOY_BUTTON_RIGHT_STICK,
 }
 const DEFAULT_AXES := {
 	"move_forward": [JOY_AXIS_LEFT_Y, -1.0], "move_back": [JOY_AXIS_LEFT_Y, 1.0],
@@ -267,8 +268,10 @@ func _process(dt: float) -> void:
 		last_look = Vector2.ZERO
 		return
 	var pl = main.player
-	if pl == null or pl.controller == null or not pl.controller._ok("looking"):
+	if pl == null or pl.controller == null:
 		return
+	if pl.controller.get("camera") != null:
+		pl.controller.camera.note_input()
 	var sens := float(main.settings.get("mouse_sensitivity", 0.0025)) / 0.0025
 	var yaw := rx * dt * 1000.0 * sens * (-1.0 if bool(main.settings.get("invert_x", false)) else 1.0) / 256.0
 	var pitch := ry * dt * 1000.0 * sens * (-1.0 if bool(main.settings.get("invert_y", false)) else 1.0) * camera_y_multiplier / 256.0
@@ -276,9 +279,7 @@ func _process(dt: float) -> void:
 	last_look_dt = dt
 	if main.get("look_diag") != null:
 		main.look_diag.add("pad", yaw, pitch, {"device": device, "name": Input.get_joy_name(device), "rx": rx, "ry": ry})
-	pl.rotate_y(-yaw)
-	var cam: Camera3D = pl.controller.cam
-	cam.rotation.x = clampf(cam.rotation.x - pitch, -1.5, 1.5)
+	pl.controller.look(yaw, pitch)        # vanityRotateCamera albo obrót gracza (playerlooking)
 
 func _axis(a: int) -> float:
 	if has_meta("test_axes"):
