@@ -116,7 +116,9 @@ func _run() -> void:
 	check(w.checks["crosshair"].text == "Off" and main.settings.crosshair == false and (main.mw_hud == null or not main.mw_hud.crosshair.visible), "celownik wyłączony")
 	w.toggle_check("crosshair")
 	await _frames(2)
-	check(main.mw_hud == null or main.mw_hud.crosshair.visible, "celownik z powrotem")
+	# Camera::update: showCrosshair(!isGuiMode() && …) – przy otwartym oknie opcji celownik ukryty mimo ustawienia
+	check(main.mw_hud == null or (main.mw_hud.crosshair_enabled and main.mw_hud.crosshair.visible == not main.gui.is_gui_mode()),
+		"celownik z powrotem (ustawienie włączone, widoczny poza trybem GUI)")
 	# „Always Use Best Attack”: getBestAttack
 	check(main.best_attack_type({"rec": {"slash": [1, 5], "chop": [1, 5], "thrust": [1, 5]}}) == 1, "równe obrażenia – cięcie")
 	check(main.best_attack_type({"rec": {"slash": [1, 5], "chop": [2, 9], "thrust": [1, 9]}}) == 0, "największe rąbanie")

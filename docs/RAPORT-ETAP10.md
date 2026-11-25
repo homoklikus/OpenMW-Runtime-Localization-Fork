@@ -869,7 +869,10 @@ pochodni zostaje); animacje ruchu idle/idlesneak/idleswim, walk/run/sneak/swimwa
 right z tempem wg prędkości, jump w powietrzu. Śmierć jak CharacterController::playRandomDeath: World::useDeathCamera
 (trzecia osoba), losowa grupa deathN (chooseRandomGroup), swimdeath w wodzie, deathknockdown/deathknockout przy
 powaleniu; askLoadRecent po końcu animacji (wcześniej stałe 3 s – zostaje tylko, gdy szkielet nie ma grupy śmierci).
-Test `test_camera.gd` (45 sprawdzeń); test_player_controls (kolejność i domyślne klawisze nowych akcji),
+Na RTX 5090 użytkownika (proces przez MCP, Wayland, zapis użytkownika z kopii, --camera-diag --diag-death):
+trzecia osoba po TogglePOV, odległość 192 → 242 j. po pięciu ząbkach, podgląd i powrót, chód walkforward,
+w szkielecie 7 grup śmierci – śmierć zagrała death3 (2,2 s) w trzeciej osobie; wygląd obrazu – do oceny przez
+użytkownika. Test `test_camera.gd` (45 sprawdzeń); test_player_controls (kolejność i domyślne klawisze nowych akcji),
 test_console_toggles (PCForce1st/3rdPerson) zaktualizowane do zachowania OpenMW.
 Różnice, które zostają: strona ustawień „Camera” skryptów Lua (view over shoulder, standing preview, move360,
 head bobbing, zmiana ramienia, ignoreNC) – port nie ma ustawień skryptów Lua, obowiązują domyślne wartości OpenMW
@@ -1017,7 +1020,10 @@ Mody – zgodnie z poleceniem nie testowane (kolejność: najpierw klasyczne GUI
 * Etap 10 cz. 36: napisy kwestii jak OpenMW (domyślnie wyłączone, messageBox)
 * Etap 10 cz. 37: kamera trzeciej osoby, podgląd, vanity, zoom, postać gracza i kamera śmierci jak OpenMW 0.51
 
-Pełny zestaw tools/run_tests.sh: 78/78 po cz. 36 (nowe test_audio_ranges, test_load_ui; Xvfb + lavapipe); 76/76 po cz. 33 (nowe test_enemy_health, test_cursor_drop, test_pickpocket; Xvfb + lavapipe); 73/73 po cz. 32 (z nowym test_item_stacks; Xvfb + lavapipe); 72/72 po cz. 30 (Xvfb + lavapipe, pytest z test_game_command_window_args); 72/72 po cz. 28 (test_language wykrył polski komunikat błędu w nowym kodzie – poprawiony, testy od test_language powtórzone); 72/72 po cz. 27 (nowe test_player_controls i test_console_toggles; test_loading_render powtórzony osobno po zniknięciu serwera Xvfb w trakcie przebiegu – środowisko, nie test); 70/70 po cz. 25 (nowe test_trade_sources i test_loading_render; Xvfb + lavapipe); 68/68 po cz. 21–23 (z nowym test_load_reveal; test_count_dialog, test_trade, test_map_notes, test_load_reveal powtórzone na końcowym kodzie cz. 23); 67/67 po cz. 20; 66/66 po cz. 19 (38 w przebiegu, test_progress poprawiony i 28 kolejnych po poprawce); 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
+Pełny zestaw tools/run_tests.sh: 79/79 po cz. 37 (nowy test_camera – kamera sterowana w teście stałym krokiem
+1/60 s, bo pierwszy przebieg pod obciążeniem Xvfb dał wynik zależny od tempa klatek; test_settings – celownik ukryty
+w trybie GUI jak Camera::update, oczekiwanie poprawione do zachowania OpenMW, test powtórzony osobno, potem
+test_anim_sounds i test_loading_render; Xvfb + lavapipe); 78/78 po cz. 36 (nowe test_audio_ranges, test_load_ui; Xvfb + lavapipe); 76/76 po cz. 33 (nowe test_enemy_health, test_cursor_drop, test_pickpocket; Xvfb + lavapipe); 73/73 po cz. 32 (z nowym test_item_stacks; Xvfb + lavapipe); 72/72 po cz. 30 (Xvfb + lavapipe, pytest z test_game_command_window_args); 72/72 po cz. 28 (test_language wykrył polski komunikat błędu w nowym kodzie – poprawiony, testy od test_language powtórzone); 72/72 po cz. 27 (nowe test_player_controls i test_console_toggles; test_loading_render powtórzony osobno po zniknięciu serwera Xvfb w trakcie przebiegu – środowisko, nie test); 70/70 po cz. 25 (nowe test_trade_sources i test_loading_render; Xvfb + lavapipe); 68/68 po cz. 21–23 (z nowym test_load_reveal; test_count_dialog, test_trade, test_map_notes, test_load_reveal powtórzone na końcowym kodzie cz. 23); 67/67 po cz. 20; 66/66 po cz. 19 (38 w przebiegu, test_progress poprawiony i 28 kolejnych po poprawce); 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 
 ## 9. Zalecana kolejność dalszych prac
 

@@ -19,14 +19,16 @@ func check(c: bool, m: String) -> void:
 func _init() -> void:
 	_run.call_deferred()
 
-func _frames(n: int) -> void:
+var pcref = null                       # kamera sterowana stałym krokiem (bez zależności od tempa klatek)
+
+func _frames(n: int, dt := 1.0 / 60.0) -> void:
 	for i in n:
 		await process_frame
+		if pcref != null:
+			pcref.frame(dt)
 
 func _seconds(t: float) -> void:
-	var t0 := Time.get_ticks_msec()
-	while Time.get_ticks_msec() - t0 < int(t * 1000.0):
-		await process_frame
+	await _frames(int(ceil(t * 60.0)))
 
 func _tap(pc) -> void:
 	Input.action_press("toggle_pov")
@@ -50,6 +52,8 @@ func _run() -> void:
 	pl.fly = true                                    # bez opadania podczas testu
 	pl.velocity = Vector3.ZERO
 	var pc = main.player_camera()
+	pl.controller.set_process(false)       # klatki kamery z testu: stały krok 1/60 s
+	pcref = pc
 	var eye: Camera3D = pl.get_node("Camera3D")
 	var body = main.player_body
 	check(pc != null and pc.mode == "first" and pc.primary == "first", "start: pierwsza osoba")
