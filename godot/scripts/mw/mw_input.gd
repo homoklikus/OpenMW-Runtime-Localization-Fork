@@ -35,35 +35,48 @@ const DEFAULTS := {
 	"quick_key_8": KEY_8,
 	"quick_key_9": KEY_9,
 	"quick_key_10": KEY_0,
+	# BindingsManager::loadKeyDefaults (OpenMW 0.51)
+	"always_run": KEY_CAPSLOCK,            # A_AlwaysRun – przełącznik [Input] always run
+	"auto_move": KEY_Q,                    # A_AutoMove
+	"cycle_spell_left": KEY_MINUS,         # A_CycleSpellLeft
+	"cycle_spell_right": KEY_EQUAL,        # A_CycleSpellRight
+	"cycle_weapon_left": KEY_BRACKETLEFT,  # A_CycleWeaponLeft
+	"cycle_weapon_right": KEY_BRACKETRIGHT,  # A_CycleWeaponRight
+	"screenshot": KEY_F12,                 # A_Screenshot
 }
 
 ## Klawisze akcji z project.godot (do przywracania domyślnych).
 const PROJECT_DEFAULTS := {
 	"move_forward": KEY_W, "move_back": KEY_S, "move_left": KEY_A, "move_right": KEY_D,
-	"jump": KEY_SPACE, "run": KEY_SHIFT, "activate": KEY_E,
+	"jump": KEY_E, "run": KEY_SHIFT, "activate": KEY_SPACE,     # OpenMW 0.51: A_Activate – Spacja, A_Jump – E
 }
 
 ## Akcje konfigurowalne w kolejności BindingsManager::getActionKeySorting (tylko te, które ma port) i ich opisy
 ## (GMST „#{s…}” albo OMWEngine:…).
+## TogglePOV, ZoomIn/ZoomOut (kamera trzecioosobowa – nieprzeniesiona) i TogglePostProcessorHUD (post-processing –
+## nieprzeniesiony) pominięte: nie ma działającej funkcji, którą mogłyby wywołać.
 const CONFIGURABLE := [
 	["move_forward", "sForward"], ["move_back", "sBack"], ["move_left", "sLeft"], ["move_right", "sRight"],
-	["run", "sRun"], ["sneak", "sCrouch_Sneak"], ["activate", "sActivate"], ["attack", "sUse"],
-	["ready_weapon", "sReady_Weapon"], ["ready_magic", "sReady_Magic"], ["jump", "sJump"],
+	["run", "sRun"], ["always_run", "sAlways_Run"], ["sneak", "sCrouch_Sneak"], ["activate", "sActivate"],
+	["attack", "sUse"], ["ready_weapon", "sReady_Weapon"], ["ready_magic", "sReady_Magic"],
+	["cycle_spell_left", "sPrevSpell"], ["cycle_spell_right", "sNextSpell"], ["cycle_weapon_left", "sPrevWeapon"],
+	["cycle_weapon_right", "sNextWeapon"], ["auto_move", "sAuto_Run"], ["jump", "sJump"],
 	["menu_mode", "sInventory"], ["journal", "sJournal"], ["rest", "sRestKey"],
 	["console", "OMWEngine:ConsoleWindow"], ["quick_save", "sQuickSaveCmd"], ["quick_load", "sQuickLoadCmd"],
-	["toggle_hud", "OMWEngine:ToggleHUD"], ["quick_keys_menu", "sQuickMenu"],
+	["toggle_hud", "OMWEngine:ToggleHUD"], ["screenshot", "OMWEngine:Screenshot"], ["quick_keys_menu", "sQuickMenu"],
 	["quick_key_1", "sQuick1Cmd"], ["quick_key_2", "sQuick2Cmd"], ["quick_key_3", "sQuick3Cmd"],
 	["quick_key_4", "sQuick4Cmd"], ["quick_key_5", "sQuick5Cmd"], ["quick_key_6", "sQuick6Cmd"],
 	["quick_key_7", "sQuick7Cmd"], ["quick_key_8", "sQuick8Cmd"], ["quick_key_9", "sQuick9Cmd"],
 	["quick_key_10", "sQuick10Cmd"],
 ]
 const RESERVED := [KEY_F3, KEY_F4, KEY_F10, KEY_META]
-## getActionControllerSorting (OpenMW 0.51) – akcje obsługiwane przez port, w tej kolejności (bez TogglePOV,
-## ZoomIn/Out, AutoMove, Screenshot i Cycle*, których port nie ma).
+## getActionControllerSorting (OpenMW 0.51) – akcje obsługiwane przez port, w tej kolejności (bez TogglePOV
+## i ZoomIn/Out – kamera trzecioosobowa nieprzeniesiona).
 const CONTROLLER_SORTING := ["move_forward", "move_back", "move_left", "move_right", "sneak", "activate", "attack",
-	"ready_weapon", "ready_magic", "jump", "menu_mode", "journal", "rest", "quick_save", "quick_load", "toggle_hud",
-	"quick_keys_menu", "quick_key_1", "quick_key_2", "quick_key_3", "quick_key_4", "quick_key_5", "quick_key_6",
-	"quick_key_7", "quick_key_8", "quick_key_9", "quick_key_10"]
+	"ready_weapon", "ready_magic", "auto_move", "jump", "menu_mode", "journal", "rest", "quick_save", "quick_load",
+	"toggle_hud", "screenshot", "quick_keys_menu", "quick_key_1", "quick_key_2", "quick_key_3", "quick_key_4",
+	"quick_key_5", "quick_key_6", "quick_key_7", "quick_key_8", "quick_key_9", "quick_key_10", "cycle_spell_left",
+	"cycle_spell_right", "cycle_weapon_left", "cycle_weapon_right"]
 ## Ruch z lewej gałki idzie przez A_MoveForwardBackward / A_MoveLeftRight (osie), więc A_MoveForward… na liście
 ## pada nie mają przypisania (#{Interface:None}) i nie da się ich przypisać przyciskiem.
 const AXIS_MOVE := ["move_forward", "move_back", "move_left", "move_right"]

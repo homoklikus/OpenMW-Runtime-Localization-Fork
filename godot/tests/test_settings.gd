@@ -131,7 +131,7 @@ func _run() -> void:
 	w.start_rebind("jump")
 	check(w.binding_buttons["jump"].text == "None" and main.message_boxes.has_static(), "przypisywanie: „None” i komunikat stały")
 	check(w.handle_rebind_event(_key(KEY_F3)) == "ignored" and w.rebinding == "jump", "F3 zastrzeżony")
-	check(w.handle_rebind_event(_key(KEY_ESCAPE)) == "cancel" and MWInput.binding_code("jump") == KEY_SPACE and not main.message_boxes.has_static(), "Esc anuluje (bez zmiany)")
+	check(w.handle_rebind_event(_key(KEY_ESCAPE)) == "cancel" and MWInput.binding_code("jump") == KEY_E and not main.message_boxes.has_static(), "Esc anuluje (bez zmiany)")
 	w.start_rebind("jump")
 	check(w.handle_rebind_event(_key(KEY_K)) == "bound" and MWInput.binding_code("jump") == KEY_K and w.binding_buttons["jump"].text == "K", "przypisanie K")
 	w.start_rebind("jump")
@@ -151,7 +151,7 @@ func _run() -> void:
 	check(main.confirm.is_open() and main.confirm.text() == "Reset all controls to the default?", "pytanie ConfirmResetBindings")
 	main.confirm.press(true)
 	await _frames(1)
-	check(MWInput.binding_code("jump") == KEY_SPACE and MWInput.binding_code("move_forward") == KEY_W and MWInput.binding_code("activate") == KEY_E, "przywrócone domyślne")
+	check(MWInput.binding_code("jump") == KEY_E and MWInput.binding_code("move_forward") == KEY_W and MWInput.binding_code("activate") == KEY_SPACE, "przywrócone domyślne")
 	# 4a. przełącznik Mouse/Keyboard – Controller: lista getActionControllerSorting, nazwy SDL, przypisywanie pada
 	check(w.keyboard_switch.button_pressed and not w.controller_switch.button_pressed, "tryb klawiatury wybrany")
 	w.controller_switch.pressed.emit()
@@ -168,7 +168,7 @@ func _run() -> void:
 	jb.button_index = JOY_BUTTON_Y
 	jb.pressed = true
 	check(w.handle_rebind_event(jb) == "bound" and w.binding_buttons["activate"].text == "Y Button"
-		and w.binding_buttons["ready_magic"].text == "None" and MWInput.binding_code("activate") == KEY_E,
+		and w.binding_buttons["ready_magic"].text == "None" and MWInput.binding_code("activate") == KEY_SPACE,
 		"tryb pada: Y przypisany, zabrany magii, klawisz aktywacji bez zmian")
 	var jm := InputEventJoypadMotion.new()
 	jm.axis = JOY_AXIS_LEFT_X
@@ -188,7 +188,7 @@ func _run() -> void:
 	await _frames(1)
 	check(w.binding_buttons["activate"].text == "A Button" and w.binding_buttons["ready_magic"].text == "Y Button"
 		and w.binding_buttons["attack"].text == "Right Trigger" and w.binding_buttons["jump"].text == "Left Trigger"
-		and MWInput.binding_code("jump") == KEY_SPACE, "tryb pada: domyślne przypisania pada (klawisze bez zmian)")
+		and MWInput.binding_code("jump") == KEY_E, "tryb pada: domyślne przypisania pada (klawisze bez zmian)")
 	w.keyboard_switch.pressed.emit()
 	await _frames(1)
 	check(w.keyboard_mode and w.binding_buttons.has("console"), "powrót do listy klawiatury")

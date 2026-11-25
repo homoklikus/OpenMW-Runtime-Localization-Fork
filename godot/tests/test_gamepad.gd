@@ -83,7 +83,7 @@ func _run() -> void:
 	MWInput.set_binding("jump", KEY_K)
 	check(MWInput.binding_code("jump") == KEY_K and _has_joy("jump", "axis", JOY_AXIS_TRIGGER_LEFT), "przypisanie klawisza nie usuwa pada")
 	MWInput.reset_defaults()
-	check(_has_joy("jump", "axis", JOY_AXIS_TRIGGER_LEFT) and MWInput.binding_code("jump") == KEY_SPACE, "przywrócenie domyślnych – pad zostaje")
+	check(_has_joy("jump", "axis", JOY_AXIS_TRIGGER_LEFT) and MWInput.binding_code("jump") == KEY_E, "przywrócenie domyślnych – pad zostaje")
 	# 2. w grze: ruch lewą gałką (strefa martwa), akcja z przycisku
 	_axis(JOY_AXIS_LEFT_Y, -1.0)
 	await _frames(2)

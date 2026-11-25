@@ -1599,6 +1599,7 @@ func apply_live_settings() -> void:
 		player.invert_y = bool(settings.get("invert_y", false))
 		if player.controller != null:
 			player.controller.invert_x = bool(settings.get("invert_x", false))
+			player.controller.always_run = bool(settings.get("always_run", false))
 		var cam := player.get_node_or_null("Camera3D") as Camera3D
 		if cam != null and arg("fov").is_empty():
 			cam.fov = float(settings.get("fov", 60))
@@ -2103,6 +2104,152 @@ func coords_text() -> String:
 	var yaw := fposmod(-rad_to_deg(player.rotation.y), 360.0)
 	return "\n%s  |  position %s  |  heading %d°  [lb]F3 hide, F4 copy]" % [Loc.escape_bbcode(cell), position_string(), roundi(yaw)]
 
+## playercontrols.lua: movementAllowed – świat nie w pauzie, sterowanie włączone, bez trybu GUI.
+func _movement_allowed() -> bool:
+	return player != null and player.controller != null and control_allowed("controls") and _no_window_open()
+
+## AlwaysRun, AutoMove (playercontrols.lua) i Cycle* (ActionManager::executeAction, z padem także
+## Użyj/Skok przy wciśniętym „broń”/„magia” – BindingsManager::actionValueChanged). → zdarzenie obsłużone
+func _player_controls_action(e: InputEvent) -> bool:
+	if e.is_action_pressed("always_run"):
+		if _movement_allowed():
+			player.controller.always_run = not player.controller.always_run
+			settings["always_run"] = player.controller.always_run
+			save_ingame_settings({"always_run": player.controller.always_run})
+		return true
+	if e.is_action_pressed("auto_move"):
+		if _movement_allowed():
+			player.controller.auto_move = not player.controller.auto_move
+		return true
+	var pad := e is InputEventJoypadButton or e is InputEventJoypadMotion
+	var weapon_held := pad and Input.is_action_pressed("ready_weapon")
+	var magic_held := pad and Input.is_action_pressed("ready_magic")
+	if e.is_action_pressed("cycle_weapon_left") or (weapon_held and e.is_action_pressed("jump")):
+		cycle_weapon(false)
+		return true
+	if e.is_action_pressed("cycle_weapon_right") or (weapon_held and e.is_action_pressed("attack")):
+		cycle_weapon(true)
+		return true
+	if e.is_action_pressed("cycle_spell_left") or (magic_held and e.is_action_pressed("jump")):
+		cycle_spell(false)
+		return true
+	if e.is_action_pressed("cycle_spell_right") or (magic_held and e.is_action_pressed("attack")):
+		cycle_spell(true)
+		return true
+	return false
+
+## checkAllowedToUseItems: wilkołak – sWerewolfRefusal.
+func _allowed_to_use_items() -> bool:
+	if bool(player_stats().get("werewolf", false)):
+		_toast(dialogue.gmst_text("sWerewolfRefusal", "You cannot do this as a werewolf."))
+		return false
+	return true
+
+## InventoryWindow::cycle / SpellWindow::cycle: bez ataku/rzucania, paraliżu, powalenia, śmierci.
+func _can_cycle() -> bool:
+	if player == null or _attack_hold >= 0.0:
+		return false
+	var me: Dictionary = combat.player_fighter()
+	if combat.knocked_down(me) or combat.is_dead(me):
+		return false
+	if combat.magic_effect(me, 45) > 0.0:     # Paralyze
+		return false
+	return true
+
+## A_CycleWeaponLeft/Right → WindowManager::cycleWeapon (bez trybu GUI) → InventoryWindow::cycle: kolejna broń
+## jednoręczna/dwuręczna (gniazdo prawej ręki) w kolejności SortFilterItemModel bez grupowania typów, z pominięciem
+## innych stosów tego samego przedmiotu; założenie jak użycie w ekwipunku (InventoryWindow::useItem).
+func cycle_weapon(next: bool) -> void:
+	if not _allowed_to_use_items() or not menu_allowed("inventory") or not _no_window_open() or not _can_cycle():
+		return
+	var items: Array = menu_mode.sorted_items("player")
+	for it in items:
+		it["stype"] = 2                        # setSortByType(false)
+	items.sort_custom(menu_mode.item_less)
+	if items.is_empty():
+		return
+	var eq := _equipment()
+	var cur_id := String((eq.get(str(EQ.SLOT_CARRIED_RIGHT), {}) as Dictionary).get("id", ""))
+	var selected := -1
+	for i in items.size():
+		if String(items[i].id) == cur_id and String(items[i].kind) == "weapon":
+			selected = i
+	var last: String = interaction.inventory.base_id(String(items[selected].id)) if selected >= 0 else ""
+	var cycled := selected
+	var found := false
+	for _i in items.size():
+		cycled = (cycled + (1 if next else -1) + items.size()) % items.size()
+		var id := String(items[cycled].id)
+		var base: String = interaction.inventory.base_id(id)
+		if base == last:
+			continue
+		last = base
+		var slots := item_slots(id)
+		if String(items[cycled].kind) == "weapon" and not slots.is_empty() and int(slots[0]) == EQ.SLOT_CARRIED_RIGHT:
+			found = true
+			break
+	if not found or cycled == selected:
+		return
+	menu_mode.use_item(String(items[cycled].id))
+
+## A_CycleSpellLeft/Right → WindowManager::cycleSpell → SpellWindow::cycle: kolejna pozycja SpellModel (moce, czary,
+## przedmioty magiczne); bez wyboru – pierwsza.
+func cycle_spell(next: bool) -> void:
+	if not _allowed_to_use_items() or not menu_allowed("magic") or not _no_window_open() or not _can_cycle():
+		return
+	var rows := []
+	for g in menu_mode.spell_model():
+		rows.append_array(g.rows)
+	if rows.is_empty():
+		return
+	var sel := selected_magic()
+	var cur := -1
+	for i in rows.size():
+		if not sel.is_empty() and String(rows[i].kind) == String(sel.get("kind", "")) and String(rows[i].id) == String(sel.get("id", "")):
+			cur = i
+	var nxt := 0 if cur < 0 else (cur + (1 if next else -1) + rows.size()) % rows.size()
+	if nxt != cur:
+		menu_mode.select_spell(String(rows[nxt].kind), String(rows[nxt].id))
+
+## Katalog zrzutów ekranu (ConfigurationManager::getScreenshotPath – „screenshots” w katalogu danych użytkownika).
+func screenshots_dir() -> String:
+	if not arg("screenshots").is_empty():
+		return arg("screenshots")
+	if launched_by_launcher:
+		return saves_dir().get_base_dir().get_base_dir().path_join("screenshots")
+	return ProjectSettings.globalize_path("user://screenshots")
+
+## ActionManager::screenshot → WriteScreenshotToFileOperation: pierwszy wolny „screenshotNNN.<format>”
+## ([General] screenshot format, domyślnie png), komunikat ScreenshotMade/ScreenshotFailed tylko przy
+## [General] notify on saved screenshot (domyślnie wyłączone). Zrzut następnej narysowanej klatki. → ścieżka
+func take_screenshot() -> String:
+	var fmt := String(settings.get("screenshot_format", "png")).to_lower()
+	if not fmt in ["png", "jpg", "jpeg", "webp"]:
+		fmt = "png"
+	var dir := screenshots_dir()
+	DirAccess.make_dir_recursive_absolute(dir)
+	var n := 0
+	var path := ""
+	while true:
+		path = dir.path_join("screenshot%03d.%s" % [n, fmt])
+		if not FileAccess.file_exists(path):
+			break
+		n += 1
+	await RenderingServer.frame_post_draw
+	var img := get_viewport().get_texture().get_image()
+	var err := ERR_CANT_CREATE
+	if img != null and not img.is_empty():
+		match fmt:
+			"jpg", "jpeg": err = img.save_jpg(path)
+			"webp": err = img.save_webp(path)
+			_: err = img.save_png(path)
+	if bool(settings.get("notify_on_saved_screenshot", false)):
+		if err == OK:
+			_toast(L10n.ctx_text("OMWEngine", "ScreenshotMade", "{file} has been saved").replace("{file}", path))
+		else:
+			_toast(L10n.ctx_text("OMWEngine", "ScreenshotFailed", "Failed to save screenshot"))
+	return path if err == OK else ""
+
 func _unhandled_input(e: InputEvent) -> void:
 	if game_state == "nogame":
 		return
@@ -2116,12 +2263,17 @@ func _unhandled_input(e: InputEvent) -> void:
 			hud.visible = show_coords
 	elif e.is_action_pressed("toggle_hud") and mw_hud != null:
 		mw_hud.set_hud_visible(not mw_hud.hud_visible)     # F11 (OpenMW A_ToggleHUD)
+	elif e.is_action_pressed("screenshot"):
+		take_screenshot()                    # A_Screenshot (F12) – ActionManager::screenshot
 	elif e.is_action_pressed("copy_position") and player:
 		var line := "--pos=%s" % position_string()
 		if not interior.is_empty():
 			line = "--cell=\"%s\" %s" % [interior, line]
 		DisplayServer.clipboard_set(line)
 		print("MWGODOT_POS ", line)
+	if _player_controls_action(e):
+		get_viewport().set_input_as_handled()
+		return
 	if e.is_action_pressed("ready_weapon") and player and control_allowed("fighting"):
 		weapon_drawn = not weapon_drawn
 		if weapon_drawn:

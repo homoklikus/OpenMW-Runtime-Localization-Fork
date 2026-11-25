@@ -710,15 +710,41 @@ modelu przedmiotów: stos po identyfikatorze – założony egzemplarz w tym sam
 osobny stos Type_Equipped), przedmioty ze skryptem łączone w stos (OpenMW: nie), przedmioty przywołane (Flag_Bound)
 – port nie oznacza ich w ekwipunku kupca. Wpływ: tylko u kupców z założonymi lub oskryptowanymi przedmiotami.
 
-### 7.18 Werdykt etapu GUI
+### 7.18 Akcje sterowania OpenMW 0.51 (P2, cz. 26)
 
-Etapu 10 **nie można zamknąć**: zostały wiersz nazwy w oknie naprawy, brakujące akcje i ustawienia (P2),
+Porównane z `BindingsManager::loadKeyDefaults/loadControllerDefaults/getActionKeySorting/getActionControllerSorting/
+actionValueChanged`, `ActionManager::executeAction`, `InventoryWindow::cycle`, `SpellWindow::cycle`,
+`scripts/omw/input/playercontrols.lua`, `ScreenCaptureHandler`/`WriteScreenshotToFileOperation`.
+
+| Akcja | Domyślnie (klawiatura / pad) | Stan |
+|---|---|---|
+| Activate / Jump | **Spacja / E** (było odwrotnie: E / Spacja) · A / lewy spust | poprawione domyślne (zapisane przypisania gracza bez zmian – jak input_v3.xml) |
+| AlwaysRun | Caps Lock · – | zaimplementowane: bieg = Run ≠ alwaysRun, przełącznik zapisywany w ustawieniach (`always_run`), tylko gdy ruch dozwolony (bez pauzy, trybu GUI i blokady skryptu) |
+| AutoMove | Q · – | zaimplementowane: ruch do przodu, wyłączany pierwszym ruchem przód/tył (ruch w bok go nie wyłącza) |
+| CycleWeaponLeft/Right | [ / ] · X + lewy/prawy spust | zaimplementowane: kolejna broń prawej ręki w kolejności SortFilterItemModel bez grupowania typów, z pominięciem stosów tego samego przedmiotu, założenie jak użycie w ekwipunku; nie w trybie GUI, w ataku, przy paraliżu, powaleniu, śmierci; wilkołak – sWerewolfRefusal |
+| CycleSpellLeft/Right | - / = · Y + lewy/prawy spust | zaimplementowane: kolejna pozycja SpellModel (moce, czary, przedmioty magiczne), bez wyboru – pierwsza |
+| Screenshot | F12 · – | zaimplementowane: `screenshots/screenshotNNN.<format>` w katalogu danych (launcher: obok `saves`), `[General] screenshot format` (png), komunikat ScreenshotMade/Failed tylko przy `notify on saved screenshot` (domyślnie wył.) |
+| TogglePOV, ZoomIn/ZoomOut | Tab, kółko · prawa gałka | **zależne od nieprzeniesionej kamery trzecioosobowej** (MWRender::Camera: widok TPP, oddalanie, ciało gracza w TPP) – akcji nie dodano, by nie tworzyć przycisków bez działania |
+| TogglePostProcessorHUD | F2 | zależne od nieprzeniesionego post-processingu (shadery Lua/omwfx) |
+
+Nowe akcje są na liście przypisań okna opcji w kolejności OpenMW (klawiatura i pad) z opisami z GMST
+(sAlways_Run, sAuto_Run, sPrevSpell, sNextSpell, sPrevWeapon, sNextWeapon, OMWEngine:Screenshot).
+Test `test_player_controls.gd` (45): domyślne klawisze i przypisania, kolejność listy, AlwaysRun (bieg, zapis),
+AutoMove (bok/przód/tył), Cycle Weapon (pierwsza bez broni, następna, poprzednia, zawinięcie, blokada w menu),
+Cycle Spell (pierwsza, następna, zawinięcie, wilkołak). `test_settings` i `test_gamepad` – oczekiwane domyślne
+klawisze poprawione na wartości OpenMW (wcześniej test utrwalał odwrócone Activate/Jump).
+Ustawienie „Always Run” w GUI jest w OpenMW 0.51 na stronie skryptów Lua (Scripts → OpenMW Controls) – zakładka
+Scripts zależy od nieprzeniesionego Lua (punkt 7.16); przełącza je klawisz.
+
+### 7.19 Werdykt etapu GUI
+
+Etapu 10 **nie można zamknąć**: zostały brakujące ustawienia (P2; akcje sterowania – punkt 7.18),
 niesprawdzone przejścia okno ↔ pełny ekran i zmiana rozdzielczości w 21:9 (P3), kategorie konsoli i ustawień (P4).
 Ekran ładowania przy wczytaniu zapisu – naprawiony i zmierzony na RTX 5090 użytkownika (punkt 7.17; proces przez
 MCP na Wayland – potwierdzenie z launchera po stronie użytkownika). Lista towarów kupca – przyczyny usunięte
 (punkt 7.17), porównanie zrzutem z OpenMW u tego samego kupca – do zrobienia.
 
-### 7.19 Pozostałe punkty etapu (do wykonania)
+### 7.20 Pozostałe punkty etapu (do wykonania)
 
 Mody – zgodnie z poleceniem nie testowane (kolejność: najpierw klasyczne GUI).
 
@@ -751,11 +777,11 @@ Mody – zgodnie z poleceniem nie testowane (kolejność: najpierw klasyczne GUI
 * Etap 10: raport – 3440 × 1440 dla awansu, alchemii, zaklinania, naprawy; pełny zestaw 68/68
 * Etap 10 cz. 24: diagnostyka wczytania na sprzęcie użytkownika (--load-diag)
 * Etap 10 cz. 25: ekran ładowania rysowany przez RenderingServer, towar kupca jak TradeWindow OpenMW
+* Etap 10 cz. 26: akcje sterowania OpenMW 0.51 (AlwaysRun, AutoMove, Cycle, Screenshot, domyślne klawisze)
 
 Pełny zestaw tools/run_tests.sh: 70/70 po cz. 25 (nowe test_trade_sources i test_loading_render; Xvfb + lavapipe); 68/68 po cz. 21–23 (z nowym test_load_reveal; test_count_dialog, test_trade, test_map_notes, test_load_reveal powtórzone na końcowym kodzie cz. 23); 67/67 po cz. 20; 66/66 po cz. 19 (38 w przebiegu, test_progress poprawiony i 28 kolejnych po poprawce); 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 
 ## 9. Zalecana kolejność dalszych prac
 
-1. Okno naprawy (wiersz nazwy), 2. brakujące akcje sterowania (TogglePOV, zoom, AlwaysRun, AutoMove, Cycle
-Weapon/Spell, Screenshot) i ustawienia (punkt 7.16), 3. przejścia okno ↔ pełny ekran i zmiana rozdzielczości
+1. Porównanie zrzutem okna naprawy, 2. brakujące ustawienia (punkt 7.16), 3. przejścia okno ↔ pełny ekran i zmiana rozdzielczości
 w 21:9, 4. porównanie zrzutem listy kupca z OpenMW, 5. kategorie konsoli i ustawień (P4). Mody – dopiero po zamknięciu klasycznego GUI.

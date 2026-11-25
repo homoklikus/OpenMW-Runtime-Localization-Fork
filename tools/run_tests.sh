@@ -166,6 +166,7 @@ run_gd test_mwscript_functions.gd --data="$WORK/actors_out" --project="$WORK/pro
 run_gd test_dialogue.gd --data="$WORK/actors_out" --project="$WORK/project_dialogue" --pos=2300,2400,900
 run_gd test_progress.gd --data="$WORK/actors_out" --project="$WORK/project_progress" --pos=2300,2400,900 --scripts=0
 run_gd test_trade.gd --data="$WORK/actors_out" --project="$WORK/project_trade" --pos=2300,2400,900 --scripts=0
+run_gd test_player_controls.gd --data="$WORK/actors_out" --project="$WORK/project_player_controls" --pos=2300,2400,900 --scripts=0
 run_gd test_trade_sources.gd --data="$WORK/actors_out" --project="$WORK/project_trade_sources" --pos=2300,2400,900 --scripts=0
 run_gd test_repair.gd --data="$WORK/actors_out" --project="$WORK/project_repair" --pos=2300,2400,900 --scripts=0
 run_gd test_alchemy.gd --data="$WORK/actors_out" --project="$WORK/project_alchemy" --pos=2300,2400,900 --scripts=0
