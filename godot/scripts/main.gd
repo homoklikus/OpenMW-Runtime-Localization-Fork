@@ -322,6 +322,13 @@ func _ready() -> void:
 		vd.move = flag("diag-move")
 		vd.seconds = float(arg("diag-seconds", "0"))
 		add_child(vd)
+	if flag("camera-diag"):                   # kamera trzeciej osoby na sprzęcie użytkownika (MWGODOT_CAMDIAG)
+		var cd = preload("res://scripts/mw/mw_camera_diag.gd").new()
+		cd.name = "CameraDiag"
+		cd.main = self
+		cd.death = flag("diag-death")
+		cd.seconds = float(arg("diag-seconds", "0"))
+		add_child(cd)
 	debug_render = preload("res://scripts/mw/mw_debug_render.gd").new()
 	debug_render.name = "DebugRender"
 	debug_render.main = self
