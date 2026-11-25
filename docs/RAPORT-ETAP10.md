@@ -732,8 +732,9 @@ po **15** (średnia różnica 3,48 → 2,48). Pozostałe różnice są pojedyncz
 przesunięcia całej listy – kolejność i skład zgodne co do pozycji); przyczyna pojedynczych pól (liczby sztuk,
 tła przedmiotów magicznych) – zbadana w cz. 31 (niżej). Pozostałe odstępstwa
 modelu przedmiotów: stos po identyfikatorze – założony egzemplarz w tym samym stosie co niezałożone (OpenMW:
-osobny stos Type_Equipped), przedmioty ze skryptem łączone w stos (OpenMW: nie), przedmioty przywołane (Flag_Bound)
-– port nie oznacza ich w ekwipunku kupca. Wpływ: tylko u kupców z założonymi lub oskryptowanymi przedmiotami.
+osobny stos Type_Equipped), przedmioty ze skryptem łączone w stos (OpenMW: nie). Wpływ: tylko u kupców z założonymi lub oskryptowanymi
+przedmiotami. Przedmioty przywołane (Flag_Bound – identyfikatory z GMST sMagicBound*, MechanicsManager::isBoundItem)
+od cz. 31 są pomijane w towarze kupca jak w TradeItemModel::update (test_trade_sources, 28 sprawdzeń).
 
 **Lista kupca – przyczyna pozostałych różnic (cz. 31, analiza danych na VM, tylko identyfikatory i liczby):**
 pojemniki Arrille, które są źródłami towaru (właściciel = kupiec, pojemność > 0), zawierają listy poziomowane:
@@ -881,6 +882,7 @@ Mody – zgodnie z poleceniem nie testowane (kolejność: najpierw klasyczne GUI
 * Etap 10: diagnostyka przejścia między komórkami (--diag-travel)
 * Etap 10 cz. 30: okno od razu w trybie z ustawień (launcher: --fullscreen / --resolution)
 * Etap 10: raport – przyczyna różnic listy kupca (listy poziomowane, cz. 31)
+* Etap 10 cz. 31: przedmioty przywołane poza towarem kupca (Flag_Bound)
 
 Pełny zestaw tools/run_tests.sh: 72/72 po cz. 30 (Xvfb + lavapipe, pytest z test_game_command_window_args); 72/72 po cz. 28 (test_language wykrył polski komunikat błędu w nowym kodzie – poprawiony, testy od test_language powtórzone); 72/72 po cz. 27 (nowe test_player_controls i test_console_toggles; test_loading_render powtórzony osobno po zniknięciu serwera Xvfb w trakcie przebiegu – środowisko, nie test); 70/70 po cz. 25 (nowe test_trade_sources i test_loading_render; Xvfb + lavapipe); 68/68 po cz. 21–23 (z nowym test_load_reveal; test_count_dialog, test_trade, test_map_notes, test_load_reveal powtórzone na końcowym kodzie cz. 23); 67/67 po cz. 20; 66/66 po cz. 19 (38 w przebiegu, test_progress poprawiony i 28 kolejnych po poprawce); 66/66 po cz. 18; 66/66 po cz. 17; 66/66 po cz. 16; 65/65 po cz. 15; 64/64 po cz. 14; 64/64 po cz. 13; 63/63 po cz. 12; 62/62 po cz. 11; 61/61 po naprawie (po cz. 8: 59/59 (test_menu_mode poprawiony – upuszczenie stosu przez okno ilości)).
 

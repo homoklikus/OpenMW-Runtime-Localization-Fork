@@ -96,6 +96,19 @@ func _run() -> void:
 	var nd := _node_by_sid(main, WSID)
 	check(nd != null and main.interaction.count_of_ref(nd) == 3, "liczba sztuk referencji z GameState po przebudowie węzła")
 	check(_count(tr.merchant_items(a), SPOON) == in_containers + 3, "stos łyżek uwzględnia 3 sztuki ze świata")
+	# --- Flag_Bound: przedmioty o identyfikatorze z GMST sMagicBound* nie są na sprzedaż (TradeItemModel::update) ---
+	var gm: Dictionary = tr.records._all("gmst")
+	var had: bool = gm.has("smagicbounddaggerid")
+	var prev = gm.get("smagicbounddaggerid")
+	gm["smagicbounddaggerid"] = {"id": "smagicbounddaggerid", "value": SPOON}
+	tr._bound_ids = null
+	check(tr.is_bound_item(SPOON) and _count(tr.merchant_items(a), SPOON) == 0, "przedmiot przywołany (sMagicBound*) poza towarem kupca")
+	if had:
+		gm["smagicbounddaggerid"] = prev
+	else:
+		gm.erase("smagicbounddaggerid")
+	tr._bound_ids = null
+	check(not tr.is_bound_item(SPOON) and _count(tr.merchant_items(a), SPOON) == in_containers + 3, "bez GMST łyżki wracają do towaru")
 	var saved: Dictionary = main.state.to_dict({})
 	check(int(((saved.refs as Dictionary).get(WSID, {}) as Dictionary).get("count", 0)) == 3, "liczba sztuk w zapisie gry")
 	# --- kupno: najpierw źródła, potem świat; część stosu → setCount, reszta → deleteObject ---

@@ -248,6 +248,19 @@ func shows_in_inventory(id: String) -> bool:
 		return bool(records.record("light", id).get("carry", false))
 	return true
 
+## MechanicsManager::isBoundItem: identyfikatory z GMST sMagicBound* (makeBoundItemIdCache).
+var _bound_ids = null
+func is_bound_item(id: String) -> bool:
+	if _bound_ids == null:
+		_bound_ids = {}
+		var all: Dictionary = records._all("gmst") if records != null and records.has_method("_all") else {}
+		for k in all:
+			if String(k).to_lower().begins_with("smagicbound"):
+				var v := String((all[k] as Dictionary).get("value", "")).to_lower()
+				if not v.is_empty():
+					_bound_ids[v] = true
+	return _bound_ids.has(id.to_lower())
+
 ## Towar kupca (TradeItemModel::update nad ContainerItemModel): [{id, count}] – źródła (kupiec, jego pojemniki),
 ## potem przedmioty w świecie należące do kupca, złączone w stosy; bez złota, rzeczy spoza usług i założonych.
 ## Pierwsze napotkane światło bez flagi Carry (tylko z przedmiotów w świecie – pojemniki je pomijają) kończy listę
@@ -292,6 +305,8 @@ func merchant_items(a: Dictionary) -> Array:
 		if not shows_in_inventory(id):
 			break
 		if not can_sell(id, svc):
+			continue
+		if is_bound_item(id):                      # TradeItemModel: przedmiotów przywołanych (Flag_Bound) nie można kupić
 			continue
 		out.append({"id": id, "count": int(total[id])})
 	return out
